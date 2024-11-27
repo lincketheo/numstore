@@ -1,0 +1,4 @@
+2024-11-27  Theo Lincke <lincketheo@gmail.com>
+	* Makefile.am 
+	* configure.ac 
+	* src/numstore.c
