@@ -1,0 +1,32 @@
+# Autotools generated files
+/aclocal.m4
+/autom4te.cache/
+/config.*
+/configure
+/depcomp
+/install-sh
+/ltmain.sh
+/missing
+/Makefile
+/Makefile.in
+/stamp-h1
+
+# Build artifacts
+*.o
+*.lo
+*.la
+.libs/
+*.a
+*.so
+*.exe
+*.dll
+*.dylib
+*.out
+
+# Debug and log files
+*.log
+*.trs
+
+# Distribution tarballs
+*.tar.gz
+*.zip
