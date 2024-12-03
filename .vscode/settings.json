@@ -1,0 +1,28 @@
+{
+"files.exclude": {
+    "**/aclocal.m4": true,
+    "**/compile": true,
+    "**/config.guess": true,
+    "**/config.h.in": true,
+    "**/config.log": true,
+    "**/config.sub": true,
+    "**/depcomp": true,
+    "**/libtool": true,
+    "**/install-sh": true,
+    "**/ltmain.sh": true,
+    "**/Makefile.in": true,
+    "**/missing": true,
+    "**/configure": true,
+    "**/stamp*": true,
+    "**/autom4te*": true,
+    "**/.libs": true,
+    "**/.cache": true,
+    "**/.deps": true,
+    "**/config.status": true,
+},
+"files.associations": {
+    "memory.h": "c",
+    "testing.h": "c",
+    "data_source.h": "c"
+}
+}

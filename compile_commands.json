@@ -1,0 +1,54 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-c",
+      "-I./src",
+      "-o",
+      "numstore.o",
+      "numstore.c"
+    ],
+    "directory": "/home/theo/Development/numstore",
+    "file": "/home/theo/Development/numstore/numstore.c",
+    "output": "/home/theo/Development/numstore/numstore.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-c",
+      "-I./src",
+      "-o",
+      "src/dtype.o",
+      "src/dtype.c"
+    ],
+    "directory": "/home/theo/Development/numstore",
+    "file": "/home/theo/Development/numstore/src/dtype.c",
+    "output": "/home/theo/Development/numstore/src/dtype.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-c",
+      "-I./src",
+      "-o",
+      "src/errors.o",
+      "src/errors.c"
+    ],
+    "directory": "/home/theo/Development/numstore",
+    "file": "/home/theo/Development/numstore/src/errors.c",
+    "output": "/home/theo/Development/numstore/src/errors.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-c",
+      "-I./src",
+      "-o",
+      "src/numstore.o",
+      "src/numstore.c"
+    ],
+    "directory": "/home/theo/Development/numstore",
+    "file": "/home/theo/Development/numstore/src/numstore.c",
+    "output": "/home/theo/Development/numstore/src/numstore.o"
+  }
+]
