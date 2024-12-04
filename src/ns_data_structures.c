@@ -4,6 +4,54 @@
 
 #include <string.h>
 
+size_t
+buf_avail (buf b)
+{
+  buf_ASSERT (&b);
+  return b.cap - b.len;
+}
+
+void
+buf_shift_mem (buf *b, size_t ind)
+{
+  buf_ASSERT (b);
+  ASSERT (ind <= b->len);
+  if (ind == b->len)
+    {
+      b->len = 0;
+      return;
+    }
+
+  size_t tomove = b->len - ind;
+  memmove (b->data, b->data + ind * b->size, tomove * b->size);
+  b->len -= tomove;
+}
+
+static char qbdata[2048];
+
+buf
+quick_buf (size_t size, size_t cap)
+{
+  ASSERT (cap * size < sizeof (qbdata));
+  return (buf){
+    .data = qbdata,
+    .len = 0,
+    .cap = cap,
+    .size = size,
+  };
+}
+
+buf
+buf_create_from (void *data, size_t size, size_t len, size_t cap)
+{
+  return (buf){
+    .len = len,
+    .cap = cap,
+    .size = size,
+    .data = data,
+  };
+}
+
 string
 string_from_cstr (const char *str)
 {

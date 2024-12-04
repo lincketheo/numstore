@@ -39,15 +39,15 @@ dtype_sizeof (dtype d)
   switch (d)
     {
     case S8:
-      return 8;
+      return 1;
     case S16:
-      return 16;
+      return 2;
     case S32:
-      return 32;
+      return 4;
     case S64:
-      return 64;
+      return 8;
     case S128:
-      return 128;
+      return 16;
     default:
       unreachable ();
     }

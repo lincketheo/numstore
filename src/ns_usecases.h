@@ -1,7 +1,8 @@
 #pragma once
 
 #include "ns_data_structures.h" // ns_ret_t
-#include "ns_errors.h"          // srange
+#include "ns_dtype.h"
+#include "ns_errors.h" // srange
 
 #include <stdio.h>
 
@@ -18,6 +19,7 @@ typedef struct
 {
   const char *dbname;
   const char *dsname;
+  dtype type;
 } ns_create_ds_args;
 
 ns_ret_t ns_create_ds (ns_create_ds_args args);
@@ -29,6 +31,17 @@ typedef struct
   const char *dsname;
   FILE *fp;
   srange s;
-} ns_read_srange_ds_fp_args;
+} ns_ds_fp_args;
 
-ns_ret_t ns_read_srange_ds_fp (ns_read_srange_ds_fp_args args);
+ns_ret_t ns_ds_fp (ns_ds_fp_args args);
+
+// Read srange from input data set to output file pointer
+typedef struct
+{
+  const char *dbname;
+  const char *dsname;
+  FILE *fp;
+  srange s;
+} ns_fp_ds_args;
+
+ns_ret_t ns_fp_ds (ns_fp_ds_args args);

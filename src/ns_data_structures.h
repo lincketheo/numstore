@@ -9,16 +9,20 @@
 typedef struct
 {
   void *data;
+  size_t size;
   size_t cap;
   size_t len;
-} u8_qbuf;
+} buf;
 
-typedef struct
-{
-  void *data;
-  size_t cap;
-  size_t len;
-} u8_sbuf;
+#define buf_ASSERT(bptr) ASSERT ((bptr)->len <= (bptr)->cap)
+
+size_t buf_avail (buf b);
+
+void buf_shift_mem (buf *b, size_t ind);
+
+buf quick_buf (size_t size, size_t cap);
+
+buf buf_create_from (void *data, size_t size, size_t len, size_t cap);
 
 ///////////////////////////////
 ////////// srange
