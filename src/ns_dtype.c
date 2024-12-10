@@ -33,7 +33,7 @@
   case CI128:                                                                 \
   case CU128
 
-size_t
+ns_size
 dtype_sizeof (dtype d)
 {
   switch (d)

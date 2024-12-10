@@ -65,7 +65,7 @@ buf_shift_mem (buf b, ns_size ind)
 }
 
 void
-buf_move (buf *dest, buf *src, ssrange s)
+buf_move_buf (buf *dest, buf *src, ssrange s)
 {
   ASSERT (dest);
   ASSERT (src);

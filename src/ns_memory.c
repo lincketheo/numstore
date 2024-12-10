@@ -85,7 +85,7 @@ __limited_linalloc_create (limited_linalloc *dest, ns_size cap)
   ASSERT (dest);
   ASSERT (cap > 0);
 
-  bytes pool;
+  bytes pool = bytes_create_empty();
   ns_ret_t ret = ns_malloc_facade (&pool, cap);
   if (ret != NS_OK)
     {
@@ -180,7 +180,7 @@ ns_alloc_set_linalloc_methods (ns_alloc *dest)
 }
 
 ns_ret_t
-ns_alloc_create_limited_linmem (ns_alloc *dest, ns_size cap)
+limited_linalloc_create(ns_alloc *dest, ns_size cap)
 {
   ASSERT (dest);
   ns_ret_t ret;

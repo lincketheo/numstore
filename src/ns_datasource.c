@@ -67,8 +67,10 @@ mem_datasource_create_alloc (ns_datasource *dest, ns_alloc *a, ns_size cap)
     }
 
   buf memory = buf_create_empty_from_bytes (data, 1);
+
   dest->mdatasource = (mem_datasource){
     .memory = memory,
+    .a = a,
   };
 
   return NS_OK;

@@ -25,10 +25,6 @@ errno_to_ns_error (int err)
     case EMFILE:
       return NS_CANTOPEN;
     default:
-#ifndef NDEBUG
-      return NS_ERROR;
-#else
       unreachable ();
-#endif
     }
 }
