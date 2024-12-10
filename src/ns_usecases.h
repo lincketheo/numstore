@@ -1,10 +1,7 @@
 #pragma once
 
-#include "ns_data_structures.h" // ns_ret_t
 #include "ns_dtype.h"
 #include "ns_errors.h" // srange
-
-#include <stdio.h>
 
 // Create Database
 typedef struct

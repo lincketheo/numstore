@@ -1,7 +1,7 @@
 #pragma once
 
 #include "ns_errors.h"
-#include <stdlib.h>
+#include "ns_types.h"
 
 ///////////////////////////////
 ////////// srange
@@ -41,6 +41,6 @@ typedef enum
 
 #define dtype_max 21
 
-size_t dtype_sizeof (dtype d);
+ns_size dtype_sizeof (dtype d);
 
 ns_ret_t inttodtype (dtype *dest, int val);

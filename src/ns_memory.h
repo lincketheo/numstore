@@ -1,57 +1,43 @@
 #pragma once
 
-#include <stdbool.h> // bool
-#include <stdlib.h>  // size_t
-
-///////////////////////////////
-////////// Quick Heap
-
-// Returns qh "context"
-size_t quick_heap_start ();
-
-bool quick_heap_avail (size_t ctx, size_t bytes);
-
-void *quick_heap_malloc (size_t *ctx, size_t bytes);
+#include "ns_bytes.h"
+#include "ns_errors.h"
+#include "ns_types.h"
 
 ///////////////////////////////
 ////////// Linalloc
 
+/**
+ * Linear allocator that has memory
+ * stuck in place - no way to "grow" 
+ * with overflow
+ */
 typedef struct
 {
-  void *data;
-  const size_t cap;
-  size_t len;
-} linalloc;
-
-linalloc linalloc_create_qh ();
-
-int linalloc_avail (linalloc *l, size_t bytes);
-
-void *linalloc_malloc (linalloc *l, size_t bytes);
-
-void linalloc_free (linalloc *l, void *ptr);
+  ns_byte *pool;
+  ns_size len;
+  const ns_size cap;
+} limited_linalloc;
 
 ///////////////////////////////
 ////////// Abstraction layer
 
-typedef enum
-{
-  LINEAR,
-} ns_alloc_type;
+typedef struct ns_alloc_s ns_alloc;
 
-typedef struct
+struct ns_alloc_s
 {
   union
   {
-    linalloc l;
+    limited_linalloc llalloc;
   };
-  ns_alloc_type type;
-} ns_alloc;
+  ns_ret_t (*ns_malloc) (ns_alloc *a, bytes *dest, ns_size cap);
+  ns_ret_t (*ns_free) (ns_alloc *a, bytes *p);
+  ns_ret_t (*ns_realloc) (ns_alloc *a, bytes *p, ns_size newlen);
+};
 
-int ns_alloc_avail (ns_alloc *a, size_t bytes);
+ns_ret_t limited_linalloc_create (ns_alloc *dest, ns_size cap);
 
-ns_alloc ns_alloc_create_qh (ns_alloc_type type);
+ns_ret_t limited_linalloc_create_from (ns_alloc *dest, ns_byte *pool,
+                                       ns_size cap);
 
-void *ns_alloc_malloc (ns_alloc *a, size_t bytes);
-
-void ns_alloc_free (ns_alloc *a, void *ptr);
+ns_ret_t stdalloc_create (ns_alloc *dest);

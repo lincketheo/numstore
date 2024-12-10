@@ -2,27 +2,23 @@
 
 #include "ns_logging.h"
 
-#include <stdlib.h> // abort
-
 typedef enum
 {
-  NS_OK = 0,   // Successful result
-  NS_PERM,     // Access permission denied
-  NS_NOMEM,    // Out of memory
-  NS_IOERR,    // I/O error
-  NS_CORRUPT,  // Corruption detected
-  NS_NOTFOUND, // Not found
-  NS_BUSY,     // Resource busy
-  NS_CANTOPEN, // Unable to open resource
-  NS_EINVAL,   // Invalid argument
-#ifndef NDEBUG
-  NS_ERROR, // Fallback for non debug builds
-#endif
+  NS_OK = 0,      // Successful result
+  NS_PERM,        // Access permission denied
+  NS_NOMEM,       // Out of memory
+  NS_IOERR,       // I/O error
+  NS_CORRUPT,     // Corruption detected
+  NS_NOTFOUND,    // Not found
+  NS_UNSUPPORTED, // Opperation not supported
+  NS_BUSY,        // Resource busy
+  NS_CANTOPEN,    // Unable to open resource
+  NS_EINVAL,      // Invalid argument
 } ns_ret_t;
 
 ns_ret_t errno_to_ns_error (int err);
 
-#define fail() abort ()
+#define fail() *(volatile int *)0 = 0
 
 #define unreachable()                                                         \
   do                                                                          \
