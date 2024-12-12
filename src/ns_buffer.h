@@ -25,17 +25,29 @@ typedef struct
 
 // buf assertions
 #define buf_ASSERT(bptr)                                                      \
-  ASSERT (bptr);                                                              \
-  ASSERT ((bptr)->data);                                                      \
-  ASSERT ((bptr)->size > 0);                                                  \
-  ASSERT ((bptr)->cap > 0);                                                   \
-  ASSERT ((bptr)->len <= (bptr)->cap)
+ASSERT (bptr);                                                              \
+ASSERT ((bptr)->data);                                                      \
+ASSERT ((bptr)->size > 0);                                                  \
+ASSERT ((bptr)->cap > 0);                                                   \
+ASSERT ((bptr)->len <= (bptr)->cap)
 
 // Constructors
 #define buf_create_from(_data, _cap, _len)                                    \
-  (buf)                                                                       \
+(buf)                                                                       \
   {                                                                           \
-    .data = (ns_byte *)_data, .size = sizeof *_data, .cap = _cap, .len = _len \
+    .data = (ns_byte *)(_data), .size = sizeof *(_data), .cap = (_cap), .len = (_len) \
+  }
+
+#define buf_create_full_from(_data, _cap)                                    \
+(buf)                                                                       \
+  {                                                                           \
+    .data = (ns_byte *)_data, .size = sizeof *_data, .cap = _cap, .len = _cap \
+  }
+
+#define buf_create_empty_from(_data, _cap)                                    \
+(buf)                                                                       \
+  {                                                                           \
+    .data = (ns_byte *)_data, .size = sizeof *_data, .cap = _cap, .len = 0 \
   }
 
 buf buf_create_empty_from_bytes (bytes b, ns_size size);

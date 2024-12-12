@@ -1,6 +1,7 @@
 #pragma once
 
 #define PRIVATE static
+#define arr_sizeof(a) (sizeof(a) / sizeof *a)
 
 // Regular colors
 #define BLACK "\033[0;30m"

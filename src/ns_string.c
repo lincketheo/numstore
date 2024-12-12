@@ -42,7 +42,7 @@ path_join (string *dest, ns_alloc *a, const string prefix, const string suffix)
     }
 
   // Insert first string
-  ns_memcpy (&combined, &_prefix, prefix.len * sizeof *prefix.data);
+  bytes_memcpy (&combined, &_prefix, prefix.len * sizeof *prefix.data);
 
   // Add path seperator
   ns_size len = prefix.len;
@@ -53,7 +53,7 @@ path_join (string *dest, ns_alloc *a, const string prefix, const string suffix)
 
   // Insert second string
   bytes next = bytes_from (combined, len);
-  ns_memcpy (&next, &_suffix, suffix.len);
+  bytes_memcpy (&next, &_suffix, suffix.len);
 
   // Add null terminator for reliability
   len += suffix.len;
