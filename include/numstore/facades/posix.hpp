@@ -23,7 +23,8 @@ ns_ret_t fdopen_f(FILE **dest, int fd, const char *modes);
 
 ns_ret_t fileno_f(int *dest, FILE *fp);
 
-ns_ret_t mmap_f(void **dest, void *addr, size_t len, int prot, int flags, int fd, off_t offset);
+ns_ret_t mmap_f(void **dest, void *addr, size_t len, int prot, int flags,
+                int fd, off_t offset);
 
 ns_ret_t close_f(int fd);
 
@@ -46,4 +47,4 @@ ns_ret_t fstat_f(int fd, struct stat *buf);
 ns_ret_t mmap_FILE(bytes *dest, FILE *fp, int prot, int flags);
 }
 
-#endif //POSIX_HPP
+#endif // POSIX_HPP

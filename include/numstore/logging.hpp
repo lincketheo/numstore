@@ -5,16 +5,15 @@
 #ifndef NS_LOGGING_HPP
 #define NS_LOGGING_HPP
 
-extern "C"
-{
+extern "C" {
 
 typedef enum {
-    TRACE,
-    DEBUG,
-    INFO,
-    WARN,
-    ERROR,
-    FATAL,
+  TRACE,
+  DEBUG,
+  INFO,
+  WARN,
+  ERROR,
+  FATAL,
 } log_type;
 
 #ifndef NLOG
@@ -32,7 +31,6 @@ void ns_log_inl_done();
 #define log_inl(...)
 #define log_inl_done(...)
 #endif
-
 }
 
-#endif //NS_LOGGING_HPP
+#endif // NS_LOGGING_HPP

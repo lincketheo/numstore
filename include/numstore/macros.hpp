@@ -17,8 +17,8 @@ extern "C" {
 #ifndef CONSTRUCTOR
 #ifdef __has_attribute
 #if __has_attribute(constructor)
-#define CONSTRUCTOR __attribute__ ((constructor))
-#define NORETURN __attribute__ ((noreturn))
+#define CONSTRUCTOR __attribute__((constructor))
+#define NORETURN __attribute__((noreturn))
 #else
 #define CONSTRUCTOR
 #define NORETURN
@@ -36,8 +36,8 @@ extern "C" {
  */
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
-#define MIN3(a, b, c) MIN (MIN (a, b), c)
-#define STR_EQUAL(left, right) (strcmp (left, right) == 0)
+#define MIN3(a, b, c) MIN(MIN(a, b), c)
+#define STR_EQUAL(left, right) (strcmp(left, right) == 0)
 #define MHz(v) ((v) * 1e6)
 
 /**
@@ -70,7 +70,7 @@ extern "C" {
  * A way to write a lot of zeros inline
  */
 #define ZEROS_8 0, 0, 0, 0, 0, 0, 0, 0
-#define ZEROS_64 \
+#define ZEROS_64                                                               \
   ZEROS_8, ZEROS_8, ZEROS_8, ZEROS_8, ZEROS_8, ZEROS_8, ZEROS_8, ZEROS_8
 #define ZEROS_92 ZEROS_64, ZEROS_8, ZEROS_8, 0, 0
 #define ZEROS_256 ZEROS_64, ZEROS_64, ZEROS_64, ZEROS_64
@@ -83,14 +83,12 @@ extern "C" {
  *   double ellapsed = GET_ELLAPSED();
  * }
  */
-#define TDIFF(start, end) \
+#define TDIFF(start, end)                                                      \
   (((end).tv_sec - (start).tv_sec) + ((end).tv_nsec - (start).tv_nsec) / 1e9)
-#define TIMER_START()         \
-  struct timespec start, end; \
-  clock_gettime (CLOCK_MONOTONIC, &start)
-#define GET_ELLAPSED() \
-  (clock_gettime (CLOCK_MONOTONIC, &end), TDIFF (start, end))
+#define TIMER_START()                                                          \
+  struct timespec start, end;                                                  \
+  clock_gettime(CLOCK_MONOTONIC, &start)
+#define GET_ELLAPSED() (clock_gettime(CLOCK_MONOTONIC, &end), TDIFF(start, end))
 }
 
-
-#endif //MACROS_H
+#endif // MACROS_H

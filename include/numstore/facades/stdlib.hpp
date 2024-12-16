@@ -40,5 +40,4 @@ ns_ret_t fread_expect_all(void *ptr, size_t size, size_t n, FILE *s);
 ns_ret_t free_f(void *ptr);
 }
 
-
-#endif //STDLIB_HPP
+#endif // STDLIB_HPP

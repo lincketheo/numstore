@@ -1,0 +1,50 @@
+[
+{
+  "directory": "/home/tjl/development/numstore/build",
+  "command": "/usr/bin/c++  -I/home/tjl/development/numstore/include -g -g -O0 -ggdb -std=gnu++2a -o CMakeFiles/numstore.dir/libs/numstore/errors.cpp.o -c /home/tjl/development/numstore/libs/numstore/errors.cpp",
+  "file": "/home/tjl/development/numstore/libs/numstore/errors.cpp",
+  "output": "CMakeFiles/numstore.dir/libs/numstore/errors.cpp.o"
+},
+{
+  "directory": "/home/tjl/development/numstore/build",
+  "command": "/usr/bin/c++  -I/home/tjl/development/numstore/include -g -g -O0 -ggdb -std=gnu++2a -o CMakeFiles/numstore.dir/libs/numstore/facades/posix.cpp.o -c /home/tjl/development/numstore/libs/numstore/facades/posix.cpp",
+  "file": "/home/tjl/development/numstore/libs/numstore/facades/posix.cpp",
+  "output": "CMakeFiles/numstore.dir/libs/numstore/facades/posix.cpp.o"
+},
+{
+  "directory": "/home/tjl/development/numstore/build",
+  "command": "/usr/bin/c++  -I/home/tjl/development/numstore/include -g -g -O0 -ggdb -std=gnu++2a -o CMakeFiles/numstore.dir/libs/numstore/facades/stdlib.cpp.o -c /home/tjl/development/numstore/libs/numstore/facades/stdlib.cpp",
+  "file": "/home/tjl/development/numstore/libs/numstore/facades/stdlib.cpp",
+  "output": "CMakeFiles/numstore.dir/libs/numstore/facades/stdlib.cpp.o"
+},
+{
+  "directory": "/home/tjl/development/numstore/build",
+  "command": "/usr/bin/c++  -I/home/tjl/development/numstore/include -g -g -O0 -ggdb -std=gnu++2a -o CMakeFiles/numstore.dir/libs/numstore/logging.cpp.o -c /home/tjl/development/numstore/libs/numstore/logging.cpp",
+  "file": "/home/tjl/development/numstore/libs/numstore/logging.cpp",
+  "output": "CMakeFiles/numstore.dir/libs/numstore/logging.cpp.o"
+},
+{
+  "directory": "/home/tjl/development/numstore/build",
+  "command": "/usr/bin/c++  -I/home/tjl/development/numstore/include -g -g -O0 -ggdb -std=gnu++2a -o CMakeFiles/numstore.dir/libs/numstore/testing.cpp.o -c /home/tjl/development/numstore/libs/numstore/testing.cpp",
+  "file": "/home/tjl/development/numstore/libs/numstore/testing.cpp",
+  "output": "CMakeFiles/numstore.dir/libs/numstore/testing.cpp.o"
+},
+{
+  "directory": "/home/tjl/development/numstore/build",
+  "command": "/usr/bin/c++  -I/home/tjl/development/numstore/include -g -g -O0 -ggdb -std=gnu++2a -o CMakeFiles/numstore.dir/libs/numstore/utils/files.cpp.o -c /home/tjl/development/numstore/libs/numstore/utils/files.cpp",
+  "file": "/home/tjl/development/numstore/libs/numstore/utils/files.cpp",
+  "output": "CMakeFiles/numstore.dir/libs/numstore/utils/files.cpp.o"
+},
+{
+  "directory": "/home/tjl/development/numstore/build",
+  "command": "/usr/bin/c++  -I/home/tjl/development/numstore/include -g -g -O0 -ggdb -std=gnu++2a -o CMakeFiles/main.dir/main.cpp.o -c /home/tjl/development/numstore/main.cpp",
+  "file": "/home/tjl/development/numstore/main.cpp",
+  "output": "CMakeFiles/main.dir/main.cpp.o"
+},
+{
+  "directory": "/home/tjl/development/numstore/build",
+  "command": "/usr/bin/c++  -I/home/tjl/development/numstore/include -g -g -O0 -ggdb -std=gnu++2a -o CMakeFiles/test.dir/test.cpp.o -c /home/tjl/development/numstore/test.cpp",
+  "file": "/home/tjl/development/numstore/test.cpp",
+  "output": "CMakeFiles/test.dir/test.cpp.o"
+}
+]

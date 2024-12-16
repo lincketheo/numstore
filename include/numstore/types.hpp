@@ -6,9 +6,9 @@
 #define TYPES_H
 
 extern "C" {
-#include <stdint.h>
-#include <float.h>
 #include <complex.h>
+#include <float.h>
+#include <stdint.h>
 
 typedef uint8_t byte;
 
@@ -46,4 +46,4 @@ typedef _Complex float cf64;
 typedef _Complex double cf128;
 }
 
-#endif //TYPES_H
+#endif // TYPES_H
