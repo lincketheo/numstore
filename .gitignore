@@ -30,3 +30,4 @@
 # Distribution tarballs
 *.tar.gz
 *.zip
+.idea
