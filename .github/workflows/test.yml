@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Install clang-tidy (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-tidy
+
+      - name: Install clang-tidy (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew update
+          brew install llvm
+          LLVM_PREFIX=$(brew --prefix llvm)
+          echo "PATH=$LLVM_PREFIX/bin:$PATH" >> $GITHUB_ENV
+
+      - name: Lint
+        run: make lint
+
+      - name: Debug build
+        run: make debug
+
+      - name: Run tests (debug)
+        run: ./test
+
+      - name: Clean build
+        run: make clean
+
+      - name: Release build
+        run: make release
+
+      - name: Run tests (release)
+        run: ./test

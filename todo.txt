@@ -1,0 +1,11 @@
+04/20/2025
+  - Start on the VM that consumes OP structs
+  - Write tests for pager / paging
+
+
+1. Client Server basics X
+2. Scanner / tokenizer 
+  - Logic on how much data is available
+  - strings / numbers that exceed cbuffer capacity
+  - Tests
+3. Replace ints with err_t 

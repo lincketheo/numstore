@@ -1,0 +1,5 @@
+*.o
+.clang
+.cache
+compile_commands.json
+tags
