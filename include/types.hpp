@@ -130,6 +130,8 @@ struct bbytes
   usize len;
   usize cap;
 
+  // Gets the number of bytes 
+  // available
   inline usize
   avail ()
   {
@@ -137,6 +139,7 @@ struct bbytes
     return cap - len;
   }
 
+  // Returns the head byte
   inline void *
   head ()
   {
@@ -144,6 +147,7 @@ struct bbytes
     return (void *)((u8 *)data + len);
   }
 
+  // Increments len
   inline void
   update_add (usize amnt)
   {
@@ -152,6 +156,7 @@ struct bbytes
     bbytes_assert (this);
   }
 
+  // Decrements len
   inline void
   update_remove (usize amnt)
   {

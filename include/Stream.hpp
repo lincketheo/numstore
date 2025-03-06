@@ -5,13 +5,18 @@
 class Stream
 {
 public:
-  virtual result<void> read_block (bbytes *dest) = 0;
+  Stream(dtype type);
+  ~Stream();
 
-  virtual result<void> read_once (bbytes *dest) = 0;
+  // Discards elements that don't lie in range
+  virtual result<void> read (void *dest, usize dlen, srange range) = 0;
 
-  virtual result<usize> discard_block (usize n) = 0;
+  // Writes data to the stream
+  virtual result<void> append (const void* src, usize nelem) = 0;
 
-  virtual result<usize> discard_once (usize n) = 0;
+  // Stream is done
+  virtual result<bool> done() = 0;
 
-  virtual result<void> write (const bytes *src) = 0;
+protected:
+  const dtype type;
 };
