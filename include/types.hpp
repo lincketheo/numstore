@@ -112,6 +112,12 @@ typedef struct
 
 #define srange_assert(s) assert ((s)->start <= (s)->end)
 
+// Copies data from [src] into [dest] using range defined by [range]
+// [dnelem] is the capacity of dest - data is appended contiguously
+// [snelem] is the number of elements in src
+usize srange_copy (u8 *dest, usize dnelem, const u8 *src, usize snelem,
+                   srange range, usize size);
+
 /////// Bytes
 typedef struct
 {
@@ -130,7 +136,7 @@ struct bbytes
   usize len;
   usize cap;
 
-  // Gets the number of bytes 
+  // Gets the number of bytes
   // available
   inline usize
   avail ()

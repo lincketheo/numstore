@@ -2,19 +2,17 @@
 
 #include "Buffer.hpp"
 
-class MemoryBuffer : public Buffer
+class FileBuffer : public Buffer
 {
 public:
-  MemoryBuffer (dtype type, void *data, usize nelem, usize capelem);
+  FileBuffer (dtype type, int fd);
 
-  ~MemoryBuffer ();
+  ~FileBuffer ();
 
   result<usize> read (void *dest, usize dnelem, srange range) override;
 
   result<usize> append (const void *data, usize nelem) override;
 
 private:
-  void *data;
-  usize capelem;
-  usize nelem;
+  int fd;
 };
