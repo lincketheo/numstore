@@ -28,4 +28,7 @@ clean:
 format:
 	clang-format -i $(FORMAT_FILES)
 
+lint:
+	find . -name "*.cpp" -or -name "*.hpp" | xargs clang-tidy --warnings-as-errors=* --quiet
+
 .PHONY: format
