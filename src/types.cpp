@@ -1,6 +1,8 @@
 #include "types.hpp"
 #include "testing.hpp"
 
+#include <cstring>
+
 usize
 srange_copy (u8 *dest, usize dnelem, const u8 *src, usize snelem, srange range,
              usize size)
@@ -12,7 +14,7 @@ srange_copy (u8 *dest, usize dnelem, const u8 *src, usize snelem, srange range,
   usize di = 0, si = range.start;
   for (; si < range.end && si < snelem && di < dnelem; si += range.span, di++)
     {
-      memcpy (dest + di * size, src + si * size, size);
+      std::memcpy (dest + di * size, src + si * size, size);
     }
   return di;
 }
@@ -26,7 +28,7 @@ TEST (srange_copy)
 
   srange r = {
     .start = 2,
-    .end = SIZE_T_MAX,
+    .end = USIZE_MAX,
     .span = 2,
   };
 
@@ -34,5 +36,5 @@ TEST (srange_copy)
                               sizeof (u32));
 
   test_assert_equal (copied, 9lu, "%zu");
-  test_assert_equal (memcmp (dest, expect, 9 * sizeof (u32)), 0, "%d");
+  test_assert_equal (std::memcmp (dest, expect, 9 * sizeof (u32)), 0, "%d");
 }

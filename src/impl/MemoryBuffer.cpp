@@ -36,7 +36,7 @@ TEST (MemoryBuffer_read)
 
   srange r = {
     .start = 2,
-    .end = SIZE_T_MAX,
+    .end = USIZE_MAX,
     .span = 2,
   };
 

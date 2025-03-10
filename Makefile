@@ -22,8 +22,8 @@ test: $(OBJ) apps/test.o
 clean:
 	rm -rf $(OBJ)
 	rm -rf $(OBJ_APPS)
-	rm ndb 
-	rm test 
+	rm -f ndb 
+	rm -f test 
 
 format:
 	clang-format -i $(FORMAT_FILES)

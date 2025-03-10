@@ -3,6 +3,7 @@
 #include <cassert>
 #include <complex>
 #include <cstdint>
+#include <cstring>
 
 /////// DTYPES
 typedef std::uint8_t u8;
@@ -35,6 +36,12 @@ typedef std::complex<u64> cu128;
 
 typedef std::size_t usize;
 typedef long ssize;
+
+#ifdef SIZE_T_MAX
+#define USIZE_MAX SIZE_T_MAX
+#else
+#define USIZE_MAX SIZE_MAX
+#endif
 
 typedef enum
 {

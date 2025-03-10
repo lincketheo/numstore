@@ -1,5 +1,6 @@
 #include "impl/FileBuffer.hpp"
 #include "testing.hpp"
+#include "types.hpp"
 #include "utils.hpp"
 
 #include <cassert>
@@ -49,7 +50,7 @@ TEST (MemoryBuffer_read)
 
   srange r = {
     .start = 2,
-    .end = SIZE_T_MAX,
+    .end = USIZE_MAX,
     .span = 2,
   };
 
