@@ -37,4 +37,5 @@ TEST (srange_copy)
 
   test_assert_equal (copied, 9lu, "%zu");
   test_assert_equal (std::memcmp (dest, expect, 9 * sizeof (u32)), 0, "%d");
+  test_assert_equal(1, 0, "%d");
 }
