@@ -7,4 +7,4 @@ jobs:
     steps:
       - name: Compile code
         run: |
-          make
+          pwd
