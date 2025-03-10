@@ -12,7 +12,7 @@ FileBuffer::FileBuffer (dtype type, int _fd) : Buffer (type) { fd = _fd; }
 FileBuffer::~FileBuffer () {}
 
 result<usize>
-FileBuffer::read (void *dest, usize dnelem, srange range)
+FileBuffer::read (void *dest, usize dnelem, srange range) const
 {
   srange_assert (&range);
 
@@ -57,4 +57,10 @@ TEST (MemoryBuffer_read)
 
   close (destfd);
   remove ("test.bin");
+}
+
+result<usize>
+FileBuffer::append (const void *data, usize nelem) const
+{
+  return err<usize>();
 }

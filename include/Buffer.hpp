@@ -5,16 +5,18 @@
 class Buffer
 {
 public:
-  Buffer (dtype type);
-  ~Buffer();
+  Buffer (dtype _type);
+  ~Buffer () = default;
 
   // Read [range] from source into [dest]
-  virtual result<usize> read (void *dest, usize dnelem, srange range) = 0;
+  // Does not change internal data
+  virtual result<usize> read (void *dest, usize dnelem, srange range) const
+      = 0;
 
   // Write [nelem] elements from [data] into source
-  virtual result<usize> append (const void *data, usize nelem) = 0;
+  // Does not change internal data
+  virtual result<usize> append (const void *data, usize nelem) const = 0;
 
 protected:
   const dtype type;
 };
-

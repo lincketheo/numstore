@@ -9,9 +9,9 @@ public:
 
   ~MemoryBuffer ();
 
-  result<usize> read (void *dest, usize dnelem, srange range) override;
+  result<usize> read (void *dest, usize dnelem, srange range) const override;
 
-  result<usize> append (const void *data, usize nelem) override;
+  result<usize> append (const void *data, usize nelem) const override;
 
 private:
   void *data;

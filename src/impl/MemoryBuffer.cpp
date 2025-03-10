@@ -18,7 +18,7 @@ MemoryBuffer::MemoryBuffer (dtype type, void *_data, usize _nelem,
 MemoryBuffer::~MemoryBuffer () {}
 
 result<usize>
-MemoryBuffer::read (void *dest, usize dnelem, srange range)
+MemoryBuffer::read (void *dest, usize dnelem, srange range) const
 {
   srange_assert (&range);
 
@@ -47,4 +47,10 @@ TEST (MemoryBuffer_read)
 
   test_assert_equal (copied.value, 9lu, "%zu");
   test_assert_equal (memcmp (dest, expect, 9 * sizeof (u32)), 0, "%d");
+}
+
+result<usize>
+MemoryBuffer::append (const void *data, usize nelem) const
+{
+  return err<usize>();
 }
