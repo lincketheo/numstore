@@ -7,6 +7,7 @@
 typedef void (*test_func) ();
 extern usize ntests;
 extern test_func tests[2048];
+extern int test_ret;
 
 #define TEST(name)                                                            \
   static void test_##name ();                                                 \
@@ -21,6 +22,7 @@ extern test_func tests[2048];
 #define test_assert_equal(left, right, fmt)                                   \
   if (left != right)                                                          \
     {                                                                         \
-      fprintf (stderr, "FAILED: %s != %s -- " fmt " != " fmt "\n", #left, #right,  \
-               left, right);                                                  \
+      fprintf (stderr, "FAILED: %s != %s -- " fmt " != " fmt "\n", #left,     \
+               #right, left, right);                                          \
+      test_ret = -1;                                                          \
     }

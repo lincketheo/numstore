@@ -5,7 +5,7 @@
 class PosixFile : File
 {
 public:
-  PosixFile(int fd);
+  PosixFile (int fd);
 
   virtual result<usize> size () override;
 

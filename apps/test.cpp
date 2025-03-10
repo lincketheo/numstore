@@ -7,4 +7,6 @@ main ()
     {
       tests[i]();
     }
+
+  return test_ret;
 }

@@ -52,5 +52,5 @@ TEST (MemoryBuffer_read)
 result<usize>
 MemoryBuffer::append (const void *data, usize nelem) const
 {
-  return err<usize>();
+  return err<usize> ();
 }

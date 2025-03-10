@@ -6,7 +6,7 @@
 int
 file_create_from (const char *fname, void *data, usize lenb)
 {
-  int fd = open (fname, O_CREAT | O_WRONLY | O_TRUNC, S_IRUSR | S_IWUSR);
+  int fd = open (fname, O_CREAT | O_RDWR | O_TRUNC, S_IRUSR | S_IWUSR);
   if (fd == -1)
     {
       perror ("Failed to open file");

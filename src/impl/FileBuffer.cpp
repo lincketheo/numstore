@@ -26,6 +26,12 @@ FileBuffer::read (void *dest, usize dnelem, srange range) const
 
   void *mem = mmap (nullptr, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
 
+  if (mem == MAP_FAILED)
+    {
+      perror ("mmap");
+      return err<usize> ();
+    }
+
   usize ret = srange_copy ((u8 *)dest, dnelem, (u8 *)mem,
                            st.st_size / dtype_sizeof (type), range,
                            dtype_sizeof (type));
@@ -62,5 +68,5 @@ TEST (MemoryBuffer_read)
 result<usize>
 FileBuffer::append (const void *data, usize nelem) const
 {
-  return err<usize>();
+  return err<usize> ();
 }
