@@ -1,10 +1,26 @@
-name: GitHub Actions Demo
-run-name: ${{ github.actor }} is testing out GitHub Actions 🚀
-on: [push]
+name: Build and Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
 jobs:
-  Explore-GitHub-Actions:
+  build-and-test:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Compile code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential
+
+      - name: Build the project
+        run: make
+
+      - name: Run tests
         run: |
-          pwd
+          ./test
+        continue-on-error: false
