@@ -11,7 +11,7 @@ public:
 
   result<usize> read (void *dest, usize dnelem, srange range) const override;
 
-  result<usize> append (const void *data, usize nelem) const override;
+  result<void> append (const void *data, usize nelem) const override;
 
 private:
   int fd;

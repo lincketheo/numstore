@@ -117,7 +117,7 @@ typedef struct
   usize span;
 } srange;
 
-#define srange_assert(s) assert ((s)->start <= (s)->end)
+#define srange_assert(s) assert ((s)->start <= (s)->end);
 
 // Copies data from [src] into [dest] using range defined by [range]
 // [dnelem] is the capacity of dest - data is appended contiguously
