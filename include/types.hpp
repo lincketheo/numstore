@@ -125,61 +125,6 @@ typedef struct
 usize srange_copy (u8 *dest, usize dnelem, const u8 *src, usize snelem,
                    srange range, usize size);
 
-/////// Bytes
-typedef struct
-{
-  void *data;
-  usize len;
-} bytes;
-
-#define bbytes_assert(b)                                                      \
-  assert ((b)->data);                                                         \
-  assert ((b)->cap >= (b)->len)
-
-// buffered bytes
-struct bbytes
-{
-  void *data;
-  usize len;
-  usize cap;
-
-  // Gets the number of bytes
-  // available
-  inline usize
-  avail ()
-  {
-    bbytes_assert (this);
-    return cap - len;
-  }
-
-  // Returns the head byte
-  inline void *
-  head ()
-  {
-    bbytes_assert (this);
-    return (void *)((u8 *)data + len);
-  }
-
-  // Increments len
-  inline void
-  update_add (usize amnt)
-  {
-    bbytes_assert (this);
-    len += amnt;
-    bbytes_assert (this);
-  }
-
-  // Decrements len
-  inline void
-  update_remove (usize amnt)
-  {
-    bbytes_assert (this);
-    assert (len >= amnt);
-    len -= amnt;
-    bbytes_assert (this);
-  }
-};
-
 /////// RESULTS
 template <typename T> struct result
 {
