@@ -19,6 +19,7 @@ func (T_RIGHT_BRACKET);                                                     \
 func (T_LEFT_PAREN);                                                        \
 func (T_RIGHT_PAREN);                                                       \
 func (T_COMMA);                                                             \
+func (T_COLON);                                                             \
 func (T_EOF);
 
 static const char *

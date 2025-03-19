@@ -12,6 +12,7 @@ typedef enum
   T_LEFT_PAREN,
   T_RIGHT_PAREN,
   T_COMMA,
+  T_COLON,
   T_EOF,
 } token_t;
 

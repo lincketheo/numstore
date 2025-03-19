@@ -8,12 +8,15 @@ OBJ_APPS := $(SRC_APPS:.cpp=.o)
 
 CXX_FLAGS := -std=c++20 -I./include -g
 
-all: client server test
+all: client server test tokenizer
 
 client: $(OBJ) apps/client.cpp
 	g++ $(CXX_FLAGS) -o $@ $^ 
 
 server: $(OBJ) apps/server.cpp
+	g++ $(CXX_FLAGS) -o $@ $^ 
+
+tokenizer: $(OBJ) apps/tokenizer.cpp
 	g++ $(CXX_FLAGS) -o $@ $^ 
 
 test: $(OBJ) apps/test.o 

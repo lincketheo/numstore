@@ -7,6 +7,10 @@
 
 #define INITIAL_CAP 100
 
+/**
+  * The stateful scanner - this isn't exposed to the 
+  * api because it's just for internal utilities
+  */
 class Scanner
 {
 public:
@@ -43,12 +47,14 @@ scan (const char *data, usize dlen)
   result<token_arr> arr = token_arr_create ();
   if (!arr.ok)
   {
+    fprintf(stderr, "Failed to create token array\n");
     return err<token_arr> ();
   }
 
   Scanner s (data, dlen);
   if (!s.scan (&arr.value).ok)
   {
+    fprintf(stderr, "Failed to scan\n");
     token_arr_free(&arr.value);
     return err<token_arr> ();
   }
@@ -76,6 +82,7 @@ Scanner::scan (token_arr *arr)
     result<token> t = scan_next_token ();
     if (!t.ok)
     {
+      fprintf(stderr, "Failed to scan next token\n");
       return err<void> ();
     }
 
@@ -231,6 +238,7 @@ Scanner::scan_next_token ()
   result<token_t> t = scan_next_token_t ();
   if (!t.ok)
   {
+    fprintf(stderr, "Failed to scan next token type\n");
     return err<token> ();
   }
 
@@ -268,6 +276,10 @@ Scanner::scan_next_token_t ()
     case ']':
       {
         return ok (T_RIGHT_BRACKET);
+      }
+    case ':':
+      {
+        return ok (T_COLON);
       }
     case ',':
       {

@@ -159,3 +159,10 @@ ok_void ()
 {
   return result<void>{ true };
 }
+
+//////// BYTES 
+typedef struct
+{
+  void *data;
+  usize len;
+} bytes;
