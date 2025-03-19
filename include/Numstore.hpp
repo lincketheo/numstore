@@ -1,9 +1,13 @@
 #pragma once
 
-#include "argument.hpp"
 #include "types.hpp"
 
 class Numstore {
   public:
-  virtual result<void> write(write_argument arg);
+  virtual result<void> define_variable(
+    const char* vname, 
+    usize vnamel,
+    shape s,
+    dtype t
+  ) = 0;
 };

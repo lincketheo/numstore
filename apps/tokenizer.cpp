@@ -15,13 +15,15 @@ int main(int argc, char** argv) {
 
   fprintf(stdout, "%s\n", buffer);
 
-  free(buffer);
-  fclose(fp);
 
   result<token_arr> t = scan(buffer, len);
   assert(t.ok);
 
   token_arr_print(&t.value);
+
+  free(buffer);
+  fclose(fp);
+
 
   return 0;
 }

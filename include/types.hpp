@@ -73,7 +73,7 @@ static inline size_t
 dtype_sizeof (const dtype type)
 {
   switch (type)
-    {
+  {
     case U8:
     case I8:
       return 1;
@@ -105,7 +105,7 @@ dtype_sizeof (const dtype type)
     case CI128:
     case CU128:
       return 64;
-    }
+  }
   return 0;
 }
 
@@ -160,9 +160,54 @@ ok_void ()
   return result<void>{ true };
 }
 
-//////// BYTES 
+//////// BYTES
 typedef struct
 {
   void *data;
   usize len;
 } bytes;
+
+//////// SHAPE
+struct shape {
+  usize* dims;
+  usize rank;
+
+#define shape_assert(s) \
+  assert(s); \
+  assert((s)->dims); \
+  assert((s)->rank > 0)
+
+  inline usize size() {
+    shape_assert(this);
+
+    usize ret = dims[0];
+    for(int i = 1; i < rank; ++i) {
+      ret += dims[i]; 
+    }
+    return ret;
+  }
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
