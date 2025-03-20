@@ -2,6 +2,7 @@
 #include "types.hpp"
 #include "utils.hpp"
 #include "testing.hpp"
+#include <iterator>
 #include <new>
 
 DataSegment::DataSegment() {
@@ -38,6 +39,8 @@ Variable::Variable(
   nlen = _nlen;
   t = _t;
   s = _s;
+  time_start = nullptr;
+  data_start = nullptr;
 
   Variable_assert(this);
 }
