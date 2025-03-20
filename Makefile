@@ -31,6 +31,7 @@ clean:
 	rm -f client 
 	rm -f server
 	rm -f test 
+	rm -f tokenizer
 
 format:
 	clang-format -i $(FORMAT_FILES)

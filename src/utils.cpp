@@ -1,4 +1,5 @@
 #include "utils.hpp"
+#include "macros.hpp"
 
 #include <cstdint>
 #include <fcntl.h>
