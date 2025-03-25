@@ -1,6 +1,6 @@
 #pragma once
 
-#include "types.hpp"
+#include "types.h"
 
 ///////// FILES
 int file_create_from (const char *fname, void *data, usize lenb);

@@ -1,4 +1,4 @@
-#include "testing.hpp"
+#include "testing.h"
 
 usize ntests = 0;
 test_func tests[2048];
