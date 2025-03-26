@@ -301,9 +301,6 @@ TEST(insertion)
   bnode_insert_kv(&b1, &b0, &k5);
   bnode_insert_kv(&b0, &b1, &k6);
 
-  fprintf(stdout, "%zu\n", bnode_size(&b0));
-  bnode_byte_print(stdout, &b0);
-
   test_assert_equal(b0.nkeys, 6, "%d");
 
   bnode_kv r0 = bnode_get_kv(&b0, 0);
@@ -319,6 +316,9 @@ TEST(insertion)
   bnode_kv exp3 = BNODE_KV_FROM("bazbi", 9);
   bnode_kv exp4 = BNODE_KV_FROM("fizb", 2);
   bnode_kv exp5 = BNODE_KV_FROM("foobar", 1);
+
+  fprintf(stdout, "%zu\n", bnode_size(&b0));
+  bnode_byte_print(stdout, &b0);
 
   test_assert_bnode_kv_equal(r0, exp0);
   test_assert_bnode_kv_equal(r1, exp1);
