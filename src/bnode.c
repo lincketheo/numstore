@@ -263,8 +263,6 @@ TEST(insertion) {
   bnode_kv r4 = bnode_get_kv(&b0, 4);
   bnode_kv r5 = bnode_get_kv(&b0, 5);
 
-  bnode_print(stdout, &b0);
-
   bnode_kv exp0 = BNODE_KV_FROM("bar", 5);
   bnode_kv exp1 = BNODE_KV_FROM("barbuz", 4);
   bnode_kv exp2 = BNODE_KV_FROM("barbuzbiz", 6);
