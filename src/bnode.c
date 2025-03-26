@@ -28,20 +28,27 @@ static inline usize bnode_kv_size(bnode_kv* b)
   return b->keylen + sizeof(data_ptr_t) + sizeof(keylen_t);
 }
 
-static inline void bnode_kv_serialize(u8* dest, bnode_kv* k)
+static inline void bnode_kv_serialize(u8* _dest, bnode_kv* k)
 {
   bnode_kv_assert(k);
+  u8* dest = _dest;
+  fprintf(stdout, "a %d %zu\n", k->keylen, sizeof(keylen_t));
 
   // First, the key length
   memcpy(dest, &k->keylen, sizeof(keylen_t));
   dest += sizeof(keylen_t);
+  fprintf(stdout, "b %zu\n", dest - _dest);
 
   // Then the key
   memcpy(dest, k->key, k->keylen);
   dest += k->keylen;
+  fprintf(stdout, "c %zu\n", dest - _dest);
 
   // Then the "value" (data pointer)
   memcpy(dest, &k->ptr, sizeof(data_ptr_t));
+  fprintf(stdout, "d %d %zu\n", k->keylen, sizeof(keylen_t));
+  dest += sizeof(data_ptr_t);
+  fprintf(stdout, "e %zu\n", dest - _dest);
 }
 
 ////////////////// BNode Utils
