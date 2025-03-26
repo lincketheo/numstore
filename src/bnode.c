@@ -79,7 +79,7 @@ static inline usize bnode_size(const bnode* b)
   offset_t offset = bnode_offsets(b)[b->nkeys - 1];
   usize before = bnode_keys(b) - b->data;
 
-  usize size = before + offset;
+  usize size = before + offset + sizeof(b->nkeys);
   assert(size <= PAGE_SIZE);
 
   return size;
@@ -102,7 +102,6 @@ static inline bnode_kv bnode_get_kv(const bnode* b, usize idx)
 {
   assert(b);
   assert(idx < b->nkeys);
-  fprintf(stdout, "---------------------- GET\n");
 
   bnode_kv ret;
 
@@ -110,10 +109,6 @@ static inline bnode_kv bnode_get_kv(const bnode* b, usize idx)
   ret.keylen = *(keylen_t*)(head);
   ret.key = (char*)(head + sizeof(keylen_t));
   ret.ptr = *(data_ptr_t*)(head + sizeof(keylen_t) + ret.keylen);
-
-  fprintf(stdout, "=====\n");
-  pretty_print_bytes(stdout, head, sizeof ret.ptr + sizeof ret.keylen + ret.keylen);
-  fprintf(stdout, "=====\n");
 
   bnode_kv_assert(&ret);
 
@@ -140,7 +135,6 @@ static inline int bnode_find_kv(const bnode* b, bnode_kv* k, usize* idx)
   assert(b);
   assert(k);
   assert(idx);
-  fprintf(stdout, "---------------------- Find\n");
 
   // Binary Search
   int left = 0;
@@ -234,7 +228,6 @@ static void bnode_insert_kv(
 
   bnode_assert(src);
   bnode_kv_assert(k);
-  fprintf(stdout, "---------------------- Insert\n");
 
   usize idx; // The required insertion index
   bnode_kv found_kv;
@@ -304,17 +297,11 @@ TEST(insertion)
   bnode b0 = bnode_create(k0);
   bnode b1;
   bnode_insert_kv(&b1, &b0, &k1);
-  bnode_byte_print(stdout, &b1);
   bnode_insert_kv(&b0, &b1, &k2);
-  bnode_byte_print(stdout, &b0);
   bnode_insert_kv(&b1, &b0, &k3);
-  bnode_byte_print(stdout, &b1);
   bnode_insert_kv(&b0, &b1, &k4);
-  bnode_byte_print(stdout, &b0);
   bnode_insert_kv(&b1, &b0, &k5);
-  bnode_byte_print(stdout, &b1);
   bnode_insert_kv(&b0, &b1, &k6);
-  bnode_byte_print(stdout, &b0);
 
   test_assert_equal(b0.nkeys, 6, "%d");
 
