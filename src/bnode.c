@@ -108,6 +108,9 @@ static inline bnode_kv bnode_get_kv(const bnode* b, usize idx)
   ret.key = (char*)(head + sizeof(keylen_t));
   ret.ptr = *(data_ptr_t*)(head + sizeof(keylen_t) + ret.keylen);
 
+  fprintf(stdout, "%zu %zu %zu\n", sizeof(keylen_t), sizeof(ret.ptr), ret.ptr);
+  pretty_print_bytes(stdout, head, ret.keylen + sizeof(keylen_t) + sizeof(ret.ptr));
+
   bnode_kv_assert(&ret);
 
   return ret;
