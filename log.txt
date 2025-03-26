@@ -1,0 +1,4 @@
+- 03/24/2025: Built basic bnode in C with contiguous data 
+- 03/25/2025: Refactored code from yesterday - implemented insert and find using binary search
+  - Needs some work and validation
+  - Wrote sub par tests

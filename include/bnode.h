@@ -6,50 +6,80 @@
 
 #include <stdio.h>
 
+/**
+  * A B-Tree Node (Note, not a B+Tree) is layed out in the following format:
+  * [nkeys] (2 bytes)
+  * [cptr1, cptr2, ... cptr(nkeys + 1)] (nkeys + 1) * 2 bytes
+  * [offst1, offst2, ... offst(nkeys)] (nkeys) * 2 bytes
+  * [n key dptr, n key dptr ...]
+  *
+  * Where cptr is a pointer to a child node and
+  * dptr is a pointer to the data node start
+  */
 typedef u64 child_ptr_t;
 typedef u64 data_ptr_t;
 typedef u16 offset_t;
 typedef u16 keylen_t;
 typedef u16 nkeys_t;
 
+//////////////////////////////////// A B-Node Data Structure
 #pragma pack(push, 1)
 typedef struct
 {
   nkeys_t nkeys;
-
-  // [ ptr1, ptr2, ... ptrn + 1 ]
-  // [ ofst1, ofst2, ... ofstn ]
-  // [ key1, key2, ... keyn ]
-  u8 data[PAGE_SIZE - 2];
-
-#define bnode_assert(b)                                                       \
-  assert (b);                                                                 \
-  assert (b->nkeys > 0)
-
-#define nptrs(b) ((b)->nkeys + 1)
-#define noffsets(b) ((b)->nkeys)
-
+  u8 data[PAGE_SIZE - sizeof(nkeys_t)];
 } bnode;
 #pragma pack(pop)
 
+#define bnode_assert(b)                                                       \
+assert (b);                                                                 \
+assert (b->nkeys > 0)
+
+static inline child_ptr_t *
+bnode_ptrs (const bnode *b)
+{
+  bnode_assert (b);
+  return (child_ptr_t *)b->data;
+}
+
+static inline offset_t *
+bnode_offsets (const bnode *b)
+{
+  bnode_assert (b);
+  child_ptr_t *child_ptrs_tail = bnode_ptrs (b) + (b->nkeys + 1);
+  return (offset_t *)child_ptrs_tail;
+}
+
+static inline u8 *
+bnode_keys (const bnode *b)
+{
+  bnode_assert (b);
+  offset_t *offsets_tail = bnode_offsets (b) + b->nkeys;
+  return (u8 *)offsets_tail;
+}
+
+//////////////////////////////////// A Key Value Data Structure
 typedef struct
 {
   keylen_t keylen;
-  u8 *key;
+  char *key;
   data_ptr_t ptr;
+} bnode_kv;
 
-#define bnode_key_value_assert(b)                                             \
-  assert (b);                                                                 \
-  assert ((b)->key);                                                          \
-  assert ((b)->keylen > 0);                                                   \
-  assert ((b)->ptr > 0);
+#define bnode_kv_assert(b)                                             \
+assert (b);                                                                 \
+assert ((b)->key);                                                          \
+assert ((b)->keylen > 0);                                                   \
+assert ((b)->ptr > 0);
 
-} bnode_key_value;
+//////////////////////////////////// BTree
 
-// Returns the total size in bytes of [b]
-usize bnode_key_value_size (bnode_key_value *b);
+typedef struct {
+  int fd;
+} btree;
 
-bnode bnode_create (bnode_key_value k0, child_ptr_t left, child_ptr_t right);
+btree btree_create(bnode_kv k0, int fd);
 
-void bnode_push_key_value (bnode *dest, const bnode *src, child_ptr_t ptr,
-                           bnode_key_value k);
+void btree_insert(btree* b, const bnode_kv k);
+
+int btree_fetch(btree* b, bnode_kv *k);

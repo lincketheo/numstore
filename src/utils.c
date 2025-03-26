@@ -5,8 +5,7 @@
 #include <stdio.h>
 #include <unistd.h>
 
-int file_create_from(const char* fname, void* data, usize lenb)
-{
+int file_create_from(const char *fname, void *data, usize lenb) {
   int fd = open(fname, O_CREAT | O_RDWR | O_TRUNC, S_IRUSR | S_IWUSR);
   if (fd == -1) {
     perror("Failed to open file");
@@ -23,15 +22,14 @@ int file_create_from(const char* fname, void* data, usize lenb)
   return fd;
 }
 
-int write_all(int fd, const void* src, usize blen)
-{
+int write_all(int fd, const void *src, usize blen) {
   assert(src);
   assert(blen > 0);
   assert(fd >= 0);
 
   ssize_t size = blen;
   ssize_t res = 0;
-  const char* buffer = (const char*)src;
+  const char *buffer = (const char *)src;
 
   while (size > 0) {
     res = write(fd, buffer, size);
@@ -51,14 +49,13 @@ int write_all(int fd, const void* src, usize blen)
   return 0;
 }
 
-ssize read_all(int fd, void* dest, usize blen)
-{
+ssize read_all(int fd, void *dest, usize blen) {
   assert(dest != NULL);
   assert(fd >= 0);
 
   ssize_t total_read = 0;
   ssize_t res = 0;
-  char* buffer = (char*)dest;
+  char *buffer = (char *)dest;
 
   while (blen > 0) {
     res = read(fd, buffer, blen);
