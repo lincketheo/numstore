@@ -32,23 +32,18 @@ static inline void bnode_kv_serialize(u8* _dest, bnode_kv* k)
 {
   bnode_kv_assert(k);
   u8* dest = _dest;
-  fprintf(stdout, "a %d %zu\n", k->keylen, sizeof(keylen_t));
 
   // First, the key length
   memcpy(dest, &k->keylen, sizeof(keylen_t));
   dest += sizeof(keylen_t);
-  fprintf(stdout, "b %zu\n", dest - _dest);
 
   // Then the key
   memcpy(dest, k->key, k->keylen);
   dest += k->keylen;
-  fprintf(stdout, "c %zu\n", dest - _dest);
 
   // Then the "value" (data pointer)
   memcpy(dest, &k->ptr, sizeof(data_ptr_t));
-  fprintf(stdout, "d %d %zu\n", k->keylen, sizeof(keylen_t));
   dest += sizeof(data_ptr_t);
-  fprintf(stdout, "e %zu\n", dest - _dest);
 }
 
 ////////////////// BNode Utils
@@ -114,9 +109,6 @@ static inline bnode_kv bnode_get_kv(const bnode* b, usize idx)
   ret.keylen = *(keylen_t*)(head);
   ret.key = (char*)(head + sizeof(keylen_t));
   ret.ptr = *(data_ptr_t*)(head + sizeof(keylen_t) + ret.keylen);
-
-  fprintf(stdout, "%zu %zu %zu\n", sizeof(keylen_t), sizeof(ret.ptr), ret.ptr);
-  pretty_print_bytes(stdout, head, ret.keylen + sizeof(keylen_t) + sizeof(ret.ptr));
 
   bnode_kv_assert(&ret);
 
@@ -305,11 +297,17 @@ TEST(insertion)
   bnode b0 = bnode_create(k0);
   bnode b1;
   bnode_insert_kv(&b1, &b0, &k1);
+  bnode_byte_print(stdout, &b1);
   bnode_insert_kv(&b0, &b1, &k2);
+  bnode_byte_print(stdout, &b0);
   bnode_insert_kv(&b1, &b0, &k3);
+  bnode_byte_print(stdout, &b1);
   bnode_insert_kv(&b0, &b1, &k4);
+  bnode_byte_print(stdout, &b0);
   bnode_insert_kv(&b1, &b0, &k5);
+  bnode_byte_print(stdout, &b1);
   bnode_insert_kv(&b0, &b1, &k6);
+  bnode_byte_print(stdout, &b0);
 
   test_assert_equal(b0.nkeys, 6, "%d");
 
@@ -326,9 +324,6 @@ TEST(insertion)
   bnode_kv exp3 = BNODE_KV_FROM("bazbi", 9);
   bnode_kv exp4 = BNODE_KV_FROM("fizb", 2);
   bnode_kv exp5 = BNODE_KV_FROM("foobar", 1);
-
-  fprintf(stdout, "%zu\n", bnode_size(&b0));
-  bnode_byte_print(stdout, &b0);
 
   test_assert_bnode_kv_equal(r0, exp0);
   test_assert_bnode_kv_equal(r1, exp1);
