@@ -102,6 +102,7 @@ static inline bnode_kv bnode_get_kv(const bnode* b, usize idx)
 {
   assert(b);
   assert(idx < b->nkeys);
+  fprintf(stdout, "---------------------- GET\n");
 
   bnode_kv ret;
 
@@ -109,6 +110,10 @@ static inline bnode_kv bnode_get_kv(const bnode* b, usize idx)
   ret.keylen = *(keylen_t*)(head);
   ret.key = (char*)(head + sizeof(keylen_t));
   ret.ptr = *(data_ptr_t*)(head + sizeof(keylen_t) + ret.keylen);
+
+  fprintf(stdout, "=====\n");
+  pretty_print_bytes(stdout, head, sizeof ret.ptr + sizeof ret.keylen + ret.keylen);
+  fprintf(stdout, "=====\n");
 
   bnode_kv_assert(&ret);
 
@@ -135,6 +140,7 @@ static inline int bnode_find_kv(const bnode* b, bnode_kv* k, usize* idx)
   assert(b);
   assert(k);
   assert(idx);
+  fprintf(stdout, "---------------------- Find\n");
 
   // Binary Search
   int left = 0;
@@ -228,6 +234,7 @@ static void bnode_insert_kv(
 
   bnode_assert(src);
   bnode_kv_assert(k);
+  fprintf(stdout, "---------------------- Insert\n");
 
   usize idx; // The required insertion index
   bnode_kv found_kv;
