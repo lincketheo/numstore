@@ -23,6 +23,7 @@ typedef u16 keylen_t;
 typedef u16 nkeys_t;
 
 //////////////////////////////////// A B-Node Data Structure
+
 #pragma pack(push, 1)
 typedef struct
 {
@@ -35,30 +36,8 @@ typedef struct
 assert (b);                                                                 \
 assert (b->nkeys > 0)
 
-static inline child_ptr_t *
-bnode_ptrs (const bnode *b)
-{
-  bnode_assert (b);
-  return (child_ptr_t *)b->data;
-}
-
-static inline offset_t *
-bnode_offsets (const bnode *b)
-{
-  bnode_assert (b);
-  child_ptr_t *child_ptrs_tail = bnode_ptrs (b) + (b->nkeys + 1);
-  return (offset_t *)child_ptrs_tail;
-}
-
-static inline u8 *
-bnode_keys (const bnode *b)
-{
-  bnode_assert (b);
-  offset_t *offsets_tail = bnode_offsets (b) + b->nkeys;
-  return (u8 *)offsets_tail;
-}
-
 //////////////////////////////////// A Key Value Data Structure
+
 typedef struct
 {
   keylen_t keylen;
