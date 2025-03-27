@@ -1,6 +1,6 @@
 #include "testing.h"
 
-int main() {
+int main(void) {
   for (u64 i = 0; i < ntests; ++i) {
     tests[i]();
   }
