@@ -1,6 +1,7 @@
 #include "bnode.h"
 #include "testing.h"
 #include "utils.h"
+
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -13,11 +14,11 @@
   ((bnode_kv) { .keylen = strlen(cstr), .key = (char*)(cstr), .ptr = (_ptr) })
 
 // two bnode key values are equal
-#define test_assert_bnode_kv_equal(_k0, _k1)                                 \
-  do {                                                                       \
-    test_assert_equal((_k0).keylen, (_k1).keylen, "%du");                    \
-    test_assert_equal(strncmp((_k0).key, (_k1).key, (_k0).keylen), 0, "%d"); \
-    test_assert_equal((_k0).ptr, (_k1).ptr, "%lu");                          \
+#define test_assert_bnode_kv_equal(_k0, _k1)                                       \
+  do {                                                                             \
+    test_assert_equal((_k0).keylen, (_k1).keylen, "%"PRIu16);                          \
+    test_assert_equal(strncmp((_k0).key, (_k1).key, (_k0).keylen), 0, "%" PRId32); \
+    test_assert_equal((_k0).ptr, (_k1).ptr, "%" PRIu64);                           \
   } while (0)
 
 ////////////////// Key Value Utils
@@ -314,7 +315,7 @@ TEST(insertion)
   bnode_insert_kv(&b1, &b0, &k5);
   bnode_insert_kv(&b0, &b1, &k6);
 
-  test_assert_equal(b0.nkeys, 6, "%d");
+  test_assert_equal(b0.nkeys, 6, "%" PRId32);
 
   bnode_kv r0 = bnode_get_kv(&b0, 0);
   bnode_kv r1 = bnode_get_kv(&b0, 1);
@@ -357,24 +358,24 @@ TEST(find)
 
   search = BNODE_KV_FROM("foobar", 0);
   found = bnode_find_kv(&b1, &search, &idx);
-  test_assert_equal(found, 1, "%d");
-  test_assert_equal(idx, 3ul, "%lu");
-  test_assert_equal(search.ptr, 1lu, "%lu");
+  test_assert_equal(found, 1, "%" PRId32);
+  test_assert_equal(idx, 3ul, "%" PRIu64);
+  test_assert_equal(search.ptr, 1lu, "%" PRIu64);
 
   search = BNODE_KV_FROM("bar", 0);
   found = bnode_find_kv(&b1, &search, &idx);
-  test_assert_equal(found, 0, "%d");
-  test_assert_equal(idx, 0ul, "%lu");
+  test_assert_equal(found, 0, "%" PRId32);
+  test_assert_equal(idx, 0ul, "%" PRIu64);
 
   search = BNODE_KV_FROM("barbuzbiz", 0);
   found = bnode_find_kv(&b1, &search, &idx);
-  test_assert_equal(found, 0, "%d");
-  test_assert_equal(idx, 1ul, "%lu");
+  test_assert_equal(found, 0, "%" PRId32);
+  test_assert_equal(idx, 1ul, "%" PRIu64);
 
   search = BNODE_KV_FROM("zzzz", 0);
   found = bnode_find_kv(&b1, &search, &idx);
-  test_assert_equal(found, 0, "%d");
-  test_assert_equal(idx, 4ul, "%lu");
+  test_assert_equal(found, 0, "%" PRId32);
+  test_assert_equal(idx, 4ul, "%" PRIu64);
 }
 
 //////////////////////////////////// BTree

@@ -4,6 +4,7 @@
 #include <complex.h>
 #include <stdint.h>
 #include <string.h>
+#include <inttypes.h>
 
 /////// DTYPES
 typedef uint8_t u8;
