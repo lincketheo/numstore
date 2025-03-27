@@ -35,15 +35,6 @@ typedef u16 cu32[2];
 typedef u32 cu64[2];
 typedef u64 cu128[2];
 
-typedef u64 usize;
-typedef long ssize;
-
-#ifdef SIZE_T_MAX
-#define USIZE_MAX SIZE_T_MAX
-#else
-#define USIZE_MAX SIZE_MAX
-#endif
-
 typedef enum {
   U8,
   U16,
@@ -69,51 +60,14 @@ typedef enum {
   CU128
 } dtype;
 
-static inline size_t
-dtype_sizeof(const dtype type)
-{
-  switch (type) {
-  case U8:
-  case I8:
-    return 1;
-  case U16:
-  case I16:
-    return 2;
-  case U32:
-  case I32:
-  case F32:
-    return 4;
-  case U64:
-  case I64:
-  case F64:
-    return 8;
-  case F128:
-    return 16;
-  case CF64:
-  case CI16:
-  case CU16:
-    return 8;
-  case CF128:
-  case CI32:
-  case CU32:
-    return 16;
-  case CF256:
-  case CI64:
-  case CU64:
-    return 32;
-  case CI128:
-  case CU128:
-    return 64;
-  }
-  return 0;
-}
+u64 dtype_sizeof(const dtype type);
 
 /////// RANGES
 typedef struct
 {
-  usize start;
-  usize end;
-  usize span;
+  u64 start;
+  u64 end;
+  u64 span;
 } srange;
 
 #define srange_assert(s) assert((s)->start <= (s)->end);
@@ -121,12 +75,12 @@ typedef struct
 // Copies data from [src] into [dest] using range defined by [range]
 // [dnelem] is the capacity of dest - data is appended contiguously
 // [snelem] is the number of elements in src
-usize srange_copy(u8* dest, usize dnelem, const u8* src, usize snelem,
-    srange range, usize size);
+u64 srange_copy(u8* dest, u64 dnelem, const u8* src, u64 snelem,
+    srange range, u64 size);
 
 //////// BYTES
 typedef struct
 {
   void* data;
-  usize len;
+  u64 len;
 } bytes;

@@ -1,29 +1,40 @@
-FORMAT_FILES := $(shell find . -type f \( -name "*.c" -o -name "*.hpp" \))
+# Detect OS (Linux or Darwin for macOS)
+UNAME_S := $(shell uname -s)
 
+# Compiler and Flags
+CC := gcc
+CFLAGS := -I./include -g -Wall -Wextra -Werror -pedantic -O0
+
+ifeq ($(UNAME_S), Darwin)
+	CFLAGS += -D_DARWIN_C_SOURCE
+endif
+
+# Source files
 SRC := $(shell find ./src -type f -name "*.c")
 OBJ := $(SRC:.c=.o)
 
-SRC_APPS := $(shell find ./apps -type f -name "*.c")
-OBJ_APPS := $(SRC_APPS:.c=.o)
+SRC_APPS := $(wildcard apps/*.c)
+APP_BIN := $(patsubst apps/%.c,%,$(SRC_APPS))
 
-CXX_FLAGS := -I./include -g
+# Format and Lint
+FORMAT_FILES := $(shell find . -type f \( -name "*.c" -o -name "*.hpp" \))
 
-all: test main 
+# Default target
+all: $(APP_BIN)
 
-test: $(OBJ) apps/test.o 
-	gcc $(CXX_FLAGS) -o $@ $^ 
+# Rule to build each app binary
+%: $(OBJ) apps/%.o
+	$(CC) $(CFLAGS) -o $@ $^
 
-main: $(OBJ) apps/main.o 
-	gcc $(CXX_FLAGS) -o $@ $^ 
-
+# Generic object compilation
 %.o: %.c
-	gcc $(CXX_FLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
+# Utility targets
 clean:
 	rm -rf $(OBJ)
-	rm -rf $(OBJ_APPS)
-	rm -f main
-	rm -f test 
+	rm -f $(addprefix apps/,$(APP_BIN:=.o))
+	rm -f $(APP_BIN)
 
 format:
 	clang-format -i $(FORMAT_FILES)
@@ -31,4 +42,5 @@ format:
 lint:
 	find . -name "*.c" -or -name "*.hpp" | xargs clang-tidy --warnings-as-errors=* --quiet
 
-.PHONY: format
+.PHONY: all clean format lint
+

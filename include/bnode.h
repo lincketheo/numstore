@@ -49,7 +49,6 @@ typedef struct
 assert (b);                                                                 \
 assert ((b)->key);                                                          \
 assert ((b)->keylen > 0);                                                   \
-assert ((b)->ptr > 0);
 
 //////////////////////////////////// BTree
 

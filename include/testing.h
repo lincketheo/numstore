@@ -7,7 +7,7 @@
 #include <stdio.h>
 
 typedef void (*test_func)();
-extern usize ntests;
+extern u64 ntests;
 extern test_func tests[2048];
 extern int test_ret;
 

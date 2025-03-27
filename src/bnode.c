@@ -10,29 +10,28 @@
 /// Some useful testing macros
 
 // Create a bnode from a cstring
-#define BNODE_KV_FROM(cstr, _ptr) \
-  ((bnode_kv) { .keylen = strlen(cstr), .key = (char*)(cstr), .ptr = (_ptr) })
+#define BNODE_KV_FROM(cstr, _ptr)                                              \
+  ((bnode_kv){.keylen = strlen(cstr), .key = (char *)(cstr), .ptr = (_ptr)})
 
 // two bnode key values are equal
-#define test_assert_bnode_kv_equal(_k0, _k1)                                       \
-  do {                                                                             \
-    test_assert_equal((_k0).keylen, (_k1).keylen, "%" PRIu16);                     \
-    test_assert_equal(strncmp((_k0).key, (_k1).key, (_k0).keylen), 0, "%" PRId32); \
-    test_assert_equal((_k0).ptr, (_k1).ptr, "%" PRIu64);                           \
+#define test_assert_bnode_kv_equal(_k0, _k1)                                   \
+  do {                                                                         \
+    test_assert_equal((_k0).keylen, (_k1).keylen, "%" PRIu16);                 \
+    test_assert_equal(strncmp((_k0).key, (_k1).key, (_k0).keylen), 0,          \
+                      "%" PRId32);                                             \
+    test_assert_equal((_k0).ptr, (_k1).ptr, "%" PRIu64);                       \
   } while (0)
 
 ////////////////// Key Value Utils
 
-static inline u64 bnode_kv_size(bnode_kv* b)
-{
+static inline u64 bnode_kv_size(bnode_kv *b) {
   bnode_kv_assert(b);
   return b->keylen + sizeof(data_ptr_t) + sizeof(keylen_t);
 }
 
-static inline void bnode_kv_serialize(u8* _dest, bnode_kv* k)
-{
+static inline void bnode_kv_serialize(u8 *_dest, bnode_kv *k) {
   bnode_kv_assert(k);
-  u8* dest = _dest;
+  u8 *dest = _dest;
 
   // First, the key length
   memcpy(dest, &k->keylen, sizeof(keylen_t));
@@ -44,41 +43,33 @@ static inline void bnode_kv_serialize(u8* _dest, bnode_kv* k)
 
   // Then the "value" (data pointer)
   memcpy(dest, &k->ptr, sizeof(data_ptr_t));
-  dest += sizeof(data_ptr_t);
 }
 
 ////////////////// BNode Utils
 
-static inline child_ptr_t*
-bnode_ptrs(const bnode* b)
-{
+static inline child_ptr_t *bnode_ptrs(const bnode *b) {
   bnode_assert(b);
-  return (child_ptr_t*)b->data;
+  return (child_ptr_t *)b->data;
 }
 
-static inline offset_t*
-bnode_offsets(const bnode* b)
-{
+static inline offset_t *bnode_offsets(const bnode *b) {
   bnode_assert(b);
-  child_ptr_t* child_ptrs_tail = bnode_ptrs(b) + (b->nkeys + 1);
-  return (offset_t*)child_ptrs_tail;
+  child_ptr_t *child_ptrs_tail = bnode_ptrs(b) + (b->nkeys + 1);
+  return (offset_t *)child_ptrs_tail;
 }
 
-static inline u8*
-bnode_keys(const bnode* b)
-{
+static inline u8 *bnode_keys(const bnode *b) {
   bnode_assert(b);
-  offset_t* offsets_tail = bnode_offsets(b) + b->nkeys;
-  return (u8*)offsets_tail;
+  offset_t *offsets_tail = bnode_offsets(b) + b->nkeys;
+  return (u8 *)offsets_tail;
 }
 
-static inline u64 bnode_size(const bnode* b)
-{
+static inline u64 bnode_size(const bnode *b) {
   bnode_assert(b);
 
   // Last offset is the size
   offset_t offset = bnode_offsets(b)[b->nkeys - 1];
-  u64 before = bnode_keys(b) - (u8*)b;
+  u64 before = bnode_keys(b) - (u8 *)b;
 
   u64 size = before + offset;
   assert(size <= PAGE_SIZE);
@@ -86,8 +77,7 @@ static inline u64 bnode_size(const bnode* b)
   return size;
 }
 
-static inline u8* bnode_kv_start(const bnode* b, u64 idx)
-{
+static inline u8 *bnode_kv_start(const bnode *b, u64 idx) {
   bnode_assert(b);
   assert(idx < b->nkeys);
 
@@ -95,44 +85,41 @@ static inline u8* bnode_kv_start(const bnode* b, u64 idx)
     return bnode_keys(b);
   }
 
-  offset_t* offsets = bnode_offsets(b);
+  offset_t *offsets = bnode_offsets(b);
   return bnode_keys(b) + offsets[idx - 1];
 }
 
-static inline bnode_kv bnode_get_kv(const bnode* b, u64 idx)
-{
+static inline bnode_kv bnode_get_kv(const bnode *b, u64 idx) {
   assert(b);
   assert(idx < b->nkeys);
 
   bnode_kv ret;
 
-  u8* head = bnode_kv_start(b, idx);
-  ret.keylen = *(keylen_t*)(head);
-  ret.key = (char*)(head + sizeof(keylen_t));
-  ret.ptr = *(data_ptr_t*)(head + sizeof(keylen_t) + ret.keylen);
+  u8 *head = bnode_kv_start(b, idx);
+  ret.keylen = *(keylen_t *)(head);
+  ret.key = (char *)(head + sizeof(keylen_t));
+  ret.ptr = *(data_ptr_t *)(head + sizeof(keylen_t) + ret.keylen);
 
   bnode_kv_assert(&ret);
 
   return ret;
 }
 
-static inline void bnode_set_kv(const bnode* b, u64 idx, data_ptr_t ptr)
-{
+static inline void bnode_set_kv(const bnode *b, u64 idx, data_ptr_t ptr) {
   assert(b);
   assert(idx < b->nkeys);
 
   bnode_kv kv;
 
-  u8* head = bnode_kv_start(b, idx);
-  kv.keylen = *(keylen_t*)(head);
-  kv.key = (char*)(head + sizeof(keylen_t));
-  *(data_ptr_t*)(head + sizeof(keylen_t) + kv.keylen) = ptr;
+  u8 *head = bnode_kv_start(b, idx);
+  kv.keylen = *(keylen_t *)(head);
+  kv.key = (char *)(head + sizeof(keylen_t));
+  *(data_ptr_t *)(head + sizeof(keylen_t) + kv.keylen) = ptr;
 
   bnode_kv_assert(&kv);
 }
 
-static inline int bnode_find_kv(const bnode* b, bnode_kv* k, u64* idx)
-{
+static inline int bnode_find_kv(const bnode *b, bnode_kv *k, u64 *idx) {
   assert(b);
   assert(k);
   assert(idx);
@@ -169,37 +156,34 @@ static inline int bnode_find_kv(const bnode* b, bnode_kv* k, u64* idx)
   return 0;
 }
 
-static inline void bnode_kv_print(FILE* ofp, bnode_kv* b)
-{
+static inline void bnode_kv_print(FILE *ofp, bnode_kv *b) {
   assert(ofp);
   bnode_kv_assert(b);
 
   fprintf(ofp, "(%.*s, %" PRIu64 ")", b->keylen, b->key, b->ptr);
 }
 
-static bnode bnode_create(bnode_kv k0)
-{
+static bnode bnode_create(bnode_kv k0) {
   bnode ret;
   ret.nkeys = 1;
 
-  child_ptr_t* ptrs = bnode_ptrs(&ret);
+  child_ptr_t *ptrs = bnode_ptrs(&ret);
   ptrs[0] = 0;
   ptrs[1] = 0;
 
-  offset_t* offsets = bnode_offsets(&ret);
+  offset_t *offsets = bnode_offsets(&ret);
   offsets[0] = bnode_kv_size(&k0);
 
-  u8* keys = bnode_keys(&ret);
+  u8 *keys = bnode_keys(&ret);
   bnode_kv_serialize(keys, &k0);
 
   return ret;
 }
 
-static void bnode_print(FILE* ofp, bnode* b)
-{
+__attribute__((unused)) static void bnode_print(FILE *ofp, bnode *b) {
   bnode_assert(b);
 
-  child_ptr_t* ptrs = bnode_ptrs(b);
+  child_ptr_t *ptrs = bnode_ptrs(b);
 
   // Print Nodes
   fprintf(ofp, "%" PRIu64 " ", ptrs[0]);
@@ -211,21 +195,16 @@ static void bnode_print(FILE* ofp, bnode* b)
   fprintf(ofp, "\n");
 }
 
-static void bnode_byte_print(FILE* ofp, bnode* b)
-{
+__attribute__((unused)) static void bnode_byte_print(FILE *ofp, bnode *b) {
   bnode_assert(b);
 
   fprintf(ofp, "NKeys: %" PRIu16 "\n", b->nkeys);
   fprintf(ofp, "Node Size: %" PRIu64 "\n", bnode_size(b));
   fprintf(ofp, "Data:\n");
-  pretty_print_bytes(ofp, (u8*)b, bnode_size(b));
+  pretty_print_bytes(ofp, (u8 *)b, bnode_size(b));
 }
 
-static void bnode_insert_kv(
-    bnode* dest,
-    const bnode* src,
-    bnode_kv* k)
-{
+static void bnode_insert_kv(bnode *dest, const bnode *src, bnode_kv *k) {
 
   bnode_assert(src);
   bnode_kv_assert(k);
@@ -243,13 +222,13 @@ static void bnode_insert_kv(
 
   dest->nkeys = src->nkeys + 1;
 
-  child_ptr_t* dest_ptrs = bnode_ptrs(dest);
-  u8* dest_keys = bnode_keys(dest);
-  offset_t* dest_offsets = bnode_offsets(dest);
+  child_ptr_t *dest_ptrs = bnode_ptrs(dest);
+  u8 *dest_keys = bnode_keys(dest);
+  offset_t *dest_offsets = bnode_offsets(dest);
 
-  const child_ptr_t* src_ptrs = bnode_ptrs(src);
-  const u8* src_keys = bnode_keys(src);
-  const offset_t* src_offsets = bnode_offsets(src);
+  const child_ptr_t *src_ptrs = bnode_ptrs(src);
+  const u8 *src_keys = bnode_keys(src);
+  const offset_t *src_offsets = bnode_offsets(src);
 
   // Length of the keys byte array on the left of [idx]
   offset_t kvlen_left = (idx > 0) ? src_offsets[idx - 1] : 0;
@@ -272,14 +251,12 @@ static void bnode_insert_kv(
   u64 nleft = src->nkeys - idx;
   if (nleft > 0) {
     // Copy Pointers Over
-    memcpy(&dest_ptrs[idx + 1],
-        &src_ptrs[idx],
-        (nleft + 1) * sizeof(*dest_ptrs));
+    memcpy(&dest_ptrs[idx + 1], &src_ptrs[idx],
+           (nleft + 1) * sizeof(*dest_ptrs));
 
     // Copy Offsets Over
-    memcpy(&dest_offsets[idx + 1],
-        &src_offsets[idx],
-        nleft * sizeof(*dest_offsets));
+    memcpy(&dest_offsets[idx + 1], &src_offsets[idx],
+           nleft * sizeof(*dest_offsets));
 
     // Add new keylen to all offsets
     for (u64 i = idx + 1; i < dest->nkeys; i++) {
@@ -288,14 +265,12 @@ static void bnode_insert_kv(
 
     // Copy keys over
     offset_t kvlen_right = src_offsets[src->nkeys - 1] - kvlen_left;
-    memcpy(dest_keys + dest_offsets[idx],
-        src_keys + kvlen_left,
-        kvlen_right * sizeof(*dest_keys));
+    memcpy(dest_keys + dest_offsets[idx], src_keys + kvlen_left,
+           kvlen_right * sizeof(*dest_keys));
   }
 }
 
-TEST(insertion)
-{
+TEST(insertion) {
   bnode_kv k0 = BNODE_KV_FROM("foobar", 1);
   bnode_kv k1 = BNODE_KV_FROM("fizb", 2);
   bnode_kv k2 = BNODE_KV_FROM("bazbi", 3);
@@ -339,8 +314,7 @@ TEST(insertion)
   test_assert_bnode_kv_equal(r5, exp5);
 }
 
-TEST(find)
-{
+TEST(find) {
   bnode_kv k0 = BNODE_KV_FROM("foobar", 1);
   bnode_kv k1 = BNODE_KV_FROM("fizb", 2);
   bnode_kv k2 = BNODE_KV_FROM("bazbi", 3);
@@ -380,32 +354,36 @@ TEST(find)
 
 //////////////////////////////////// BTree
 // TODO
-static bnode btree_fetch_child(btree* b, child_ptr_t ptr)
-{
+static bnode btree_fetch_child(btree *b, child_ptr_t ptr) {
   bnode ret;
   ssize_t read = pread(b->fd, &ret, PAGE_SIZE, PAGE_SIZE * ptr);
   assert(read == PAGE_SIZE); // TODO
+  return ret;
 }
 
-static void btree_append_node(btree* b, bnode* node)
-{
+static void btree_append_node(btree *b, bnode *node) {
   bnode_assert(node);
-  off_t t = lseek(b->fd, SEEK_END, 0);
+  lseek(b->fd, SEEK_END, 0);
   ssize_t written = write(b->fd, node, PAGE_SIZE);
   assert(written == PAGE_SIZE);
 }
 
-btree btree_create(bnode_kv k0, int fd)
-{
+btree btree_create(bnode_kv k0, int fd) {
   btree ret;
+  ret.fd = fd;
   bnode node = bnode_create(k0);
   btree_append_node(&ret, &node);
   return ret;
 }
 
-void btree_insert(btree* b, const bnode_kv k)
-{
-  bnode root = btree_fetch_child(b, 0);
+void btree_insert(btree *b, const bnode_kv k) {
+  assert(b);
+  bnode_kv_assert(&k);
+  btree_fetch_child(b, 0);
 }
 
-int btree_fetch(btree* b, bnode_kv* k) { }
+int btree_fetch(btree *b, bnode_kv *k) {
+  assert(b);
+  assert(k);
+  return 0;
+}

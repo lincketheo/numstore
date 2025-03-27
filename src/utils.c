@@ -7,8 +7,7 @@
 #include <stdio.h>
 #include <unistd.h>
 
-int file_create_from(const char* fname, void* data, usize lenb)
-{
+int file_create_from(const char *fname, void *data, u64 lenb) {
   int fd = open(fname, O_CREAT | O_RDWR | O_TRUNC, S_IRUSR | S_IWUSR);
   if (fd == -1) {
     perror("Failed to open file");
@@ -16,7 +15,7 @@ int file_create_from(const char* fname, void* data, usize lenb)
   }
 
   ssize_t written = write(fd, data, lenb);
-  if (written != lenb) {
+  if (written != (ssize_t)lenb) {
     perror("Failed to write complete data to file");
     close(fd);
     return -2;
@@ -25,15 +24,14 @@ int file_create_from(const char* fname, void* data, usize lenb)
   return fd;
 }
 
-int write_all(int fd, const void* src, usize blen)
-{
+int write_all(int fd, const void *src, u64 blen) {
   assert(src);
   assert(blen > 0);
   assert(fd >= 0);
 
   ssize_t size = blen;
   ssize_t res = 0;
-  const char* buffer = (const char*)src;
+  const char *buffer = (const char *)src;
 
   while (size > 0) {
     res = write(fd, buffer, size);
@@ -53,14 +51,13 @@ int write_all(int fd, const void* src, usize blen)
   return 0;
 }
 
-ssize read_all(int fd, void* dest, usize blen)
-{
+i64 read_all(int fd, void *dest, u64 blen) {
   assert(dest != NULL);
   assert(fd >= 0);
 
   ssize_t total_read = 0;
   ssize_t res = 0;
-  char* buffer = (char*)dest;
+  char *buffer = (char *)dest;
 
   while (blen > 0) {
     res = read(fd, buffer, blen);
@@ -75,34 +72,33 @@ ssize read_all(int fd, void* dest, usize blen)
       break;
     }
 
-    assert(res <= blen);
+    assert((u64)res <= blen);
 
     total_read += res;
     blen -= res;
     buffer += res;
   }
 
-  return total_read;
+  return (i64)total_read;
 }
 
 ///////// BYTES
-void pretty_print_bytes(FILE* ofp, u8* data, usize len)
-{
-  const usize bytes_per_line = 16;
+void pretty_print_bytes(FILE *ofp, u8 *data, u64 len) {
+  const u64 bytes_per_line = 16;
 
-  for (usize i = 0; i < len; i += bytes_per_line) {
-    printf("%08zx: ", i);
+  for (u64 i = 0; i < len; i += bytes_per_line) {
+    fprintf(ofp, "%08" PRIu64 ": ", i);
 
-    for (usize j = 0; j < bytes_per_line; j++) {
+    for (u64 j = 0; j < bytes_per_line; j++) {
       if (i + j < len) {
-        printf("%02x ", data[i + j]);
+        fprintf(ofp, "%02" PRIu8 " ", data[i + j]);
       } else {
-        printf("   ");
+        fprintf(ofp, "   ");
       }
     }
 
     printf(" |");
-    for (usize j = 0; j < bytes_per_line; j++) {
+    for (u64 j = 0; j < bytes_per_line; j++) {
       if (i + j < len) {
         u8 ch = data[i + j];
         printf("%c", isprint(ch) ? ch : '.');

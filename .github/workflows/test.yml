@@ -33,3 +33,7 @@ jobs:
         run: |
           ./test
         continue-on-error: false
+
+      - name: Lint
+        run: make lint
+        continue-on-error: false
