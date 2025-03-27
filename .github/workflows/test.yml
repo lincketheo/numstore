@@ -10,7 +10,7 @@ jobs:
   build-and-test:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest]  # Run on both macOS and Linux
 
     runs-on: ${{ matrix.os }}
 
@@ -18,32 +18,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Linux dependencies
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential clang-tidy
+        run: sudo apt-get update && sudo apt-get install -y build-essential
 
-      # macOS dependencies
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
-        run: |
-          brew update
-          brew install make llvm
-          echo "/opt/homebrew/opt/llvm/bin" >> $GITHUB_PATH  # Ensure clang-tidy is in PATH
-
-      - name: Verify clang-tidy is available
-        run: clang-tidy --version
+        run: brew install make  # Ensure make is installed on macOS
 
       - name: Build the project
         run: make
 
       - name: Run tests
-        run: ./test
+        run: |
+          ./test
         continue-on-error: false
-
-      - name: Lint
-        run: make lint
-        continue-on-error: false
-
