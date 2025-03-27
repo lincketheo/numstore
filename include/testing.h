@@ -6,15 +6,15 @@
 #include <assert.h>
 #include <stdio.h>
 
-typedef void (*test_func)();
+typedef void (*test_func)(void);
 extern u64 ntests;
 extern test_func tests[2048];
 extern int test_ret;
 
 // Macro to define a test
 #define TEST(name)                                                    \
-  static void test_##name();                                          \
-  static void wrapper_test_##name()                                   \
+  static void test_##name(void);                                          \
+  static void wrapper_test_##name(void)                                   \
   {                                                                   \
     fprintf(stderr,                                                   \
         BOLD_WHITE "========================= TEST CASE: %s\n" RESET, \
@@ -29,12 +29,12 @@ extern int test_ret;
       test_ret = prev;                                                \
     }                                                                 \
   }                                                                   \
-  __attribute__((constructor)) static void register_##name()          \
+  __attribute__((constructor)) static void register_##name(void)          \
   {                                                                   \
     assert(ntests < 2048);                                            \
     tests[ntests++] = wrapper_test_##name;                            \
   }                                                                   \
-  static void test_##name()
+  static void test_##name(void)
 
 // Macro for asserting equality
 #define test_assert_equal(left, right, fmt)                               \
