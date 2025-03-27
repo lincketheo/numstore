@@ -35,7 +35,7 @@ typedef u16 cu32[2];
 typedef u32 cu64[2];
 typedef u64 cu128[2];
 
-typedef size_t usize;
+typedef u64 usize;
 typedef long ssize;
 
 #ifdef SIZE_T_MAX

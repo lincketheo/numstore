@@ -16,7 +16,7 @@
 // two bnode key values are equal
 #define test_assert_bnode_kv_equal(_k0, _k1)                                       \
   do {                                                                             \
-    test_assert_equal((_k0).keylen, (_k1).keylen, "%"PRIu16);                          \
+    test_assert_equal((_k0).keylen, (_k1).keylen, "%" PRIu16);                     \
     test_assert_equal(strncmp((_k0).key, (_k1).key, (_k0).keylen), 0, "%" PRId32); \
     test_assert_equal((_k0).ptr, (_k1).ptr, "%" PRIu64);                           \
   } while (0)
@@ -174,7 +174,7 @@ static inline void bnode_kv_print(FILE* ofp, bnode_kv* b)
   assert(ofp);
   bnode_kv_assert(b);
 
-  fprintf(ofp, "(%.*s, %lu)", b->keylen, b->key, b->ptr);
+  fprintf(ofp, "(%.*s, %" PRIu64 ")", b->keylen, b->key, b->ptr);
 }
 
 static bnode bnode_create(bnode_kv k0)
@@ -202,11 +202,11 @@ static void bnode_print(FILE* ofp, bnode* b)
   child_ptr_t* ptrs = bnode_ptrs(b);
 
   // Print Nodes
-  fprintf(ofp, "%lu ", ptrs[0]);
+  fprintf(ofp, "%" PRIu64 " ", ptrs[0]);
   for (int i = 0; i < b->nkeys; ++i) {
     bnode_kv key = bnode_get_kv(b, i);
     bnode_kv_print(ofp, &key);
-    fprintf(ofp, " %lu ", ptrs[i + 1]);
+    fprintf(ofp, " %" PRIu64 " ", ptrs[i + 1]);
   }
   fprintf(ofp, "\n");
 }
@@ -215,8 +215,8 @@ static void bnode_byte_print(FILE* ofp, bnode* b)
 {
   bnode_assert(b);
 
-  fprintf(ofp, "NKeys: %du\n", b->nkeys);
-  fprintf(ofp, "Node Size: %zu\n", bnode_size(b));
+  fprintf(ofp, "NKeys: %" PRIu16 "\n", b->nkeys);
+  fprintf(ofp, "Node Size: %" PRIu64 "\n", bnode_size(b));
   fprintf(ofp, "Data:\n");
   pretty_print_bytes(ofp, (u8*)b, bnode_size(b));
 }
