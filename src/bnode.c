@@ -23,7 +23,7 @@
 
 ////////////////// Key Value Utils
 
-static inline usize bnode_kv_size(bnode_kv* b)
+static inline u64 bnode_kv_size(bnode_kv* b)
 {
   bnode_kv_assert(b);
   return b->keylen + sizeof(data_ptr_t) + sizeof(keylen_t);
@@ -72,21 +72,21 @@ bnode_keys(const bnode* b)
   return (u8*)offsets_tail;
 }
 
-static inline usize bnode_size(const bnode* b)
+static inline u64 bnode_size(const bnode* b)
 {
   bnode_assert(b);
 
   // Last offset is the size
   offset_t offset = bnode_offsets(b)[b->nkeys - 1];
-  usize before = bnode_keys(b) - (u8*)b;
+  u64 before = bnode_keys(b) - (u8*)b;
 
-  usize size = before + offset;
+  u64 size = before + offset;
   assert(size <= PAGE_SIZE);
 
   return size;
 }
 
-static inline u8* bnode_kv_start(const bnode* b, usize idx)
+static inline u8* bnode_kv_start(const bnode* b, u64 idx)
 {
   bnode_assert(b);
   assert(idx < b->nkeys);
@@ -99,7 +99,7 @@ static inline u8* bnode_kv_start(const bnode* b, usize idx)
   return bnode_keys(b) + offsets[idx - 1];
 }
 
-static inline bnode_kv bnode_get_kv(const bnode* b, usize idx)
+static inline bnode_kv bnode_get_kv(const bnode* b, u64 idx)
 {
   assert(b);
   assert(idx < b->nkeys);
@@ -116,7 +116,7 @@ static inline bnode_kv bnode_get_kv(const bnode* b, usize idx)
   return ret;
 }
 
-static inline void bnode_set_kv(const bnode* b, usize idx, data_ptr_t ptr)
+static inline void bnode_set_kv(const bnode* b, u64 idx, data_ptr_t ptr)
 {
   assert(b);
   assert(idx < b->nkeys);
@@ -131,7 +131,7 @@ static inline void bnode_set_kv(const bnode* b, usize idx, data_ptr_t ptr)
   bnode_kv_assert(&kv);
 }
 
-static inline int bnode_find_kv(const bnode* b, bnode_kv* k, usize* idx)
+static inline int bnode_find_kv(const bnode* b, bnode_kv* k, u64* idx)
 {
   assert(b);
   assert(k);
@@ -231,7 +231,7 @@ static void bnode_insert_kv(
   bnode_kv_assert(k);
 
   // First, search for the key or location the key should be
-  usize idx;
+  u64 idx;
   bnode_kv found_kv;
   memcpy(&found_kv, k, sizeof *k);
   int found = bnode_find_kv(src, &found_kv, &idx);
@@ -261,7 +261,7 @@ static void bnode_insert_kv(
   }
 
   // Third, dest[idx] = kv
-  usize kvlen = bnode_kv_size(k);
+  u64 kvlen = bnode_kv_size(k);
   bnode_kv_serialize(dest_keys + kvlen_left, k);
   dest_offsets[idx] = kvlen_left + kvlen;
   dest_ptrs[idx] = 0;
@@ -269,7 +269,7 @@ static void bnode_insert_kv(
   // Fourth, dest[idx + 1:nkeys + 1] = src[idx:nkeys]
   // Don't forget to add the size of the newly inserted key to
   // all the offsets
-  usize nleft = src->nkeys - idx;
+  u64 nleft = src->nkeys - idx;
   if (nleft > 0) {
     // Copy Pointers Over
     memcpy(&dest_ptrs[idx + 1],
@@ -282,7 +282,7 @@ static void bnode_insert_kv(
         nleft * sizeof(*dest_offsets));
 
     // Add new keylen to all offsets
-    for (usize i = idx + 1; i < dest->nkeys; i++) {
+    for (u64 i = idx + 1; i < dest->nkeys; i++) {
       dest_offsets[i] += kvlen;
     }
 
@@ -352,30 +352,30 @@ TEST(find)
   bnode_insert_kv(&b0, &b1, &k2);
   bnode_insert_kv(&b1, &b0, &k3);
 
-  usize idx;
+  u64 idx;
   int found;
   bnode_kv search;
 
   search = BNODE_KV_FROM("foobar", 0);
   found = bnode_find_kv(&b1, &search, &idx);
   test_assert_equal(found, 1, "%" PRId32);
-  test_assert_equal(idx, 3ul, "%" PRIu64);
-  test_assert_equal(search.ptr, 1lu, "%" PRIu64);
+  test_assert_equal(idx, (u64)3, "%" PRIu64);
+  test_assert_equal(search.ptr, (u64)1, "%" PRIu64);
 
   search = BNODE_KV_FROM("bar", 0);
   found = bnode_find_kv(&b1, &search, &idx);
   test_assert_equal(found, 0, "%" PRId32);
-  test_assert_equal(idx, 0ul, "%" PRIu64);
+  test_assert_equal(idx, (u64)0, "%" PRIu64);
 
   search = BNODE_KV_FROM("barbuzbiz", 0);
   found = bnode_find_kv(&b1, &search, &idx);
   test_assert_equal(found, 0, "%" PRId32);
-  test_assert_equal(idx, 1ul, "%" PRIu64);
+  test_assert_equal(idx, (u64)1, "%" PRIu64);
 
   search = BNODE_KV_FROM("zzzz", 0);
   found = bnode_find_kv(&b1, &search, &idx);
   test_assert_equal(found, 0, "%" PRId32);
-  test_assert_equal(idx, 4ul, "%" PRIu64);
+  test_assert_equal(idx, (u64)4, "%" PRIu64);
 }
 
 //////////////////////////////////// BTree
