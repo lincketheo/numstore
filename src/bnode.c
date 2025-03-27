@@ -77,9 +77,9 @@ static inline usize bnode_size(const bnode* b)
 
   // Last offset is the size
   offset_t offset = bnode_offsets(b)[b->nkeys - 1];
-  usize before = bnode_keys(b) - b->data;
+  usize before = bnode_keys(b) - (u8*)b;
 
-  usize size = before + offset + sizeof(b->nkeys);
+  usize size = before + offset;
   assert(size <= PAGE_SIZE);
 
   return size;
@@ -229,7 +229,8 @@ static void bnode_insert_kv(
   bnode_assert(src);
   bnode_kv_assert(k);
 
-  usize idx; // The required insertion index
+  // First, search for the key or location the key should be
+  usize idx;
   bnode_kv found_kv;
   memcpy(&found_kv, k, sizeof *k);
   int found = bnode_find_kv(src, &found_kv, &idx);
@@ -241,7 +242,6 @@ static void bnode_insert_kv(
 
   dest->nkeys = src->nkeys + 1;
 
-  // Gather pointers
   child_ptr_t* dest_ptrs = bnode_ptrs(dest);
   u8* dest_keys = bnode_keys(dest);
   offset_t* dest_offsets = bnode_offsets(dest);
@@ -250,35 +250,46 @@ static void bnode_insert_kv(
   const u8* src_keys = bnode_keys(src);
   const offset_t* src_offsets = bnode_offsets(src);
 
-  offset_t left_len = (idx > 0) ? src_offsets[idx - 1] : 0;
+  // Length of the keys byte array on the left of [idx]
+  offset_t kvlen_left = (idx > 0) ? src_offsets[idx - 1] : 0;
 
-  // LEFT HALF
   if (idx > 0) {
     memcpy(dest_ptrs, src_ptrs, idx * sizeof(*dest_ptrs));
     memcpy(dest_offsets, src_offsets, idx * sizeof(*dest_offsets));
-    memcpy(dest_keys, src_keys, left_len * sizeof(*dest_keys));
+    memcpy(dest_keys, src_keys, kvlen_left * sizeof(*dest_keys));
   }
 
-  // INSERT
+  // Third, dest[idx] = kv
   usize kvlen = bnode_kv_size(k);
-  bnode_kv_serialize(dest_keys + left_len, k);
-  dest_offsets[idx] = left_len + kvlen;
+  bnode_kv_serialize(dest_keys + kvlen_left, k);
+  dest_offsets[idx] = kvlen_left + kvlen;
   dest_ptrs[idx] = 0;
 
-  // RIGHT HALF
-  usize right_offset_count = src->nkeys - idx;
-  if (right_offset_count > 0) {
-    usize right_ptr_count = (src->nkeys + 1) - idx;
-    memcpy(&dest_ptrs[idx + 1], &src_ptrs[idx],
-        right_ptr_count * sizeof(*dest_ptrs));
-    memcpy(&dest_offsets[idx + 1], &src_offsets[idx],
-        right_offset_count * sizeof(*dest_offsets));
+  // Fourth, dest[idx + 1:nkeys + 1] = src[idx:nkeys]
+  // Don't forget to add the size of the newly inserted key to
+  // all the offsets
+  usize nleft = src->nkeys - idx;
+  if (nleft > 0) {
+    // Copy Pointers Over
+    memcpy(&dest_ptrs[idx + 1],
+        &src_ptrs[idx],
+        (nleft + 1) * sizeof(*dest_ptrs));
+
+    // Copy Offsets Over
+    memcpy(&dest_offsets[idx + 1],
+        &src_offsets[idx],
+        nleft * sizeof(*dest_offsets));
+
+    // Add new keylen to all offsets
     for (usize i = idx + 1; i < dest->nkeys; i++) {
       dest_offsets[i] += kvlen;
     }
-    offset_t right_keys_len = src_offsets[src->nkeys - 1] - left_len;
-    memcpy(dest_keys + dest_offsets[idx], src_keys + left_len,
-        right_keys_len * sizeof(*dest_keys));
+
+    // Copy keys over
+    offset_t kvlen_right = src_offsets[src->nkeys - 1] - kvlen_left;
+    memcpy(dest_keys + dest_offsets[idx],
+        src_keys + kvlen_left,
+        kvlen_right * sizeof(*dest_keys));
   }
 }
 
