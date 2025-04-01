@@ -3,8 +3,6 @@
 #include <assert.h>
 #include <complex.h>
 #include <stdint.h>
-#include <string.h>
-#include <inttypes.h>
 
 /////// DTYPES
 typedef uint8_t u8;
@@ -61,6 +59,14 @@ typedef enum {
 } dtype;
 
 u64 dtype_sizeof(const dtype type);
+
+/////// Internal Node Types
+typedef u64 page_ptr;
+typedef u16 offset_t;
+typedef u16 keylen_t;
+typedef u16 nkeys_t;
+
+#define PAGE_SIZE 4096
 
 /////// RANGES
 typedef struct

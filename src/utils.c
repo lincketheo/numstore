@@ -1,85 +1,21 @@
 #include "utils.h"
+#include "errors.h"
+#include "ns_assert.h"
 
 #include <ctype.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <stddef.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <unistd.h>
 
-int file_create_from(const char *fname, void *data, u64 lenb) {
-  int fd = open(fname, O_CREAT | O_RDWR | O_TRUNC, S_IRUSR | S_IWUSR);
-  if (fd == -1) {
-    perror("Failed to open file");
-    return -1;
+///////// FILES
+i64 file_size (int fd) {
+  fd_assert(fd);
+  off_t offset = lseek(fd, 0, SEEK_END);
+  if(offset < 0) {
+    perror("lseek");
+    return ERR_IO;
   }
-
-  ssize_t written = write(fd, data, lenb);
-  if (written != (ssize_t)lenb) {
-    perror("Failed to write complete data to file");
-    close(fd);
-    return -2;
-  }
-
-  return fd;
-}
-
-int write_all(int fd, const void *src, u64 blen) {
-  assert(src);
-  assert(blen > 0);
-  assert(fd >= 0);
-
-  ssize_t size = blen;
-  ssize_t res = 0;
-  const char *buffer = (const char *)src;
-
-  while (size > 0) {
-    res = write(fd, buffer, size);
-    if (res == -1) {
-      if (errno == EINTR) {
-        continue;
-      }
-      return -1;
-    }
-
-    assert(res <= size);
-
-    size -= res;
-    buffer += res;
-  }
-
-  return 0;
-}
-
-i64 read_all(int fd, void *dest, u64 blen) {
-  assert(dest != NULL);
-  assert(fd >= 0);
-
-  ssize_t total_read = 0;
-  ssize_t res = 0;
-  char *buffer = (char *)dest;
-
-  while (blen > 0) {
-    res = read(fd, buffer, blen);
-    if (res == -1) {
-      if (errno == EINTR) {
-        continue;
-      }
-      return -1;
-    }
-
-    if (res == 0) {
-      break;
-    }
-
-    assert((u64)res <= blen);
-
-    total_read += res;
-    blen -= res;
-    buffer += res;
-  }
-
-  return (i64)total_read;
+  return (i64)offset;
 }
 
 ///////// BYTES

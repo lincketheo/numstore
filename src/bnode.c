@@ -3,12 +3,16 @@
 #include "types.h"
 #include "utils.h"
 
+#include <string.h>
+#include <string.h>
+#include <inttypes.h>
+
 //////////////////////////////////// A Key Value Data Structure
 
 u64 bnode_kv_size(const bnode_kv* b)
 {
   bnode_kv_assert(b);
-  return b->keylen + sizeof(data_ptr_t) + sizeof(keylen_t);
+  return b->keylen + sizeof(page_ptr) + sizeof(keylen_t);
 }
 
 static inline void bnode_kv_serialize(u8* _dest, bnode_kv* k)
@@ -25,19 +29,19 @@ static inline void bnode_kv_serialize(u8* _dest, bnode_kv* k)
   dest += k->keylen;
 
   // Then the "value" (data pointer)
-  memcpy(dest, &k->ptr, sizeof(data_ptr_t));
+  memcpy(dest, &k->ptr, sizeof(page_ptr));
 }
 
 //////////////////////////////////// A B-Node Data Structure
 
-static inline child_ptr_t* bnode_ptrs(const bnode* b)
+static inline page_ptr* bnode_ptrs(const bnode* b)
 {
-  return (child_ptr_t*)b->data;
+  return (page_ptr*)b->data;
 }
 
 static inline offset_t* bnode_offsets(const bnode* b)
 {
-  child_ptr_t* child_ptrs_tail = bnode_ptrs(b) + (b->nkeys + 1);
+  page_ptr* child_ptrs_tail = bnode_ptrs(b) + (b->nkeys + 1);
   return (offset_t*)child_ptrs_tail;
 }
 
@@ -60,16 +64,16 @@ u64 bnode_size(const bnode* b)
 }
 
 static void bnode_copy_range(
-    bnode* dest,
-    const bnode* src,
-    int d0, int s0, int n)
+  bnode* dest,
+  const bnode* src,
+  int d0, int s0, int n)
 {
   assert(n > 0);
 
-  child_ptr_t* cdest = bnode_ptrs(dest);
+  page_ptr* cdest = bnode_ptrs(dest);
   offset_t* odest = bnode_offsets(dest);
 
-  const child_ptr_t* csrc = bnode_ptrs(src);
+  const page_ptr* csrc = bnode_ptrs(src);
   const offset_t* osrc = bnode_offsets(src);
 
   u8* dest_keys = bnode_keys(dest);
@@ -82,7 +86,7 @@ static void bnode_copy_range(
   offset_t bytes_to_copy = src_end - src_base;
 
   memcpy(dest_keys + dest_base, src_keys + src_base, bytes_to_copy);
-  memcpy(cdest + d0, csrc + s0, (n + 1) * sizeof(child_ptr_t));
+  memcpy(cdest + d0, csrc + s0, (n + 1) * sizeof(page_ptr));
 
   for (int i = 0; i < n; i++) {
     odest[d0 + i] = dest_base + (osrc[s0 + i] - src_base);
@@ -94,7 +98,7 @@ nkeys_t bnode_get_median_key(const bnode* node)
   assert(node->nkeys >= 2);
   nkeys_t nleft = node->nkeys / 2;
 
-#define bleft (sizeof(nkeys_t) + nleft * (sizeof(child_ptr_t) + sizeof(offset_t)) + bnode_offsets(node)[nleft])
+#define bleft (sizeof(nkeys_t) + nleft * (sizeof(page_ptr) + sizeof(offset_t)) + bnode_offsets(node)[nleft])
 
   while (bleft > PAGE_SIZE) {
     nleft--;
@@ -108,25 +112,25 @@ nkeys_t bnode_get_median_key(const bnode* node)
   }
   assert(nleft < node->nkeys);
 
-#undef bleft
-#undef bright
+  #undef bleft
+  #undef bright
 
   return nleft;
 }
 
 void bnode_split_part_1(
-    bnode* left,
-    bnode* center,
-    bnode* right,
-    const bnode* src)
+  bnode* left,
+  bnode* center,
+  bnode* right,
+  const bnode* src)
 {
   nkeys_t start = bnode_get_median_key(src);
 }
 
 void bnode_split_part_2(
-    child_ptr_t left,
-    bnode* center,
-    child_ptr_t right)
+  page_ptr left,
+  bnode* center,
+  page_ptr right)
 {
 }
 
@@ -168,14 +172,14 @@ static inline bnode_kv bnode_get_kv(const bnode* b, u64 idx)
   u8* head = bnode_kv_start(b, idx);
   ret.keylen = *(keylen_t*)(head);
   ret.key = (char*)(head + sizeof(keylen_t));
-  ret.ptr = *(data_ptr_t*)(head + sizeof(keylen_t) + ret.keylen);
+  ret.ptr = *(page_ptr*)(head + sizeof(keylen_t) + ret.keylen);
 
   bnode_kv_assert(&ret);
 
   return ret;
 }
 
-static inline void bnode_set_kv(const bnode* b, u64 idx, data_ptr_t ptr)
+static inline void bnode_set_kv(const bnode* b, u64 idx, page_ptr ptr)
 {
   assert(b);
   assert(idx < b->nkeys);
@@ -185,7 +189,7 @@ static inline void bnode_set_kv(const bnode* b, u64 idx, data_ptr_t ptr)
   u8* head = bnode_kv_start(b, idx);
   kv.keylen = *(keylen_t*)(head);
   kv.key = (char*)(head + sizeof(keylen_t));
-  *(data_ptr_t*)(head + sizeof(keylen_t) + kv.keylen) = ptr;
+  *(page_ptr*)(head + sizeof(keylen_t) + kv.keylen) = ptr;
 
   bnode_kv_assert(&kv);
 }
@@ -241,7 +245,7 @@ static bnode bnode_create(bnode_kv k0)
   bnode ret;
   ret.nkeys = 1;
 
-  child_ptr_t* ptrs = bnode_ptrs(&ret);
+  page_ptr* ptrs = bnode_ptrs(&ret);
   ptrs[0] = 0;
   ptrs[1] = 0;
 
@@ -258,7 +262,7 @@ __attribute__((unused)) static void bnode_print(FILE* ofp, bnode* b)
 {
   bnode_assert(b);
 
-  child_ptr_t* ptrs = bnode_ptrs(b);
+  page_ptr* ptrs = bnode_ptrs(b);
 
   // Print Nodes
   fprintf(ofp, "%" PRIu64 " ", ptrs[0]);
@@ -298,11 +302,11 @@ int bnode_insert_kv(bnode* dest, const bnode* src, bnode_kv* k)
 
   dest->nkeys = src->nkeys + 1;
 
-  child_ptr_t* dest_ptrs = bnode_ptrs(dest);
+  page_ptr* dest_ptrs = bnode_ptrs(dest);
   u8* dest_keys = bnode_keys(dest);
   offset_t* dest_offsets = bnode_offsets(dest);
 
-  const child_ptr_t* src_ptrs = bnode_ptrs(src);
+  const page_ptr* src_ptrs = bnode_ptrs(src);
   const u8* src_keys = bnode_keys(src);
   const offset_t* src_offsets = bnode_offsets(src);
 
@@ -328,11 +332,11 @@ int bnode_insert_kv(bnode* dest, const bnode* src, bnode_kv* k)
   if (nleft > 0) {
     // Copy Pointers Over
     memcpy(&dest_ptrs[idx + 1], &src_ptrs[idx],
-        (nleft + 1) * sizeof(*dest_ptrs));
+           (nleft + 1) * sizeof(*dest_ptrs));
 
     // Copy Offsets Over
     memcpy(&dest_offsets[idx + 1], &src_offsets[idx],
-        nleft * sizeof(*dest_offsets));
+           nleft * sizeof(*dest_offsets));
 
     // Add new keylen to all offsets
     for (u64 i = idx + 1; i < dest->nkeys; i++) {
@@ -342,7 +346,7 @@ int bnode_insert_kv(bnode* dest, const bnode* src, bnode_kv* k)
     // Copy keys over
     offset_t kvlen_right = src_offsets[src->nkeys - 1] - kvlen_left;
     memcpy(dest_keys + dest_offsets[idx], src_keys + kvlen_left,
-        kvlen_right * sizeof(*dest_keys));
+           kvlen_right * sizeof(*dest_keys));
   }
 
   return 0;
@@ -350,15 +354,15 @@ int bnode_insert_kv(bnode* dest, const bnode* src, bnode_kv* k)
 
 // Some testing utils
 #define BNODE_KV_FROM(cstr, _ptr) \
-  ((bnode_kv) { .keylen = strlen(cstr), .key = (char*)(cstr), .ptr = (_ptr) })
+((bnode_kv) { .keylen = strlen(cstr), .key = (char*)(cstr), .ptr = (_ptr) })
 
 #define test_assert_bnode_kv_equal(_k0, _k1)                          \
-  do {                                                                \
-    test_assert_equal((_k0).keylen, (_k1).keylen, "%" PRIu16);        \
-    test_assert_equal(strncmp((_k0).key, (_k1).key, (_k0).keylen), 0, \
-        "%" PRId32);                                                  \
-    test_assert_equal((_k0).ptr, (_k1).ptr, "%" PRIu64);              \
-  } while (0)
+do {                                                                \
+  test_assert_equal((_k0).keylen, (_k1).keylen, "%" PRIu16);        \
+  test_assert_equal(strncmp((_k0).key, (_k1).key, (_k0).keylen), 0, \
+                    "%" PRId32);                                                  \
+  test_assert_equal((_k0).ptr, (_k1).ptr, "%" PRIu64);              \
+} while (0)
 
 TEST(insertion)
 {

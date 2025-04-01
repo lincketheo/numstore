@@ -1,9 +1,10 @@
 #pragma once
 
 #include "bnode.h"
+#include "page_alloc.h"
 
 typedef struct {
-  int fd;
+  page_alloc alloc;
 } fdbtree;
 
 #define fdbtree_assert(b) assert(b)

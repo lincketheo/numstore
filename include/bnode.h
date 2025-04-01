@@ -3,15 +3,8 @@
 #include "types.h"
 
 #include <assert.h>
-#include <stdio.h>
 
-#define PAGE_SIZE 4096
 
-typedef u64 child_ptr_t;
-typedef u64 data_ptr_t;
-typedef u16 offset_t;
-typedef u16 keylen_t;
-typedef u16 nkeys_t;
 
 //////////////////////////////////// A Key Value Data Structure
 
@@ -19,7 +12,7 @@ typedef struct
 {
   keylen_t keylen;
   char* key;
-  data_ptr_t ptr;
+  page_ptr ptr;
 } bnode_kv;
 
 #define bnode_kv_assert(b) \
@@ -64,9 +57,9 @@ void bnode_split_part_1(
   const bnode* src);
 
 void bnode_split_part_2(
-  child_ptr_t left, 
+  page_ptr left, 
   bnode* center, 
-  child_ptr_t right);
+  page_ptr right);
 
 int bnode_is_child(const bnode* b);
 
