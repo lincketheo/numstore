@@ -6,6 +6,11 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+static int page_alloc_valid(page_alloc* p) {
+  assert(p);
+  fseek(p->fd, 0, SEEK_END);
+}
+
 int page_alloc_init(page_alloc* dest, const char* fname) {
   assert(dest);
   assert(fname);
