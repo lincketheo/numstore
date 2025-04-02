@@ -4,7 +4,8 @@
 #include <errno.h>
 #include <fcntl.h>
 
-#define todo_assert(expr) assert(expr)
+#define todo_assert(expr) \
+  assert(expr)
 
 static inline int _fd_assert(int fd) {
   return fcntl(fd, F_GETFL) != -1 || errno != EBADF;

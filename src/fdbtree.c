@@ -1,67 +1,50 @@
 #include "fdbtree.h"
+#include "errors.h"
 #include "ns_assert.h"
 #include "bnode.h"
+#include "page_alloc.h"
+#include "types.h"
 
 #include <assert.h>
-#include <stdio.h>
 #include <unistd.h>
 
 static inline page_ptr fdbtree_get_root(fdbtree* b)
 {
-
-}
-
-static bnode fdbtree_fetch_node(fdbtree* b, page_ptr ptr)
-{
-  bnode ret;
-  ssize_t read = pread(b->fd, &ret, PAGE_SIZE, PAGE_SIZE * ptr);
-  assert(read == PAGE_SIZE);
-  return ret;
-}
-
-static page_ptr fdbtree_append_node(fdbtree* b, const bnode* node)
-{
-  // Check position
-  off_t pos = lseek(b->fd, 0, SEEK_END);
-  todo_assert(pos > 0);
-  assert(pos % PAGE_SIZE == 0);
-  page_ptr page = pos / PAGE_SIZE;
-
-  // Do write
-  ssize_t written = write(b->fd, node, PAGE_SIZE);
-  assert(written == PAGE_SIZE);
-
-  return page;
-}
-
-// TODO - I think this is the bad one for database Atomicity
-static void fdbtree_update_node(fdbtree* b, const bnode* node, page_ptr loc) {
-  bnode_assert(node);
   fdbtree_assert(b);
-
-  ssize_t written = pwrite(b->fd, node, PAGE_SIZE, PAGE_SIZE * loc);
-  assert(written == PAGE_SIZE);
+  u8 buffer[PAGE_SIZE];
+  int ret = page_alloc_get(&b->alloc, buffer, 0);
+  if(ret != SUCCESS) {
+    return ret;
+  }
+  page_ptr root = *((page_ptr*)&buffer[0]);
+  return root;
 }
 
-static void fdbtree_insert_recurs(
-    fdbtree* b, bnode_kv* k,
-    page_ptr root, bnode* pass_up,
-    int* should_pass_up)
+static int fdbtree_insert_recurs(
+  fdbtree* b, bnode_kv* k,
+  page_ptr root, bnode* pass_up,
+  int* should_pass_up)
 {
   bnode_kv_assert(k);
 
-  bnode node = fdbtree_fetch_node(b, root);
+  bnode node;
+  int ret = page_alloc_get(&b->alloc, (u8*)&node, root);
+  if(ret != SUCCESS) {
+    return ret;
+  }
 
   // Child Node
-  if (bnode_is_child(&node)) {
+  if (bnode_is_leaf(&node)) {
 
     // Insert the key value into the node,
     // This might overflow, but bnode is
     // intentionally 2 * PAGE_SIZE
     // Afterwards, we'll split
     bnode newnode;
-    int ret = bnode_insert_kv(&newnode, &node, k);
-    assert(ret == 0);
+    ret = bnode_insert_kv(&newnode, &node, k);
+    if(ret != SUCCESS) {
+      return ret;
+    }
 
     // Split
     if (bnode_size(&newnode) > PAGE_SIZE) {
@@ -73,9 +56,10 @@ static void fdbtree_insert_recurs(
       // Split into three parts
       bnode left;
       bnode right;
-      bnode_split_part_1(&left, pass_up, &right, &newnode);
-      *should_pass_up = 1;
+      bnode center;
+      bnode_split_part_1(&left, &center, &right, &newnode);
 
+      
       page_ptr left_ptr = fdbtree_append_node(b, &left);
       page_ptr right_ptr = fdbtree_append_node(b, &right);
 

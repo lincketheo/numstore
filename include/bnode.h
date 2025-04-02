@@ -61,7 +61,7 @@ void bnode_split_part_2(
   bnode* center, 
   page_ptr right);
 
-int bnode_is_child(const bnode* b);
+int bnode_is_leaf(const bnode* b);
 
 int bnode_insert_kv(bnode* dest, const bnode* src, bnode_kv* k);
 

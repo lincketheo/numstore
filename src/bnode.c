@@ -1,4 +1,5 @@
 #include "bnode.h"
+#include "errors.h"
 #include "testing.h"
 #include "types.h"
 #include "utils.h"
@@ -134,7 +135,7 @@ void bnode_split_part_2(
 {
 }
 
-int bnode_is_child(const bnode* b)
+int bnode_is_leaf(const bnode* b)
 {
   bnode_assert(b);
 
@@ -297,7 +298,7 @@ int bnode_insert_kv(bnode* dest, const bnode* src, bnode_kv* k)
   if (found) {
     memcpy(dest, src, bnode_size(src));
     bnode_set_kv(dest, idx, k->ptr);
-    return 0;
+    return SUCCESS;
   }
 
   dest->nkeys = src->nkeys + 1;
@@ -349,7 +350,7 @@ int bnode_insert_kv(bnode* dest, const bnode* src, bnode_kv* k)
            kvlen_right * sizeof(*dest_keys));
   }
 
-  return 0;
+  return SUCCESS;
 }
 
 // Some testing utils

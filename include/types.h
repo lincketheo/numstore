@@ -62,9 +62,13 @@ u64 dtype_sizeof(const dtype type);
 
 /////// Internal Node Types
 typedef u64 page_ptr;
+typedef i64 spage_ptr;
 typedef u16 offset_t;
+typedef i16 soffset_t;
 typedef u16 keylen_t;
+typedef i16 skeylen_t;
 typedef u16 nkeys_t;
+typedef i16 snkeys_t;
 
 #define PAGE_SIZE 4096
 
