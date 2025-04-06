@@ -4,8 +4,6 @@
 
 #include <assert.h>
 
-
-
 //////////////////////////////////// A Key Value Data Structure
 
 typedef struct
