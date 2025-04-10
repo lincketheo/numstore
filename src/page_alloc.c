@@ -18,7 +18,7 @@ int page_alloc_open(page_alloc* dest, const char* fname) {
     perror("open");
     return ERR_IO;
   }
-  fd_assert(fd);
+  fd_assert(&fd);
 
   dest->fd = fd;
   return SUCCESS;

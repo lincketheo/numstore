@@ -54,6 +54,8 @@ static inline u8* bnode_keys(const bnode* b)
 
 u64 bnode_size(const bnode* b)
 {
+  // No assert for recursive
+
   // Last offset is the size
   offset_t offset = bnode_offsets(b)[b->nkeys - 1];
   u64 before = bnode_keys(b) - (u8*)b;
@@ -64,13 +66,20 @@ u64 bnode_size(const bnode* b)
   return size;
 }
 
+// dest[d0:d0 + n] = src[s0:s0 + n]
 static void bnode_copy_range(
   bnode* dest,
   const bnode* src,
-  int d0, int s0, int n)
+  u32 d0, u32 s0, int n)
 {
+  // Assertions
+  bnode_assert(dest);
+  bnode_assert(src);
   assert(n > 0);
+  assert(d0 + n < dest->nkeys);
+  assert(s0 + n < src->nkeys);
 
+  // Grab pointers
   page_ptr* cdest = bnode_ptrs(dest);
   offset_t* odest = bnode_offsets(dest);
 
@@ -80,18 +89,26 @@ static void bnode_copy_range(
   u8* dest_keys = bnode_keys(dest);
   const u8* src_keys = bnode_keys(src);
 
+  // Grab starting indexes
   offset_t dest_base = (d0 == 0) ? 0 : odest[d0 - 1];
   offset_t src_base = (s0 == 0) ? 0 : osrc[s0 - 1];
 
   offset_t src_end = osrc[s0 + n - 1];
   offset_t bytes_to_copy = src_end - src_base;
 
+  // Copy keys over
   memcpy(dest_keys + dest_base, src_keys + src_base, bytes_to_copy);
+
+  // Copy pages over
   memcpy(cdest + d0, csrc + s0, (n + 1) * sizeof(page_ptr));
 
+  // Copy offsets over
   for (int i = 0; i < n; i++) {
     odest[d0 + i] = dest_base + (osrc[s0 + i] - src_base);
   }
+
+  // Set the number of keys at the end
+  dest->nkeys = d0 + n;
 }
 
 nkeys_t bnode_get_median_key(const bnode* node)
@@ -117,37 +134,6 @@ nkeys_t bnode_get_median_key(const bnode* node)
   #undef bright
 
   return nleft;
-}
-
-void bnode_split_part_1(
-  bnode* left,
-  bnode* center,
-  bnode* right,
-  const bnode* src)
-{
-  nkeys_t start = bnode_get_median_key(src);
-}
-
-void bnode_split_part_2(
-  page_ptr left,
-  bnode* center,
-  page_ptr right)
-{
-}
-
-int bnode_is_leaf(const bnode* b)
-{
-  bnode_assert(b);
-
-  // Proof:
-  // Knuth criterion 5: "A non leaf node with
-  // k children contains k - 1 keys"
-  // Also, all nodes have at least 1 key
-  // A Leaf node at [0] is obviously 0, but
-  // a non leaf node is [0] is not 0 because
-  // all non leaf nodes have
-  // at least 2 children, so not 0
-  return bnode_ptrs(b)[0] == 0;
 }
 
 static inline u8* bnode_kv_start(const bnode* b, u64 idx)

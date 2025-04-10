@@ -3,7 +3,7 @@ UNAME_S := $(shell uname -s)
 
 # Compiler and Flags
 CC := gcc
-CFLAGS := -I./include -g -Wall -Wextra -Werror -pedantic -O0
+CFLAGS := -I./include -g -Wall -Wextra -Werror -pedantic -O0 -Wno-unused-function
 
 ifeq ($(UNAME_S), Darwin)
 	CFLAGS += -D_DARWIN_C_SOURCE

@@ -1,19 +1,38 @@
 #include "fdbtree.h"
+#include "bnode.h"
 #include "errors.h"
 #include "ns_assert.h"
-#include "bnode.h"
 #include "page_alloc.h"
 #include "types.h"
 
 #include <assert.h>
 #include <unistd.h>
 
+int fdbtree_open(fdbtree* dest, bnode_kv k0, const char* fname)
+{
+  bnode_kv_assert(&k0);
+  assert(dest);
+
+  // Build page alloc
+  page_alloc p;
+  int stat = page_alloc_open(&p, fname);
+  if (stat != SUCCESS) {
+    return stat;
+  }
+
+  dest->alloc = p;
+  fdbtree_assert(dest);
+  return SUCCESS;
+}
+
+// Returns the first node
+// Which is just the first page
 static inline page_ptr fdbtree_get_root(fdbtree* b)
 {
   fdbtree_assert(b);
   u8 buffer[PAGE_SIZE];
   int ret = page_alloc_get(&b->alloc, buffer, 0);
-  if(ret != SUCCESS) {
+  if (ret != SUCCESS) {
     return ret;
   }
   page_ptr root = *((page_ptr*)&buffer[0]);
@@ -21,15 +40,15 @@ static inline page_ptr fdbtree_get_root(fdbtree* b)
 }
 
 static int fdbtree_insert_recurs(
-  fdbtree* b, bnode_kv* k,
-  page_ptr root, bnode* pass_up,
-  int* should_pass_up)
+    fdbtree* b, bnode_kv* k,
+    page_ptr root, bnode* pass_up,
+    int* should_pass_up)
 {
   bnode_kv_assert(k);
 
   bnode node;
   int ret = page_alloc_get(&b->alloc, (u8*)&node, root);
-  if(ret != SUCCESS) {
+  if (ret != SUCCESS) {
     return ret;
   }
 
@@ -42,7 +61,7 @@ static int fdbtree_insert_recurs(
     // Afterwards, we'll split
     bnode newnode;
     ret = bnode_insert_kv(&newnode, &node, k);
-    if(ret != SUCCESS) {
+    if (ret != SUCCESS) {
       return ret;
     }
 
@@ -59,7 +78,6 @@ static int fdbtree_insert_recurs(
       bnode center;
       bnode_split_part_1(&left, &center, &right, &newnode);
 
-      
       page_ptr left_ptr = fdbtree_append_node(b, &left);
       page_ptr right_ptr = fdbtree_append_node(b, &right);
 

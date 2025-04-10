@@ -1,14 +1,17 @@
 #pragma once
 
 #include "bnode.h"
+#include "ns_assert.h"
 #include "page_alloc.h"
 
 typedef struct {
   page_alloc alloc;
 } fdbtree;
 
-#define fdbtree_assert(b) \
-  assert(b); \
-  page_alloc_assert(&(b)->alloc)
+static inline int fdbtree_valid(const fdbtree* f) {
+  return page_alloc_valid(&f->alloc);
+}
 
-fdbtree fdbtree_create(bnode_kv k0, int fd);
+DEFINE_ASSERT(fdbtree, fdbtree)
+
+int fdbtree_open(fdbtree* dest, bnode_kv k0, const char* fname);

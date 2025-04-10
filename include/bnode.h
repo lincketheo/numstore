@@ -1,8 +1,9 @@
 #pragma once
 
-#include "types.h"
+#include "common/macros.h"
+#include "common/types.h"
+#include "dev/assert.h"
 
-#include <assert.h>
 
 //////////////////////////////////// A Key Value Data Structure
 
@@ -13,54 +14,50 @@ typedef struct
   page_ptr ptr;
 } bnode_kv;
 
-#define bnode_kv_assert(b) \
-  assert(b);               \
-  assert((b)->key);        \
-  assert((b)->keylen > 0);
+static inline int bnode_kv_valid(const bnode_kv* p)
+{
+  return p->key != NULL && p->keylen > 0;
+}
+
+DEFINE_ASSERT(bnode_kv, bnode_kv)
 
 u64 bnode_kv_size(const bnode_kv* b);
 
 //////////////////////////////////// A B-Node Data Structure
 
 /**
-* BNode Axioms
-* 1. A BNode will always be able to hold two or more key values 
-*   - (restrict key len - PAGE_SIZE / 4 - TODO - this is best guess)
-*/
+ * BNode Axioms
+ * 1. A BNode will always be able to hold two or more key values
+ *   - (restrict key len - PAGE_SIZE / 4 - TODO - this is best guess)
+ */
 #define MAX_KEYLEN PAGE_SIZE / 4
 #pragma pack(push, 1)
 typedef struct
 {
   nkeys_t nkeys;
+  u8 isleaf;
 
   // Data is 2 * PAGE_SIZE because various operations
   // will overflow first, then correct (btree insert)
   // Routines must garuntee that they don't leave a node
   // at an invalid state
-  u8 data[2 * PAGE_SIZE - sizeof(nkeys_t)];
+  u8 data[2 * PAGE_SIZE - sizeof(nkeys_t) - sizeof(u8)];
 } bnode;
 #pragma pack(pop)
 
-#define bnode_assert(b) \
-  assert(b);            \
-  assert(b->nkeys > 0); \
-  assert(bnode_size(b) <= PAGE_SIZE)
-
 u64 bnode_size(const bnode* b);
 
-void bnode_split_part_1(
-  bnode* left, 
-  bnode* center, 
-  bnode* right, 
-  const bnode* src);
+static inline int bnode_valid(const bnode* p)
+{
+  return p->nkeys > 0 && bnode_size(p) <= PAGE_SIZE;
+}
 
-void bnode_split_part_2(
-  page_ptr left, 
-  bnode* center, 
-  page_ptr right);
-
-int bnode_is_leaf(const bnode* b);
+DEFINE_ASSERT(bnode, bnode)
 
 int bnode_insert_kv(bnode* dest, const bnode* src, bnode_kv* k);
 
 int bnode_find_kv(const bnode* b, bnode_kv* k, u64* idx);
+
+
+
+
