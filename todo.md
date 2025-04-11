@@ -1,3 +1,0 @@
-- [ ] Get it compiling
-- [ ] Get tests running
-- Implement Bit level array store (the one exception to byte contract -padded with 0)

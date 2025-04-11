@@ -4,17 +4,17 @@
 #include "common/types.h"
 
 typedef struct {
-  u8* page;
+  u8* page; // A pointer to the page head
 
-  nkeys_t* nkeys;
-  page_ptr* children;
-  offset_t* offsets;
+  nkeys_t* nkeys;     // Pointer to the number of keys
+  page_ptr* children; // Pointer to child node ptrs
+  offset_t* offsets;  // Pointer to key value offsets
 } bmnode;
 
 typedef struct {
-  keylen_t* keylen;
-  char* key;
-  page_ptr* data;
+  keylen_t* keylen; // Len of key
+  char* key;        // The key
+  page_ptr* data;   // The head of the data
 } bmnode_kv;
 
 static inline int bmnode_valid(const bmnode* b)
