@@ -1,4 +1,15 @@
 #include "paging/file_pager.h"
 #include "ds/circular_buffer.h"
 
-CBUF_DEF(int_cbuf, int, 10)
+int fpgr_new(file_pager* p, page_ptr* dest)
+{
+
+}
+
+int fpgr_delete(file_pager* p, page_ptr ptr)
+{
+}
+
+int fpgr_get(file_pager* p, page_ptr ptr)
+{
+}

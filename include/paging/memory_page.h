@@ -1,26 +1,21 @@
 #pragma once
 
+#include "dev/assert.h"
 #include "paging/page.h"
 
 #define K 10
 
 typedef struct {
   page page;
+  page_ptr ptr;
   u64 lruk[K];
   int idx;
 } memory_page;
 
-static inline void mp_access(memory_page* m, u64 now)
-{
-  m->lruk[m->idx] = now;
-  m->idx = (m->idx + 1) % K;
-}
+int memory_page_valid(const memory_page* p);
 
-static inline u64 mp_check(memory_page* m, u64 now)
-{
-  // Note - first fillup kth = 0 (memset 0)
-  // So return now - which is big, so probably evict
-  u64 kth = m->lruk[(m->idx + 1) % K];
-  assert(now > kth);
-  return now - kth;
-}
+DEFINE_ASSERT(memory_page, memory_page)
+
+void mp_access(memory_page* m, u64 now);
+
+u64 mp_check(memory_page* m, u64 now);

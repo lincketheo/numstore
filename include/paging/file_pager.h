@@ -5,8 +5,6 @@
 #include "os/file.h"
 #include "paging/page.h"
 
-
-
 typedef struct {
   rads_file* f;
 } file_pager;
