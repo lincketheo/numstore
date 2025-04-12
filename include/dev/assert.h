@@ -1,14 +1,12 @@
 #pragma once
 
-#include <assert.h>
+#define ASSERT(expr) do { if (!(expr)) { *(volatile int*)0 = 1; } } while(0)
 
-#define todo_assert(expr)          \
-  LOG_WARN("TODO!: Fix %s", #expr) \
-  assert(expr)
-
-#define DEFINE_ASSERT(type, name)                                         \
-  __attribute__((unused)) static inline void name##_assert(const type* p) \
-  {                                                                       \
-    assert(p);                                                            \
-    assert(name##_valid(p));                                              \
-  }
+#define DEFINE_ASSERT(type, name, variable)                                         \
+__attribute__((unused)) static inline int name##_valid(const type* variable); \
+__attribute__((unused)) static inline void name##_assert(const type* p) \
+{                                                                       \
+  ASSERT(p);                                                            \
+  ASSERT(name##_valid(p));                                              \
+} \
+__attribute__((unused)) static inline int name##_valid(const type* variable)

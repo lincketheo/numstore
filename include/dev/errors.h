@@ -6,4 +6,3 @@
 #define SUCCESS 0
 #define ERR_IO -1
 #define ERR_INVALID_STATE -2
-

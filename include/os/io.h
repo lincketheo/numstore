@@ -2,27 +2,56 @@
 
 #include "common/types.h"
 
-// An opaque file for abstraction
-typedef struct xfd_s xfd;
+///////////////////////////////////// Allocation Routines
+typedef struct rads_alloc rads_alloc;
+struct rads_alloc{
+  void *(*malloc)(size_t);
+  void (*free)(void*);
+  void *(*realloc)(void*,int);
+  int (*init)(void);
+  int (*shutdown)(void);
+};
 
-int xfd_valid(const xfd* f);
+rads_alloc* get_rads_alloc(void);
 
-DEFINE_ASSERT(xfd, xfd)
+///////////////////////////////////// File and File Routines
+typedef struct rads_file rads_file;
+struct rads_file {
+  const struct rads_io_methods *methods;
+};
 
-typedef enum {
-  XFD_R,
-  XFD_RW,
-  XFD_W,
-} xfd_opt;
+typedef struct rads_io_methods rads_io_methods;
+struct rads_io_methods {
+  int (*close)(rads_file*);
+  int (*read)(rads_file*, void* dest, int n, u64 offset);
+  int (*write)(rads_file*, const void* src, int n, u64 offset);
+  int (*truncate)(rads_file*, u64 size);
+  int (*sync)(rads_file*, int flags);
+  int (*size)(rads_file*, i64 *pSize);
+  int (*lock)(rads_file*, int);
+  int (*unlock)(rads_file*, int);
+};
 
-xfd* xfd_open(const char* fname, ...);
+rads_io_methods* get_rads_io_methods(void);
 
-int xfd_tell();
+///////////////////////////////////// OS Level functions
+typedef struct rads_vfs rads_vfs;
+struct rads_vfs {
+  int (*open)(rads_vfs*, rads_file* dest, const char* fname, int flags);
+  int (*close)(rads_vfs*);
+  int (*delete)(rads_vfs*, const char *zName, int syncDir);
+};
 
-i64 xfd_size(xfd* f);
+rads_vfs* get_rads_vfs(void);
 
-int xfd_extend(xfd* f, u32 bytes);
+///////////////////////////////////// Logger
+typedef struct rads_logger rads_logger;
+struct rads_logger {
+  void (*log_trace)(const char* fmt, ...);
+  void (*log_debug)(const char* fmt, ...);
+  void (*log_info)(const char* fmt, ...);
+  void (*log_warn)(const char* fmt, ...);
+  void (*log_error)(const char* fmt, ...);
+};
 
-int stderr_out_io(const char* fmt, ...);
-
-int stdout_out_io(const char* fmt, ...);
+rads_logger* get_rads_logger(void);

@@ -1,7 +1,8 @@
 #include "memory/page_alloc.h"
-#include "errors.h"
-#include "ns_assert.h"
-#include "types.h"
+#include "dev/errors.h"
+#include "dev/assert.h"
+#include "common/types.h"
+#include "os/io.h"
 
 #include <assert.h>
 #include <fcntl.h>
@@ -14,7 +15,7 @@ int page_alloc_new(page_alloc* p, page* dest)
   page_alloc_assert(p);
   assert(dest);
 
-  off_t pos = lseek(p->fd, 0, SEEK_END);
+  off_t pos = rfseek_end(p->f);
 
   if (pos < 0) {
     perror("lseek");

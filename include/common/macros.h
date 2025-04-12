@@ -2,8 +2,6 @@
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
-#define NULL (void*)0
-
 // Regular colors
 #define BLACK "\033[0;30m"
 #define RED "\033[0;31m"

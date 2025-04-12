@@ -1,8 +1,6 @@
 #pragma once
 
-#include "common/macros.h"
 #include "common/types.h"
-#include "dev/assert.h"
 #include "dev/logging.h"
 
 typedef void (*test_func)(void);
