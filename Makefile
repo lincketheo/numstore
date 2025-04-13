@@ -1,9 +1,7 @@
-# Detect OS (Linux or Darwin for macOS)
 UNAME_S := $(shell uname -s)
 
-# Compiler and Flags
 CC := gcc
-CFLAGS := -I./include -g -Wall -Wextra -Werror -pedantic -O0 -Wno-unused-function
+CFLAGS := -I./include -g -Wall -Wextra -Werror -pedantic -O0 
 
 ifeq ($(UNAME_S), Darwin)
 	CFLAGS += -D_DARWIN_C_SOURCE
@@ -17,7 +15,7 @@ SRC_APPS := $(wildcard apps/*.c)
 APP_BIN := $(patsubst apps/%.c,%,$(SRC_APPS))
 
 # Format and Lint
-FORMAT_FILES := $(shell find . -type f \( -name "*.c" -o -name "*.hpp" \))
+FORMAT_FILES := $(shell find . -type f \( -name "*.c" -o -name "*.h" \))
 
 # Default target
 all: $(APP_BIN)

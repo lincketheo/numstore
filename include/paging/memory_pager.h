@@ -2,7 +2,6 @@
 
 #include "dev/assert.h"
 #include "paging/memory_page.h"
-#include "paging/page.h"
 
 #define BPLENGTH 100
 
@@ -14,19 +13,30 @@
  *
  * Should be initialized to 0
  */
-typedef struct {
+typedef struct
+{
   memory_page pages[BPLENGTH];
   int is_present[BPLENGTH];
   u64 clock;
 } memory_pager;
 
-int memory_pager_valid(const memory_pager* p);
+DEFINE_DBG_ASSERT (memory_pager, memory_pager, p);
 
-DEFINE_ASSERT(memory_pager, memory_pager)
+// Searches for available spot, returns -1 on no space left
+int mpgr_find_avail (const memory_pager *p);
 
-// Allocates space for a new page,
-// possibly evicting a page if memory is limited
-page* mpgr_new(memory_pager* p);
+// Must call find_avail first
+u8 *mpgr_new (memory_pager *p, u64 ptr);
 
 // Retrieves page ptr or returns NULL
-page* mpgr_get(memory_pager* p, page_ptr ptr);
+// Page must exist
+u8 *mpgr_get (memory_pager *p, u64 ptr);
+
+// Check if page exists - return the index or -1 on not available
+int mpgr_check_page_exists (const memory_pager *p, u64 ptr);
+
+// Check which page you should evict next
+int mpgr_get_evictable (const memory_pager *p, u64 now);
+
+// Delete a page - page must exist
+void mpgr_delete (memory_pager *p, u64 ptr);

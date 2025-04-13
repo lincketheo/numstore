@@ -1,4 +1,7 @@
+#pragma once
+
 #include <complex.h>
+#include <inttypes.h>
 #include <stddef.h>
 #include <stdint.h>
 

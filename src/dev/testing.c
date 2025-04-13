@@ -1,4 +1,4 @@
-#include "testing.h"
+#include "dev/testing.h"
 
 u64 ntests = 0;
 test_func tests[2048];

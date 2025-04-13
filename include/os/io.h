@@ -1,57 +1,66 @@
 #pragma once
 
 #include "common/types.h"
+#include "dev/assert.h"
+#include "os/types.h"
 
-///////////////////////////////////// Allocation Routines
-typedef struct rads_alloc rads_alloc;
-struct rads_alloc{
-  void *(*malloc)(size_t);
-  void (*free)(void*);
-  void *(*realloc)(void*,int);
-  int (*init)(void);
-  int (*shutdown)(void);
-};
+/////////////////////// Allocation
+void *i_malloc (u64 bytes);
 
-rads_alloc* get_rads_alloc(void);
+void *i_calloc (u64 n, u64 size);
 
-///////////////////////////////////// File and File Routines
-typedef struct rads_file rads_file;
-struct rads_file {
-  const struct rads_io_methods *methods;
-};
+void i_free (void *ptr);
 
-typedef struct rads_io_methods rads_io_methods;
-struct rads_io_methods {
-  int (*close)(rads_file*);
-  int (*read)(rads_file*, void* dest, int n, u64 offset);
-  int (*write)(rads_file*, const void* src, int n, u64 offset);
-  int (*truncate)(rads_file*, u64 size);
-  int (*sync)(rads_file*, int flags);
-  int (*size)(rads_file*, i64 *pSize);
-  int (*lock)(rads_file*, int);
-  int (*unlock)(rads_file*, int);
-};
+void *i_realloc (void *ptr, int bytes);
 
-rads_io_methods* get_rads_io_methods(void);
+/////////////////////// Files
+typedef struct i_file i_file;
 
-///////////////////////////////////// OS Level functions
-typedef struct rads_vfs rads_vfs;
-struct rads_vfs {
-  int (*open)(rads_vfs*, rads_file* dest, const char* fname, int flags);
-  int (*close)(rads_vfs*);
-  int (*delete)(rads_vfs*, const char *zName, int syncDir);
-};
+DEFINE_DBG_ASSERT (i_file, i_file, p);
 
-rads_vfs* get_rads_vfs(void);
+i_file *i_open (const string *fname, int read, int write);
 
-///////////////////////////////////// Logger
-typedef struct rads_logger rads_logger;
-struct rads_logger {
-  void (*log_trace)(const char* fmt, ...);
-  void (*log_debug)(const char* fmt, ...);
-  void (*log_info)(const char* fmt, ...);
-  void (*log_warn)(const char* fmt, ...);
-  void (*log_error)(const char* fmt, ...);
-};
+int i_close (i_file *fp);
 
-rads_logger* get_rads_logger(void);
+i64 i_read_some (i_file *fp, void *dest, u64 n, u64 offset);
+
+i64 i_read_all (i_file *fp, void *dest, u64 n, u64 offset);
+
+i64 i_write_some (i_file *fp, const void *src, u64 n, u64 offset);
+
+int i_write_all (i_file *fp, const void *src, u64 n, u64 offset);
+
+int i_truncate (i_file *fp, u64 bytes);
+
+i64 i_file_size (i_file *fp);
+
+/////////////////////// Logging
+#ifndef NLOGGING
+void i_log_trace (const char *fmt, ...);
+
+void i_log_debug (const char *fmt, ...);
+
+void i_log_info (const char *fmt, ...);
+
+void i_log_warn (const char *fmt, ...);
+
+void i_log_error (const char *fmt, ...);
+
+void i_log_failure (const char *fmt, ...);
+
+void i_log_success (const char *fmt, ...);
+#else
+#define i_log_trace (fmt, __VA_ARGS__)
+
+#define i_log_debug (fmt, __VA_ARGS__)
+
+#define i_log_info (fmt, __VA_ARGS__)
+
+#define i_log_warn (fmt, __VA_ARGS__)
+
+#define i_log_error (fmt, __VA_ARGS__)
+
+#define i_log_failure (fmt, __VA_ARGS__)
+
+#define i_log_success (fmt, __VA_ARGS__)
+#endif

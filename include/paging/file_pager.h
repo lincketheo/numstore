@@ -1,23 +1,28 @@
 #pragma once
 
 #include "common/types.h"
+#include "config.h"
 #include "dev/assert.h"
-#include "os/file.h"
-#include "paging/page.h"
+#include "os/io.h"
 
-typedef struct {
-  rads_file* f;
+/**
+ * A pager that finds pages directly from a file
+ */
+typedef struct
+{
+  i_file *f;
 } file_pager;
 
-static inline int file_pager_valid(const file_pager* p)
+static inline DEFINE_DBG_ASSERT (file_pager, file_pager, p)
 {
-  return p && rads_file_valid(p->f);
+  ASSERT (p);
+  i_file_assert (p->f);
 }
 
-DEFINE_ASSERT(file_pager, file_pager)
+int fpgr_new (file_pager *p, u64 *dest);
 
-int fpgr_new(file_pager* p, page_ptr *dest);
+int fpgr_delete (file_pager *p, u64 ptr);
 
-int fpgr_delete(file_pager* p, page_ptr ptr);
+int fpgr_get (file_pager *p, u8 dest[PAGE_SIZE], u64 ptr);
 
-int fpgr_get(file_pager* p, page_ptr ptr);
+int fpgr_commit (file_pager *p, const u8 src[PAGE_SIZE], u64 ptr);

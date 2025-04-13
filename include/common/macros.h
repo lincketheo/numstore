@@ -25,17 +25,15 @@
 // Reset
 #define RESET "\033[0m"
 
-#define WHITESPACE_C                                                          \
-  ' ' : case '\r':                                                            \
-  case '\t'
+#define WHITESPACE_C \
+  ' ' : case '\r' : case '\t'
 
-#define WHITESPACE_NL_C                                                       \
-  ' ' : case '\r':                                                            \
-  case '\t':                                                                  \
-  case '\n'
+#define WHITESPACE_NL_C \
+  ' ' : case '\r' : case '\t' : case '\n'
 
 #define is_digit(c) ((c) <= '9' && (c) >= '0')
 #define is_alpha(c) (((c) <= 'Z' && (c) >= 'A') || ((c) <= 'z' && (c) >= 'a') || (c) == '_')
-#define is_alpha_num(c) (is_digit(c) || is_alpha(c))
+#define is_alpha_num(c) (is_digit (c) || is_alpha (c))
 
-#define private static 
+#define private static
+#define suspending
