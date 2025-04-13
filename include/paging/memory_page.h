@@ -1,20 +1,19 @@
 #pragma once
 
-#include "common/types.h"
 #include "config.h"
 #include "dev/assert.h"
-
-#define K 10
+#include "os/types.h"
 
 typedef struct
 {
   u8 page[PAGE_SIZE];
   u64 ptr; // whoami
-  u64 lruk[K];
-  int idx;
+  u64 laccess;
 } memory_page;
 
-DEFINE_DBG_ASSERT (memory_page, memory_page, p);
+DEFINE_DBG_ASSERT_H (memory_page, memory_page, p);
+
+void mp_create (memory_page *dest, u64 ptr, u64 clock);
 
 void mp_access (memory_page *m, u64 now);
 

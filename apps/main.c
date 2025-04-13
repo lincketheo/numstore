@@ -12,7 +12,7 @@ main (void)
     .data = "foo",
     .len = 3,
   };
-  i_file *fd = i_open (&foo, 1, 1);
+  i_file *fd = i_open (foo, 1, 1);
   p.fpager.f = fd;
 
   int ret;
@@ -29,7 +29,7 @@ main (void)
       return ret;
     }
 
-  memcpy (page, "Hello", 5);
+  i_memcpy (page, "Hello", 5);
   if ((ret = pgr_commit (&p, 0)))
     {
       return ret;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common/types.h"
+#include "dev/assert.h"
 
 typedef struct
 {
@@ -8,7 +8,7 @@ typedef struct
   void *context;
 } closure;
 
-static inline DEFINE_DBG_ASSERT (closure, closure, c)
+static inline DEFINE_DBG_ASSERT_I (closure, closure, c)
 {
   ASSERT (c);
   ASSERT (c->func);

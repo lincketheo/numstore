@@ -1,8 +1,8 @@
 #include "paging/file_pager.h"
-#include "common/types.h"
 #include "config.h"
 #include "dev/errors.h"
 #include "os/io.h"
+#include "os/types.h"
 
 int
 fpgr_new (file_pager *p, u64 *dest)
@@ -41,7 +41,7 @@ fpgr_new (file_pager *p, u64 *dest)
 }
 
 int
-fpgr_delete (file_pager *p, u64 ptr)
+fpgr_delete (file_pager *p, u64 ptr __attribute__ ((unused)))
 {
   // TODO
   file_pager_assert (p);

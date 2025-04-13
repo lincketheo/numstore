@@ -1,13 +1,12 @@
 #include "paging/types/data_list.h"
-#include "common/macros.h"
-#include "common/types.h"
 #include "config.h"
 #include "dev/errors.h"
 #include "os/io.h"
 #include "os/stdlib.h"
-#include "paging/types.h"
+#include "os/types.h"
+#include "paging/pager.h"
 
-DEFINE_DBG_ASSERT (data_list, data_list, d)
+DEFINE_DBG_ASSERT_I (data_list, data_list, d)
 {
   ASSERT (d);
   ASSERT (d->header);
@@ -17,8 +16,7 @@ DEFINE_DBG_ASSERT (data_list, data_list, d)
   ASSERT (d->data);
 }
 
-private
-inline int
+static inline int
 dl_valid_page_type (u8 *page)
 {
   ASSERT (page);
@@ -26,8 +24,7 @@ dl_valid_page_type (u8 *page)
   return type == (u8)PG_DATA_LIST;
 }
 
-private
-inline void
+static inline void
 dl_assign_ptrs (data_list *dest, u8 *page)
 {
   dest->page = page;

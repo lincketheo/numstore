@@ -1,8 +1,8 @@
 #include "async/thread_pool.h"
 #include "async/closure.h"
-#include "common/macros.h"
 #include "dev/errors.h"
 #include "os/io.h"
+#include "os/mm.h"
 
 // TODO - abstract this out
 #include <errno.h>
@@ -19,8 +19,7 @@ struct closure_node
   closure_node *next;
 };
 
-private
-inline DEFINE_DBG_ASSERT (closure_node, closure_node, c)
+static inline DEFINE_DBG_ASSERT_I (closure_node, closure_node, c)
 {
   ASSERT (c);
   if (c->next != NULL)
@@ -197,8 +196,7 @@ failed:
   return NULL;
 }
 
-private
-int
+static int
 join_all (pthread_t *t, u64 num)
 {
   ASSERT (t != NULL || num == 0);
@@ -218,8 +216,7 @@ join_all (pthread_t *t, u64 num)
   return ret;
 }
 
-private
-int
+static int
 cancel_all (pthread_t *t, u64 num)
 {
   ASSERT (t != NULL || num == 0);
@@ -239,8 +236,7 @@ cancel_all (pthread_t *t, u64 num)
   return ret;
 }
 
-private
-int
+static int
 cancel_and_join_all (pthread_t *t, u64 num)
 {
   int _ret;
@@ -312,8 +308,7 @@ tp_close (thread_pool *w)
   return ret;
 }
 
-private
-void *
+static void *
 worker_thread (void *cl)
 {
   ASSERT (cl);
@@ -347,8 +342,7 @@ worker_thread (void *cl)
     }
 }
 
-private
-int
+static int
 tp_common (thread_pool *w, u32 num_threads)
 {
   ASSERT (num_threads >= 1);

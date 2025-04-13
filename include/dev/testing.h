@@ -1,9 +1,7 @@
 #pragma once
 
-#include "common/macros.h"
-#include "common/types.h"
 #include "dev/assert.h"
-#include "os/io.h"
+#include "os/types.h"
 
 typedef void (*test_func) (void);
 extern u64 ntests;
@@ -35,15 +33,40 @@ extern int test_ret;
   }                                                                \
   static void test_##name (void)
 
-#define test_assert_equal(left, right, fmt)                                        \
-  if ((left) != (right))                                                           \
-    {                                                                              \
-      i_log_failure ("%s != %s (" fmt " != " fmt ")", #left, #right, left, right); \
-      test_ret = -1;                                                               \
-    }                                                                              \
-  else                                                                             \
-    {                                                                              \
-      i_log_success ("%s == %s (" fmt " == " fmt ")", #left, #right, left, right); \
-    }
+#define test_assert_equal(left, right, fmt)                                            \
+  do                                                                                   \
+    {                                                                                  \
+      if ((left) != (right))                                                           \
+        {                                                                              \
+          i_log_failure ("%s != %s (" fmt " != " fmt ")", #left, #right, left, right); \
+          test_ret = -1;                                                               \
+          return;                                                                      \
+        }                                                                              \
+    }                                                                                  \
+  while (0)
 
 #define test_assert_int_equal(left, right) test_assert_equal (left, right, "%" PRId32)
+
+#define test_fail_if(expr)                                                 \
+  do                                                                       \
+    {                                                                      \
+      if (expr)                                                            \
+        {                                                                  \
+          i_log_failure ("Failed test due to invalid value: %s\n", #expr); \
+          test_ret = -1;                                                   \
+          return;                                                          \
+        }                                                                  \
+    }                                                                      \
+  while (0)
+
+#define test_fail_if_null(expr)                                              \
+  do                                                                         \
+    {                                                                        \
+      if (expr == NULL)                                                      \
+        {                                                                    \
+          i_log_failure ("Failed test due to unexpected NULL: %s\n", #expr); \
+          test_ret = -1;                                                     \
+          return;                                                            \
+        }                                                                    \
+    }                                                                        \
+  while (0)

@@ -1,6 +1,7 @@
 #pragma once
 
-#include "common/types.h"
+#include "dev/assert.h"
+#include "os/types.h"
 
 typedef struct
 {
@@ -15,7 +16,7 @@ typedef struct
   u8 *data;
 } data_list;
 
-DEFINE_DBG_ASSERT (data_list, data_list, d);
+DEFINE_DBG_ASSERT_H (data_list, data_list, d);
 
 int dl_read_page (data_list *dest, u8 *page);
 

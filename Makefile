@@ -1,7 +1,7 @@
 UNAME_S := $(shell uname -s)
 
 CC := gcc
-CFLAGS := -I./include -g -Wall -Wextra -Werror -pedantic -O0 
+CFLAGS := -I./include -g -Wall -Wextra -Werror -pedantic -O0 -Wno-unused
 
 ifeq ($(UNAME_S), Darwin)
 	CFLAGS += -D_DARWIN_C_SOURCE

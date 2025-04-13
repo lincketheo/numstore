@@ -1,66 +1,32 @@
+#include "dev/errors.h"
+#include "os/io.h"
+#include "os/logging.h"
+#include "os/mm.h"
+
 #include <errno.h>
 #include <fcntl.h>
-#include <stdarg.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "common/macros.h"
-#include "common/types.h"
-#include "dev/assert.h"
-#include "dev/errors.h"
-#include "os/io.h"
-
-/////////////////////// Allocation
-void *
-i_malloc (u64 bytes)
-{
-  ASSERT (bytes > 0);
-  void *ret = malloc ((size_t)bytes);
-  if (ret == NULL)
-    {
-      i_log_error ("Failed to allocate %zu bytes. Reason: %s", bytes,
-                   strerror (errno));
-    }
-  return ret;
-}
-
-void *
-i_calloc (u64 n, u64 size)
-{
-  ASSERT (size > 0);
-  ASSERT (n > 0);
-  void *ret = calloc ((size_t)n, (size_t)size);
-  if (ret == NULL)
-    {
-      i_log_error ("Failed to c-allocate %zu bytes. Reason: %s", size * n,
-                   strerror (errno));
-    }
-  return ret;
-}
+#ifndef NDEBUG
+static u64 num_read = 0;
+static u64 num_write = 0;
+static u64 num_alloc = 0;
+static u64 num_open = 0;
+static u64 num_truncate = 0;
 
 void
-i_free (void *ptr)
+io_log_stats ()
 {
-  ASSERT (ptr);
-  free (ptr);
+  i_log_info ("Total open calls: %zu\n", num_open);
+  i_log_info ("Total read calls: %zu\n", num_read);
+  i_log_info ("Total write calls: %zu\n", num_write);
+  i_log_info ("Total alloc calls: %zu\n", num_alloc);
+  i_log_info ("Total truncate calls: %zu\n", num_alloc);
 }
-
-void *
-i_realloc (void *ptr, int bytes)
-{
-  ASSERT (ptr);
-  ASSERT (bytes > 0);
-  void *ret = realloc (ptr, bytes);
-  if (ret == NULL)
-    {
-      i_log_error ("Failed to reallocate %zu bytes. Reason: %s", bytes,
-                   strerror (errno));
-    }
-  return ret;
-}
+#endif
 
 /////////////////////// Files
 struct i_file
@@ -68,16 +34,16 @@ struct i_file
   int fd;
 };
 
-DEFINE_DBG_ASSERT (i_file, i_file, fp)
+DEFINE_DBG_ASSERT_I (i_file, i_file, fp)
 {
   ASSERT (fp);
   ASSERT (fcntl (fp->fd, F_GETFD) != -1 || errno != EBADF);
 }
 
 i_file *
-i_open (const string *fname, int read, int write)
+i_open (const string fname, int read, int write)
 {
-  ASSERT (fname);
+  cstring_assert (&fname);
 
   i_file *ret = i_malloc (sizeof ret);
 
@@ -86,19 +52,21 @@ i_open (const string *fname, int read, int write)
       return ret;
     }
 
-  cstring_assert (fname);
+#ifndef NDEBUG
+  num_open++;
+#endif
 
   if (read && write)
     {
-      ret->fd = open (fname->data, O_RDWR | O_CREAT, 0644);
+      ret->fd = open (fname.data, O_RDWR | O_CREAT, 0644);
     }
   else if (read)
     {
-      ret->fd = open (fname->data, O_RDONLY | O_CREAT, 0644);
+      ret->fd = open (fname.data, O_RDONLY | O_CREAT, 0644);
     }
   else if (write)
     {
-      ret->fd = open (fname->data, O_WRONLY | O_CREAT, 0644);
+      ret->fd = open (fname.data, O_WRONLY | O_CREAT, 0644);
     }
   else
     {
@@ -111,7 +79,7 @@ i_open (const string *fname, int read, int write)
   if (ret->fd == -1)
     {
       i_log_error ("Failed to open file: %s. Reason: %s\n",
-                   fname->data, strerror (errno));
+                   fname.data, strerror (errno));
       i_free (ret);
       return NULL;
     }
@@ -135,6 +103,11 @@ i_read_some (i_file *fp, void *dest, u64 n, u64 offset)
   i_file_assert (fp);
   ASSERT (dest);
   ASSERT (n > 0);
+
+#ifndef NDEBUG
+  num_read++;
+#endif
+
   ssize_t ret = pread (fp->fd, dest, n, (size_t)offset);
   return (i64)ret;
 }
@@ -151,6 +124,11 @@ i_read_all (i_file *fp, void *dest, u64 n, u64 offset)
 
   while (nread < n)
     {
+
+#ifndef NDEBUG
+      num_read++;
+#endif
+
       // Do read
       ASSERT (n > nread);
       ssize_t _nread = pread (
@@ -189,6 +167,11 @@ i_write_some (i_file *fp, const void *src, u64 n, u64 offset)
   i_file_assert (fp);
   ASSERT (src);
   ASSERT (n > 0);
+
+#ifndef NDEBUG
+  num_write++;
+#endif
+
   ssize_t ret = pwrite (fp->fd, src, n, (size_t)offset);
   return (i64)ret;
 }
@@ -207,6 +190,11 @@ i_write_all (i_file *fp, const void *src, u64 n, u64 offset)
     {
       // Do read
       ASSERT (n > nwrite);
+
+#ifndef NDEBUG
+      num_write++;
+#endif
+
       ssize_t _nwrite = pwrite (
           fp->fd,
           _src + nwrite,
@@ -244,6 +232,10 @@ i_write_all (i_file *fp, const void *src, u64 n, u64 offset)
 int
 i_truncate (i_file *fp, u64 bytes)
 {
+#ifndef NDEBUG
+  num_truncate++;
+#endif
+
   if (ftruncate (fp->fd, bytes) == -1)
     {
       i_log_error ("Failed to call ftruncate. Reason: %s\n",
@@ -267,77 +259,17 @@ i_file_size (i_file *fp)
   return (off_t)st.st_size;
 }
 
-/////////////////////// Logging
-#ifndef NLOGGING
-static void
-i_log_internal (const char *prefix, const char *color, const char *fmt, va_list args)
+int
+i_remove_quiet (const string fname)
 {
-  fprintf (stderr, "%s%s: ", color, prefix);
-  vfprintf (stderr, fmt, args);
-  fprintf (stderr, "%s\n", RESET);
-}
+  cstring_assert (&fname);
+  int ret = remove (fname.data);
 
-//// Log level wrappers
-void
-i_log_trace (const char *fmt, ...)
-{
-  va_list args;
-  va_start (args, fmt);
-  i_log_internal ("TRACE", BOLD_BLACK, fmt, args);
-  va_end (args);
-}
+  if (ret && errno != ENOENT)
+    {
+      i_log_error ("Failed to remove file: %s\n", fname.data);
+      return ERR_IO;
+    }
 
-void
-i_log_debug (const char *fmt, ...)
-{
-  va_list args;
-  va_start (args, fmt);
-  i_log_internal ("DEBUG", BLUE, fmt, args);
-  va_end (args);
+  return SUCCESS;
 }
-
-void
-i_log_info (const char *fmt, ...)
-{
-  va_list args;
-  va_start (args, fmt);
-  i_log_internal ("INFO", GREEN, fmt, args);
-  va_end (args);
-}
-
-void
-i_log_warn (const char *fmt, ...)
-{
-  va_list args;
-  va_start (args, fmt);
-  i_log_internal ("WARN", YELLOW, fmt, args);
-  va_end (args);
-}
-
-void
-i_log_error (const char *fmt, ...)
-{
-  va_list args;
-  va_start (args, fmt);
-  i_log_internal ("ERROR", RED, fmt, args);
-  va_end (args);
-}
-
-void
-i_log_failure (const char *fmt, ...)
-{
-  va_list args;
-  va_start (args, fmt);
-  i_log_internal ("FAILURE", BOLD_RED, fmt, args);
-  va_end (args);
-}
-
-void
-i_log_success (const char *fmt, ...)
-{
-  va_list args;
-  va_start (args, fmt);
-  i_log_internal ("SUCCESS", BOLD_GREEN, fmt, args);
-  va_end (args);
-}
-#endif

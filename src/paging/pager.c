@@ -1,10 +1,28 @@
 #include "paging/pager.h"
+#include "core/string.h"
 #include "dev/errors.h"
+#include "dev/testing.h"
 #include "os/io.h"
+#include "os/logging.h"
+#include "os/stdlib.h"
 #include "paging/file_pager.h"
+#include "paging/memory_page.h"
 #include "paging/memory_pager.h"
 
-DEFINE_DBG_ASSERT (pager, pager, p)
+#ifndef NDEBUG
+static u64 cache_hit = 0;
+static u64 cache_miss = 0;
+
+void
+pgr_log_stats ()
+{
+  i_log_info ("Pager Stats:\n");
+  i_log_info ("Cache hit rate: %f\n",
+              (float)cache_hit / (float)(cache_hit + cache_miss));
+}
+#endif
+
+DEFINE_DBG_ASSERT_I (pager, pager, p)
 {
   ASSERT (p);
   memory_pager_assert (&p->mpager);
@@ -31,6 +49,11 @@ pgr_get (pager *p, u8 **dest, u64 ptr)
   // Check if it's in memory
   if (mpgr_check_page_exists (&p->mpager, ptr) >= 0)
     {
+
+#ifndef NDEBUG
+      cache_hit++;
+#endif
+
       page = mpgr_get (&p->mpager, ptr);
       ASSERT (page);
       *dest = page;
@@ -38,6 +61,18 @@ pgr_get (pager *p, u8 **dest, u64 ptr)
     }
   else
     {
+
+#ifndef NDEBUG
+      cache_miss++;
+#endif
+
+      // Check if space is full
+      if (mpgr_find_avail (&p->mpager) < 0)
+        {
+          u64 toevict = mpgr_get_evictable (&p->mpager);
+          mpgr_delete (&p->mpager, toevict);
+        }
+
       // Allocate new memory page
       page = mpgr_new (&p->mpager, ptr);
       ASSERT (page != NULL);

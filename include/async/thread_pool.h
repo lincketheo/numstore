@@ -1,6 +1,7 @@
 #pragma once
 
-#include "common/types.h"
+#include "dev/assert.h"
+#include "os/types.h"
 
 typedef struct thread_pool thread_pool;
 
@@ -8,7 +9,7 @@ int tp_is_spinning (const thread_pool *w);
 
 int tp_not_spinning (const thread_pool *w);
 
-static inline DEFINE_DBG_ASSERT (thread_pool, thread_pool, t)
+static inline DEFINE_DBG_ASSERT_I (thread_pool, thread_pool, t)
 {
   ASSERT (t);
   ASSERT (tp_is_spinning (t) || tp_not_spinning (t));

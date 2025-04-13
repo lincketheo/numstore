@@ -1,9 +1,9 @@
 #pragma once
 
-#include "common/types.h"
 #include "config.h"
 #include "dev/assert.h"
 #include "os/io.h"
+#include "os/types.h"
 
 /**
  * A pager that finds pages directly from a file
@@ -13,7 +13,7 @@ typedef struct
   i_file *f;
 } file_pager;
 
-static inline DEFINE_DBG_ASSERT (file_pager, file_pager, p)
+static inline DEFINE_DBG_ASSERT_I (file_pager, file_pager, p)
 {
   ASSERT (p);
   i_file_assert (p->f);
