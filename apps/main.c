@@ -1,41 +1,16 @@
-#include "config.h"
-#include "os/io.h"
-#include "os/stdlib.h"
-#include "paging/pager.h"
+#include "eventloop.h"
 
 int
 main (void)
 {
-  pager p;
-  i_memset (&p, 0, sizeof p);
-  string foo = {
-    .data = "foo",
-    .len = 3,
-  };
-  i_file *fd = i_open (foo, 1, 1);
-  p.fpager.f = fd;
+  setup ();
 
-  int ret;
-  u64 ptr;
-  if ((ret = pgr_new (&p, &ptr)))
+  while (1)
     {
-      return ret;
+      execute ();
     }
 
-  u8 *page;
-
-  if ((ret = pgr_get (&p, &page, 0)))
-    {
-      return ret;
-    }
-
-  i_memcpy (page, "Hello", 5);
-  if ((ret = pgr_commit (&p, 0)))
-    {
-      return ret;
-    }
-
-  i_close (fd);
+  teardown ();
 
   return 0;
 }
