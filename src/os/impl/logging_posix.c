@@ -34,7 +34,7 @@ i_log_internal (const char *prefix, const char *color, const char *fmt, va_list 
 {
   fprintf (stderr, "%s%s: ", color, prefix);
   vfprintf (stderr, fmt, args);
-  fprintf (stderr, "%s\n", RESET);
+  fprintf (stderr, "%s", RESET);
 }
 
 //// Log level wrappers

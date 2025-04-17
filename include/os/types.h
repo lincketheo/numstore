@@ -53,4 +53,6 @@ typedef u8 bool;
 #define PRIo32 "o"
 #define PRIo64 "llo"
 
+#ifndef NULL
 #define NULL (void *)0
+#endif

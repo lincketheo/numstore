@@ -1,21 +1,25 @@
+#include "os/types.h"
 #include <arpa/inet.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
-#define PORT 12345
-#define BUF_SIZE 1024
+#define PORT 12347
 
 int
 main (void)
 {
   int sock_fd;
   struct sockaddr_in serv_addr;
-  char buf[BUF_SIZE] = { 0 };
-  char *msg = "Hello from client";
 
-  // Create socket
+  u32 buf[2048] = { 0 };
+  u32 buf2[2048] = { 0 };
+  for (int i = 0; i < 2048; ++i)
+    {
+      buf[i] = i;
+    }
+
   if ((sock_fd = socket (AF_INET, SOCK_STREAM, 0)) < 0)
     {
       perror ("socket");
@@ -25,7 +29,6 @@ main (void)
   serv_addr.sin_family = AF_INET;
   serv_addr.sin_port = htons (PORT);
 
-  // Convert IPv4 address from text to binary form (connect to localhost)
   if (inet_pton (AF_INET, "127.0.0.1", &serv_addr.sin_addr) <= 0)
     {
       perror ("inet_pton");
@@ -33,7 +36,6 @@ main (void)
       exit (EXIT_FAILURE);
     }
 
-  // Connect to the server
   if (connect (sock_fd, (struct sockaddr *)&serv_addr, sizeof (serv_addr)) < 0)
     {
       perror ("connect");
@@ -41,27 +43,23 @@ main (void)
       exit (EXIT_FAILURE);
     }
 
-  // Send a message to the server
-  if (send (sock_fd, msg, strlen (msg), 0) < 0)
+  if (send (sock_fd, buf, 2048 * sizeof (int), 0) < 0)
     {
       perror ("send");
     }
-  else
-    {
-      printf ("Client sent message: %s\n", msg);
-    }
 
-  // Receive a reply from the server
-  int read_size = read (sock_fd, buf, BUF_SIZE);
-  if (read_size < 0)
+  if (read (sock_fd, buf2, 2048 * sizeof (int)) < 0)
     {
       perror ("read");
     }
-  else
+
+  for (int i = 0; i < 2048; ++i)
     {
-      printf ("Client received: %s\n", buf);
+      fprintf (stdout, "%d ", buf2[i]);
     }
+  fprintf (stdout, "\n");
 
   close (sock_fd);
+
   return 0;
 }

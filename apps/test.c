@@ -1,6 +1,5 @@
 #include "dev/testing.h"
 #include "os/io.h"
-#include "paging/pager.h"
 
 int
 main (void)
@@ -11,7 +10,6 @@ main (void)
     }
 
   io_log_stats ();
-  pgr_log_stats ();
 
   return test_ret;
 }
