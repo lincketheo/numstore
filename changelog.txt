@@ -1,0 +1,10 @@
+04/20/2025 
+  - Global database config getter / setter 
+  - Paging tests / refactor
+  - Create Database
+04/19/2025 - Initialized project  
+  - Basic scanner / compiler
+  - Simple data structures
+  - OS interface layer
+  - Basic typing
+  - Basic paging
