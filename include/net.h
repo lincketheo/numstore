@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include "config.h"
 #include "dev/assert.h"
 #include "dev/errors.h"
 #include "intf/io.h"

@@ -1,9 +1,11 @@
 #include "paging.h"
-#include "config.h"
+#include "database.h"
 #include "dev/assert.h"
 #include "dev/errors.h"
+#include "dev/testing.h"
 #include "intf/io.h"
 #include "intf/logging.h"
+#include "intf/mm.h"
 #include "intf/stdlib.h"
 #include "sds.h"
 #include "types.h"
@@ -16,75 +18,159 @@ DEFINE_DBG_ASSERT_I (file_pager, file_pager, p)
   i_file_assert (p->f);
 }
 
-static inline i64
-fpgr_len (file_pager *p)
+static inline err_t
+fpgr_set_len (file_pager *p)
 {
-  // Get the file size
-  // TODO:OPT - cache the file size and increment it
-  // - eliminate calls here - delegate to truncate function
-  i64 size = i_file_size (p->f);
-  if (size < 0)
+  file_pager_assert (p);
+  i64 size = i_file_size (p->f); // TODO - can file size > i64?
+  if (size < p->header_size)
     {
       i_log_warn ("Error encountered while trying to fetch "
                   "last page size in file_pager\n");
-      return size;
+      return ERR_INVALID_STATE;
     }
 
-  // TODO:OPT if cahce from above, this wouldn't need to be
-  // here because program correctness is file size source of truth
-  // in memory
-  if (size % app_config.page_size != 0)
+  ASSERT (size >= p->header_size);
+  if ((size - p->header_size) % p->page_size != 0)
     {
       i_log_error ("The database is in an invalid state "
                    "when trying to create a new page. File size "
                    "is not a multiple of page size: %" PRIu32 " bytes\n",
-                   app_config.page_size);
+                   p->page_size);
       return ERR_INVALID_STATE;
     }
 
-  return size;
+  ASSERT (size >= p->header_size);
+  p->npages = (size - p->header_size) / p->page_size;
+  return SUCCESS;
 }
 
-int
+err_t
+fpgr_create (file_pager *dest, i_file *f)
+{
+  ASSERT (dest);
+  i_file_assert (f);
+
+  const global_config *c = get_global_config ();
+  dest->header_size = c->header_size;
+  dest->f = f;
+  dest->page_size = c->page_size;
+
+  err_t ret = fpgr_set_len (dest);
+  if (ret)
+    {
+      i_log_warn ("Failed to get file size when "
+                  "initializing file pager\n");
+      return ret;
+    }
+
+  return SUCCESS;
+}
+
+TEST (fpgr_create)
+{
+  set_global_config (2048, 10);
+  char _tmpl[] = "/tmp/fpgr_testXXXXXX";
+  string tmpl = unsafe_cstrfrom (_tmpl);
+  i_file *fp = i_mkstemp (tmpl);
+  test_fail_if_null (fp);
+  test_fail_if (i_unlink (tmpl));
+  const global_config *c = get_global_config ();
+  file_pager pager;
+
+  // edge: file shorter than header
+  test_fail_if (i_truncate (fp, c->header_size - 1));
+  test_assert_int_equal (fpgr_create (&pager, fp), ERR_INVALID_STATE);
+
+  // edge: file size = header + half a page
+  test_fail_if (i_truncate (fp, c->header_size + c->page_size / 2));
+  test_assert_int_equal (fpgr_create (&pager, fp), ERR_INVALID_STATE);
+
+  // happy: file exactly header size, zero pages
+  test_fail_if (i_truncate (fp, c->header_size));
+  test_assert_int_equal (fpgr_create (&pager, fp), SUCCESS);
+  test_assert_int_equal (pager.header_size, c->header_size);
+  test_assert_int_equal (pager.page_size, c->page_size);
+  test_assert_int_equal ((int)pager.npages, 0);
+
+  // happy: file exactly header size, more pages
+  test_fail_if (i_truncate (fp, c->header_size + 3 * c->page_size));
+  test_assert_int_equal (fpgr_create (&pager, fp), SUCCESS);
+  test_assert_int_equal (pager.header_size, c->header_size);
+  test_assert_int_equal (pager.page_size, c->page_size);
+  test_assert_int_equal ((int)pager.npages, 3);
+
+  test_fail_if (i_close (fp));
+}
+
+err_t
 fpgr_new (file_pager *p, u64 *dest)
 {
   file_pager_assert (p);
   ASSERT (dest);
 
-  i64 size = fpgr_len (p);
-
-  u64 newsize = (u64)size + app_config.page_size;
-  int ret = i_truncate (p->f, newsize);
+  u64 newsize = p->header_size + (p->page_size) * (p->npages + 1);
+  err_t ret = i_truncate (p->f, newsize);
   if (ret)
     {
       return ret;
     }
 
-  *dest = size / app_config.page_size;
+  *dest = p->npages++;
 
   return SUCCESS;
 }
 
-int
-fpgr_delete (file_pager *p, u64 ptr __attribute__ ((unused)))
+TEST (fpgr_new)
 {
-  // TODO
-  file_pager_assert (p);
-  ASSERT (ptr > 0);
-  return SUCCESS;
+  set_global_config (2048, 10);
+  char _tmpl[] = "/tmp/fpgr_testXXXXXX";
+  string tmpl = unsafe_cstrfrom (_tmpl);
+  i_file *fp = i_mkstemp (tmpl);
+  test_fail_if_null (fp);
+  test_fail_if (i_unlink (tmpl));
+  const global_config *c = get_global_config ();
+
+  test_fail_if (i_truncate (fp, c->header_size));
+
+  file_pager p;
+  test_fail_if (fpgr_create (&p, fp));
+
+  u64 pgno;
+
+  test_fail_if (fpgr_new (&p, &pgno));
+  test_assert_int_equal ((int)pgno, 0);
+  test_assert_int_equal ((int)p.npages, 1);
+  test_assert_int_equal ((int)i_file_size (fp),
+                         (int)(p.header_size + p.page_size * p.npages));
+
+  test_fail_if (fpgr_new (&p, &pgno));
+  test_assert_int_equal ((int)pgno, 1);
+  test_assert_int_equal ((int)p.npages, 2);
+  test_assert_int_equal ((int)i_file_size (fp),
+                         (int)(p.header_size + p.page_size * p.npages));
+
+  test_fail_if (fpgr_new (&p, &pgno));
+  test_assert_int_equal ((int)pgno, 2);
+  test_assert_int_equal ((int)p.npages, 3);
+  test_assert_int_equal ((int)i_file_size (fp),
+                         (int)(p.header_size + p.page_size * p.npages));
+
+  test_fail_if (i_close (fp));
 }
 
-int
-fpgr_get (file_pager *p, u8 *dest, u64 ptr)
+err_t
+fpgr_get_expect (file_pager *p, u8 *dest, u64 pgno)
 {
   file_pager_assert (p);
   ASSERT (dest);
+  ASSERT (pgno < p->npages);
 
   // Read all from file
   i64 nread = i_read_all (
       p->f, dest,
-      app_config.page_size,
-      ptr * app_config.page_size);
+      p->page_size,
+      pgno * p->page_size);
 
   if (nread == 0)
     {
@@ -101,59 +187,132 @@ fpgr_get (file_pager *p, u8 *dest, u64 ptr)
   return SUCCESS;
 }
 
-int
-fpgr_get_or_create (file_pager *p, u8 *dest, u64 *ptr)
+TEST (fpgr_get_expect)
 {
-  file_pager_assert (p);
-  ASSERT (dest);
-  ASSERT (ptr);
+  set_global_config (2048, 10);
+  char _tmpl[] = "/tmp/fpgr_testXXXXXX";
+  string tmpl = unsafe_cstrfrom (_tmpl);
+  i_file *fp = i_mkstemp (tmpl);
+  test_fail_if_null (fp);
+  test_fail_if (i_unlink (tmpl));
+  const global_config *c = get_global_config ();
 
-  file_pager_assert (p);
-  ASSERT (dest);
+  test_fail_if (i_truncate (fp, c->header_size));
 
-  // Get the file size
-  // TODO:OPT - See TODO:OPT at the top of this section
+  file_pager p;
+  test_fail_if (fpgr_create (&p, fp));
 
-  i64 nread = i_read_all (
-      p->f, dest,
-      app_config.page_size,
-      *ptr * app_config.page_size);
+  // happy path: new page, write, then read back
+  u64 pgno;
+  test_fail_if (fpgr_new (&p, &pgno));
 
-  if (nread == 0)
+  u32 ps = p.page_size;
+  u8 *write_buf = i_malloc (ps);
+  for (u32 i = 0; i < ps; i++)
     {
-      int ret = fpgr_new (p, ptr);
-      if (ret)
-        {
-          return ret;
-        }
-      return SUCCESS;
+      write_buf[i] = (u8)i;
+    }
+  test_fail_if (fpgr_commit (&p, write_buf, pgno));
+
+  u8 *read_buf = i_malloc (ps);
+  i_memset (read_buf, 0xFF, ps);
+  test_fail_if (fpgr_get_expect (&p, read_buf, pgno));
+
+  for (u32 i = 0; i < ps; i++)
+    {
+      test_assert_int_equal (read_buf[i], (u8)i);
     }
 
-  if (nread < 0)
+  i_free (write_buf);
+  i_free (read_buf);
+}
+
+err_t
+fpgr_delete (file_pager *p, u64 pgno __attribute__ ((unused)))
+{
+  // TODO
+  file_pager_assert (p);
+  return SUCCESS;
+}
+
+TEST (fpgr_delete)
+{
+  set_global_config (2048, 10);
+  char _tmpl[] = "/tmp/fpgr_testXXXXXX";
+  string tmpl = unsafe_cstrfrom (_tmpl);
+  i_file *fp = i_mkstemp (tmpl);
+  test_fail_if_null (fp);
+  test_fail_if (i_unlink (tmpl));
+  const global_config *c = get_global_config ();
+
+  test_fail_if (i_truncate (fp, c->header_size));
+
+  file_pager p;
+  test_fail_if (fpgr_create (&p, fp));
+
+  // allocate two pages
+  u64 a, b;
+  test_fail_if (fpgr_new (&p, &a));
+  test_fail_if (fpgr_new (&p, &b));
+
+  // delete valid and out‑of‑range page numbers
+  test_fail_if (fpgr_delete (&p, a));
+  test_fail_if (fpgr_delete (&p, b + 5));
+
+  test_fail_if (i_close (fp));
+}
+
+err_t
+fpgr_commit (file_pager *p, const u8 *src, u64 pgno)
+{
+  file_pager_assert (p);
+  ASSERT (src);
+  ASSERT (pgno < p->npages);
+
+  err_t ret = i_write_all (
+      p->f, src,
+      p->page_size,
+      pgno * p->page_size);
+
+  // TODO - Figure out when to call invalid_state over err_io
+  if (ret)
     {
-      i_log_warn ("Invalid read encountered on fpgr_get\n");
-      return ERR_IO;
+      i_log_warn ("Failed to write page: %" PRIu64 "\n", pgno);
+      return ERR_INVALID_STATE;
     }
 
   return SUCCESS;
 }
 
-int
-fpgr_commit (file_pager *p, const u8 *src, u64 ptr)
+TEST (fpgr_commit)
 {
-  file_pager_assert (p);
-  ASSERT (src);
+  set_global_config (2048, 10);
+  char _tmpl[] = "/tmp/fpgr_testXXXXXX";
+  string tmpl = unsafe_cstrfrom (_tmpl);
+  i_file *fp = i_mkstemp (tmpl);
+  test_fail_if_null (fp);
+  test_fail_if (i_unlink (tmpl));
+  const global_config *c = get_global_config ();
 
-  int ret = i_write_all (
-      p->f, src,
-      app_config.page_size,
-      ptr * app_config.page_size);
-  if (ret)
-    {
-      return ret;
-    }
+  test_assert_int_equal (i_truncate (fp, c->header_size), 0);
 
-  return SUCCESS;
+  file_pager p;
+  test_fail_if (fpgr_create (&p, fp));
+
+  // allocate one page
+  u64 pgno;
+  test_fail_if (fpgr_new (&p, &pgno));
+  test_assert_int_equal ((int)i_file_size (fp),
+                         (int)(p.header_size + p.page_size * p.npages));
+
+  u8 *buf = i_malloc (p.page_size);
+  i_memset (buf, 0xAB, p.page_size);
+
+  // happy: writing to new page
+  test_fail_if (fpgr_commit (&p, buf, pgno));
+
+  test_fail_if (i_close (fp));
+  i_free (buf);
 }
 
 ///////////////////////////// MEMORY PAGE
@@ -164,25 +323,33 @@ DEFINE_DBG_ASSERT_I (memory_page, memory_page, p)
 }
 
 void
-mp_create (memory_page *dest, u64 clock, u64 ptr)
+mp_create (memory_page *dest, u8 *data, u64 pgno)
 {
-  i_memset (&dest->page, 0, app_config.page_size);
-  dest->laccess = clock;
-  dest->ptr = ptr;
+  const global_config *c = get_global_config ();
+  dest->data = data;
+  i_memset (dest->data, 0, c->page_size);
+  dest->data = data;
+  dest->pgno = pgno;
 }
 
-void
-mp_access (memory_page *m, u64 now)
+TEST (mp_create)
 {
-  m->laccess = now;
-}
+  set_global_config (2048, 10);
+  memory_page m;
+  const global_config *c = get_global_config ();
+  u8 *data = i_malloc (c->page_size);
+  test_fail_if_null (data);
 
-u64
-mp_check (const memory_page *m, u64 now)
-{
-  memory_page_assert (m);
-  ASSERT (now > m->laccess);
-  return now - m->laccess;
+  mp_create (&m, data, 42);
+
+  // fields initialized correctly
+  test_assert_int_equal ((int)m.pgno, 42);
+
+  // page memory zeroed out (check first and last byte)
+  test_assert_int_equal (data[0], 0);
+  test_assert_int_equal (data[c->page_size - 1], 0);
+
+  i_free (data);
 }
 
 ///////////////////////////// MEMORY PAGER
@@ -190,159 +357,90 @@ mp_check (const memory_page *m, u64 now)
 DEFINE_DBG_ASSERT_I (memory_pager, memory_pager, p)
 {
   ASSERT (p);
+  ASSERT (p->pages);
+  ASSERT (p->cap > 0);
+  ASSERT (p->tail < p->cap);
+  ASSERT (p->head < p->cap);
+}
 
-  // Memory wierdness but this is in an assert
-  ASCOPE (u64 used_pages[app_config.mpgr_len]);
+memory_pager
+mpgr_create (memory_page *pages, u32 len)
+{
+  ASSERT (pages && len > 0);
+  memory_pager p;
+  p.pages = pages;
+  p.cap = len;
+  p.head = 0;
+  p.tail = 0;
+  p.isfull = false;
+  i_memset (pages, 0, len * sizeof *pages);
+  return p;
+}
 
-  // Ensure no duplicates
-  for (u32 i = 0; i < app_config.mpgr_len; ++i)
+static inline u32
+mpgr_len (const memory_pager *p)
+{
+  memory_pager_assert (p);
+  if (p->isfull)
     {
-      if (!p->is_present[i])
+      return p->cap;
+    }
+  else
+    {
+      if (p->head >= p->tail)
         {
-          continue;
+          return p->head - p->tail;
         }
-
-      memory_page_assert (&p->pages[i]);
-
-      // Check that this page hasn't been used before
-      ASCOPE (u64 next = p->pages[i].ptr);
-      for (u32 j = 0; j < i; ++j)
+      else
         {
-          if (p->is_present[j])
-            {
-              ASSERT (next != used_pages[j]);
-            }
+          return p->cap - (p->tail - p->head);
         }
-      ASCOPE (used_pages[i] = next);
     }
 }
 
-int
-mpgr_find_avail (const memory_pager *p)
+u8 *
+mpgr_get_page (const memory_pager *p, u64 pgno)
 {
   memory_pager_assert (p);
+  u32 len = mpgr_len (p);
 
-  // TODO - OPTIMIZATION - This could be a hash map
-  for (u32 i = 0; i < app_config.mpgr_len; ++i)
+  // TODO: OPTIMIZATION - This can be a hash map
+  for (u32 i = 0; i < len; i++)
     {
-      if (!p->is_present[i])
+      u32 idx = (p->tail + i) % p->cap;
+      if (p->pages[idx].pgno == pgno)
         {
-          return i;
+          return p->pages[idx].data;
         }
     }
-  return -1;
+  return NULL;
 }
 
-u8 *
-mpgr_new (memory_pager *p, u64 ptr)
+TEST (mpgr_get_page)
 {
-  memory_pager_assert (p);
-
-  int i = mpgr_find_avail (p);
-  ASSERT (i >= 0);
-
-  mp_create (&p->pages[i], p->clock++, ptr);
-  p->is_present[i] = 1;
-
-  return p->pages[i].page;
+  // TODO
 }
 
-u8 *
-mpgr_get_by_ptr (memory_pager *p, u64 ptr)
-{
-  memory_pager_assert (p);
-  int idx = mpgr_check_page_exists (p, ptr);
-
-  ASSERT (idx >= 0);
-  ASSERT ((u32)idx < app_config.mpgr_len);
-  ASSERT (p->is_present[idx]);
-
-  mp_access (&p->pages[idx], p->clock++);
-
-  return p->pages[idx].page;
-}
-
-// Retrieves page ptr page must exist
-u8 *
-mpgr_get_by_idx (memory_pager *p, u32 idx)
-{
-  memory_pager_assert (p);
-
-  ASSERT (idx < app_config.mpgr_len);
-  ASSERT (p->is_present[idx]);
-
-  mp_access (&p->pages[idx], p->clock++);
-
-  return p->pages[idx].page;
-}
-
-int
-mpgr_check_page_exists (const memory_pager *p, u64 ptr)
-{
-  // TODO:OPT - use mini hash table
-  for (u32 i = 0; i < app_config.mpgr_len; ++i)
-    {
-      if (p->is_present[i] && p->pages[i].ptr == ptr)
-        {
-          return i;
-        }
-    }
-  return -1;
-}
-
-/**
- * Evicts the page with the greatest time between now and
- * kth last access. Returns the index of the evicted page
- */
 u64
 mpgr_get_evictable (const memory_pager *p)
 {
   memory_pager_assert (p);
-
-  u64 maxK = 0;
-  u64 ret = 0;
-  ASCOPE (int argmax = -1);
-
-  for (u32 i = 0; i < app_config.mpgr_len; ++i)
-    {
-      ASSERT (p->is_present[i]);
-      u64 this_one = mp_check (&p->pages[i], p->clock);
-      if (this_one > maxK)
-        {
-          maxK = this_one;
-          ASCOPE (argmax = i);
-          ret = p->pages[i].ptr;
-        }
-    }
-
-  ASSERT (argmax >= 0);
-  ASSERT ((u32)argmax < app_config.mpgr_len);
-
-  return ret;
+  ASSERT (p->isfull);
+  return p->pages[p->tail].pgno;
 }
 
 void
-mpgr_delete (memory_pager *p, u64 ptr)
-{
-  int idx = mpgr_check_page_exists (p, ptr);
-  ASSERT (idx >= 0);
-  ASSERT ((u32)idx < app_config.mpgr_len);
-  p->is_present[idx] = 0;
-}
-
-void
-mpgr_update_pgnum (memory_pager *p, u64 oldptr, u64 newptr)
+mpgr_evict (memory_pager *p)
 {
   memory_pager_assert (p);
-  ASSERT (newptr != oldptr);
+  ASSERT (p->isfull);
+  p->tail = (p->tail + 1) % p->cap;
+  p->isfull = false;
+}
 
-  int idx = mpgr_check_page_exists (p, oldptr);
-
-  ASSERT (idx >= 0);
-  ASSERT ((u32)idx < app_config.mpgr_len);
-  ASSERT (p->is_present[idx]);
-
-  p->pages[idx].ptr = newptr;
+TEST (mpgr_evict)
+{
+  // TODO
 }
 
 ///////////////////////////// PAGE TYPES
@@ -356,23 +454,16 @@ DEFINE_DBG_ASSERT_I (data_list, data_list, d)
   ASSERT (d->data);
 }
 
-int
+err_t
 page_read_expect (page *dest, page_type expected, u8 *raw)
 {
   ASSERT (dest);
   ASSERT (raw);
 
+  dest->raw = raw;
+
   // All pages have a header in the first 8 bytes
   u32 idx = 0;
-  u8 *header = &raw[idx];
-  idx += sizeof *header;
-
-  if (*header != expected)
-    {
-      i_log_error ("Expected page type: %d, got page type: %d\n",
-                   expected, *header);
-      return ERR_INVALID_STATE;
-    }
 
 #define advance(vname, type)     \
   do                             \
@@ -381,6 +472,15 @@ page_read_expect (page *dest, page_type expected, u8 *raw)
       idx += sizeof *vname;      \
     }                            \
   while (0)
+
+  advance (dest->header, u8);
+
+  if (*dest->header != expected)
+    {
+      i_log_error ("Expected page type: %d, got page type: %d\n",
+                   expected, *dest->header);
+      return ERR_INVALID_STATE;
+    }
 
   switch (expected)
     {
@@ -413,15 +513,41 @@ page_read_expect (page *dest, page_type expected, u8 *raw)
       }
     }
 
+#undef advance
+
   return SUCCESS;
 }
 
-/**
 void
 page_init (page *dest, page_type type, u8 *raw)
 {
   ASSERT (dest);
   ASSERT (type > 0);
   ASSERT (raw);
+
+  const global_config *c = get_global_config ();
+  i_memset (raw, 0, c->page_size);
+
+  // Set header and raw pointers
+  u32 idx = 0;
+  dest->header = &raw[idx];
+  idx += sizeof *dest->header;
+  dest->raw = raw;
+
+  // Set header value
+  *dest->header = (u8)type;
+
+  // Read in data - TODO - specialized initializations
+  ASCOPE (err_t ret =)
+  page_read_expect (dest, type, raw);
+  ASSERT (ret == SUCCESS);
 }
-*/
+
+///////////////////////////// PAGER
+
+DEFINE_DBG_ASSERT_I (pager, pager, p)
+{
+  ASSERT (p);
+  memory_pager_assert (&p->mpager);
+  file_pager_assert (&p->fpager);
+}

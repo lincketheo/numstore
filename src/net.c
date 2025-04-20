@@ -1,5 +1,4 @@
 #include "net.h"
-#include "config.h"
 #include "intf/mm.h"
 
 static file_pager fpgr;

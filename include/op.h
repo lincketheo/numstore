@@ -18,11 +18,12 @@ typedef struct
 {
   const string vname;
   const type *type;
+  pager *p;
 } create;
 
 DEFINE_DBG_ASSERT_H (create, create, c);
-void create_init (create *c, const string vname, const type *type);
-void create_execute (create *c, file_pager *pager);
+void create_init (create *c, const string vname, const type *type, pager *p);
+void create_execute (create *c);
 
 //////////////////////////////// WRITE
 typedef struct

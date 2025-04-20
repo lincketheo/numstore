@@ -4,16 +4,16 @@
 
 #if !defined(NDEBUG) && !defined(__clang_analyzer__)
 
-#define ASSERT(expr)                                         \
-  do                                                         \
-    {                                                        \
-      if (!(expr))                                           \
-        {                                                    \
-          i_log_error ("%s failed at %s:%d (%s)\n",          \
-                       #expr, __FILE__, __LINE__, __func__); \
-          *(volatile int *)0 = 1;                            \
-        }                                                    \
-    }                                                        \
+#define ASSERT(expr)                                          \
+  do                                                          \
+    {                                                         \
+      if (!(expr))                                            \
+        {                                                     \
+          i_log_assert ("%s failed at %s:%d (%s)\n",          \
+                        #expr, __FILE__, __LINE__, __func__); \
+          *(volatile int *)0 = 1;                             \
+        }                                                     \
+    }                                                         \
   while (0)
 
 #define ASCOPE(expr) expr

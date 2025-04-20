@@ -104,6 +104,15 @@ i_log_error (const char *fmt, ...)
 }
 
 void
+i_log_assert (const char *fmt, ...)
+{
+  va_list args;
+  va_start (args, fmt);
+  i_log_internal ("ASSERT", RED, fmt, args);
+  va_end (args);
+}
+
+void
 i_log_failure (const char *fmt, ...)
 {
   va_list args;

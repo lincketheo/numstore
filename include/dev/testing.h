@@ -46,6 +46,7 @@ extern int test_ret;
   while (0)
 
 #define test_assert_int_equal(left, right) test_assert_equal (left, right, "%" PRId32)
+#define test_assert_ptr_equal(left, right) test_assert_equal ((void *)left, (void *)right, "%p")
 
 #define test_fail_if(expr)                                                 \
   do                                                                       \

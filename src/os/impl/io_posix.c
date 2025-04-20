@@ -2,10 +2,12 @@
 #include "intf/io.h"
 #include "intf/logging.h"
 #include "intf/mm.h"
+#include "sds.h"
 
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -89,7 +91,7 @@ i_open (const string fname, int read, int write)
   return ret;
 }
 
-int
+err_t
 i_close (i_file *fp)
 {
   ASSERT (fp);
@@ -176,7 +178,7 @@ i_write_some (i_file *fp, const void *src, u64 n, u64 offset)
   return (i64)ret;
 }
 
-int
+err_t
 i_write_all (i_file *fp, const void *src, u64 n, u64 offset)
 {
   i_file_assert (fp);
@@ -229,7 +231,7 @@ i_write_all (i_file *fp, const void *src, u64 n, u64 offset)
   return SUCCESS;
 }
 
-int
+err_t
 i_truncate (i_file *fp, u64 bytes)
 {
 #ifndef NDEBUG
@@ -259,7 +261,7 @@ i_file_size (i_file *fp)
   return (off_t)st.st_size;
 }
 
-int
+err_t
 i_remove_quiet (const string fname)
 {
   cstring_assert (&fname);
@@ -267,9 +269,63 @@ i_remove_quiet (const string fname)
 
   if (ret && errno != ENOENT)
     {
-      i_log_error ("Failed to remove file: %s\n", fname.data);
+      i_log_error ("Failed to remove file: %s. Reason: %s\n",
+                   fname.data, strerror (errno));
       return ERR_IO;
     }
 
+  return SUCCESS;
+}
+
+err_t
+i_access_rw (const string fname)
+{
+  cstring_assert (&fname);
+  if (access (fname.data, F_OK | W_OK | R_OK))
+    {
+      i_log_error ("failed to call access. Reason: %s\n",
+                   strerror (errno));
+      return ERR_IO;
+    }
+  return SUCCESS;
+}
+
+bool
+i_exists_rw (const string fname)
+{
+  cstring_assert (&fname);
+  if (access (fname.data, F_OK | W_OK | R_OK))
+    {
+      return false;
+    }
+  return true;
+}
+
+i_file *
+i_mkstemp (string tmpl)
+{
+  cstring_assert (&tmpl);
+  int fd = mkstemp (tmpl.data);
+  if (fd == -1)
+    {
+      i_log_error ("Failed to call mkstemp for file: %s. Reason: %s\n",
+                   tmpl.data, strerror (errno));
+      return NULL;
+    }
+  i_file *ret = i_malloc (sizeof ret);
+  ret->fd = fd;
+  return ret;
+}
+
+err_t
+i_unlink (const string name)
+{
+  cstring_assert (&name);
+  if (unlink (name.data))
+    {
+      i_log_error ("Failed to call unlink on file: %s. Reason: %s\n",
+                   name.data, strerror (errno));
+      return ERR_IO;
+    }
   return SUCCESS;
 }
