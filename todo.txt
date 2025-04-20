@@ -3,9 +3,8 @@
   - Write tests for pager / paging
 
 
-1. Client Server basics X
-2. Scanner / tokenizer 
+- Scanner / tokenizer 
   - Logic on how much data is available
   - strings / numbers that exceed cbuffer capacity
   - Tests
-3. Replace ints with err_t 
+- Replace u64 with pgptr 

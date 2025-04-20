@@ -8,5 +8,6 @@ typedef enum
   ERR_INVALID_INPUT = -3,  // Input is too long / malformed - thing 400,
   ERR_OVERFLOW = -4,       // User Entered value overflows limits,
   ERR_ALREADY_EXISTS = -5, // A thing already exists
-  ERR_OUT_OF_BOUNDS = -6,  // For out of bounds indexing methods
+  ERR_DOESNT_EXIST = -6,   // Something doesn't exist
+  ERR_OUT_OF_BOUNDS = -7,  // For out of bounds indexing methods
 } err_t;

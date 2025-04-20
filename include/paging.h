@@ -31,6 +31,7 @@ typedef struct
 {
   u8 *data;
   u64 pgno;
+  int is_present;
 } memory_page;
 
 DEFINE_DBG_ASSERT_H (memory_page, memory_page, p);
@@ -41,18 +42,16 @@ void mp_create (memory_page *dest, u8 *data, u64 pgno);
 typedef struct
 {
   memory_page *pages;
-  u32 cap;
-  u32 head;
-  u32 tail;
-  bool isfull;
+  u32 len;
+  u32 idx;
 } memory_pager;
 
 DEFINE_DBG_ASSERT_H (memory_pager, memory_pager, p);
 memory_pager mpgr_create (memory_page *pages, u32 len);
-
-u8 *mpgr_get_page (const memory_pager *p, u64 pgno);
+u8 *mpgr_new (memory_pager *p, u64 pgno);
+u8 *mpgr_get (const memory_pager *p, u64 pgno);
 u64 mpgr_get_evictable (const memory_pager *p);
-void mpgr_evict (memory_pager *p);
+void mpgr_evict (memory_pager *p, u64 pgno);
 
 ///////////////////////////// PAGE TYPES
 
@@ -89,7 +88,8 @@ DEFINE_DBG_ASSERT_H (inner_node, inner_node, d);
 
 typedef struct
 {
-  i64 *hashes; // Hashes pointing to header_size of linked list
+  u32 *len;    // Length of the hash table
+  u64 *hashes; // Hashes pointing to header_size of linked list
 } hash_page;
 
 DEFINE_DBG_ASSERT_H (hash_page, hash_page, d);
@@ -110,6 +110,7 @@ DEFINE_DBG_ASSERT_H (hash_leaf, hash_leaf, d);
 typedef struct
 {
   u8 *raw;
+  u64 pgno;
 
   u8 *header;
   union
@@ -121,8 +122,8 @@ typedef struct
   };
 } page;
 
-err_t page_read_expect (page *dest, page_type expected, u8 *raw);
-void page_init (page *dest, page_type type, u8 *raw);
+err_t page_read_expect (page *dest, page_type expected, u8 *raw, u64 pgno);
+void page_init (page *dest, page_type type, u8 *raw, u64 pgno);
 
 ///////////////////////////// PAGER
 
@@ -133,4 +134,6 @@ typedef struct
 } pager;
 
 DEFINE_DBG_ASSERT_H (pager, pager, p);
-err_t pgr_get_expect (pager *p, page *dest, page_type type);
+err_t pgr_create (pager *dest, memory_page *pages, u32 len, i_file *fp);
+err_t pgr_get_expect (page *dest, page_type type, u64 pgno, pager *p);
+err_t pgr_new (page *dest, pager *p, page_type type);

@@ -45,7 +45,7 @@ db_create (const string fname, u32 page_size, u32 mpgr_len)
 
   fp = i_open (fname, 1, 1);
 
-  // Serialize header
+  // Serialize and write header
   u32 header[2] = { page_size, mpgr_len };
   ret = i_write_all (fp, header, sizeof (header), 0);
   if (ret)
@@ -82,7 +82,7 @@ db_create (const string fname, u32 page_size, u32 mpgr_len)
 
   // Initialize Hash Page
   page p;
-  page_init (&p, PG_HASH_PAGE, hash_page);
+  page_init (&p, PG_HASH_PAGE, hash_page, pgno);
 
   // Write hash page to disk
   ret = fpgr_commit (&fpgr, hash_page, pgno);
@@ -98,6 +98,46 @@ theend:
     {
       i_free (hash_page);
     }
+  if (fp)
+    {
+      i_close (fp);
+    }
+  return ret;
+}
+
+err_t
+db_open (const string fname)
+{
+  cstring_assert (&fname);
+
+  err_t ret = SUCCESS;
+  i_file *fp = NULL;
+
+  // Check if database already exists
+  if (!i_exists_rw (fname))
+    {
+      i_log_warn ("Database: %.*s doesn't exist\n", fname.len, fname.data);
+      ret = ERR_ALREADY_EXISTS;
+      goto theend;
+    }
+  fp = i_open (fname, 1, 1);
+
+  // Read header
+  u32 header[2] = { 0 };
+  ret = i_read_all (fp, header, sizeof (header), 0);
+  if (ret != sizeof (header))
+    {
+      i_log_warn ("Failed to read header on database open\n");
+      goto theend;
+    }
+  set_global_config (header[0], header[1]);
+
+  i_log_info ("Database config:\n");
+  i_log_info ("Page Size: %" PRIu32 "\n", c.page_size);
+  i_log_info ("Memory Pager Length: %" PRIu32 "\n", c.mpgr_len);
+
+theend:
+
   if (fp)
     {
       i_close (fp);

@@ -96,7 +96,15 @@ i_close (i_file *fp)
 {
   ASSERT (fp);
   i_file_assert (fp);
-  return close (fp->fd);
+  int ret = close (fp->fd);
+  i_free (fp);
+  if (ret)
+    {
+      i_log_error ("Failed to close file: %d. Reason: %s\n",
+                   fp->fd, strerror (errno));
+      return ERR_IO;
+    }
+  return SUCCESS;
 }
 
 i64
