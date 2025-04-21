@@ -4,7 +4,7 @@
 #include "intf/mm.h"
 #include "intf/stdlib.h"
 #include "sds.h"
-#include "utils.h"
+#include "utils/macros.h"
 
 ////////////////////// SCANNER (chars -> tokens)
 DEFINE_DBG_ASSERT_I (scanner, scanner, s)
@@ -15,23 +15,27 @@ DEFINE_DBG_ASSERT_I (scanner, scanner, s)
 }
 
 void
-scanner_create (scanner *dest, cbuffer *input, cbuffer *output)
+scanner_create (
+    scanner *dest,
+    cbuffer *input,
+    cbuffer *output,
+    lalloc *alloc)
 {
   ASSERT (dest);
   i_memset (dest, 0, sizeof (scanner));
+  lalloc_assert (alloc);
 
   ASSERT (output->cap % sizeof (token) == 0);
   dest->chars_input = input;
   dest->tokens_output = output;
   dest->current = 0;
-  dest->is_error = 0;
+  dest->alloc = alloc;
 }
 
 static inline void
 compile_error (scanner *s)
 {
   scanner_assert (s);
-  s->is_error = 1;
 }
 
 static inline void
@@ -158,9 +162,13 @@ finish:
       dest.type = TT_IDENTIFIER;
 
       // TODO:OPTIMIZATION reduce mallocs
-      char *str = i_malloc (s->current);
+      alloc_ret ret = s->alloc->malloc (s->alloc, s->current);
+      if (ret.ret)
+        {
+          return 0;
+        }
       dest.str = (string){
-        .data = str,
+        .data = (char *)ret.data,
         .len = s->current,
       };
       scanner_write_token (&dest.str, s, dest);
@@ -332,6 +340,7 @@ token_printer_execute (token_printer *t)
 }
 
 ////////////////////// PARSER
+
 DEFINE_DBG_ASSERT_H (parser, parser, p)
 {
   ASSERT (p);

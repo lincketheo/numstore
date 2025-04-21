@@ -1,5 +1,6 @@
 #include "variable.h"
 #include "dev/errors.h"
+#include "intf/stdlib.h"
 #include "paging.h"
 #include "sds.h"
 #include "typing.h"
@@ -55,41 +56,59 @@ vr_get (
   variable_assert (dest);
   string_assert (&vname);
 
-  page hash_table;
+  page hash_page;
   page hash_leaf;
 
-  err_t ret = pgr_get_expect (&hash_table, PG_HASH_PAGE, 0, v->pgr);
-  if (ret)
-    {
-      return ret;
-    }
+  // Fetch the hash table node
+  // NOTE - what if hash table is more than 1 page?
+  err_t_wrap (pgr_get_expect (&hash_page, PG_HASH_PAGE, 0, v->pgr));
   u32 idx = fnv1a_hash (vname);
 
-  u64 pgno = hash_table.hp.hashes[idx % *hash_table.hp.len];
+  u64 pgno = hash_page.hp.hashes[idx % *hash_page.hp.len];
   if (pgno == 0)
     {
+      // Doesn't exist (note 0 denotes doesn't exist)
       // Create new hash page
-      ret = pgr_new (&hash_leaf, v->pgr, PG_HASH_LEAF);
-      if (ret)
-        {
-          return ret;
-        }
-    }
-  else
-    {
-      ret = pgr_get_expect (&hash_leaf, PG_HASH_LEAF, pgno, v->pgr);
-      if (ret)
-        {
-          return ret;
-        }
+      err_t_wrap (pgr_new (&hash_leaf, v->pgr, PG_HASH_LEAF));
     }
 
+  // Iterate through hash leafs
+  do
+    {
+      // Fetch the hash_leaf
+      err_t_wrap (pgr_get_expect (&hash_leaf, PG_HASH_LEAF, pgno, v->pgr));
+
+      hash_leaf_tuple hlt;
+      for (u32 i = 0; i < *hash_leaf.hl.nvalues; ++i)
+        {
+          err_t_wrap (hl_get_tuple (&hlt, &hash_leaf, 0));
+
+          if (string_equal (
+                  vname,
+                  (string){
+                      .data = hlt.str,
+                      .len = *hlt.strlen,
+                  }))
+            {
+              *exists = 1;
+              dest->type = 0; // TODO
+              dest->page0 = *hlt.pg0;
+              return SUCCESS;
+            }
+        }
+
+      // Fetch next hash leaf page
+      pgno = *hash_leaf.hl.next;
+    }
+  while (pgno != 0);
+
   // TODO - search for key
-  *exists = 1;
+  *exists = 0;
   return SUCCESS;
 }
 
-err_t vr_set (
+err_t
+vr_set (
     var_retriver *v,
     variable *dest,
     const string vname,

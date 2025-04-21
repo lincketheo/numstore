@@ -95,6 +95,7 @@ DEFINE_DBG_ASSERT_H (string, string, s);
 DEFINE_DBG_ASSERT_H (string, cstring, s);
 string unsafe_cstrfrom (char *cstr);
 int strings_all_unique (const string *strs, u32 count);
+bool string_equal (const string s1, const string s2);
 
 //////////////////////////////// Array Indexing
 
@@ -106,3 +107,12 @@ typedef struct
 } array_range;
 
 DEFINE_DBG_ASSERT_H (array_range, array_range, a);
+
+//////////////////////////////// Linked List
+
+typedef struct llist
+{
+  struct llist *next;
+} llist;
+
+DEFINE_DBG_ASSERT_H (llist, llist, l);

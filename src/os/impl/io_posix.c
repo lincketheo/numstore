@@ -12,29 +12,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#ifndef NDEBUG
-static u64 num_read = 0;
-static u64 num_write = 0;
-static u64 num_alloc = 0;
-static u64 num_open = 0;
-static u64 num_truncate = 0;
-
-void
-io_log_stats (void)
-{
-  i_log_info ("Total open calls: %" PRIu64 "\n", num_open);
-  i_log_info ("Total read calls: %" PRIu64 "\n", num_read);
-  i_log_info ("Total write calls: %" PRIu64 "\n", num_write);
-  i_log_info ("Total alloc calls: %" PRIu64 "\n", num_alloc);
-  i_log_info ("Total truncate calls: %" PRIu64 "\n", num_alloc);
-}
-#endif
-
 /////////////////////// Files
-struct i_file
-{
-  int fd;
-};
 
 DEFINE_DBG_ASSERT_I (i_file, i_file, fp)
 {
@@ -42,53 +20,38 @@ DEFINE_DBG_ASSERT_I (i_file, i_file, fp)
   ASSERT (fcntl (fp->fd, F_GETFD) != -1 || errno != EBADF);
 }
 
-i_file *
-i_open (const string fname, int read, int write)
+err_t
+i_open (i_file *dest, const string fname, int read, int write)
 {
   cstring_assert (&fname);
 
-  i_file *ret = i_malloc (sizeof ret);
-
-  if (ret == NULL)
-    {
-      return ret;
-    }
-
-#ifndef NDEBUG
-  num_open++;
-#endif
-
   if (read && write)
     {
-      ret->fd = open (fname.data, O_RDWR | O_CREAT, 0644);
+      dest->fd = open (fname.data, O_RDWR | O_CREAT, 0644);
     }
   else if (read)
     {
-      ret->fd = open (fname.data, O_RDONLY | O_CREAT, 0644);
+      dest->fd = open (fname.data, O_RDONLY | O_CREAT, 0644);
     }
   else if (write)
     {
-      ret->fd = open (fname.data, O_WRONLY | O_CREAT, 0644);
+      dest->fd = open (fname.data, O_WRONLY | O_CREAT, 0644);
     }
   else
     {
-      i_log_error ("Refusing to open file: %.*s "
-                   "without either read or write\n",
-                   fname.len, fname.data);
-      return NULL;
+      ASSERT (0);
     }
 
-  if (ret->fd == -1)
+  if (dest->fd == -1)
     {
       i_log_error ("Failed to open file: %s. Reason: %s\n",
                    fname.data, strerror (errno));
-      i_free (ret);
-      return NULL;
+      return ERR_IO;
     }
 
-  i_file_assert (ret);
+  i_file_assert (dest);
 
-  return ret;
+  return SUCCESS;
 }
 
 err_t
@@ -97,7 +60,6 @@ i_close (i_file *fp)
   ASSERT (fp);
   i_file_assert (fp);
   int ret = close (fp->fd);
-  i_free (fp);
   if (ret)
     {
       i_log_error ("Failed to close file: %d. Reason: %s\n",
@@ -113,10 +75,6 @@ i_read_some (i_file *fp, void *dest, u64 n, u64 offset)
   i_file_assert (fp);
   ASSERT (dest);
   ASSERT (n > 0);
-
-#ifndef NDEBUG
-  num_read++;
-#endif
 
   ssize_t ret = pread (fp->fd, dest, n, (size_t)offset);
   return (i64)ret;
@@ -134,10 +92,6 @@ i_read_all (i_file *fp, void *dest, u64 n, u64 offset)
 
   while (nread < n)
     {
-
-#ifndef NDEBUG
-      num_read++;
-#endif
 
       // Do read
       ASSERT (n > nread);
@@ -178,10 +132,6 @@ i_write_some (i_file *fp, const void *src, u64 n, u64 offset)
   ASSERT (src);
   ASSERT (n > 0);
 
-#ifndef NDEBUG
-  num_write++;
-#endif
-
   ssize_t ret = pwrite (fp->fd, src, n, (size_t)offset);
   return (i64)ret;
 }
@@ -200,10 +150,6 @@ i_write_all (i_file *fp, const void *src, u64 n, u64 offset)
     {
       // Do read
       ASSERT (n > nwrite);
-
-#ifndef NDEBUG
-      num_write++;
-#endif
 
       ssize_t _nwrite = pwrite (
           fp->fd,
@@ -242,10 +188,6 @@ i_write_all (i_file *fp, const void *src, u64 n, u64 offset)
 err_t
 i_truncate (i_file *fp, u64 bytes)
 {
-#ifndef NDEBUG
-  num_truncate++;
-#endif
-
   if (ftruncate (fp->fd, bytes) == -1)
     {
       i_log_error ("Failed to call ftruncate. Reason: %s\n",
@@ -309,8 +251,8 @@ i_exists_rw (const string fname)
   return true;
 }
 
-i_file *
-i_mkstemp (string tmpl)
+err_t
+i_mkstemp (i_file *dest, string tmpl)
 {
   cstring_assert (&tmpl);
   int fd = mkstemp (tmpl.data);
@@ -318,11 +260,11 @@ i_mkstemp (string tmpl)
     {
       i_log_error ("Failed to call mkstemp for file: %s. Reason: %s\n",
                    tmpl.data, strerror (errno));
-      return NULL;
+      return ERR_IO;
     }
-  i_file *ret = i_malloc (sizeof ret);
-  ret->fd = fd;
-  return ret;
+
+  dest->fd = fd;
+  return SUCCESS;
 }
 
 err_t

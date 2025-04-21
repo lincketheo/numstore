@@ -2,6 +2,7 @@
 
 #include "intf/logging.h"
 
+////////////////////////////// Debug
 #if !defined(NDEBUG) && !defined(__clang_analyzer__)
 
 #define ASSERT(expr)                                          \
@@ -18,24 +19,22 @@
 
 #define ASCOPE(expr) expr
 
-#define RUNTIME_ASSERT(expr) ASSERT (expr)
-
 #define DEFINE_DBG_ASSERT_H(type, name, variable) \
   __attribute__ ((unused)) void name##_assert (const type *variable)
 
 #define DEFINE_DBG_ASSERT_I(type, name, variable) \
   __attribute__ ((unused)) void name##_assert (const type *variable)
 
+////////////////////////////// Release
 #else
 
 #define ASSERT(expr)
+
 #define ASCOPE(expr)
 
-// TODO - Think of a better way to compile this function out
 #define DEFINE_DBG_ASSERT_H(type, name, variable) \
   __attribute__ ((unused)) void name##_assert (const type *variable __attribute__ ((unused)))
 
-// TODO - Think of a better way to compile this function out
 #define DEFINE_DBG_ASSERT_I(type, name, variable)                                             \
   __attribute__ ((unused)) void name##_assert (const type *variable __attribute__ ((unused))) \
   {                                                                                           \

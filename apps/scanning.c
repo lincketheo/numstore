@@ -1,4 +1,5 @@
 #include "compiler.h"
+#include "intf/mm.h"
 #include "sds.h"
 #include <string.h>
 
@@ -26,9 +27,10 @@ feed_execute (void)
 int
 main (void)
 {
+  stdalloc alloc = stdalloc_create (0);
   chars = cbuffer_create ((u8 *)chars_backing, 10);
   tokens = cbuffer_create ((u8 *)tokens_backing, 10 * sizeof *tokens_backing);
-  scanner_create (&s, &chars, &tokens);
+  scanner_create (&s, &chars, &tokens, &alloc.alloc);
   token_printer_create (&t, &tokens);
 
   feed_execute ();

@@ -9,5 +9,16 @@ typedef enum
   ERR_OVERFLOW = -4,       // User Entered value overflows limits,
   ERR_ALREADY_EXISTS = -5, // A thing already exists
   ERR_DOESNT_EXIST = -6,   // Something doesn't exist
-  ERR_OUT_OF_BOUNDS = -7,  // For out of bounds indexing methods
+  ERR_ARITH = -7,          // Arithmetic error like div 0 or int overflow
 } err_t;
+
+#define err_t_wrap(expr)  \
+  do                      \
+    {                     \
+      err_t __ret = expr; \
+      if (__ret)          \
+        {                 \
+          return __ret;   \
+        }                 \
+    }                     \
+  while (0)

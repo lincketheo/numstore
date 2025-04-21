@@ -16,6 +16,12 @@ i_memcpy (void *dest, const void *src, u64 bytes)
 }
 
 int
+i_strncmp (char *left, char *right, u64 len)
+{
+  return strncmp (left, right, len);
+}
+
+int
 i_unsafe_strlen (const char *cstr)
 {
   return strlen (cstr);

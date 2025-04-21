@@ -3,7 +3,7 @@
 #include "dev/testing.h"
 #include "intf/stdlib.h"
 #include "types.h"
-#include "utils.h"
+#include "utils/macros.h"
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
@@ -961,6 +961,18 @@ TEST (strings_all_unique)
   char h4[] = "dd";
   string s6[] = { { h1, 2 }, { h2, 2 }, { h3, 2 }, { h4, 2 } };
   test_assert_int_equal (strings_all_unique (s6, 4), 1);
+}
+
+bool
+string_equal (const string s1, const string s2)
+{
+  string_assert (&s1);
+  string_assert (&s2);
+  if (s1.len != s2.len)
+    {
+      return false;
+    }
+  return i_strncmp (s1.data, s2.data, s1.len) == 0;
 }
 
 DEFINE_DBG_ASSERT_I (array_range, array_range, a)
