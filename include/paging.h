@@ -20,7 +20,11 @@ typedef struct
 } file_pager;
 
 DEFINE_DBG_ASSERT_H (file_pager, file_pager, p);
-err_t fpgr_create (file_pager *dest, i_file *f);
+err_t fpgr_create (
+    file_pager *dest,
+    i_file *f,
+    u32 page_size,
+    u32 header_size);
 err_t fpgr_new (file_pager *p, u64 *pgno);
 err_t fpgr_get_expect (file_pager *p, u8 *dest, u64 pgno);
 err_t fpgr_delete (file_pager *p, u64 pgno);
@@ -35,7 +39,7 @@ typedef struct
 } memory_page;
 
 DEFINE_DBG_ASSERT_H (memory_page, memory_page, p);
-void mp_create (memory_page *dest, u8 *data, u64 pgno);
+void mp_create (memory_page *dest, u8 *data, u32 dlen, u64 pgno);
 
 ///////////////////////////// MEMORY PAGER
 
@@ -123,7 +127,7 @@ typedef struct
 } page;
 
 err_t page_read_expect (page *dest, page_type expected, u8 *raw, u64 pgno);
-void page_init (page *dest, page_type type, u8 *raw, u64 pgno);
+void page_init (page *dest, page_type type, u8 *raw, u32 rlen, u64 pgno);
 
 ///////////////////////////// PAGER
 
@@ -131,9 +135,14 @@ typedef struct
 {
   memory_pager mpager;
   file_pager fpager;
+  u32 page_size;
 } pager;
 
 DEFINE_DBG_ASSERT_H (pager, pager, p);
-err_t pgr_create (pager *dest, memory_page *pages, u32 len, i_file *fp);
+pager pgr_create (
+    memory_pager mpager,
+    file_pager fpager,
+    u32 page_size);
 err_t pgr_get_expect (page *dest, page_type type, u64 pgno, pager *p);
 err_t pgr_new (page *dest, pager *p, page_type type);
+err_t pgr_commit (pager *p, u8 *data, u64 pgno);

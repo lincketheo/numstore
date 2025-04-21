@@ -13,7 +13,11 @@ DEFINE_DBG_ASSERT_H (create, create, c)
 }
 
 void
-create_init (create *c, const string vname, const type *type, pager *p)
+create_init (
+    create *c,
+    const string vname,
+    const type *type,
+    pager *p)
 {
   ASSERT (c);
   string_assert (&vname);

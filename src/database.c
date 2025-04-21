@@ -3,16 +3,20 @@
 #include "intf/io.h"
 #include "intf/logging.h"
 #include "intf/mm.h"
+#include "intf/stdlib.h"
 #include "paging.h"
 #include "sds.h"
 #include "types.h"
 
+//////////////// Global Config
 static global_config c;
 
-const global_config *
-get_global_config ()
+DEFINE_DBG_ASSERT_I (global_config, global_config, g)
 {
-  return &c;
+  ASSERT (g);
+  ASSERT (g->page_size > 0);
+  ASSERT (g->mpgr_len > 0);
+  ASSERT (g->header_size == sizeof (u32) * 2);
 }
 
 void
@@ -23,81 +27,94 @@ set_global_config (u32 page_size, u32 mpgr_len)
   c.mpgr_len = mpgr_len;
 }
 
+const global_config *
+get_global_config (void)
+{
+  global_config_assert (&c);
+  return &c;
+}
+
+//////////////// Global Config
+static global_database db;
+
+DEFINE_DBG_ASSERT_I (global_database, global_database, g)
+{
+  ASSERT (g);
+  pager_assert (&g->pager);
+  ASSERT (g->resources._data);
+  i_file_assert (g->resources.fp);
+}
+
+global_database *
+get_global_database (void)
+{
+  global_database_assert (&db);
+  return &db;
+}
+
 err_t
 db_create (const string fname, u32 page_size, u32 mpgr_len)
 {
   string_assert (&fname);
   set_global_config (page_size, mpgr_len);
 
-  u8 *hash_page = NULL; // A temp page for writing header etc
-  i_file *fp = NULL;
-  int ret = SUCCESS;
-
-  // Check if database already exists
   if (i_exists_rw (fname))
     {
-      i_log_warn ("Trying to create a new database: %.*s, "
-                  "but it already exists. Try opening it instead\n",
-                  fname.len, fname.data);
-      ret = ERR_ALREADY_EXISTS;
-      goto theend;
+      return ERR_ALREADY_EXISTS;
     }
 
-  fp = i_open (fname, 1, 1);
+  i_file *fp = i_open (fname, 1, 1);
+  if (!fp)
+    {
+      return ERR_IO;
+    }
 
-  // Serialize and write header
-  u32 header[2] = { page_size, mpgr_len };
+  err_t ret = SUCCESS;
+
+  // write header
+  u32 header[2] = { c.page_size, c.mpgr_len };
   ret = i_write_all (fp, header, sizeof (header), 0);
   if (ret)
     {
-      i_log_warn ("Failed to write header on database create\n");
-      goto theend;
+      goto cleanup;
     }
 
-  // Wrap file in pager
+  // initialize file pager
   file_pager fpgr;
-  fpgr_create (&fpgr, fp);
+  ret = fpgr_create (&fpgr, fp, c.page_size, c.header_size);
+  if (ret)
+    {
+      goto cleanup;
+    }
 
-  // Allocate hash page
+  // allocate and commit hash page
   u64 pgno;
   ret = fpgr_new (&fpgr, &pgno);
   if (ret)
     {
-      i_log_warn ("Failed to allocate "
-                  "first page to database\n");
-      goto theend;
+      goto cleanup;
     }
-  // TODO - is there any case this can't be 0? Race Condition?
   ASSERT (pgno == 0);
 
-  // Create Hash Page
-  hash_page = i_malloc (page_size);
-  if (hash_page == NULL)
+  u8 *buf = i_malloc (c.page_size);
+  if (!buf)
     {
-      i_log_warn ("Failed to allocate memory for hash "
-                  "page in db_create\n");
       ret = ERR_IO;
-      goto theend;
+      goto cleanup;
     }
 
-  // Initialize Hash Page
   page p;
-  page_init (&p, PG_HASH_PAGE, hash_page, pgno);
-
-  // Write hash page to disk
-  ret = fpgr_commit (&fpgr, hash_page, pgno);
+  page_init (&p, PG_HASH_PAGE, buf, c.page_size, pgno);
+  ret = fpgr_commit (&fpgr, buf, pgno);
+  i_free (buf);
   if (ret)
     {
-      i_log_warn ("Failed to commit "
-                  "first hash page to database\n");
-      goto theend;
+      goto cleanup;
     }
 
-theend:
-  if (hash_page)
-    {
-      i_free (hash_page);
-    }
+  ret = SUCCESS;
+
+cleanup:
   if (fp)
     {
       i_close (fp);
@@ -109,38 +126,61 @@ err_t
 db_open (const string fname)
 {
   cstring_assert (&fname);
+  i_memset (&db, 0, sizeof (db));
 
-  err_t ret = SUCCESS;
-  i_file *fp = NULL;
-
-  // Check if database already exists
+  // verify file exists
   if (!i_exists_rw (fname))
     {
-      i_log_warn ("Database: %.*s doesn't exist\n", fname.len, fname.data);
-      ret = ERR_ALREADY_EXISTS;
-      goto theend;
+      return ERR_ALREADY_EXISTS;
     }
-  fp = i_open (fname, 1, 1);
 
-  // Read header
-  u32 header[2] = { 0 };
-  ret = i_read_all (fp, header, sizeof (header), 0);
-  if (ret != sizeof (header))
+  // open file
+  db.resources.fp = i_open (fname, 1, 1);
+  if (!db.resources.fp)
     {
-      i_log_warn ("Failed to read header on database open\n");
-      goto theend;
+      return ERR_IO;
+    }
+
+  // read header
+  u32 header[2] = { 0 };
+  err_t bytes = i_read_all (db.resources.fp, header, sizeof (header), 0);
+  if (bytes != sizeof (header))
+    {
+      return ERR_IO;
     }
   set_global_config (header[0], header[1]);
 
-  i_log_info ("Database config:\n");
-  i_log_info ("Page Size: %" PRIu32 "\n", c.page_size);
-  i_log_info ("Memory Pager Length: %" PRIu32 "\n", c.mpgr_len);
-
-theend:
-
-  if (fp)
+  // memory pager
+  u64 total = c.mpgr_len * (c.page_size + sizeof (memory_pager));
+  u8 *block = i_malloc (total);
+  if (!block)
     {
-      i_close (fp);
+      return ERR_IO;
     }
-  return ret;
+  u8 *ptr = block;
+  memory_page *pages = (memory_page *)ptr;
+  ptr += c.mpgr_len * sizeof (memory_pager);
+  for (u32 i = 0; i < c.mpgr_len; ++i)
+    {
+      pages[i].data = ptr + i * c.page_size;
+    }
+  db.resources._data = block;
+  db.mpgr = mpgr_create (pages, c.mpgr_len);
+
+  // init pager
+  err_t ret = fpgr_create (&db.fpgr, db.resources.fp, c.page_size, c.header_size);
+  if (ret)
+    {
+      return ret;
+    }
+  db.pager = pgr_create (db.mpgr, db.fpgr, c.page_size);
+
+  return SUCCESS;
+}
+
+void
+db_close (void)
+{
+  i_free (db.resources._data);
+  i_close (db.resources.fp);
 }

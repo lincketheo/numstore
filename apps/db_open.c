@@ -6,5 +6,6 @@ int
 main (void)
 {
   err_t ret = db_open (unsafe_cstrfrom ("test.db"));
+  db_close ();
   return ret;
 }

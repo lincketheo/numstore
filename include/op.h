@@ -5,6 +5,7 @@
 #include "sds.h"
 #include "types.h"
 #include "typing.h"
+#include "variable.h"
 
 typedef enum
 {
@@ -22,15 +23,14 @@ typedef struct
 } create;
 
 DEFINE_DBG_ASSERT_H (create, create, c);
-void create_init (create *c, const string vname, const type *type, pager *p);
+void create_init (
+    create *c,
+    const string vname,
+    const type *type,
+    pager *p);
 void create_execute (create *c);
 
 //////////////////////////////// WRITE
-typedef struct
-{
-  u64 page0;
-  type *type;
-} wvar;
 
 typedef struct
 {
@@ -38,7 +38,7 @@ typedef struct
   struct
   {
     u32 len;
-    wvar *nbrs;
+    variable *nbrs;
   } * seq;
 } wfmt;
 
@@ -49,11 +49,6 @@ typedef struct
 } write;
 
 //////////////////////////////// READ
-typedef struct
-{
-  u64 page0;
-  type_subset *type;
-} rvar;
 
 typedef struct
 {
@@ -61,7 +56,7 @@ typedef struct
   struct
   {
     u32 len;
-    rvar *nbrs;
+    variable_subset *nbrs;
   } * seq;
 } rfmt;
 

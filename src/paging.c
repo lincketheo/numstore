@@ -1,5 +1,4 @@
 #include "paging.h"
-#include "database.h"
 #include "dev/assert.h"
 #include "dev/errors.h"
 #include "dev/testing.h"
@@ -9,7 +8,6 @@
 #include "intf/stdlib.h"
 #include "sds.h"
 #include "types.h"
-#include <string.h>
 
 ///////////////////////////// FILE PAGING
 
@@ -47,21 +45,22 @@ fpgr_set_len (file_pager *p)
 }
 
 err_t
-fpgr_create (file_pager *dest, i_file *f)
+fpgr_create (
+    file_pager *dest,
+    i_file *f,
+    u32 page_size,
+    u32 header_size)
 {
   ASSERT (dest);
   i_file_assert (f);
 
-  const global_config *c = get_global_config ();
-  dest->header_size = c->header_size;
+  dest->header_size = header_size;
   dest->f = f;
-  dest->page_size = c->page_size;
+  dest->page_size = page_size;
 
   err_t ret = fpgr_set_len (dest);
   if (ret)
     {
-      i_log_warn ("Failed to get file size when "
-                  "initializing file pager\n");
       return ret;
     }
 
@@ -70,35 +69,33 @@ fpgr_create (file_pager *dest, i_file *f)
 
 TEST (fpgr_create)
 {
-  set_global_config (2048, 10);
   char _tmpl[] = "/tmp/fpgr_testXXXXXX";
   string tmpl = unsafe_cstrfrom (_tmpl);
   i_file *fp = i_mkstemp (tmpl);
   test_fail_if_null (fp);
   test_fail_if (i_unlink (tmpl));
-  const global_config *c = get_global_config ();
   file_pager pager;
 
   // edge: file shorter than header
-  test_fail_if (i_truncate (fp, c->header_size - 1));
-  test_assert_int_equal (fpgr_create (&pager, fp), ERR_INVALID_STATE);
+  test_fail_if (i_truncate (fp, 9));
+  test_assert_int_equal (fpgr_create (&pager, fp, 2048, 10), ERR_INVALID_STATE);
 
   // edge: file size = header + half a page
-  test_fail_if (i_truncate (fp, c->header_size + c->page_size / 2));
-  test_assert_int_equal (fpgr_create (&pager, fp), ERR_INVALID_STATE);
+  test_fail_if (i_truncate (fp, 10 + 2048 / 2));
+  test_assert_int_equal (fpgr_create (&pager, fp, 2048, 10), ERR_INVALID_STATE);
 
   // happy: file exactly header size, zero pages
-  test_fail_if (i_truncate (fp, c->header_size));
-  test_assert_int_equal (fpgr_create (&pager, fp), SUCCESS);
-  test_assert_int_equal (pager.header_size, c->header_size);
-  test_assert_int_equal (pager.page_size, c->page_size);
+  test_fail_if (i_truncate (fp, 10));
+  test_assert_int_equal (fpgr_create (&pager, fp, 2048, 10), SUCCESS);
+  test_assert_int_equal (pager.header_size, 10);
+  test_assert_int_equal (pager.page_size, 2048);
   test_assert_int_equal ((int)pager.npages, 0);
 
   // happy: file exactly header size, more pages
-  test_fail_if (i_truncate (fp, c->header_size + 3 * c->page_size));
-  test_assert_int_equal (fpgr_create (&pager, fp), SUCCESS);
-  test_assert_int_equal (pager.header_size, c->header_size);
-  test_assert_int_equal (pager.page_size, c->page_size);
+  test_fail_if (i_truncate (fp, 10 + 3 * 2048));
+  test_assert_int_equal (fpgr_create (&pager, fp, 2048, 10), SUCCESS);
+  test_assert_int_equal (pager.header_size, 10);
+  test_assert_int_equal (pager.page_size, 2048);
   test_assert_int_equal ((int)pager.npages, 3);
 
   test_fail_if (i_close (fp));
@@ -124,18 +121,16 @@ fpgr_new (file_pager *p, u64 *dest)
 
 TEST (fpgr_new)
 {
-  set_global_config (2048, 10);
   char _tmpl[] = "/tmp/fpgr_testXXXXXX";
   string tmpl = unsafe_cstrfrom (_tmpl);
   i_file *fp = i_mkstemp (tmpl);
   test_fail_if_null (fp);
   test_fail_if (i_unlink (tmpl));
-  const global_config *c = get_global_config ();
 
-  test_fail_if (i_truncate (fp, c->header_size));
+  test_fail_if (i_truncate (fp, 10));
 
   file_pager p;
-  test_fail_if (fpgr_create (&p, fp));
+  test_fail_if (fpgr_create (&p, fp, 2048, 10));
 
   u64 pgno;
 
@@ -190,18 +185,16 @@ fpgr_get_expect (file_pager *p, u8 *dest, u64 pgno)
 
 TEST (fpgr_get_expect)
 {
-  set_global_config (2048, 10);
   char _tmpl[] = "/tmp/fpgr_testXXXXXX";
   string tmpl = unsafe_cstrfrom (_tmpl);
   i_file *fp = i_mkstemp (tmpl);
   test_fail_if_null (fp);
   test_fail_if (i_unlink (tmpl));
-  const global_config *c = get_global_config ();
 
-  test_fail_if (i_truncate (fp, c->header_size));
+  test_fail_if (i_truncate (fp, 10));
 
   file_pager p;
-  test_fail_if (fpgr_create (&p, fp));
+  test_fail_if (fpgr_create (&p, fp, 2048, 10));
 
   // happy path: new page, write, then read back
   u64 pgno;
@@ -239,18 +232,16 @@ fpgr_delete (file_pager *p, u64 pgno __attribute__ ((unused)))
 
 TEST (fpgr_delete)
 {
-  set_global_config (2048, 10);
   char _tmpl[] = "/tmp/fpgr_testXXXXXX";
   string tmpl = unsafe_cstrfrom (_tmpl);
   i_file *fp = i_mkstemp (tmpl);
   test_fail_if_null (fp);
   test_fail_if (i_unlink (tmpl));
-  const global_config *c = get_global_config ();
 
-  test_fail_if (i_truncate (fp, c->header_size));
+  test_fail_if (i_truncate (fp, 10));
 
   file_pager p;
-  test_fail_if (fpgr_create (&p, fp));
+  test_fail_if (fpgr_create (&p, fp, 2048, 10));
 
   // allocate two pages
   u64 a, b;
@@ -288,18 +279,16 @@ fpgr_commit (file_pager *p, const u8 *src, u64 pgno)
 
 TEST (fpgr_commit)
 {
-  set_global_config (2048, 10);
   char _tmpl[] = "/tmp/fpgr_testXXXXXX";
   string tmpl = unsafe_cstrfrom (_tmpl);
   i_file *fp = i_mkstemp (tmpl);
   test_fail_if_null (fp);
   test_fail_if (i_unlink (tmpl));
-  const global_config *c = get_global_config ();
 
-  test_fail_if (i_truncate (fp, c->header_size));
+  test_fail_if (i_truncate (fp, 10));
 
   file_pager p;
-  test_fail_if (fpgr_create (&p, fp));
+  test_fail_if (fpgr_create (&p, fp, 2048, 10));
 
   // allocate one page
   u64 pgno;
@@ -326,31 +315,28 @@ DEFINE_DBG_ASSERT_I (memory_page, memory_page, p)
 }
 
 void
-mp_create (memory_page *dest, u8 *data, u64 pgno)
+mp_create (memory_page *dest, u8 *data, u32 dlen, u64 pgno)
 {
-  const global_config *c = get_global_config ();
   dest->data = data;
-  i_memset (dest->data, 0, c->page_size);
+  i_memset (dest->data, 0, dlen);
   dest->data = data;
   dest->pgno = pgno;
 }
 
 TEST (mp_create)
 {
-  set_global_config (2048, 10);
   memory_page m;
-  const global_config *c = get_global_config ();
-  u8 *data = i_malloc (c->page_size);
+  u8 *data = i_malloc (2048);
   test_fail_if_null (data);
 
-  mp_create (&m, data, 42);
+  mp_create (&m, data, 2048, 42);
 
   // fields initialized correctly
   test_assert_int_equal ((int)m.pgno, 42);
 
   // page memory zeroed out (check first and last byte)
   test_assert_int_equal (data[0], 0);
-  test_assert_int_equal (data[c->page_size - 1], 0);
+  test_assert_int_equal (data[2048 - 1], 0);
 
   i_free (data);
 }
@@ -376,7 +362,6 @@ mpgr_create (memory_page *pages, u32 len)
   p.pages = pages;
   p.len = len;
   p.idx = 0;
-  i_memset (pages, 0, len * sizeof *pages);
   memory_pager_assert (&p);
   return p;
 }
@@ -539,14 +524,13 @@ page_read_expect (page *dest, page_type expected, u8 *raw, u64 pgno)
 }
 
 void
-page_init (page *dest, page_type type, u8 *raw, u64 pgno)
+page_init (page *dest, page_type type, u8 *raw, u32 rlen, u64 pgno)
 {
   ASSERT (dest);
   ASSERT (type > 0);
   ASSERT (raw);
 
-  const global_config *c = get_global_config ();
-  i_memset (raw, 0, c->page_size);
+  i_memset (raw, 0, rlen);
 
   page_set_pointers (dest, type, raw, pgno);
   *dest->header = (u8)type;
@@ -564,7 +548,8 @@ page_init (page *dest, page_type type, u8 *raw, u64 pgno)
       }
     case PG_HASH_PAGE:
       {
-        *dest->hp.len = (c->page_size - sizeof (u32)) / sizeof (i64);
+        ASSERT (rlen > sizeof (u32));
+        *dest->hp.len = (rlen - sizeof (u32)) / sizeof (i64);
         break;
       }
     case PG_HASH_LEAF:
@@ -583,23 +568,25 @@ DEFINE_DBG_ASSERT_I (pager, pager, p)
   file_pager_assert (&p->fpager);
 }
 
-err_t
-pgr_create (pager *dest, memory_page *pages, u32 len, i_file *fp)
+pager
+pgr_create (
+    memory_pager mpager,
+    file_pager fpager,
+    u32 page_size)
 {
-  ASSERT (dest);
-  ASSERT (pages);
-  ASSERT (fp);
+  memory_pager_assert (&mpager);
+  file_pager_assert (&fpager);
+  ASSERT (page_size > 0);
 
-  dest->mpager = mpgr_create (pages, len);
-  err_t ret = fpgr_create (&dest->fpager, fp);
-  if (ret)
-    {
-      i_log_warn ("Failed to run pgr_create. fpgr create failed\n");
-      return ret;
-    }
-  pager_assert (dest);
+  pager dest;
 
-  return SUCCESS;
+  dest.mpager = mpager;
+  dest.fpager = fpager;
+  dest.page_size = page_size;
+
+  pager_assert (&dest);
+
+  return dest;
 }
 
 static inline err_t
@@ -611,12 +598,9 @@ pgr_evict (pager *p)
   // Commit that page
   u8 *evict_page = mpgr_get (&p->mpager, evict);
   ASSERT (evict_page);
-  err_t ret = fpgr_commit (&p->fpager, evict_page, evict);
+  err_t ret = pgr_commit (p, evict_page, evict);
   if (ret)
     {
-      i_log_warn ("Failed to commit page before eviction: "
-                  "%" PRIu64 "\n",
-                  evict);
       return ret;
     }
 
@@ -637,7 +621,6 @@ pgr_get_expect (page *dest, page_type type, u64 pgno, pager *p)
       err_t ret = pgr_evict (p);
       if (ret)
         {
-          i_log_warn ("Failed to evict a page in pgr_get_expect\n");
           return ret;
         }
 
@@ -649,9 +632,6 @@ pgr_get_expect (page *dest, page_type type, u64 pgno, pager *p)
       ret = fpgr_get_expect (&p->fpager, page, pgno);
       if (ret)
         {
-          i_log_warn ("Failed to get page: "
-                      "%" PRIu64 " from fpgr in pgr_get_expect\n",
-                      pgno);
           return ret;
         }
     }
@@ -670,7 +650,6 @@ pgr_new (page *dest, pager *p, page_type type)
   err_t ret = fpgr_new (&p->fpager, &pgno);
   if (ret)
     {
-      i_log_warn ("Failed to allocate new page in pgr_new\n");
       return ret;
     }
 
@@ -681,7 +660,6 @@ pgr_new (page *dest, pager *p, page_type type)
       err_t ret = pgr_evict (p);
       if (ret)
         {
-          i_log_warn ("Failed to evict page in pgr_new\n");
           return ret;
         }
 
@@ -694,12 +672,22 @@ pgr_new (page *dest, pager *p, page_type type)
   ret = fpgr_get_expect (&p->fpager, raw, pgno);
   if (ret)
     {
-      i_log_warn ("Failed to get page: "
-                  "%" PRIu64 " from fpgr in pgr_new\n",
-                  pgno);
       return ret;
     }
 
-  page_init (dest, type, raw, pgno);
+  page_init (dest, type, raw, p->fpager.page_size, pgno);
+  return SUCCESS;
+}
+
+err_t
+pgr_commit (pager *p, u8 *data, u64 pgno)
+{
+  pager_assert (p);
+
+  err_t ret = fpgr_commit (&p->fpager, data, pgno);
+  if (ret)
+    {
+      return ret;
+    }
   return SUCCESS;
 }
