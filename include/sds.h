@@ -10,42 +10,6 @@
  * that are useful abstractions
  */
 
-//////////////////////////////// BUFFER
-/**
- * A buffer is an array of bytes with a capacity
- * and length
- */
-typedef struct
-{
-  u8 *data;
-  u32 cap;
-  u32 len;
-} buffer;
-
-DEFINE_DBG_ASSERT_H (buffer, buffer, b);
-buffer buffer_create (u8 *data, u32 cap);
-void buffer_reset (buffer *b);
-u32 buffer_write (const void *dest, u32 size, u32 n, buffer *b);
-
-//////////////////////////////// DYNAMIC BUFFER
-/**
- * A buffer is an array of bytes with a capacity
- * and length
- */
-typedef struct
-{
-  u8 *data;
-  u32 cap;
-  u32 len;
-  lalloc *alloc;
-} dyn_buffer;
-
-DEFINE_DBG_ASSERT_H (dyn_buffer, dyn_buffer, b);
-err_t dyn_buffer_create (dyn_buffer *dest, u32 cap, lalloc *alloc);
-err_t dyn_buffer_write (const void *dest, u32 size, u32 n, dyn_buffer *b);
-err_t dyn_buffer_clip (dyn_buffer *dest);
-void dyn_buffer_free (dyn_buffer *dest);
-
 //////////////////////////////// CBUFFER
 /**
  * A cbuffer is a circular buffer.

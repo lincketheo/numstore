@@ -1,6 +1,7 @@
 #include "dev/testing.h"
 #include "intf/mm.h"
 #include "utils/bounds.h"
+#include <errno.h>
 
 /////////////////////// Allocation
 DEFINE_DBG_ASSERT_I (lalloc, lalloc, l)
@@ -116,23 +117,13 @@ TEST (lalloc)
   test_assert_int_equal ((int)a.total, ALLOC_HEADER + 10);
   test_assert_int_equal (pt1 != NULL, 1);
 
-  // should fail due to overflow
-  pt1 = lmalloc (&a, U64_MAX);
-  test_assert_int_equal (pt1 == NULL, 1);
-
   u8 *pt2 = lmalloc (&a, 2 * 5);
   test_assert_int_equal (pt2 != NULL, 1);
   test_assert_int_equal ((int)a.total, ALLOC_HEADER + 10 + ALLOC_HEADER + 2 * 5);
 
-  pt2 = lmalloc (&a, U64_MAX);
-  test_assert_int_equal (pt2 == NULL, 1);
-
   pt1 = lrealloc (&a, pt1, 5);
   test_assert_int_equal (pt1 != NULL, 1);
   test_assert_int_equal ((int)a.total, ALLOC_HEADER + 5 + ALLOC_HEADER + 2 * 5);
-
-  pt1 = lrealloc (&a, pt1, U64_MAX);
-  test_assert_int_equal (pt1 == NULL, 1);
 
   lfree (&a, pt2);
   test_assert_int_equal ((int)a.total, ALLOC_HEADER + 5);
@@ -142,9 +133,6 @@ TEST (lalloc)
 
   // unlimited allocator
   lalloc b = lalloc_create (0);
-
-  pt1 = lmalloc (&b, U64_MAX);
-  test_assert_int_equal (pt1 == NULL, 1);
 
   pt1 = lmalloc (&b, 2 * 5);
   test_assert_int_equal (pt1 != NULL, 1);

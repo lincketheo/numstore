@@ -56,7 +56,11 @@ typedef struct
     i32 integer;
     f32 floating;
   };
+#ifndef NDEBUG
+  token_t type;
+#else
   u8 type;
+#endif
 } token;
 
 #define quick_tok(_type) \

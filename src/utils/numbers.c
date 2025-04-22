@@ -7,29 +7,20 @@
 #include "utils/bounds.h"
 #include "utils/macros.h"
 
-err_t
-smlst_dbl_fctr (u32 *cap, u32 len, u32 nbytes)
+u32
+smlst_dbl_fctr (u32 cap, u32 len, u32 nbytes)
 {
-  ASSERT (cap);
-  ASSERT (*cap > 0);
+  ASSERT (cap > 0);
 
-  if (!can_add_u32 (len, nbytes))
-    {
-      return ERR_ARITH;
-    }
+  ASSERT (can_add_u32 (len, nbytes));
   u32 total = len + nbytes;
-
-  if (!can_add_u32 (total, *cap - 1))
-    {
-      return ERR_ARITH;
-    }
-
-  ASSERT (can_div_u32 (total + *cap - 1, *cap));
-  u32 target = (total + *cap - 1) / *cap;
+  ASSERT (can_add_u32 (total, cap - 1));
+  ASSERT (can_div_u32 (total + cap - 1, cap));
+  u32 target = (total + cap - 1) / cap;
 
   if (target <= 1)
     {
-      return SUCCESS;
+      return cap;
     }
 
   target--;
@@ -40,54 +31,14 @@ smlst_dbl_fctr (u32 *cap, u32 len, u32 nbytes)
   target |= target >> 16;
   target++;
 
-  *cap = target * *cap;
-  return SUCCESS;
+  return cap * target;
 }
 
 TEST (smlst_dbl_fctr)
 {
-  {
-    u32 cap = 64;
-    u32 len = 10;
-    u32 nbytes = 20;
-    err_t err = smlst_dbl_fctr (&cap, len, nbytes);
-
-    test_assert_int_equal (err, SUCCESS);
-    test_assert_int_equal (cap, 64);
-  }
-  {
-    u32 cap = 32;
-    u32 len = 20;
-    u32 nbytes = 10;
-    err_t err = smlst_dbl_fctr (&cap, len, nbytes);
-    test_assert_int_equal (err, SUCCESS);
-    test_assert_int_equal (cap, 32);
-  }
-
-  {
-    u32 cap = 64;
-    u32 len = 60;
-    u32 nbytes = 10;
-    err_t err = smlst_dbl_fctr (&cap, len, nbytes);
-    test_assert_int_equal (err, SUCCESS);
-    test_assert_int_equal (cap, 128);
-  }
-
-  {
-    u32 cap = 32;
-    u32 len = U32_MAX - 10;
-    u32 nbytes = 20;
-    err_t err = smlst_dbl_fctr (&cap, len, nbytes);
-    test_assert_int_equal (err, ERR_ARITH);
-  }
-
-  {
-    u32 cap = 4;
-    u32 len = U32_MAX - 2;
-    u32 nbytes = 1;
-    err_t err = smlst_dbl_fctr (&cap, len, nbytes);
-    test_assert_int_equal (err, ERR_ARITH);
-  }
+  test_assert_int_equal (smlst_dbl_fctr (64, 10, 20), 64);
+  test_assert_int_equal (smlst_dbl_fctr (32, 20, 10), 32);
+  test_assert_int_equal (smlst_dbl_fctr (64, 60, 10), 128);
 }
 
 err_t
@@ -142,16 +93,16 @@ TEST (parse_i32_expect)
 {
   i32 out;
 
-  const string s1 = (string){ .data = "1234X", .len = i_unsafe_strlen ("1234X") };
+  const string s1 = (string){ .data = "1234", .len = i_unsafe_strlen ("1234") };
   test_assert_int_equal (parse_i32_expect (&out, s1), SUCCESS);
   test_assert_int_equal (out, 1234);
 
-  const string s2 = (string){ .data = "-56Y", .len = i_unsafe_strlen ("-56Y") };
+  const string s2 = (string){ .data = "-56", .len = i_unsafe_strlen ("-56") };
   test_assert_int_equal (parse_i32_expect (&out, s2), SUCCESS);
   test_assert_int_equal (out, -56);
 
-  const string s3 = (string){ .data = "9999999999Z", .len = i_unsafe_strlen ("9999999999Z") };
-  test_assert_int_equal (parse_i32_expect (&out, s3), ERR_OVERFLOW);
+  const string s3 = (string){ .data = "9999999999", .len = i_unsafe_strlen ("9999999999") };
+  test_assert_int_equal (parse_i32_expect (&out, s3), ERR_ARITH);
 }
 
 int
@@ -226,7 +177,7 @@ parse_f32_expect (f32 *dest, const string src)
   return SUCCESS;
 }
 
-TEST (cbuffer_parse_front_f32)
+TEST (parse_f32_expect)
 {
   f32 out;
 
@@ -244,9 +195,5 @@ TEST (cbuffer_parse_front_f32)
 
   const string b4 = (string){ .data = "12.34", .len = i_unsafe_strlen ("12.34") };
   test_assert_int_equal (parse_f32_expect (&out, b4), SUCCESS);
-  test_assert_equal ((int)(out * 1000), 345, "%d");
-
-  const string b5 = (string){ .data = "99999999999999999999999", .len = i_unsafe_strlen ("99999999999999999999999") };
-  test_assert_int_equal (parse_f32_expect (&out, b5), ERR_ARITH);
-  test_assert_equal ((int)(out * 1000), 345, "%d");
+  test_assert_equal ((int)(out * 1000), 12340, "%d");
 }

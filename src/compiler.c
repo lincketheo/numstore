@@ -113,7 +113,7 @@ scanner_cpy_advance_expect (scanner *s)
 
   s->dcur[s->dcurlen++] = next;
 
-  return false;
+  return true;
 }
 
 static inline bool
@@ -125,9 +125,9 @@ scanner_cpy_advance (scanner *s)
 
   // Dequeue and copy
   u8 next;
-  if (cbuffer_dequeue (&next, s->chars_input))
+  if (!cbuffer_dequeue (&next, s->chars_input))
     {
-      return true;
+      return false;
     }
 
   // Check room
@@ -143,7 +143,7 @@ scanner_cpy_advance (scanner *s)
 
   s->dcur[s->dcurlen++] = next;
 
-  return false;
+  return true;
 }
 
 static inline int
@@ -201,7 +201,7 @@ typedef struct
   token_t type;
 } magic_token;
 
-const static magic_token magic_tokens[] = {
+static const magic_token magic_tokens[] = {
   {
       .data = "write",
       .len = 5,
@@ -209,7 +209,7 @@ const static magic_token magic_tokens[] = {
   },
   {
       .data = "create",
-      .len = 5,
+      .len = 6,
       .type = TT_CREATE,
   },
   {
@@ -219,11 +219,41 @@ const static magic_token magic_tokens[] = {
   },
 };
 
+static void ss_transition (scanner *s, scanner_state state);
 static void ss_start (scanner *s);
 static void ss_char_collect (scanner *s);
 static void ss_number_collect (scanner *s);
 static void ss_decimal_collect (scanner *s);
 static void ss_error_rewind (scanner *s);
+
+static void
+ss_transition (scanner *s, scanner_state state)
+{
+  scanner_assert (s);
+  s->state = state;
+  if (cbuffer_avail (s->tokens_output) < sizeof (token))
+    {
+      return;
+    }
+  switch (state)
+    {
+    case SS_START:
+      ss_start (s);
+      break;
+    case SS_CHAR_COLLECT:
+      ss_char_collect (s);
+      break;
+    case SS_NUMBER_COLLECT:
+      ss_number_collect (s);
+      break;
+    case SS_DECIMAL_COLLECT:
+      ss_decimal_collect (s);
+      break;
+    case SS_ERROR_REWIND:
+      ss_error_rewind (s);
+      break;
+    }
+}
 
 // starts on the SECOND char of the sequence
 static void
@@ -278,6 +308,7 @@ finish:
                        }))
         {
           scanner_write_token_t (s, magic_tokens[i].type);
+          lfree (s->alloc, literal.data);
           goto theend;
         }
     }
@@ -285,8 +316,7 @@ finish:
   scanner_write_token (s, tt_ident (literal));
 
 theend:
-  s->state = SS_START;
-  ss_start (s);
+  ss_transition (s, SS_START);
   return;
 }
 
@@ -311,8 +341,7 @@ ss_decimal_collect (scanner *s)
           err_t ret = parse_f32_expect (&dest, literal);
           if (ret)
             {
-              s->state = SS_ERROR_REWIND;
-              ss_error_rewind (s);
+              ss_transition (s, SS_ERROR_REWIND);
               return;
             }
 
@@ -322,11 +351,13 @@ ss_decimal_collect (scanner *s)
           scanner_write_token (s, tt_float (dest));
 
           // TODO - should I require whitespace after numbers?
-          s->state = SS_START;
-          ss_start (s);
+          ss_transition (s, SS_START);
           return;
         }
-      scanner_advance_expect (s);
+      if (!scanner_cpy_advance_expect (s))
+        {
+          return;
+        }
     }
 }
 
@@ -363,8 +394,7 @@ ss_number_collect (scanner *s)
                   return;
                 }
 
-              s->state = SS_DECIMAL_COLLECT;
-              ss_decimal_collect (s);
+              ss_transition (s, SS_DECIMAL_COLLECT);
               return;
             }
           else
@@ -379,8 +409,7 @@ ss_number_collect (scanner *s)
               err_t ret = parse_i32_expect (&dest, literal);
               if (ret)
                 {
-                  s->state = SS_ERROR_REWIND;
-                  ss_error_rewind (s);
+                  ss_transition (s, SS_ERROR_REWIND);
                   return;
                 }
 
@@ -389,12 +418,14 @@ ss_number_collect (scanner *s)
               scanner_buffer_reset (s);
               scanner_write_token (s, tt_integer (dest));
 
-              s->state = SS_START;
-              ss_start (s);
+              ss_transition (s, SS_START);
               return;
             }
         }
-      scanner_advance_expect (s);
+      if (!scanner_cpy_advance_expect (s))
+        {
+          return;
+        }
     }
 
   return;
@@ -422,7 +453,7 @@ ss_start (scanner *s)
       {
         scanner_write_token_t (s, TT_SEMICOLON);
         scanner_advance_expect (s);
-        ss_start (s);
+        ss_transition (s, SS_START);
         return;
       }
     default:
@@ -441,8 +472,7 @@ ss_start (scanner *s)
               }
 
             // Move onto char collect
-            s->state = SS_CHAR_COLLECT;
-            ss_char_collect (s);
+            ss_transition (s, SS_CHAR_COLLECT);
             return;
           }
         else if (is_num (next) || next == '+' || next == '-')
@@ -457,14 +487,12 @@ ss_start (scanner *s)
                 return;
               }
 
-            s->state = SS_NUMBER_COLLECT;
-            ss_number_collect (s);
+            ss_transition (s, SS_NUMBER_COLLECT);
             return;
           }
         else
           {
-            s->state = SS_ERROR_REWIND;
-            ss_error_rewind (s);
+            ss_transition (s, SS_ERROR_REWIND);
             return;
           }
       }
@@ -481,27 +509,27 @@ scanner_execute (scanner *s)
     {
     case SS_START:
       {
-        ss_start (s);
+        ss_transition (s, SS_START);
         return;
       }
     case SS_CHAR_COLLECT:
       {
-        ss_char_collect (s);
+        ss_transition (s, SS_CHAR_COLLECT);
         return;
       }
     case SS_NUMBER_COLLECT:
       {
-        ss_number_collect (s);
+        ss_transition (s, SS_NUMBER_COLLECT);
         return;
       }
     case SS_DECIMAL_COLLECT:
       {
-        ss_decimal_collect (s);
+        ss_transition (s, SS_DECIMAL_COLLECT);
         return;
       }
     case SS_ERROR_REWIND:
       {
-        ss_error_rewind (s);
+        ss_transition (s, SS_ERROR_REWIND);
         return;
       }
     }
@@ -523,6 +551,8 @@ test_token_compare (const token t1, const token t2)
     case TT_IDENTIFIER:
       test_fail_if (!string_equal (t1.str, t2.str));
       break;
+    default:
+      break;
     }
 }
 
@@ -538,12 +568,12 @@ scanner_test_helper (
   lalloc alloc = lalloc_create (mlimit + inlen + outlen);
 
   u8 *_input = lmalloc (&alloc, inlen);
-  test_fail_if (_input);
+  test_fail_if_null (_input);
   u8 *_output = lmalloc (&alloc, outlen);
-  test_fail_if (_output);
+  test_fail_if_null (_output);
 
   cbuffer input = cbuffer_create (_input, inlen);
-  cbuffer output = cbuffer_create (_input, outlen);
+  cbuffer output = cbuffer_create (_output, outlen);
 
   scanner s;
   scanner_create (&s, &input, &output, &alloc);
@@ -554,7 +584,6 @@ scanner_test_helper (
     {
       str += cbuffer_write (str, 1, i_unsafe_strlen (str), &input);
       scanner_execute (&s);
-      test_assert_int_equal (cbuffer_len (&input), 0);
       while (cbuffer_len (&output) > 0)
         {
           token next;
@@ -562,15 +591,24 @@ scanner_test_helper (
           test_assert_int_equal (read, 1);
           test_fail_if (i >= len);
           test_token_compare (next, tokens[i]);
+          i += 1;
+          if (next.type == TT_IDENTIFIER)
+            {
+              lfree (&alloc, next.str.data);
+            }
         }
     }
+  test_assert_int_equal (i, len);
+
+  // No memory leaks
+  test_assert_int_equal (alloc.total, 2 * 8 + inlen + outlen);
 }
 #endif
 TEST (scanner_execute)
 {
   const char *str = "write 5 ; ; ;;create123create createc "
                     "create 123createc 123create 12345.1create "
-                    "u32 write foo bar biz buz";
+                    "u32 write foo bar biz buz "; // space to terminate
   const token tokens[] = {
     quick_tok (TT_WRITE),
     tt_integer (5),
@@ -595,7 +633,7 @@ TEST (scanner_execute)
     tt_ident (unsafe_cstrfrom ("buz")),
   };
 
-  scanner_test_helper (str, tokens, arrlen (tokens), 100, 10, 10);
+  scanner_test_helper (str, tokens, arrlen (tokens), 100, 10, 2 * sizeof (token));
 }
 
 ////////////////////// PARSER

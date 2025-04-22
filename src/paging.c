@@ -185,8 +185,7 @@ fpgr_get_expect (file_pager *p, u8 *dest, u64 pgno)
 
 TEST (fpgr_get_expect)
 {
-  stdalloc salloc = stdalloc_create (0);
-  lalloc *alloc = &salloc.alloc;
+  u8 _page[2048];
 
   char _tmpl[] = "/tmp/fpgr_testXXXXXX";
   string tmpl = unsafe_cstrfrom (_tmpl);
@@ -204,28 +203,20 @@ TEST (fpgr_get_expect)
   test_fail_if (fpgr_new (&p, &pgno));
 
   u32 ps = p.page_size;
-  alloc_ret a = alloc->malloc (alloc, ps);
-  test_fail_if (a.ret);
-  u8 *write_buf = a.data;
   for (u32 i = 0; i < ps; i++)
     {
-      write_buf[i] = (u8)i;
+      _page[i] = (u8)i;
     }
-  test_fail_if (fpgr_commit (&p, write_buf, pgno));
+  test_fail_if (fpgr_commit (&p, _page, pgno));
 
-  a = alloc->malloc (alloc, ps);
-  test_fail_if (a.ret);
-  u8 *read_buf = a.data;
-  i_memset (read_buf, 0xFF, ps);
-  test_fail_if (fpgr_get_expect (&p, read_buf, pgno));
+  i_memset (_page, 0xFF, ps);
+  test_fail_if (fpgr_get_expect (&p, _page, pgno));
 
   for (u32 i = 0; i < ps; i++)
     {
-      test_assert_int_equal (read_buf[i], (u8)i);
+      test_assert_int_equal (_page[i], (u8)i);
     }
 
-  alloc->free (alloc, write_buf);
-  alloc->free (alloc, read_buf);
   i_close (&fp);
 }
 
@@ -286,8 +277,7 @@ fpgr_commit (file_pager *p, const u8 *src, u64 pgno)
 
 TEST (fpgr_commit)
 {
-  stdalloc salloc = stdalloc_create (4000);
-  lalloc *alloc = &salloc.alloc;
+  u8 _page[2048];
 
   char _tmpl[] = "/tmp/fpgr_testXXXXXX";
   string tmpl = unsafe_cstrfrom (_tmpl);
@@ -306,17 +296,12 @@ TEST (fpgr_commit)
   test_assert_int_equal ((int)i_file_size (&fp),
                          (int)(p.header_size + p.page_size * p.npages));
 
-  alloc_ret a = alloc->malloc (alloc, p.page_size);
-  test_fail_if (a.ret);
-  u8 *buf = a.data;
-
-  i_memset (buf, 0xAB, p.page_size);
+  i_memset (_page, 0xAB, p.page_size);
 
   // happy: writing to new page
-  test_fail_if (fpgr_commit (&p, buf, pgno));
+  test_fail_if (fpgr_commit (&p, _page, pgno));
 
   test_fail_if (i_close (&fp));
-  alloc->free (alloc, buf);
 }
 
 ///////////////////////////// MEMORY PAGE
@@ -338,28 +323,18 @@ mp_create (memory_page *dest, u8 *data, u32 dlen, u64 pgno)
 
 TEST (mp_create)
 {
-  stdalloc salloc = stdalloc_create (4000);
-  lalloc *alloc = &salloc.alloc;
+  u8 _page[2048];
 
   memory_page m;
 
-  alloc_ret a = alloc->malloc (alloc, 2048);
-  test_fail_if (a.ret);
-  u8 *data = a.data;
-
-  test_fail_if_null (data);
-
-  mp_create (&m, data, 2048, 42);
+  mp_create (&m, _page, 2048, 42);
 
   // fields initialized correctly
   test_assert_int_equal ((int)m.pgno, 42);
 
   // page memory zeroed out (check first and last byte)
-  test_assert_int_equal (data[0], 0);
-  test_assert_int_equal (data[2048 - 1], 0);
-
-  alloc->free (alloc, data);
-  alloc->release (alloc);
+  test_assert_int_equal (_page[0], 0);
+  test_assert_int_equal (_page[2048 - 1], 0);
 }
 
 ///////////////////////////// MEMORY PAGER
