@@ -24,6 +24,7 @@ typedef enum
 {
   // Tokens that start with a letter (alpha)
   TT_WRITE,
+  TT_CREATE,
   TT_IDENTIFIER,
 
   // Tokens that start with a number or +/-
@@ -58,6 +59,15 @@ typedef struct
   u8 type;
 } token;
 
+#define quick_tok(_type) \
+  (token) { .type = _type }
+#define tt_integer(val) \
+  (token) { .type = TT_INTEGER, .integer = val }
+#define tt_float(val) \
+  (token) { .type = TT_FLOAT, .floating = val }
+#define tt_ident(val) \
+  (token) { .type = TT_IDENTIFIER, .str = val }
+
 ////////////////////// SCANNER (chars -> tokens)
 
 /**
@@ -81,6 +91,7 @@ typedef enum
   SS_START,
   SS_CHAR_COLLECT,
   SS_NUMBER_COLLECT,
+  SS_DECIMAL_COLLECT,
   SS_ERROR_REWIND,
 } scanner_state;
 
@@ -89,31 +100,20 @@ typedef struct
   cbuffer *chars_input;
   cbuffer *tokens_output;
   u32 current;
-  lalloc *alloc; // Should be shared with parser
+  scanner_state state;
+
+  char *dcur;    // Current data for variable length data
+  u32 dcurlen;   // len of dcur
+  u32 dcurcap;   // capacity of dcur
+  lalloc *alloc; // Limited Allocator
 } scanner;
 
 DEFINE_DBG_ASSERT_H (scanner, scanner, s);
 void scanner_create (
     scanner *dest,
     cbuffer *input,
-    cbuffer *output,
-    lalloc *alloc);
-void scanner_execute (scanner *s); // Scans 1 token
-
-////////////////////// TOKEN PRINTER
-
-/**
- * A useful tool that just logs tokens as they come in.
- * TODO - This could be wrapped in NDEBUG
- */
-void token_log_info (token t);
-typedef struct
-{
-  cbuffer *tokens_input;
-} token_printer;
-
-void token_printer_create (token_printer *dest, cbuffer *input);
-void token_printer_execute (token_printer *t);
+    cbuffer *output, lalloc *alloc);
+void scanner_execute (scanner *s); // Buffer will be empty at the end
 
 ////////////////////// PARSER
 

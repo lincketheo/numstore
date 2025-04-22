@@ -57,7 +57,7 @@ db_create (const string fname, u32 page_size, u32 mpgr_len)
 {
   string_assert (&fname);
   set_global_config (page_size, mpgr_len);
-  db.alloc = stdalloc_create (1e10);
+  db.alloc = lalloc_create (1e10);
 
   if (i_exists_rw (fname))
     {
@@ -94,13 +94,11 @@ db_create (const string fname, u32 page_size, u32 mpgr_len)
     }
   ASSERT (pgno == 0);
 
-  alloc_ret a = db.alloc.alloc.malloc (&db.alloc.alloc, c.page_size);
-  if (a.ret)
+  u8 *buf = lmalloc (&db.alloc, c.page_size);
+  if (!buf)
     {
-      ret = a.ret;
       goto cleanup;
     }
-  u8 *buf = a.data;
 
   page p;
   page_init (&p, PG_HASH_PAGE, buf, c.page_size, pgno);
@@ -123,7 +121,7 @@ db_open (const string fname)
 {
   cstring_assert (&fname);
   i_memset (&db, 0, sizeof (db));
-  db.alloc = stdalloc_create (1e10);
+  db.alloc = lalloc_create (1e10);
 
   // verify file exists
   if (!i_exists_rw (fname))
@@ -146,12 +144,11 @@ db_open (const string fname)
   // memory pager
   u64 total = c.mpgr_len * (c.page_size + sizeof (memory_pager));
 
-  alloc_ret a = db.alloc.alloc.malloc (&db.alloc.alloc, total);
-  if (a.ret)
+  u8 *block = lmalloc (&db.alloc, total);
+  if (!block)
     {
-      return a.ret;
+      return ERR_IO; // Questionable
     }
-  u8 *block = a.data;
 
   u8 *ptr = block;
   memory_page *pages = (memory_page *)ptr;
@@ -177,6 +174,6 @@ db_open (const string fname)
 void
 db_close (void)
 {
-  db.alloc.alloc.free (&db.alloc.alloc, db.resources._data);
+  lfree (&db.alloc, db.resources._data);
   i_close (&db.resources.fp);
 }

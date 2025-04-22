@@ -1,10 +1,13 @@
 #include "compiler.h"
 #include "dev/assert.h"
+#include "dev/errors.h"
+#include "dev/testing.h"
 #include "intf/logging.h"
 #include "intf/mm.h"
 #include "intf/stdlib.h"
 #include "sds.h"
 #include "utils/macros.h"
+#include "utils/numbers.h"
 
 ////////////////////// SCANNER (chars -> tokens)
 DEFINE_DBG_ASSERT_I (scanner, scanner, s)
@@ -12,6 +15,43 @@ DEFINE_DBG_ASSERT_I (scanner, scanner, s)
   ASSERT (s);
   cbuffer_assert (s->chars_input);
   cbuffer_assert (s->tokens_output);
+}
+
+static inline bool
+scanner_alloc_init (scanner *s)
+{
+  scanner_assert (s);
+  ASSERT (s->dcur == NULL);
+  ASSERT (s->dcurlen == 0);
+  ASSERT (s->dcurcap == 0);
+
+#define STARTING_SIZE 10 // TODO - analyze common string lengths?
+
+  char *data = lmalloc (s->alloc, STARTING_SIZE);
+  if (!data)
+    {
+      return false; // no memory
+    }
+
+  s->dcur = data;
+  s->dcurcap = STARTING_SIZE;
+  s->dcurlen = 0;
+
+  return true;
+}
+
+// Doesn't call free
+static inline void
+scanner_buffer_reset (scanner *s)
+{
+  scanner_assert (s);
+  ASSERT (s->dcur != NULL);
+  ASSERT (s->dcurlen > 0);
+  ASSERT (s->dcurcap > 0);
+
+  s->dcur = NULL;
+  s->dcurlen = 0;
+  s->dcurcap = 0;
 }
 
 void
@@ -22,20 +62,95 @@ scanner_create (
     lalloc *alloc)
 {
   ASSERT (dest);
-  i_memset (dest, 0, sizeof (scanner));
+  ASSERT (output->cap % sizeof (token) == 0);
   lalloc_assert (alloc);
 
-  ASSERT (output->cap % sizeof (token) == 0);
   dest->chars_input = input;
   dest->tokens_output = output;
+  dest->state = SS_START;
   dest->current = 0;
+
+  dest->dcur = NULL;
+  dest->dcurlen = 0;
+  dest->dcurcap = 0;
   dest->alloc = alloc;
 }
 
 static inline void
-compile_error (scanner *s)
+scanner_advance_expect (scanner *s)
 {
   scanner_assert (s);
+
+  u8 next;
+  ASCOPE (int more =)
+  cbuffer_dequeue (&next, s->chars_input);
+  ASSERT (more);
+}
+
+static inline bool
+scanner_cpy_advance_expect (scanner *s)
+{
+  scanner_assert (s);
+  ASSERT (s->dcur != NULL);
+  ASSERT (s->dcurcap > 0);
+
+  // Dequeue and copy
+  u8 next;
+  ASCOPE (int more =)
+  cbuffer_dequeue (&next, s->chars_input);
+  ASSERT (more);
+
+  // Check room
+  if (s->dcurlen == s->dcurcap)
+    {
+      char *next = lrealloc (s->alloc, s->dcur, 2 * s->dcurcap);
+      if (!next)
+        {
+          return false; // No memory - block
+        }
+      s->dcur = next;
+    }
+
+  s->dcur[s->dcurlen++] = next;
+
+  return false;
+}
+
+static inline bool
+scanner_cpy_advance (scanner *s)
+{
+  scanner_assert (s);
+  ASSERT (s->dcur != NULL);
+  ASSERT (s->dcurcap > 0);
+
+  // Dequeue and copy
+  u8 next;
+  if (cbuffer_dequeue (&next, s->chars_input))
+    {
+      return true;
+    }
+
+  // Check room
+  if (s->dcurlen == s->dcurcap)
+    {
+      char *dcur = lrealloc (s->alloc, s->dcur, 2 * s->dcurcap);
+      if (!dcur)
+        {
+          return false; // No memory - block
+        }
+      s->dcur = dcur;
+    }
+
+  s->dcur[s->dcurlen++] = next;
+
+  return false;
+}
+
+static inline int
+scanner_peek (u8 *dest, scanner *s)
+{
+  scanner_assert (s);
+  return cbuffer_peek_dequeue (dest, s->chars_input);
 }
 
 static inline void
@@ -44,7 +159,7 @@ consume_head_whitespace (scanner *s)
   scanner_assert (s);
   u8 c;
 
-  while (cbuffer_peek_dequeue (&c, s->chars_input))
+  while (scanner_peek (&c, s))
     {
       switch (c)
         {
@@ -52,7 +167,7 @@ consume_head_whitespace (scanner *s)
         case '\t':
         case '\r':
         case '\n':
-          cbuffer_dequeue (&c, s->chars_input);
+          scanner_advance_expect (s);
           break;
         default:
           return;
@@ -60,36 +175,8 @@ consume_head_whitespace (scanner *s)
     }
 }
 
-static inline int
-advance_head (u8 *dest, scanner *s)
-{
-  scanner_assert (s);
-  if (cbuffer_get (dest, s->chars_input, s->current))
-    {
-      s->current++;
-      return 1;
-    }
-  return 0;
-}
-
 static inline void
-consume_head (scanner *s)
-{
-  u8 ret;
-  ASCOPE (int more =)
-  advance_head (&ret, s);
-  ASSERT (more);
-}
-
-static inline int
-peek (u8 *dest, scanner *s)
-{
-  scanner_assert (s);
-  return cbuffer_get (dest, s->chars_input, s->current);
-}
-
-static inline void
-scanner_write_token (string *dest, scanner *s, token t)
+scanner_write_token (scanner *s, token t)
 {
   scanner_assert (s);
   ASSERT (cbuffer_avail (s->tokens_output) >= sizeof (token));
@@ -97,21 +184,6 @@ scanner_write_token (string *dest, scanner *s, token t)
   ASCOPE (u32 ret =)
   cbuffer_write (&t, sizeof t, 1, s->tokens_output);
   ASSERT (ret == 1);
-
-  ASCOPE (u32 read);
-  if (dest)
-    {
-      ASSERT (dest->len == s->current);
-      ASCOPE (read =)
-      cbuffer_read (dest->data, 1, s->current, s->chars_input);
-    }
-  else
-    {
-      ASCOPE (read =)
-      cbuffer_read (NULL, 1, s->current, s->chars_input);
-    }
-  ASSERT (read == (u32)s->current);
-  s->current = 0;
 }
 
 static inline void
@@ -119,144 +191,229 @@ scanner_write_token_t (scanner *s, token_t t)
 {
   scanner_assert (s);
   ASSERT (cbuffer_avail (s->tokens_output) >= sizeof (token));
-  ASSERT (TT_IS_SINGLE (t));
-  token _t;
-  _t.type = t;
-  scanner_write_token (NULL, s, _t);
+  scanner_write_token (s, quick_tok (t));
 }
 
-static inline int
-scan_next_ident_token (scanner *s)
+typedef struct
+{
+  char *data;
+  u32 len;
+  token_t type;
+} magic_token;
+
+const static magic_token magic_tokens[] = {
+  {
+      .data = "write",
+      .len = 5,
+      .type = TT_WRITE,
+  },
+  {
+      .data = "create",
+      .len = 5,
+      .type = TT_CREATE,
+  },
+  {
+      .data = "u32",
+      .len = 3,
+      .type = TT_U32,
+  },
+};
+
+static void ss_start (scanner *s);
+static void ss_char_collect (scanner *s);
+static void ss_number_collect (scanner *s);
+static void ss_decimal_collect (scanner *s);
+static void ss_error_rewind (scanner *s);
+
+// starts on the SECOND char of the sequence
+static void
+ss_char_collect (scanner *s)
 {
   scanner_assert (s);
-  u8 c;
-  token dest;
+  ASSERT (s->state == SS_CHAR_COLLECT);
 
-  while (peek (&c, s))
+  u8 c;
+
+  while (scanner_peek (&c, s))
     {
       if (!is_alpha_num (c))
         {
           goto finish;
         }
-      consume_head (s);
+
+      if (!scanner_cpy_advance_expect (s))
+        {
+          return;
+        }
     }
 
-  return 0;
+  return;
 
 finish:
   scanner_assert (s);
 
+  ASSERT (s->dcurlen > 0);
+  ASSERT (s->dcur);
+
+  string literal = (string){
+    .data = s->dcur,
+    .len = s->dcurlen,
+  };
+
+  /**
+   * WARNING - This looks like it's causing
+   * a dangling pointer but really I'm transferring
+   * responsibility to the next block
+   */
+  scanner_buffer_reset (s);
+  s->state = SS_START;
+
   // Check for special tokens
-  if (cbuffer_strequal (s->chars_input, "write", 5))
+  for (u32 i = 0; i < arrlen (magic_tokens); ++i)
     {
-      dest.type = TT_WRITE;
-      scanner_write_token (NULL, s, dest);
-    }
-  else if (cbuffer_strequal (s->chars_input, "u32", 3))
-    {
-      dest.type = TT_U32;
-      scanner_write_token (NULL, s, dest);
-    }
-  else
-    {
-      dest.type = TT_IDENTIFIER;
-
-      // TODO:OPTIMIZATION reduce mallocs
-      alloc_ret ret = s->alloc->malloc (s->alloc, s->current);
-      if (ret.ret)
+      if (string_equal (
+              literal, (string){
+                           .data = magic_tokens[i].data,
+                           .len = magic_tokens[i].len,
+                       }))
         {
-          return 0;
+          scanner_write_token_t (s, magic_tokens[i].type);
+          goto theend;
         }
-      dest.str = (string){
-        .data = (char *)ret.data,
-        .len = s->current,
-      };
-      scanner_write_token (&dest.str, s, dest);
     }
 
-  return 1;
+  scanner_write_token (s, tt_ident (literal));
+
+theend:
+  s->state = SS_START;
+  ss_start (s);
+  return;
 }
 
-static inline int
-scan_next_number_token (scanner *s)
+static void
+ss_decimal_collect (scanner *s)
 {
   scanner_assert (s);
+  ASSERT (s->state == SS_DECIMAL_COLLECT);
 
   u8 c;
-  token dest;
+  while (scanner_peek (&c, s))
+    {
+      if (!is_num (c))
+        {
+          const string literal = (string){
+            .data = s->dcur,
+            .len = s->dcurlen,
+          };
 
-  while (peek (&c, s))
+          // Parse the int
+          f32 dest;
+          err_t ret = parse_f32_expect (&dest, literal);
+          if (ret)
+            {
+              s->state = SS_ERROR_REWIND;
+              ss_error_rewind (s);
+              return;
+            }
+
+          // Reset and write
+          lfree (s->alloc, s->dcur);
+          scanner_buffer_reset (s);
+          scanner_write_token (s, tt_float (dest));
+
+          // TODO - should I require whitespace after numbers?
+          s->state = SS_START;
+          ss_start (s);
+          return;
+        }
+      scanner_advance_expect (s);
+    }
+}
+
+static void
+ss_error_rewind (scanner *s)
+{
+  scanner_assert (s);
+  ASSERT (s->state == SS_ERROR_REWIND);
+
+  // For now, just blindly consume all
+  s->chars_input->head = 0;
+  s->chars_input->tail = 0;
+  s->chars_input->isfull = false;
+}
+
+// Starts on the SECOND char of the sequence
+static void
+ss_number_collect (scanner *s)
+{
+  scanner_assert (s);
+  ASSERT (s->state == SS_NUMBER_COLLECT);
+
+  u8 c;
+
+  while (scanner_peek (&c, s))
     {
       if (!is_num (c))
         {
 
           if (c == '.')
             {
-              consume_head (s);
-              goto scan_float;
+              if (!scanner_cpy_advance_expect (s))
+                {
+                  return;
+                }
+
+              s->state = SS_DECIMAL_COLLECT;
+              ss_decimal_collect (s);
+              return;
             }
           else
             {
-              int ret = cbuffer_parse_front_i32 (
-                  &dest.integer,
-                  s->chars_input,
-                  s->current);
+              const string literal = (string){
+                .data = s->dcur,
+                .len = s->dcurlen,
+              };
+
+              // Parse the int
+              i32 dest;
+              err_t ret = parse_i32_expect (&dest, literal);
               if (ret)
                 {
-                  compile_error (s);
-                  return 1;
+                  s->state = SS_ERROR_REWIND;
+                  ss_error_rewind (s);
+                  return;
                 }
-              dest.type = TT_INTEGER;
-              scanner_write_token (NULL, s, dest);
-              return 1;
+
+              // Reset and write
+              lfree (s->alloc, s->dcur);
+              scanner_buffer_reset (s);
+              scanner_write_token (s, tt_integer (dest));
+
+              s->state = SS_START;
+              ss_start (s);
+              return;
             }
         }
-      consume_head (s);
+      scanner_advance_expect (s);
     }
 
-  return 0;
-
-scan_float:
-
-  while (peek (&c, s))
-    {
-      if (!is_num (c))
-        {
-          int ret = cbuffer_parse_front_f32 (
-              &dest.floating,
-              s->chars_input,
-              s->current);
-          if (ret)
-            {
-              compile_error (s);
-              return 1;
-            }
-          dest.type = TT_FLOAT;
-          scanner_write_token (NULL, s, dest);
-          return 1;
-        }
-      consume_head (s);
-    }
-
-  return 0;
+  return;
 }
 
-static inline int
-scan_next_token (scanner *s)
+static void
+ss_start (scanner *s)
 {
   scanner_assert (s);
+  ASSERT (s->state == SS_START);
 
-  // Needs enough room for 1 token
-  if (cbuffer_avail (s->tokens_output) < sizeof (token))
-    {
-      return 0;
-    }
+  // Consume all whitespace
+  consume_head_whitespace (s);
 
-  // Get next char (start of this token)
+  // First check if there's data available
   u8 next;
-  if (!advance_head (&next, s))
+  if (!cbuffer_peek_dequeue (&next, s->chars_input))
     {
-      return 0; // Nothing to scan, no chars available
+      return;
     }
 
   switch (next)
@@ -264,20 +421,52 @@ scan_next_token (scanner *s)
     case ';':
       {
         scanner_write_token_t (s, TT_SEMICOLON);
-        return 1;
+        scanner_advance_expect (s);
+        ss_start (s);
+        return;
       }
     default:
       {
+
         if (is_alpha (next))
           {
-            return scan_next_ident_token (s);
+            // No room in allocator
+            if (!scanner_alloc_init (s))
+              {
+                return;
+              }
+            if (!scanner_cpy_advance (s))
+              {
+                return;
+              }
+
+            // Move onto char collect
+            s->state = SS_CHAR_COLLECT;
+            ss_char_collect (s);
+            return;
           }
         else if (is_num (next) || next == '+' || next == '-')
           {
-            return scan_next_number_token (s);
+            // No room in allocator
+            if (!scanner_alloc_init (s))
+              {
+                return;
+              }
+            if (!scanner_cpy_advance (s))
+              {
+                return;
+              }
+
+            s->state = SS_NUMBER_COLLECT;
+            ss_number_collect (s);
+            return;
           }
-        compile_error (s);
-        return 0;
+        else
+          {
+            s->state = SS_ERROR_REWIND;
+            ss_error_rewind (s);
+            return;
+          }
       }
     }
 }
@@ -286,57 +475,127 @@ void
 scanner_execute (scanner *s)
 {
   scanner_assert (s);
-  consume_head_whitespace (s);
-  scan_next_token (s);
-  consume_head_whitespace (s);
+
+  // Pick up where you left off
+  switch (s->state)
+    {
+    case SS_START:
+      {
+        ss_start (s);
+        return;
+      }
+    case SS_CHAR_COLLECT:
+      {
+        ss_char_collect (s);
+        return;
+      }
+    case SS_NUMBER_COLLECT:
+      {
+        ss_number_collect (s);
+        return;
+      }
+    case SS_DECIMAL_COLLECT:
+      {
+        ss_decimal_collect (s);
+        return;
+      }
+    case SS_ERROR_REWIND:
+      {
+        ss_error_rewind (s);
+        return;
+      }
+    }
 }
 
-////////////////////// TOKEN PRINTER
+#ifndef NTESTS
 void
-token_log_info (token t)
+test_token_compare (const token t1, const token t2)
 {
-  switch (t.type)
+  test_assert_int_equal (t1.type, t2.type);
+  switch (t1.type)
     {
-    case TT_WRITE:
-      i_log_info ("WRITE\n");
-      return;
-    case TT_IDENTIFIER:
-      i_log_info ("IDENTIFIER %.*s\n", t.str.len, t.str.data);
-      return;
-    case TT_INTEGER:
-      i_log_info ("INTEGER %d\n", t.integer);
-      return;
     case TT_FLOAT:
-      i_log_info ("FLOAT %f\n", t.floating);
-      return;
-    case TT_U32:
-      i_log_info ("U32\n");
-      return;
-    case TT_SEMICOLON:
-      i_log_info ("SEMICOLON\n");
-      return;
+      test_assert_equal (t1.floating, t2.floating, "%f");
+      break;
+    case TT_INTEGER:
+      test_assert_int_equal (t1.integer, t2.integer);
+      break;
+    case TT_IDENTIFIER:
+      test_fail_if (!string_equal (t1.str, t2.str));
+      break;
     }
 }
 
 void
-token_printer_create (token_printer *dest, cbuffer *input)
+scanner_test_helper (
+    const char *str,
+    const token *tokens,
+    u32 len,
+    u32 mlimit,
+    u32 inlen,
+    u32 outlen)
 {
-  ASSERT (dest);
-  i_memset (dest, 0, sizeof (token_printer));
+  lalloc alloc = lalloc_create (mlimit + inlen + outlen);
 
-  // TODO:OPTIMIZATION - reduce malloc
-  ASSERT (input->cap % sizeof (token) == 0);
-  dest->tokens_input = input;
-}
+  u8 *_input = lmalloc (&alloc, inlen);
+  test_fail_if (_input);
+  u8 *_output = lmalloc (&alloc, outlen);
+  test_fail_if (_output);
 
-void
-token_printer_execute (token_printer *t)
-{
-  token next;
-  while (cbuffer_read (&next, sizeof (token), 1, t->tokens_input))
+  cbuffer input = cbuffer_create (_input, inlen);
+  cbuffer output = cbuffer_create (_input, outlen);
+
+  scanner s;
+  scanner_create (&s, &input, &output, &alloc);
+
+  u32 i = 0;
+
+  while (i_unsafe_strlen (str) > 0)
     {
-      token_log_info (next);
+      str += cbuffer_write (str, 1, i_unsafe_strlen (str), &input);
+      scanner_execute (&s);
+      test_assert_int_equal (cbuffer_len (&input), 0);
+      while (cbuffer_len (&output) > 0)
+        {
+          token next;
+          u32 read = cbuffer_read (&next, sizeof (token), 1, &output);
+          test_assert_int_equal (read, 1);
+          test_fail_if (i >= len);
+          test_token_compare (next, tokens[i]);
+        }
     }
+}
+#endif
+TEST (scanner_execute)
+{
+  const char *str = "write 5 ; ; ;;create123create createc "
+                    "create 123createc 123create 12345.1create "
+                    "u32 write foo bar biz buz";
+  const token tokens[] = {
+    quick_tok (TT_WRITE),
+    tt_integer (5),
+    quick_tok (TT_SEMICOLON),
+    quick_tok (TT_SEMICOLON),
+    quick_tok (TT_SEMICOLON),
+    quick_tok (TT_SEMICOLON),
+    tt_ident (unsafe_cstrfrom ("create123create")),
+    tt_ident (unsafe_cstrfrom ("createc")),
+    quick_tok (TT_CREATE),
+    tt_integer (123),
+    tt_ident (unsafe_cstrfrom ("createc")),
+    tt_integer (123),
+    quick_tok (TT_CREATE),
+    tt_float (12345.1),
+    quick_tok (TT_CREATE),
+    quick_tok (TT_U32),
+    quick_tok (TT_WRITE),
+    tt_ident (unsafe_cstrfrom ("foo")),
+    tt_ident (unsafe_cstrfrom ("bar")),
+    tt_ident (unsafe_cstrfrom ("biz")),
+    tt_ident (unsafe_cstrfrom ("buz")),
+  };
+
+  scanner_test_helper (str, tokens, arrlen (tokens), 100, 10, 10);
 }
 
 ////////////////////// PARSER

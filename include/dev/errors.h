@@ -22,3 +22,13 @@ typedef enum
         }                 \
     }                     \
   while (0)
+
+#define err_t_cwrap(condexpr, ret) \
+  do                               \
+    {                              \
+      if (condexpr)                \
+        {                          \
+          return ret;              \
+        }                          \
+    }                              \
+  while (0)

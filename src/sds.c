@@ -1,9 +1,12 @@
 #include "sds.h"
 #include "dev/errors.h"
 #include "dev/testing.h"
+#include "intf/mm.h"
 #include "intf/stdlib.h"
 #include "types.h"
+#include "utils/bounds.h"
 #include "utils/macros.h"
+#include "utils/numbers.h"
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
@@ -24,7 +27,63 @@ buffer_create (u8 *data, u32 cap)
   return (buffer){
     .data = data,
     .cap = cap,
+    .len = 0,
   };
+}
+
+static inline u32
+buffer_phantom_write (u32 size, u32 n, buffer *b)
+{
+  buffer_assert (b);
+  ASSERT (size > 0);
+  ASSERT (n > 0);
+
+  ASSERT (b->cap >= b->len);
+  u32 avail = b->cap - b->len;
+
+  u32 maxn = avail / size;
+  if (n > maxn)
+    {
+      n = maxn;
+    }
+  if (n == 0)
+    {
+      return 0;
+    }
+
+  b->len += size * n;
+
+  return n;
+}
+
+TEST (buffer_phantom_write)
+{
+  u8 data1[10];
+  buffer b1 = buffer_create (data1, 10);
+
+  // partial fit: size=3, n=4 => avail=10, maxn=3
+  u32 n1 = buffer_phantom_write (3, 4, &b1);
+  test_assert_int_equal (n1, 3);
+  test_assert_int_equal (b1.len, 9);
+
+  // exact fit: size=5, n=2 => avail=10, fits exactly
+  u8 data2[10];
+  buffer b2 = buffer_create (data2, 10);
+  u32 n2 = buffer_phantom_write (5, 2, &b2);
+  test_assert_int_equal (n2, 2);
+  test_assert_int_equal (b2.len, 10);
+
+  // no space left: avail=0
+  u32 n3 = buffer_phantom_write (1, 1, &b2);
+  test_assert_int_equal (n3, 0);
+  test_assert_int_equal (b2.len, 10);
+
+  // size > available capacity: should reserve nothing
+  u8 data3[5];
+  buffer b3 = buffer_create (data3, 5);
+  u32 n4 = buffer_phantom_write (6, 1, &b3);
+  test_assert_int_equal (n4, 0);
+  test_assert_int_equal (b3.len, 0);
 }
 
 u32
@@ -88,59 +147,142 @@ buffer_reset (buffer *b)
   b->len = 0;
 }
 
-u32
-buffer_phantom_write (u32 size, u32 n, buffer *b)
+//////////////////////// DYNAMIC BUFFER
+DEFINE_DBG_ASSERT_I (dyn_buffer, dyn_buffer, b)
 {
-  buffer_assert (b);
+  ASSERT (b);
+  ASSERT (b->data);
+  ASSERT (b->cap > 0);
+  ASSERT (b->len <= b->cap);
+}
+
+err_t
+dyn_buffer_create (dyn_buffer *dest, u32 cap, lalloc *alloc)
+{
+  ASSERT (cap > 0);
+  ASSERT (dest);
+  lalloc_assert (alloc);
+
+  alloc_ret a = alloc->malloc (alloc, cap);
+  err_t_wrap (a.ret);
+
+  *dest = (dyn_buffer){
+    .data = a.data,
+    .cap = cap,
+    .len = 0,
+    .alloc = alloc,
+  };
+
+  return SUCCESS;
+}
+
+static inline err_t
+dyn_buffer_phantom_write (u32 size, u32 n, dyn_buffer *b)
+{
+  dyn_buffer_assert (b);
   ASSERT (size > 0);
   ASSERT (n > 0);
 
-  ASSERT (b->cap >= b->len);
-  u32 avail = b->cap - b->len;
+  // Check overflow
+  err_t_cwrap (!can_mul_u32 (size, n), ERR_ARITH);
 
-  u32 maxn = avail / size;
-  if (n > maxn)
+  // Check if capacity needs to increase
+  u32 cap = b->cap;
+  err_t_wrap (smlst_dbl_fctr (&cap, b->len, size * n));
+  ASSERT (cap >= b->cap);
+
+  // Increase capacity
+  if (cap > b->cap)
     {
-      n = maxn;
-    }
-  if (n == 0)
-    {
-      return 0;
+      alloc_ret a = b->alloc->realloc (b->alloc, b->data, cap);
+      err_t_wrap (a.ret);
+      b->cap = cap;
     }
 
   b->len += size * n;
 
-  return n;
+  return SUCCESS;
 }
 
-TEST (buffer_phantom_write)
+err_t
+dyn_buffer_write (const void *dest, u32 size, u32 n, dyn_buffer *b)
 {
-  u8 data1[10];
-  buffer b1 = buffer_create (data1, 10);
+  u8 *head = b->data + b->len;
+  err_t_wrap (dyn_buffer_phantom_write (size, n, b));
+  i_memcpy (head, dest, size * n);
+  return SUCCESS;
+}
 
-  // partial fit: size=3, n=4 => avail=10, maxn=3
-  u32 n1 = buffer_phantom_write (3, 4, &b1);
-  test_assert_int_equal (n1, 3);
-  test_assert_int_equal (b1.len, 9);
+err_t
+dyn_buffer_clip (dyn_buffer *dest)
+{
+  dyn_buffer_assert (dest);
+  alloc_ret a = dest->alloc->realloc (dest->alloc, dest->data, dest->len);
+  err_t_wrap (a.ret);
+  dest->cap = dest->len;
+  dest->data = a.data;
+  return SUCCESS;
+}
 
-  // exact fit: size=5, n=2 => avail=10, fits exactly
-  u8 data2[10];
-  buffer b2 = buffer_create (data2, 10);
-  u32 n2 = buffer_phantom_write (5, 2, &b2);
-  test_assert_int_equal (n2, 2);
-  test_assert_int_equal (b2.len, 10);
+void
+dyn_buffer_free (dyn_buffer *dest)
+{
+  dyn_buffer_assert (dest);
+  dest->alloc->free (dest->alloc, dest->data);
+}
 
-  // no space left: avail=0
-  u32 n3 = buffer_phantom_write (1, 1, &b2);
-  test_assert_int_equal (n3, 0);
-  test_assert_int_equal (b2.len, 10);
+TEST (dyn_buffer)
+{
+  stdalloc s = stdalloc_create (60);
+  dyn_buffer b1;
+  test_fail_if (dyn_buffer_create (&b1, 3, &s.alloc));
 
-  // size > available capacity: should reserve nothing
-  u8 data3[5];
-  buffer b3 = buffer_create (data3, 5);
-  u32 n4 = buffer_phantom_write (6, 1, &b3);
-  test_assert_int_equal (n4, 0);
-  test_assert_int_equal (b3.len, 0);
+  // Basic
+  u8 src1[4] = { 1, 2, 3, 4 };
+  test_fail_if (dyn_buffer_write (src1, 1, 4, &b1));
+  test_assert_int_equal (b1.len, 4);
+  test_assert_int_equal (b1.cap, 6);
+  for (int i = 0; i < 4; ++i)
+    {
+      test_assert_int_equal (b1.data[i], src1[i]);
+    }
+
+  // More
+  u8 src2[10] = { 0 };
+  i_memset (src2, 9, sizeof (src2));
+  test_fail_if (dyn_buffer_write (src2, 1, 10, &b1));
+  test_assert_int_equal (b1.len, 14);
+  test_assert_int_equal (b1.cap, 24);
+  for (int i = 4; i < 8; ++i)
+    {
+      test_assert_int_equal (b1.data[i], 9);
+    }
+
+  // Bigger size
+  u16 src3[3] = { 0x1122, 0x3344, 0x5566 };
+  test_fail_if (dyn_buffer_write (src3, sizeof (u16), 3, &b1));
+  test_assert_int_equal (b1.len, 20);
+  test_assert_int_equal (b1.cap, 24);
+  u16 *p = (u16 *)&b1.data[14];
+  test_assert_int_equal (p[0], 0x1122);
+  test_assert_int_equal (p[1], 0x3344);
+  test_assert_int_equal (p[2], 0x5566);
+
+  // Biggest Size
+  u8 src4[6] = { 1, 2, 3, 4, 5, 6 };
+  test_fail_if (dyn_buffer_write (src4, 6, 1, &b1));
+  test_assert_int_equal (b1.len, 26);
+  test_assert_int_equal (b1.cap, 48);
+  test_assert_int_equal (i_memcmp (&b1.data[20], src4, 6), 0);
+
+  // Clip
+  test_fail_if (dyn_buffer_clip (&b1));
+  test_assert_int_equal (b1.len, 26);
+  test_assert_int_equal (b1.cap, 26);
+
+  // Overflow
+  u8 src5[60] = { 0 };
+  test_assert_int_equal (dyn_buffer_write (src5, 60, 1, &b1), ERR_OVERFLOW);
 }
 
 //////////////////////// CBUFFER
@@ -390,7 +532,7 @@ cbuffer_dequeue_no_check (cbuffer *b)
   return ret;
 }
 
-int
+bool
 cbuffer_get (u8 *dest, const cbuffer *b, int idx)
 {
   ASSERT (idx >= 0);
@@ -419,7 +561,7 @@ TEST (cbuffer_get)
   test_assert_int_equal (cbuffer_get (&v, &b, 1), 0);
 }
 
-int
+bool
 cbuffer_peek_dequeue (u8 *dest, const cbuffer *b)
 {
   ASSERT (dest);
@@ -617,185 +759,6 @@ TEST (cbuffer_strequal)
   test_assert_int_equal (cbuffer_strequal (&b1, "CXY", 3), 1);
   test_assert_int_equal (cbuffer_strequal (&b1, "CXYD", 4), 1);
   test_assert_int_equal (cbuffer_strequal (&b1, "CXZ", 3), 0);
-}
-
-int
-cbuffer_parse_front_i32 (i32 *dest, const cbuffer *src, u32 until)
-{
-  ASSERT (dest);
-  cbuffer_assert (src);
-  ASSERT (until > 0);
-  ASSERT (until < cbuffer_len (src));
-  ASSERT (cbuffer_len (src) > 0);
-
-  int negative = 0;
-  u32 ret = 0;
-
-  u32 i = 0;
-  u8 next = cbuffer_get_no_check (src, i);
-
-  if (next == '-')
-    {
-      negative = 1;
-      i++;
-    }
-  else if (next == '+')
-    {
-      i++;
-    }
-
-  ASSERT (i < until); // Should have at least 1 digit
-
-  for (; i < until; ++i)
-    {
-      next = cbuffer_get_no_check (src, i);
-      ASSERT (is_num (next));
-      u32 _next = next - '0';
-      if (ret > (I32_ABS_MAX - _next) / 10)
-        {
-          return ERR_OVERFLOW; // Overflow
-        }
-      ret = ret * 10 + _next;
-    }
-
-  if (negative)
-    {
-      *dest = -1 * (i32)ret;
-    }
-  else
-    {
-      *dest = (i32)ret;
-    }
-  return SUCCESS;
-}
-
-TEST (cbuffer_parse_front_i32)
-{
-  i32 out;
-  u8 buf[12];
-
-  cbuffer b1 = cbuffer_create (buf, 12);
-  cbuffer_write ("1234X", 1, 5, &b1);
-  test_assert_int_equal (cbuffer_parse_front_i32 (&out, &b1, 4), SUCCESS);
-  test_assert_int_equal (out, 1234);
-
-  cbuffer b2 = cbuffer_create (buf, 12);
-  cbuffer_write ("-56Y", 1, 4, &b2);
-  test_assert_int_equal (cbuffer_parse_front_i32 (&out, &b2, 3), SUCCESS);
-  test_assert_int_equal (out, -56);
-
-  cbuffer b3 = cbuffer_create (buf, 12);
-  cbuffer_write ("9999999999Z", 1, 11, &b3);
-  test_assert_int_equal (cbuffer_parse_front_i32 (&out, &b3, 10), ERR_OVERFLOW);
-
-  // Wrap around
-  cbuffer b4 = cbuffer_create (buf, 5);
-  cbuffer_write ("12345", 1, 5, &b4);
-  cbuffer_read (NULL, 1, 2, &b4);
-  cbuffer_write ("67X", 1, 3, &b4); // writes only '6','7'
-  test_assert_int_equal (cbuffer_parse_front_i32 (&out, &b4, 4), SUCCESS);
-  test_assert_int_equal (out, 3456);
-}
-
-int
-cbuffer_parse_front_f32 (f32 *dest, const cbuffer *src, u32 until)
-{
-  ASSERT (dest);
-  cbuffer_assert (src);
-  ASSERT (until > 0);
-  ASSERT (until < cbuffer_len (src));
-
-  int negative = 0;
-  f32 ret = 0.0f;
-  u32 frac = 0;
-  f32 frac_div = 1.0f;
-  int seen_dot = 0;
-
-  u32 i = 0;
-  u8 next = cbuffer_get_no_check (src, i);
-
-  if (next == '-')
-    {
-      negative = 1;
-      i++;
-    }
-  else if (next == '+')
-    {
-      i++;
-    }
-
-  ASSERT (i < until); // Should have at least 1 digit
-
-  for (; i < until; ++i)
-    {
-      next = cbuffer_get_no_check (src, i);
-
-      if (next == '.')
-        {
-          ASSERT (!seen_dot);
-          seen_dot = 1;
-          continue;
-        }
-
-      ASSERT (is_num (next));
-      u32 _next = next - '0';
-
-      if (!seen_dot)
-        {
-          ret = ret * 10.0f + (f32)_next;
-        }
-      else
-        {
-          frac = frac * 10 + _next;
-          frac_div *= 10.0f;
-        }
-    }
-
-  ret += (f32)frac / frac_div;
-
-  if (negative)
-    {
-      *dest = -ret;
-    }
-  else
-    {
-      *dest = ret;
-    }
-
-  return SUCCESS;
-}
-
-TEST (cbuffer_parse_front_f32)
-{
-  f32 out;
-  u8 buf[10];
-
-  // simple float: write "12.34X", parse "12.34"
-  cbuffer b1 = cbuffer_create (buf, 10);
-  cbuffer_write ("12.34X", 1, 6, &b1);
-  test_assert_int_equal (cbuffer_parse_front_f32 (&out, &b1, 5), SUCCESS);
-  test_assert_equal ((int)(out * 100), 1234, "%d");
-
-  // negative float: write "-0.5Y", parse "-0.5"
-  cbuffer b2 = cbuffer_create (buf, 10);
-  cbuffer_write ("-0.5Y", 1, 5, &b2);
-  test_assert_int_equal (cbuffer_parse_front_f32 (&out, &b2, 4), SUCCESS);
-  test_assert_equal ((int)(out * 10), -5, "%d");
-
-  // integer parse: write "100Z", parse "100"
-  cbuffer b3 = cbuffer_create (buf, 10);
-  cbuffer_write ("100Z", 1, 4, &b3);
-  test_assert_int_equal (cbuffer_parse_front_f32 (&out, &b3, 3), SUCCESS);
-  test_assert_equal ((int)out, 100, "%d");
-
-  // wrap‑around float: cap=5, write 5, read 2, write 2
-  cbuffer b4 = cbuffer_create (buf, 5);
-  cbuffer_write ("12.34", 1, 5, &b4);
-  cbuffer_read (NULL, 1, 2, &b4);
-  cbuffer_write ("56X", 1, 3, &b4); // writes '5','6'
-  // buffer now holds ".","3","4","5","6"
-  test_assert_int_equal (cbuffer_parse_front_f32 (&out, &b4, 4), SUCCESS);
-  test_assert_equal ((int)(out * 1000), 345, "%d");
 }
 
 //////////////////////// BYTES

@@ -45,7 +45,7 @@ typedef struct
   pager pager;
   memory_pager mpgr;
   file_pager fpgr;
-  stdalloc alloc;
+  lalloc alloc;
 
   struct
   {

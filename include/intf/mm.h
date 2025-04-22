@@ -2,39 +2,18 @@
 
 #include "dev/assert.h"
 #include "dev/errors.h"
-#include "sds.h"
 #include "types.h"
 
-/////////////////////// Allocation
+/////////////////////// Limited allocator
 
 typedef struct
 {
-  void *data;
-  err_t ret;
-} alloc_ret;
-
-// Local Allocator
-typedef struct lalloc
-{
-  alloc_ret (*malloc) (struct lalloc *l, u64 bytes);
-  alloc_ret (*calloc) (struct lalloc *l, u64 nmemb, u64 size);
-  alloc_ret (*realloc) (struct lalloc *l, void *ptr, u64 bytes);
-  void (*free) (struct lalloc *l, void *dest);
-
-  // Frees all memory allocated by this allocator
-  err_t (*release) (struct lalloc *l);
+  u64 limit;
+  u64 total;
 } lalloc;
 
 DEFINE_DBG_ASSERT_H (lalloc, lalloc, l);
-
-//////////////////// STDALLOC
-
-typedef struct
-{
-  u64 total;
-  u64 limit;
-  lalloc alloc;
-} stdalloc;
-
-DEFINE_DBG_ASSERT_H (stdalloc, stdalloc, s);
-stdalloc stdalloc_create (u64 limit);
+lalloc lalloc_create (u64 limit);
+void *lmalloc (lalloc *a, u64 bytes);
+void *lrealloc (lalloc *a, void *data, u64 bytes);
+void lfree (lalloc *a, void *data);
