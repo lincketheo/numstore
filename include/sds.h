@@ -31,6 +31,7 @@ u32 cbuffer_avail (const cbuffer *b);
 
 // Consumes the tail
 u32 cbuffer_read (void *dest, u32 size, u32 n, cbuffer *b);
+u32 cbuffer_copy (void *dest, u32 size, u32 n, const cbuffer *b);
 u32 cbuffer_write (const void *src, u32 size, u32 n, cbuffer *b);
 bool cbuffer_get (u8 *dest, const cbuffer *b, int idx);
 bool cbuffer_peek_dequeue (u8 *dest, const cbuffer *b);

@@ -1,0 +1,4 @@
+
+CMD = (CCMD | WCMD | RCMD);
+CCMD = create IDENT TYPE
+WCMD = write INT WFMT 

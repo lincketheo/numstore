@@ -15,16 +15,17 @@ typedef enum
 } op_t;
 
 //////////////////////////////// CREATE
+
 typedef struct
 {
   const string vname;
   const type *type;
   pager *p;
-} create;
+} create_op;
 
-DEFINE_DBG_ASSERT_H (create, create, c);
+DEFINE_DBG_ASSERT_H (create_op, create_op, c);
 
-void create_execute (create *c);
+void create_execute (create_op *c);
 
 //////////////////////////////// WRITE
 
@@ -34,7 +35,7 @@ typedef struct
   struct
   {
     u32 len;
-    variable *nbrs;
+    const string *vnames;
   } * seq;
 } wfmt;
 
@@ -42,28 +43,9 @@ typedef struct
 {
   u32 n;
   wfmt fmt;
-} write;
+} write_op;
 
-//////////////////////////////// READ
-
-typedef struct
-{
-  u32 len;
-  struct
-  {
-    u32 len;
-    variable_subset *nbrs;
-  } * seq;
-} rfmt;
-
-typedef struct
-{
-  int start;
-  int stop;
-  int end;
-  rfmt fmt;
-  cbuffer *input;
-} read;
+DEFINE_DBG_ASSERT_H (write_op, write_op, w);
 
 //////////////////////////////// OPERATION
 /**
@@ -73,11 +55,16 @@ typedef struct
  */
 typedef struct
 {
+
+#ifndef NDEBUG
   u8 type;
+#else
+  op_t type;
+#endif
+
   union
   {
-    create create;
-    read read;
-    write write;
+    create_op create;
+    write_op write;
   };
 } op;

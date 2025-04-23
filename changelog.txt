@@ -1,3 +1,9 @@
+04/22/2025
+  - Scraps allocator for a simpler design
+  - Scanner is now non blocking on strings > len of the buffer
+  - Parser
+04/21/2025 
+  - Allocation / memory management
 04/20/2025 
   - Global database config getter / setter 
   - Paging tests / refactor

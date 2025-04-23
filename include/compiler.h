@@ -24,7 +24,10 @@ typedef enum
 {
   // Tokens that start with a letter (alpha)
   TT_WRITE,
+  TT_READ,
+  TT_TAKE,
   TT_CREATE,
+  TT_DELETE,
   TT_IDENTIFIER,
 
   // Tokens that start with a number or +/-
@@ -32,10 +35,21 @@ typedef enum
   TT_FLOAT,
 
   // Types
-  TT_U32,
+  //      Complex
+  TT_STRUCT,
+  TT_UNION,
+  TT_ENUM,
+  TT_PRIM,
 
   // Tokens that are single characters
   TT_SEMICOLON,
+  TT_LEFT_BRACKET,
+  TT_RIGHT_BRACKET,
+  TT_LEFT_BRACE,
+  TT_RIGHT_BRACE,
+  TT_LEFT_PAREN,
+  TT_RIGHT_PAREN,
+  TT_COMMA,
 
   // Special Tokens
   TT_ERROR, // An Error token, saying: next token start fresh
@@ -55,22 +69,21 @@ typedef struct
     string str;
     i32 integer;
     f32 floating;
+    prim_t prim;
   };
-#ifndef NDEBUG
   token_t type;
-#else
-  u8 type;
-#endif
 } token;
 
-#define quick_tok(_type) \
-  (token) { .type = _type }
+#define quick_tok(type) \
+  (token) { .type = type }
 #define tt_integer(val) \
   (token) { .type = TT_INTEGER, .integer = val }
 #define tt_float(val) \
   (token) { .type = TT_FLOAT, .floating = val }
 #define tt_ident(val) \
   (token) { .type = TT_IDENTIFIER, .str = val }
+#define tt_prim(val) \
+  (token) { .type = TT_PRIM, .prim = val }
 
 ////////////////////// SCANNER (chars -> tokens)
 
@@ -106,28 +119,107 @@ typedef struct
   u32 current;
   scanner_state state;
 
-  char *dcur;    // Current data for variable length data
-  u32 dcurlen;   // len of dcur
-  u32 dcurcap;   // capacity of dcur
-  lalloc *alloc; // Limited Allocator
+  char *dcur;            // Current data for variable length data
+  u32 dcurlen;           // len of dcur
+  u32 dcurcap;           // capacity of dcur
+  lalloc *strings_alloc; // Allocator for strings
 } scanner;
 
 DEFINE_DBG_ASSERT_H (scanner, scanner, s);
 void scanner_create (
     scanner *dest,
     cbuffer *input,
-    cbuffer *output, lalloc *alloc);
+    cbuffer *output,
+    lalloc *strings_alloc);
 void scanner_execute (scanner *s); // Buffer will be empty at the end
 
 ////////////////////// PARSER
 
+typedef enum
+{
+  PS_START,
+  PS_CREATE,
+  PS_ERROR_REWIND,
+} parser_state;
+
 typedef struct
 {
-  cbuffer *tokens_input;
-  cbuffer *bytecode_output;
-  int is_error;
+  cbuffer *tokens_input;  // The input buffer for tokens
+  cbuffer *opcode_output; // The output for op codes
+  cbuffer *stack_output;  // The stack output for the vm
+
+  lalloc *input_strings; // The string allocator
+  lalloc *tokens;        // The type allocator
+
+  type *currenttype;  // While building types
+  parser_state state; // Current state for execute
 } parser;
 
 DEFINE_DBG_ASSERT_H (parser, parser, p);
-void parser_create (parser *dest, cbuffer *input, cbuffer *output);
+void parser_create (
+    parser *dest,
+    cbuffer *input,
+    cbuffer *output,
+    lalloc *input_strings,
+    lalloc *tokens);
+
 void parser_execute (parser *s);
+
+////////////////////// TYPE PARSER
+
+typedef enum
+{
+  TPS_,
+  TPS_DONE,
+} tp_state_t;
+
+typedef struct
+{
+  bool is_terminal;
+  token term;
+
+  tp_state_t state;
+
+  union
+  {
+    type *type;
+    prim_t p;
+    struct_t *st;
+    union_t *un;
+    enum_t *en;
+    varray_t *va;
+    sarray_t *sa;
+    u32 dim;
+    string ident;
+  };
+
+  u32 cap;
+
+} tp_state;
+
+#define MAX_TYPE_PARSE_DEPTH 100
+
+typedef struct
+{
+  tp_state *stack;
+  u32 stack_len;
+  u32 sp;
+
+  lalloc *stack_allocator; // For dynamic growth of stack
+  lalloc *type_allocator;  // For allocating types onto
+} type_parser;
+
+typedef enum
+{
+  TPR_SUCCESS,
+  TPR_MALLOC,
+  TPR_SYNTAX_ERROR,
+} tp_result;
+
+DEFINE_DBG_ASSERT_H (tp_state, tp_state, tp);
+DEFINE_DBG_ASSERT_H (type_parser, type_parser, tp);
+err_t tp_create (
+    type_parser *dest,
+    lalloc *stack_allocator,
+    lalloc *token_allocator);
+tp_result tp_feed_token (type_parser *tp, token t);

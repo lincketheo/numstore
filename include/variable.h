@@ -8,8 +8,7 @@
 ////////////////////////////// A Single Variable
 typedef struct
 {
-  u64 page0;
-  type *type;
+  const string vname;
 } variable;
 
 DEFINE_DBG_ASSERT_H (variable, variable, v);

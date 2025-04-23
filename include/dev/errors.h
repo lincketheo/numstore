@@ -10,6 +10,7 @@ typedef enum
   ERR_ALREADY_EXISTS = -5, // A thing already exists
   ERR_DOESNT_EXIST = -6,   // Something doesn't exist
   ERR_ARITH = -7,          // Arithmetic error like div 0 or int overflow
+  ERR_SYNTAX = -8,         // Syntax error
 } err_t;
 
 #define err_t_wrap(expr)  \

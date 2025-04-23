@@ -165,6 +165,84 @@ TEST (cbuffer_read)
   test_assert_int_equal (r2, 2);
   test_assert_int_equal (out[0], 7);
   test_assert_int_equal (out[1], 8);
+  test_assert_int_equal (cbuffer_len (&b), 0);
+}
+
+u32
+cbuffer_copy (void *dest, u32 size, u32 n, const cbuffer *b)
+{
+  cbuffer_assert (b);
+  ASSERT (size > 0);
+  ASSERT (n > 0);
+
+  u32 len = cbuffer_len (b) / size;
+  u32 ntoread = (n < len) ? n : len;
+  u32 btoread = ntoread * size;
+  u32 bread = 0;
+
+  u8 *output = NULL;
+  if (dest)
+    {
+      output = (u8 *)dest;
+    }
+
+  // Literally the exact same as read but
+  // use these temp variables instead
+  // I was lazy
+  u32 tail = b->tail;
+  bool isfull = b->isfull;
+
+  while (bread < btoread)
+    {
+      u32 next;
+
+      if (!isfull && b->head > tail)
+        {
+          next = MIN (b->head - tail, btoread - bread);
+        }
+      else
+        {
+          next = MIN (b->cap - tail, btoread - bread);
+        }
+
+      if (output)
+        {
+          i_memcpy (output + bread, b->data + tail, next);
+        }
+      tail = (tail + next) % b->cap;
+      bread += next;
+      isfull = 0;
+    }
+
+  ASSERT (ntoread * size == bread);
+  return ntoread;
+}
+
+TEST (cbuffer_copy)
+{
+  u8 buf[3];
+  cbuffer b = cbuffer_create (buf, 3);
+  u8 out[3];
+
+  // read from empty: returns 0
+  u32 r1 = cbuffer_copy (out, 1, 1, &b);
+  test_assert_int_equal (r1, 0);
+
+  // read after write
+  u8 src[3] = { 7, 8, 9 };
+  cbuffer_write (src, 1, 3, &b);
+  u32 r2 = cbuffer_copy (out, 1, 2, &b);
+  test_assert_int_equal (r2, 2);
+  test_assert_int_equal (out[0], 7);
+  test_assert_int_equal (out[1], 8);
+  test_assert_int_equal (cbuffer_len (&b), 3);
+
+  // Do it again and get the same results
+  r2 = cbuffer_copy (out, 1, 2, &b);
+  test_assert_int_equal (r2, 2);
+  test_assert_int_equal (out[0], 7);
+  test_assert_int_equal (out[1], 8);
+  test_assert_int_equal (cbuffer_len (&b), 3);
 }
 
 u32
