@@ -191,14 +191,18 @@ void parser_execute (parser *s);
 
 typedef enum
 {
+
   TPR_EXPECT_NEXT_TOKEN,
   TPR_EXPECT_NEXT_TYPE,
+  TPR_MALLOC_ERROR,
   TPR_SYNTAX_ERROR,
   TPR_DONE,
+
 } tp_result;
 
 typedef struct
 {
+
   enum
   {
     SB_WAITING_FOR_LB,
@@ -207,7 +211,12 @@ typedef struct
     SB_WAITING_FOR_COMMA_OR_RIGHT,
   } state;
 
-} struct_builder;
+  string *keys;
+  type *types;
+  u32 len;
+  u32 cap;
+
+} struct_bldr;
 
 typedef struct
 {
@@ -220,36 +229,99 @@ typedef struct
     UB_WAITING_FOR_COMMA_OR_RIGHT,
   } state;
 
-} union_builder;
+  string *keys;
+  type *types;
+  u32 len;
+  u32 cap;
+
+} union_bldr;
 
 typedef struct
 {
 
   enum
   {
-    TB_UNSURE,
-    TB_STRUCT,
-    TB_UNION,
-  } type;
+    EB_WAITING_FOR_LB,
+    EB_WAITING_FOR_IDENT,
+    EB_WAITING_FOR_COMMA_OR_RIGHT,
+  } state;
 
-  union
-  {
-    struct_builder sb;
-    union_builder ub;
-  };
+  string *keys;
+  u32 len;
+  u32 cap;
 
-  type *ret;
-
-} type_builder;
+} enum_bldr;
 
 typedef struct
 {
-  type_builder *stack;
+
+  enum
+  {
+    VAB_WAITING_FOR_LEFT_OR_TYPE,
+    VAB_WAITING_FOR_RIGHT,
+    VAB_WAITING_FOR_TYPE,
+  } state;
+
+  u32 rank;
+
+} varray_bldr;
+
+typedef struct
+{
+
+  enum
+  {
+    SAB_WAITING_FOR_LEFT_OR_TYPE,
+    SAB_WAITING_FOR_NUMBER,
+    SAB_WAITING_FOR_RIGHT,
+    SAB_WAITING_FOR_TYPE,
+  } state;
+
+  u32 *dims;
+  u32 len;
+  u32 cap;
+
+} sarray_bldr;
+
+DEFINE_DBG_ASSERT_H (sarray_bldr, sarray_bldr, s);
+tp_result sabldr_incr (sarray_bldr *sb, u32 dim);
+
+typedef struct
+{
+
+  enum
+  {
+    TB_UNKNOWN,
+    TB_ARRAY_UNKNOWN,
+    TB_STRUCT,
+    TB_UNION,
+    TB_ENUM,
+    TB_VARRAY,
+    TB_SARRAY,
+  } state;
+
+  union
+  {
+    struct_bldr sb;
+    union_bldr ub;
+    enum_bldr eb;
+    varray_bldr vab;
+    sarray_bldr sab;
+  };
+
+  type ret;
+
+} type_bldr;
+
+typedef struct
+{
+  type_bldr *stack;
   u32 sp;
+
+  lalloc *type_allocator;
 } type_parser;
 
+DEFINE_DBG_ASSERT_H (type_bldr, type_bldr, tb);
 DEFINE_DBG_ASSERT_H (type_parser, type_parser, tp);
-
-err_t tp_create (type_parser *dest, lalloc *token_allocator);
-
+err_t tp_create (type_parser *dest, lalloc *type_allocator);
 tp_result tp_feed_token (type_parser *tp, token t);

@@ -7,6 +7,7 @@
 #include "intf/stdlib.h"
 #include "sds.h"
 #include "typing.h"
+#include "utils/bounds.h"
 #include "utils/macros.h"
 #include "utils/numbers.h"
 #include <stdio.h>
@@ -869,48 +870,165 @@ parser_execute (parser *p)
 
 ////////////////////// TYPE PARSER
 
-tp_result
-sb_accept_token (type_builder *sb, token t)
+static inline type_bldr
+tb_create (void)
 {
-  switch (sb->sb.state)
+  return (type_bldr){
+    .state = TB_UNKNOWN,
+  };
+}
+
+err_t
+tp_create (type_parser *dest, lalloc *type_allocator)
+{
+  ASSERT (dest);
+  lalloc_assert (type_allocator);
+
+  type_bldr *stack = lmalloc (type_allocator, 3 * sizeof *stack);
+  if (!stack)
     {
-    // { -> IDENT
+      return ERR_OVERFLOW;
+    }
+
+  dest->type_allocator = type_allocator;
+  dest->stack = stack;
+  dest->sp = 0;
+
+  dest->stack[dest->sp++] = tb_create ();
+
+  return SUCCESS;
+}
+
+DEFINE_DBG_ASSERT_I (type_bldr, type_bldr, tb)
+{
+  ASSERT (tb);
+}
+
+//////////////// STRUCT BUILDER
+static inline DEFINE_DBG_ASSERT_I (struct_bldr, struct_bldr, s)
+{
+  ASSERT (s);
+  ASSERT (s->keys);
+  ASSERT (s->types);
+  ASSERT (s->cap > 0);
+  ASSERT (s->len <= s->cap);
+}
+
+static inline tp_result
+stbldr_create (struct_bldr *dest, lalloc *alloc)
+{
+  ASSERT (dest);
+
+  dest->keys = lmalloc (alloc, 5 * sizeof *dest->keys);
+  if (!dest->keys)
+    {
+      return TPR_MALLOC_ERROR;
+    }
+  dest->types = lmalloc (alloc, 5 * sizeof *dest->types);
+  if (!dest->types)
+    {
+      lfree (alloc, dest->keys);
+      return TPR_MALLOC_ERROR;
+    }
+
+  dest->cap = 5;
+  dest->len = 0;
+  dest->state = SB_WAITING_FOR_LB;
+
+  struct_bldr_assert (dest);
+
+  return TPR_EXPECT_NEXT_TOKEN;
+}
+
+static inline tp_result
+sb_handle_waiting_for_lb (struct_bldr *sb, token t)
+{
+  if (t.type != TT_LEFT_BRACE)
+    {
+      return TPR_SYNTAX_ERROR;
+    }
+  sb->state = SB_WAITING_FOR_IDENT;
+  return TPR_EXPECT_NEXT_TOKEN;
+}
+
+// Push a string to the end
+static inline tp_result
+stbldr_push_key (struct_bldr *sb, token t, lalloc *alloc)
+{
+  struct_bldr_assert (sb);
+  lalloc_assert (alloc);
+  ASSERT (sb->state == SB_WAITING_FOR_IDENT);
+
+  if (t.type != TT_IDENTIFIER)
+    {
+      return TPR_SYNTAX_ERROR;
+    }
+  string_assert (&t.str);
+
+  // Check for size adjustments
+  if (sb->len == sb->cap)
+    {
+      // Restrict memory requirements to avoid overflow
+      ASSERT (can_mul_u64 (sb->cap, 2));
+      ASSERT (can_mul_u64 (2 * sb->cap, sizeof (string)));
+      u32 ncap = 2 * sb->cap;
+      string *keys = lrealloc (alloc, sb->keys, ncap * sizeof (string));
+      if (!keys)
+        {
+          return TPR_MALLOC_ERROR;
+        }
+      type *types = lrealloc (alloc, sb->types, ncap * sizeof (type));
+      if (!keys)
+        {
+          lfree (alloc, keys);
+          return TPR_MALLOC_ERROR;
+        }
+      sb->keys = keys;
+      sb->types = types;
+      sb->cap = ncap;
+    }
+
+  sb->keys[sb->len] = t.str; // DONT INC LEN - WAIT FOR TYPE ADD
+  sb->state = SB_WAITING_FOR_TYPE;
+
+  return TPR_EXPECT_NEXT_TOKEN;
+}
+
+static inline tp_result
+sb_handle_comma_or_right (struct_bldr *sb, token t)
+{
+  if (t.type == TT_COMMA)
+    {
+      sb->state = SB_WAITING_FOR_IDENT;
+      return TPR_EXPECT_NEXT_TOKEN;
+    }
+  else if (t.type == TT_RIGHT_BRACE)
+    {
+      return TPR_DONE;
+    }
+  return TPR_SYNTAX_ERROR;
+}
+
+static inline tp_result
+sb_accept_token (type_bldr *tb, token t, lalloc *alloc)
+{
+  type_bldr_assert (tb);
+
+  switch (tb->sb.state)
+    {
     case SB_WAITING_FOR_LB:
       {
-        if (t.type != TT_LEFT_BRACE)
-          {
-            return TPR_SYNTAX_ERROR;
-          }
-        sb->sb.state = SB_WAITING_FOR_IDENT;
-        return TPR_EXPECT_NEXT_TOKEN;
+        return sb_handle_waiting_for_lb (&tb->sb, t);
       }
 
     case SB_WAITING_FOR_IDENT:
       {
-        if (t.type != TT_IDENTIFIER)
-          {
-            return TPR_SYNTAX_ERROR;
-          }
-        sb->ret->st->keys[sb->ret->st->len] = t.str;
-        sb->sb.state = SB_WAITING_FOR_TYPE;
-        return TPR_EXPECT_NEXT_TYPE;
+        return stbldr_push_key (&tb->sb, t, alloc);
       }
 
     case SB_WAITING_FOR_COMMA_OR_RIGHT:
       {
-        if (t.type == TT_COMMA)
-          {
-            sb->sb.state = SB_WAITING_FOR_IDENT;
-            return TPR_EXPECT_NEXT_TOKEN;
-          }
-        else if (t.type == TT_RIGHT_BRACE)
-          {
-            return TPR_DONE;
-          }
-        else
-          {
-            return TPR_SYNTAX_ERROR;
-          }
+        return sb_handle_comma_or_right (&tb->sb, t);
       }
 
     default:
@@ -920,17 +1038,27 @@ sb_accept_token (type_builder *sb, token t)
     }
 }
 
+static inline tp_result
+stbldr_push_type (struct_bldr *sb, type t)
+{
+  struct_bldr_assert (sb);
+  type_assert (&t);
+  ASSERT (sb->len < sb->cap); // From previous string push
+  ASSERT (sb->state == SB_WAITING_FOR_TYPE);
+
+  sb->types[sb->len++] = t; // NOW YOU CAN INC LEN
+  sb->state = SB_WAITING_FOR_COMMA_OR_RIGHT;
+  return TPR_EXPECT_NEXT_TOKEN;
+}
+
 tp_result
-sb_accept_type (type_builder *sb, type *type)
+sb_accept_type (type_bldr *sb, type type)
 {
   switch (sb->sb.state)
     {
     case SB_WAITING_FOR_TYPE:
       {
-        sb->ret->st->types[sb->ret->st->len++] = *type;
-        free (type);
-        sb->sb.state = SB_WAITING_FOR_COMMA_OR_RIGHT;
-        return TPR_EXPECT_NEXT_TOKEN;
+        return stbldr_push_type (&sb->sb, type);
       }
     default:
       {
@@ -939,53 +1067,129 @@ sb_accept_type (type_builder *sb, type *type)
     }
 }
 
-tp_result
-ub_accept_token (type_builder *ub, token t)
+//////////////// UNION BUILDER
+static inline DEFINE_DBG_ASSERT_I (union_bldr, union_bldr, u)
+{
+  ASSERT (u);
+  ASSERT (u->keys);
+  ASSERT (u->types);
+  ASSERT (u->cap > 0);
+  ASSERT (u->len <= u->cap);
+}
+
+static inline tp_result
+unbldr_create (union_bldr *dest, lalloc *alloc)
+{
+  ASSERT (dest);
+
+  dest->keys = lmalloc (alloc, 5 * sizeof *dest->keys);
+  if (!dest->keys)
+    {
+      return TPR_MALLOC_ERROR;
+    }
+  dest->types = lmalloc (alloc, 5 * sizeof *dest->types);
+  if (!dest->types)
+    {
+      lfree (alloc, dest->keys);
+      return TPR_MALLOC_ERROR;
+    }
+
+  dest->cap = 5;
+  dest->len = 0;
+  dest->state = UB_WAITING_FOR_LB;
+
+  union_bldr_assert (dest);
+
+  return TPR_EXPECT_NEXT_TOKEN;
+}
+
+static inline tp_result
+ub_handle_waiting_for_lb (union_bldr *ub, token t)
+{
+  if (t.type != TT_LEFT_BRACE)
+    {
+      return TPR_SYNTAX_ERROR;
+    }
+  ub->state = UB_WAITING_FOR_IDENT;
+  return TPR_EXPECT_NEXT_TOKEN;
+}
+
+// Push a key to the end
+static inline tp_result
+unbldr_push_key (union_bldr *ub, token t, lalloc *alloc)
+{
+  union_bldr_assert (ub);
+  lalloc_assert (alloc);
+  ASSERT (ub->state == UB_WAITING_FOR_IDENT);
+
+  if (t.type != TT_IDENTIFIER)
+    {
+      return TPR_SYNTAX_ERROR;
+    }
+  string_assert (&t.str);
+
+  // Check for size adjustments
+  if (ub->len == ub->cap)
+    {
+      // Restrict memory requirements to avoid overflow
+      ASSERT (can_mul_u64 (ub->cap, 2));
+      ASSERT (can_mul_u64 (2 * ub->cap, sizeof (string)));
+      u32 ncap = 2 * ub->cap;
+      string *keys = lrealloc (alloc, ub->keys, ncap * sizeof (string));
+      if (!keys)
+        {
+          return TPR_MALLOC_ERROR;
+        }
+      type *types = lrealloc (alloc, ub->types, ncap * sizeof (type));
+      if (!keys)
+        {
+          lfree (alloc, keys);
+          return TPR_MALLOC_ERROR;
+        }
+      ub->keys = keys;
+      ub->types = types;
+      ub->cap = ncap;
+    }
+
+  ub->keys[ub->len] = t.str; // DONT INC LEN - WAIT FOR TYPE ADD
+  ub->state = UB_WAITING_FOR_TYPE;
+
+  return TPR_EXPECT_NEXT_TYPE;
+}
+
+static inline tp_result
+ub_handle_comma_or_right (union_bldr *ub, token t)
+{
+  if (t.type == TT_COMMA)
+    {
+      ub->state = UB_WAITING_FOR_IDENT;
+      return TPR_EXPECT_NEXT_TOKEN;
+    }
+  else if (t.type == TT_RIGHT_BRACE)
+    {
+      return TPR_DONE;
+    }
+  return TPR_SYNTAX_ERROR;
+}
+
+static inline tp_result
+ub_accept_token (type_bldr *ub, token t, lalloc *alloc)
 {
   switch (ub->ub.state)
     {
-    // { -> IDENT
     case UB_WAITING_FOR_LB:
       {
-        if (t.type != TT_LEFT_BRACE)
-          {
-            return TPR_SYNTAX_ERROR;
-          }
-        ub->ub.state = UB_WAITING_FOR_IDENT;
-        return TPR_EXPECT_NEXT_TOKEN;
+        return ub_handle_waiting_for_lb (&ub->ub, t);
       }
 
-    // IDENT -> TYPE
     case UB_WAITING_FOR_IDENT:
       {
-        if (t.type != TT_IDENTIFIER)
-          {
-            return TPR_SYNTAX_ERROR;
-          }
-
-        // Ident is first, type increments len
-        ub->ret->un->keys[ub->ret->un->len] = t.str;
-        ub->ub.state = UB_WAITING_FOR_TYPE;
-        return TPR_EXPECT_NEXT_TYPE;
+        return unbldr_push_key (&ub->ub, t, alloc);
       }
 
-    // , -> IDENT
-    // } -> DONE
     case UB_WAITING_FOR_COMMA_OR_RIGHT:
       {
-        if (t.type == TT_COMMA)
-          {
-            ub->ub.state = UB_WAITING_FOR_IDENT;
-            return TPR_EXPECT_NEXT_TOKEN;
-          }
-        else if (t.type == TT_RIGHT_BRACE)
-          {
-            return TPR_DONE;
-          }
-        else
-          {
-            return TPR_SYNTAX_ERROR;
-          }
+        return ub_handle_comma_or_right (&ub->ub, t);
       }
 
     default:
@@ -995,17 +1199,28 @@ ub_accept_token (type_builder *ub, token t)
     }
 }
 
-tp_result
-ub_accept_type (type_builder *ub, type *type)
+static inline tp_result
+unbldr_push_type (union_bldr *ub, type t)
+{
+  union_bldr_assert (ub);
+  type_assert (&t);
+  ASSERT (ub->len < ub->cap);
+  ASSERT (ub->state == UB_WAITING_FOR_TYPE);
+
+  ub->types[ub->len++] = t; // NOW YOU CAN INC LEN
+  ub->state = UB_WAITING_FOR_COMMA_OR_RIGHT;
+
+  return TPR_EXPECT_NEXT_TOKEN;
+}
+
+static inline tp_result
+ub_accept_type (type_bldr *ub, type type)
 {
   switch (ub->ub.state)
     {
     case UB_WAITING_FOR_TYPE:
       {
-        ub->ret->un->types[ub->ret->un->len++] = *type;
-        free (type);
-        ub->ub.state = UB_WAITING_FOR_COMMA_OR_RIGHT;
-        return TPR_EXPECT_NEXT_TOKEN;
+        return unbldr_push_type (&ub->ub, type);
       }
     default:
       {
@@ -1014,44 +1229,274 @@ ub_accept_type (type_builder *ub, type *type)
     }
 }
 
-tp_result
-tb_accept_token (type_builder *tb, token t)
+//////////////// ENUM BUILDER
+DEFINE_DBG_ASSERT_I (enum_bldr, enum_bldr, s)
 {
-  switch (tb->type)
+  ASSERT (s);
+  ASSERT (s->keys);
+  ASSERT (s->cap > 0);
+  ASSERT (s->len <= s->cap);
+}
+
+static inline tp_result
+enbldr_create (enum_bldr *dest, lalloc *alloc)
+{
+  ASSERT (dest);
+
+  dest->keys = lmalloc (alloc, 5 * sizeof *dest->keys);
+  if (!dest->keys)
     {
-    case TB_UNSURE:
+      return TPR_MALLOC_ERROR;
+    }
+
+  dest->cap = 5;
+  dest->len = 0;
+  dest->state = EB_WAITING_FOR_LB;
+
+  enum_bldr_assert (dest);
+
+  return TPR_EXPECT_NEXT_TOKEN;
+}
+
+static inline tp_result
+eb_handle_waiting_for_lb (enum_bldr *eb, token t)
+{
+  if (t.type != TT_LEFT_BRACE)
+    {
+      return TPR_SYNTAX_ERROR;
+    }
+  eb->state = EB_WAITING_FOR_IDENT;
+  return TPR_EXPECT_NEXT_TOKEN;
+}
+
+static inline tp_result
+enbldr_push_str (enum_bldr *eb, token t, lalloc *alloc)
+{
+  enum_bldr_assert (eb);
+  lalloc_assert (alloc);
+  ASSERT (eb->state == EB_WAITING_FOR_IDENT);
+
+  if (t.type != TT_IDENTIFIER)
+    {
+      return TPR_SYNTAX_ERROR;
+    }
+  string_assert (&t.str);
+
+  // Check for size adjustments
+  if (eb->len == eb->cap)
+    {
+      // Restrict memory requirements to avoid overflow
+      ASSERT (can_mul_u64 (eb->cap, 2));
+      ASSERT (can_mul_u64 (2 * eb->cap, sizeof (string)));
+      u32 ncap = 2 * eb->cap;
+
+      string *keys = lrealloc (alloc, eb->keys, ncap * sizeof (string));
+      if (!keys)
+        {
+          return TPR_MALLOC_ERROR;
+        }
+
+      eb->keys = keys;
+      eb->cap = ncap;
+    }
+
+  eb->keys[eb->len++] = t.str;
+  eb->state = EB_WAITING_FOR_COMMA_OR_RIGHT;
+
+  return TPR_EXPECT_NEXT_TOKEN;
+}
+
+static inline tp_result
+eb_handle_comma_or_right (enum_bldr *eb, token t)
+{
+  if (t.type == TT_COMMA)
+    {
+      eb->state = EB_WAITING_FOR_IDENT;
+      return TPR_EXPECT_NEXT_TOKEN;
+    }
+  else if (t.type == TT_RIGHT_BRACE)
+    {
+      return TPR_DONE;
+    }
+  return TPR_SYNTAX_ERROR;
+}
+
+static inline tp_result
+eb_accept_token (type_bldr *eb, token t, lalloc *alloc)
+{
+  switch (eb->eb.state)
+    {
+    case EB_WAITING_FOR_LB:
+      {
+        return eb_handle_waiting_for_lb (&eb->eb, t);
+      }
+
+    case EB_WAITING_FOR_IDENT:
+      {
+        return enbldr_push_str (&eb->eb, t, alloc);
+      }
+
+    case EB_WAITING_FOR_COMMA_OR_RIGHT:
+      {
+        return eb_handle_comma_or_right (&eb->eb, t);
+      }
+
+    default:
+      {
+        return TPR_SYNTAX_ERROR;
+      }
+    }
+}
+
+//////////////// VARRAY BUILDER
+static inline DEFINE_DBG_ASSERT_I (varray_bldr, varray_bldr, v)
+{
+  ASSERT (v);
+  ASSERT (v->rank > 0);
+}
+
+tp_result
+varray_bldr_create (varray_bldr *dest)
+{
+  ASSERT (dest);
+
+  dest->rank = 1;
+  dest->state = VAB_WAITING_FOR_LEFT_OR_TYPE;
+
+  varray_bldr_assert (dest);
+
+  return TPR_EXPECT_NEXT_TOKEN;
+}
+
+static inline tp_result
+varray_bldr_incr (varray_bldr *sb)
+{
+  varray_bldr_assert (sb);
+  ASSERT (sb->state == VAB_WAITING_FOR_RIGHT);
+  sb->rank++;
+  sb->state = VAB_WAITING_FOR_LEFT_OR_TYPE;
+  return TPR_EXPECT_NEXT_TOKEN;
+}
+
+//////////////// SARRAY BUILDER
+DEFINE_DBG_ASSERT_I (sarray_bldr, sarray_bldr, s)
+{
+  ASSERT (s);
+  ASSERT (s->dims);
+  ASSERT (s->len > 0);
+  ASSERT (s->cap > 0);
+  ASSERT (s->len <= s->len);
+
+  for (u32 i = 0; i < s->len; ++i)
+    {
+      ASSERT (s->dims[i] > 0);
+    }
+}
+
+tp_result
+sarray_bldr_create (sarray_bldr *dest, u32 dim, lalloc *alloc)
+{
+  ASSERT (dest);
+
+  dest->dims = lmalloc (alloc, 5 * sizeof *dest->dims);
+  if (!dest->dims)
+    {
+      return TPR_MALLOC_ERROR;
+    }
+  dest->cap = 5;
+  dest->len = 0;
+  dest->dims[dest->len++] = dim;
+  dest->state = SAB_WAITING_FOR_RIGHT;
+
+  sarray_bldr_assert (dest);
+
+  return TPR_EXPECT_NEXT_TOKEN;
+}
+
+tp_result
+sarray_bldr_incr (sarray_bldr *sb, token t, lalloc *alloc)
+{
+  sarray_bldr_assert (sb);
+  lalloc_assert (alloc);
+  ASSERT (sb->state == SAB_WAITING_FOR_NUMBER);
+
+  if (t.type != TT_INTEGER)
+    {
+      return TPR_SYNTAX_ERROR;
+    }
+  if (t.integer <= 0)
+    {
+      return TPR_SYNTAX_ERROR;
+    }
+  // TODO - maximum dimension size?
+
+  // Check for size adjustments
+  if (sb->len == sb->cap)
+    {
+      // Restrict memory requirements to avoid overflow
+      ASSERT (can_mul_u64 (sb->cap, 2));
+      ASSERT (can_mul_u64 (2 * sb->cap, sizeof (string)));
+      u32 ncap = 2 * sb->cap;
+
+      u32 *dims = lrealloc (alloc, sb->dims, ncap * sizeof (string));
+      if (!dims)
+        {
+          return TPR_MALLOC_ERROR;
+        }
+
+      sb->dims = dims;
+      sb->cap = ncap;
+    }
+
+  sb->dims[sb->len++] = (u32)t.integer;
+  sb->state = SAB_WAITING_FOR_RIGHT;
+
+  return TPR_EXPECT_NEXT_TOKEN;
+}
+
+static inline tp_result
+prim_create (type_bldr *tb, prim_t p)
+{
+  type_bldr_assert (tb);
+  prim_t_assert (&p);
+  ASSERT (tb->state == TB_UNKNOWN);
+
+  tb->ret.p = p;
+  tb->ret.type = T_PRIM;
+
+  return TPR_DONE;
+}
+
+tp_result
+tb_accept_token (type_bldr *tb, token t, lalloc *alloc)
+{
+  switch (tb->state)
+    {
+    case TB_UNKNOWN:
       {
         switch (t.type)
           {
           case TT_STRUCT:
             {
-              tb->ret->st = malloc (sizeof *tb->ret->st);
-              tb->ret->st->keys = malloc (1000);
-              tb->ret->st->types = malloc (1000);
-              tb->ret->st->len = 0;
-              tb->ret->type = T_STRUCT;
-
-              tb->type = TB_STRUCT;
-              tb->sb.state = SB_WAITING_FOR_LB;
-              return TPR_EXPECT_NEXT_TOKEN;
+              return stbldr_create (&tb->sb, alloc);
             }
           case TT_UNION:
             {
-              tb->ret->un = malloc (sizeof *tb->ret->st);
-              tb->ret->un->keys = malloc (1000);
-              tb->ret->un->types = malloc (1000);
-              tb->ret->un->len = 0;
-              tb->ret->type = T_UNION;
-
-              tb->type = TB_UNION;
-              tb->ub.state = UB_WAITING_FOR_LB;
-              return TPR_EXPECT_NEXT_TOKEN;
+              return unbldr_create (&tb->ub, alloc);
+            }
+          case TT_ENUM:
+            {
+              return enbldr_create (&tb->eb, alloc);
+            }
+          case TT_LEFT_BRACKET:
+            {
+              // TODO
+              ASSERT (0);
+              return 0;
             }
           case TT_PRIM:
             {
-              tb->ret->p = t.prim;
-              tb->ret->type = T_PRIM;
-              return TPR_DONE;
+              return prim_create (tb, t.prim);
             }
           default:
             {
@@ -1059,13 +1504,32 @@ tb_accept_token (type_builder *tb, token t)
             }
           }
       }
+    case TB_ARRAY_UNKNOWN:
+      {
+        ASSERT (0);
+        return 0;
+      }
     case TB_STRUCT:
       {
-        return sb_accept_token (tb, t);
+        return sb_accept_token (tb, t, alloc);
       }
     case TB_UNION:
       {
-        return ub_accept_token (tb, t);
+        return ub_accept_token (tb, t, alloc);
+      }
+    case TB_ENUM:
+      {
+        return eb_accept_token (tb, t, alloc);
+      }
+    case TB_SARRAY:
+      {
+        ASSERT (0);
+        return 0;
+      }
+    case TB_VARRAY:
+      {
+        ASSERT (0);
+        return 0;
       }
     }
   ASSERT (0);
@@ -1073,9 +1537,9 @@ tb_accept_token (type_builder *tb, token t)
 }
 
 tp_result
-tb_accept_type (type_builder *tb, type *t)
+tb_accept_type (type_bldr *tb, type t)
 {
-  switch (tb->type)
+  switch (tb->state)
     {
     case TB_STRUCT:
       {
@@ -1095,26 +1559,32 @@ tb_accept_type (type_builder *tb, type *t)
 tp_result
 tp_feed_token (type_parser *tp, token t)
 {
-  // Pop top type builder
-  type_builder *top = &tp->stack[tp->sp - 1];
-  tp_result ret = tb_accept_token (top, t);
+  tp_result ret = tb_accept_token (
+      &tp->stack[tp->sp - 1], t, tp->type_allocator);
 
-  // Top expects a new type, push a new type
-  // builder to the stack
+  // We expect a new type
+  // Push a type builder to
+  // the top of the stack
   if (ret == TPR_EXPECT_NEXT_TYPE)
     {
-      type_builder next;
-      next.ret = malloc (sizeof *next.ret);
-      next.type = TB_UNSURE;
+      type_bldr next;
+      next.state = TB_UNKNOWN;
       tp->stack[tp->sp++] = next;
       return TPR_EXPECT_NEXT_TOKEN;
     }
 
+  // Otherwise, the acceptor is done
+  // and can be reduced with the previous
+  // builders
+  //
+  // sp == 1 means we're at the base
   while (tp->sp > 1 && ret == TPR_DONE)
     {
-      type_builder top = tp->stack[--tp->sp];
-      type_builder *newtop = &tp->stack[tp->sp - 1];
-      ret = tb_accept_type (newtop, top.ret);
+      // Pop the top off the stack
+      type_bldr top = tp->stack[--tp->sp];
+
+      // Merge it with the previous
+      ret = tb_accept_type (&tp->stack[tp->sp - 1], top.ret);
     }
 
   return ret;
@@ -1132,16 +1602,10 @@ TEST (tp_feed_token)
   lalloc alloc = lalloc_create (0);
 
   scanner s;
-  scanner_create (&s, &input, &output, &alloc);
-
   type_parser tp;
-  tp.stack = malloc (1000);
-  type_builder first;
-  first.ret = malloc (sizeof *first.ret);
-  first.type = TB_UNSURE;
 
-  tp.sp = 0;
-  tp.stack[tp.sp++] = first;
+  scanner_create (&s, &input, &output, &alloc);
+  test_fail_if (tp_create (&tp, &alloc));
 
   while (i_unsafe_strlen (str) > 0)
     {
@@ -1154,5 +1618,5 @@ TEST (tp_feed_token)
           tp_feed_token (&tp, next);
         }
     }
-  i_log_type (tp.stack[0].ret);
+  i_log_type (&tp.stack[0].ret);
 }
