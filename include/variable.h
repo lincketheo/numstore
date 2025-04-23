@@ -17,7 +17,7 @@ DEFINE_DBG_ASSERT_H (variable, variable, v);
 typedef struct
 {
   variable v;
-  type_subset *type_subset;
+  // type_subset *type_subset;
 } variable_subset;
 
 DEFINE_DBG_ASSERT_H (variable_subset, variable_subset, v);

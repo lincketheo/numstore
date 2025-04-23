@@ -4,6 +4,7 @@
 #include "sds.h"
 #include "typing.h"
 
+/**
 DEFINE_DBG_ASSERT_H (create, create, c)
 {
   ASSERT (c);
@@ -37,3 +38,4 @@ create_execute (create *c)
 {
   create_assert (c);
 }
+*/

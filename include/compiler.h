@@ -74,8 +74,8 @@ typedef struct
   token_t type;
 } token;
 
-#define quick_tok(type) \
-  (token) { .type = type }
+#define quick_tok(_type) \
+  (token) { .type = _type }
 #define tt_integer(val) \
   (token) { .type = TT_INTEGER, .integer = val }
 #define tt_float(val) \
@@ -167,59 +167,89 @@ void parser_execute (parser *s);
 
 ////////////////////// TYPE PARSER
 
+/**
+ * T -> p |
+ *      struct { i T K } |
+ *      union { i T K } |
+ *      enum { i I } |
+ *      A T
+ *
+ * A -> V | S
+ * K -> \eps | , T K
+ * V -> [] V | []
+ * S -> [NUM] S | [NUM]
+ * I -> \eps | , i I
+ *
+ * Note:
+ * T = TYPE
+ * A = ARRAY_PREFIX
+ * K = KEY_VALUE_LIST
+ * V = VARRAY_BRACKETS
+ * S = SARRAY_BRACKETS
+ * I = ENUM_KEY_LIST
+ */
+
 typedef enum
 {
-  TPS_,
-  TPS_DONE,
-} tp_state_t;
+  TPR_EXPECT_NEXT_TOKEN,
+  TPR_EXPECT_NEXT_TYPE,
+  TPR_SYNTAX_ERROR,
+  TPR_DONE,
+} tp_result;
 
 typedef struct
 {
-  bool is_terminal;
-  token term;
+  enum
+  {
+    SB_WAITING_FOR_LB,
+    SB_WAITING_FOR_IDENT,
+    SB_WAITING_FOR_TYPE,
+    SB_WAITING_FOR_COMMA_OR_RIGHT,
+  } state;
 
-  tp_state_t state;
+} struct_builder;
+
+typedef struct
+{
+
+  enum
+  {
+    UB_WAITING_FOR_LB,
+    UB_WAITING_FOR_IDENT,
+    UB_WAITING_FOR_TYPE,
+    UB_WAITING_FOR_COMMA_OR_RIGHT,
+  } state;
+
+} union_builder;
+
+typedef struct
+{
+
+  enum
+  {
+    TB_UNSURE,
+    TB_STRUCT,
+    TB_UNION,
+  } type;
 
   union
   {
-    type *type;
-    prim_t p;
-    struct_t *st;
-    union_t *un;
-    enum_t *en;
-    varray_t *va;
-    sarray_t *sa;
-    u32 dim;
-    string ident;
+    struct_builder sb;
+    union_builder ub;
   };
 
-  u32 cap;
+  type *ret;
 
-} tp_state;
-
-#define MAX_TYPE_PARSE_DEPTH 100
+} type_builder;
 
 typedef struct
 {
-  tp_state *stack;
-  u32 stack_len;
+  type_builder *stack;
   u32 sp;
-
-  lalloc *stack_allocator; // For dynamic growth of stack
-  lalloc *type_allocator;  // For allocating types onto
 } type_parser;
 
-typedef enum
-{
-  TPR_SUCCESS,
-  TPR_MALLOC,
-  TPR_SYNTAX_ERROR,
-} tp_result;
-
-DEFINE_DBG_ASSERT_H (tp_state, tp_state, tp);
 DEFINE_DBG_ASSERT_H (type_parser, type_parser, tp);
-err_t tp_create (
-    type_parser *dest,
-    lalloc *stack_allocator,
-    lalloc *token_allocator);
+
+err_t tp_create (type_parser *dest, lalloc *token_allocator);
+
 tp_result tp_feed_token (type_parser *tp, token t);

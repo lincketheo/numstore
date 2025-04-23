@@ -61,6 +61,7 @@ typedef enum
 DEFINE_DBG_ASSERT_H (type_t, type_t, t);
 DEFINE_DBG_ASSERT_H (prim_t, prim_t, p);
 u64 prim_bits_size (prim_t t);
+void i_log_prim_t (prim_t p);
 
 typedef struct type type;
 
@@ -135,3 +136,4 @@ struct type
 
 DEFINE_DBG_ASSERT_H (type, type, t);
 err_t type_bits_size (u64 *dest, type *t);
+void i_log_type (type *t);

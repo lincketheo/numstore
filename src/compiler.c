@@ -9,6 +9,8 @@
 #include "typing.h"
 #include "utils/macros.h"
 #include "utils/numbers.h"
+#include <stdio.h>
+#include <stdlib.h>
 
 ////////////////////// SCANNER (chars -> tokens)
 /// TODO - This recursion is really easy to remove and
@@ -713,6 +715,7 @@ scanner_test_helper (
   test_assert_int_equal (alloc.total, 2 * 8 + inlen + outlen);
 }
 #endif
+/**
 TEST (scanner_execute)
 {
   const char *str = "write 5 ; ; ;;create123create createc "
@@ -862,452 +865,52 @@ parser_execute (parser *p)
       return;
     }
 }
+*/
 
 ////////////////////// TYPE PARSER
 
-DEFINE_DBG_ASSERT_I (tp_state, tp_state, tp)
+tp_result
+sb_accept_token (type_builder *sb, token t)
 {
-  ASSERT (tp);
-}
-
-DEFINE_DBG_ASSERT_I (type_parser, type_parser, tp)
-{
-  ASSERT (tp);
-  ASSERT (tp->stack);
-  ASSERT (tp->sp <= tp->stack_len);
-  lalloc_assert (tp->stack_allocator);
-}
-
-static inline void
-tps_push (type_parser *tp, tp_state next)
-{
-  type_parser_assert (tp);
-  tp->stack[(tp)->sp++] = next;
-}
-
-static inline tp_result
-tps_type_create (type_parser *tp, tp_state *out)
-{
-  out->type = lmalloc (tp->type_allocator, sizeof *out->type);
-  if (!out->type)
+  switch (sb->sb.state)
     {
-      return TPR_MALLOC;
-    }
-  return TPR_SUCCESS;
-}
-
-static inline tp_result
-tps_varray_create (type_parser *tp, tp_state *out)
-{
-  out->va = lmalloc (tp->type_allocator, sizeof *out->va);
-  if (!out->va)
-    {
-      return TPR_MALLOC;
-    }
-  out->va->rank = 0;
-  return TPR_SUCCESS;
-}
-
-static inline tp_result
-tps_sarray_create (type_parser *tp, tp_state *out)
-{
-  out->sa = lmalloc (tp->type_allocator, sizeof *out->sa);
-  if (!out->sa)
-    {
-      return TPR_MALLOC;
-    }
-
-  out->sa->dims = lmalloc (tp->type_allocator, 10 * sizeof *out->sa->dims);
-  if (!out->sa->dims)
-    {
-      lfree (tp->type_allocator, out->sa);
-      return TPR_MALLOC;
-    }
-
-  out->sa->rank = 0;
-  out->cap = 10;
-  return TPR_SUCCESS;
-}
-
-static inline tp_result
-tps_struct_create (type_parser *tp, tp_state *out)
-{
-  out->st = lmalloc (tp->type_allocator, sizeof *out->st);
-  if (!out->st)
-    {
-      return TPR_MALLOC;
-    }
-
-  out->st->keys = lmalloc (tp->type_allocator, 10 * sizeof *out->st->keys);
-  if (!out->st->keys)
-    {
-      lfree (tp->type_allocator, out->st);
-      return TPR_MALLOC;
-    }
-
-  out->st->types = lmalloc (tp->type_allocator, 10 * sizeof *out->st->types);
-  if (!out->st->types)
-    {
-      lfree (tp->type_allocator, out->st->keys);
-      lfree (tp->type_allocator, out->st);
-      return TPR_MALLOC;
-    }
-
-  out->st->len = 0;
-  out->cap = 10;
-  return TPR_SUCCESS;
-}
-
-static inline tp_result
-tps_union_create (type_parser *tp, tp_state *out)
-{
-  out->un = lmalloc (tp->type_allocator, sizeof *out->un);
-  if (!out->un)
-    {
-      return TPR_MALLOC;
-    }
-
-  out->un->keys = lmalloc (tp->type_allocator, 10 * sizeof *out->un->keys);
-  if (!out->un->keys)
-    {
-      lfree (tp->type_allocator, out->un);
-      return TPR_MALLOC;
-    }
-
-  out->un->types = lmalloc (tp->type_allocator, 10 * sizeof *out->un->types);
-  if (!out->un->types)
-    {
-      lfree (tp->type_allocator, out->un->keys);
-      lfree (tp->type_allocator, out->un);
-      return TPR_MALLOC;
-    }
-
-  out->un->len = 0;
-  out->cap = 10;
-  return TPR_SUCCESS;
-}
-
-static inline tp_result
-tps_enum_create (type_parser *tp, tp_state *out)
-{
-  out->en = lmalloc (tp->type_allocator, sizeof *out->en);
-  if (!out->en)
-    {
-      return TPR_MALLOC;
-    }
-
-  out->en->keys = lmalloc (tp->type_allocator, 10 * sizeof *out->en->keys);
-  if (!out->en->keys)
-    {
-      lfree (tp->type_allocator, out->en);
-      return TPR_MALLOC;
-    }
-
-  out->en->len = 0;
-  out->cap = 10;
-  return TPR_SUCCESS;
-}
-
-static inline tp_result
-tps_push_malloc (type_parser *tp, tp_state_t s)
-{
-  type_parser_assert (tp);
-  tp_state next;
-  next.state = s;
-
-  switch (s)
-    {
-    case TPS_TYPE:
+    // { -> IDENT
+    case SB_WAITING_FOR_LB:
       {
-        if (tps_type_create (tp, &next) != TPR_SUCCESS)
+        if (t.type != TT_LEFT_BRACE)
           {
-            return TPR_MALLOC;
+            return TPR_SYNTAX_ERROR;
           }
-        break;
+        sb->sb.state = SB_WAITING_FOR_IDENT;
+        return TPR_EXPECT_NEXT_TOKEN;
       }
 
-    case TPS_VARRAY:
+    case SB_WAITING_FOR_IDENT:
       {
-        if (tps_varray_create (tp, &next) != TPR_SUCCESS)
+        if (t.type != TT_IDENTIFIER)
           {
-            return TPR_MALLOC;
+            return TPR_SYNTAX_ERROR;
           }
-        break;
+        sb->ret->st->keys[sb->ret->st->len] = t.str;
+        sb->sb.state = SB_WAITING_FOR_TYPE;
+        return TPR_EXPECT_NEXT_TYPE;
       }
 
-    case TPS_SARRAY:
+    case SB_WAITING_FOR_COMMA_OR_RIGHT:
       {
-        if (tps_sarray_create (tp, &next) != TPR_SUCCESS)
+        if (t.type == TT_COMMA)
           {
-            return TPR_MALLOC;
+            sb->sb.state = SB_WAITING_FOR_IDENT;
+            return TPR_EXPECT_NEXT_TOKEN;
           }
-        break;
-      }
-
-    case TPS_STRUCT:
-      {
-        if (tps_struct_create (tp, &next) != TPR_SUCCESS)
+        else if (t.type == TT_RIGHT_BRACE)
           {
-            return TPR_MALLOC;
+            return TPR_DONE;
           }
-        break;
-      }
-
-    case TPS_UNION:
-      {
-        if (tps_union_create (tp, &next) != TPR_SUCCESS)
+        else
           {
-            return TPR_MALLOC;
+            return TPR_SYNTAX_ERROR;
           }
-        break;
-      }
-
-    case TPS_ENUM:
-      {
-        if (tps_enum_create (tp, &next) != TPR_SUCCESS)
-          {
-            return TPR_MALLOC;
-          }
-        break;
-      }
-
-    default:
-      {
-        ASSERT (0);
-      }
-    }
-  tps_push (tp, next);
-  return TPR_SUCCESS;
-}
-
-static inline tp_result
-tps_push_sarray_dim (type_parser *tp, token t)
-{
-  type_parser_assert (tp);
-  tp_state next;
-  next.state = TPS_SARRAY_0;
-  if (t.integer < 0)
-    {
-      return TPR_SYNTAX_ERROR;
-    }
-  next.dim = (u32)t.integer;
-  tps_push (tp, next);
-  return TPR_SUCCESS;
-}
-
-static inline void
-tps_push_ident (type_parser *tp, string ident, tp_state_t s)
-{
-  type_parser_assert (tp);
-  string_assert (&ident);
-
-  tp_state next;
-  next.ident = ident;
-  next.state = s;
-  tps_push (tp, next);
-}
-
-static inline void
-tps_push_simple_state (type_parser *tp, tp_state_t s)
-{
-  type_parser_assert (tp);
-  tp_state next;
-  next.state = s;
-  tps_push (tp, next);
-}
-
-static inline void
-tps_push_prim (type_parser *tp, prim_t prim)
-{
-  type_parser_assert (tp);
-  tp_state next;
-  next.state = TPS_PRIM;
-  next.p = prim;
-  tps_push (tp, next);
-}
-
-static inline tp_result
-tps_start (type_parser *tp, token t)
-{
-  switch (t.type)
-    {
-    case TT_STRUCT:
-      {
-        return tps_push_malloc (tp, TPS_STRUCT);
-      }
-
-    case TT_UNION:
-      {
-        return tps_push_malloc (tp, TPS_UNION);
-      }
-
-    case TT_ENUM:
-      {
-        return tps_push_malloc (tp, TPS_ENUM);
-      }
-
-    case TT_LEFT_BRACKET:
-      {
-        tps_push_simple_state (tp, TPS_ARRAY);
-        break;
-      }
-    case TT_PRIM:
-      {
-        tps_push_prim (tp, t.prim);
-        break;
-      }
-
-    default:
-      {
-        return TPR_SYNTAX_ERROR;
-      }
-    }
-
-  return TPR_SUCCESS;
-}
-
-static inline tp_state
-tps_pop_expect (type_parser *tp, __attribute__ ((unused)) tp_state_t s)
-{
-  ASSERT (tp->sp > 0);
-  tp_state prev = tp->stack[--tp->sp];
-  ASSERT (prev.state == s);
-  return prev;
-}
-
-static inline tp_result
-tps_varray (type_parser *tp, token t)
-{
-  switch (t.type)
-    {
-    case TT_RIGHT_BRACKET:
-      {
-        tp_state top = tps_pop_expect (tp, TPS_VARRAY);
-        top.va->rank++;
-        tps_push (tp, top);
-        tps_push_simple_state (tp, TPS_VARRAY_0);
-        return TPR_SUCCESS;
-      }
-    default:
-      {
-        return TPR_SYNTAX_ERROR;
-      }
-    }
-}
-
-static inline tp_result
-tps_varray_0 (type_parser *tp, token t)
-{
-  switch (t.type)
-    {
-    case TT_LEFT_BRACKET:
-      {
-        tps_pop_expect (tp, TPS_VARRAY_0);
-        return TPR_SUCCESS;
-      }
-    default:
-      {
-        return tps_push_malloc (tp, TPS_TYPE);
-      }
-    }
-}
-
-static inline tp_result
-tps_sarray (type_parser *tp, token t)
-{
-  switch (t.type)
-    {
-    case TT_INTEGER:
-      {
-        return tps_push_sarray_dim (tp, t);
-      }
-    default:
-      {
-        return TPR_SYNTAX_ERROR;
-      }
-    }
-}
-
-static inline tp_result
-tps_sarray_0 (type_parser *tp, token t)
-{
-  switch (t.type)
-    {
-    case TT_RIGHT_BRACKET:
-      {
-        tp_state top = tps_pop_expect (tp, TPS_SARRAY_0);
-        u32 dim = top.dim;
-
-        top = tps_pop_expect (tp, TPS_SARRAY);
-
-        // Resize array
-        ASSERT (top.sa->rank <= top.cap);
-        if (top.sa->rank == top.cap)
-          {
-            void *dims = lrealloc (tp->type_allocator, top.sa->dims, 2 * top.cap);
-            if (!dims)
-              {
-                return TPR_MALLOC;
-              }
-            top.sa->dims = dims;
-          }
-
-        // Append dimension
-        top.sa->dims[top.sa->rank++] = dim;
-
-        tps_push (tp, top);
-        tps_push_simple_state (tp, TPS_VARRAY_0);
-        return TPR_SUCCESS;
-      }
-    default:
-      {
-        return TPR_SYNTAX_ERROR;
-      }
-    }
-}
-
-static inline tp_result
-tps_sarray_1 (type_parser *tp, token t)
-{
-  switch (t.type)
-    {
-    case TT_LEFT_BRACKET:
-      {
-        tps_pop_expect (tp, TPS_SARRAY_0);
-        return TPR_SUCCESS;
-      }
-    default:
-      {
-        return tps_push_malloc (tp, TPS_TYPE);
-      }
-    }
-}
-
-static inline tp_result
-tps_array (type_parser *tp, token t)
-{
-  tps_pop_expect (tp, TPS_ARRAY);
-
-  switch (t.type)
-    {
-    case TT_RIGHT_BRACKET:
-      {
-        tp_result ret = tps_push_malloc (tp, TPS_VARRAY);
-        if (ret != TPR_SUCCESS)
-          {
-            return ret;
-          }
-        return tps_varray (tp, t);
-      }
-
-    case TT_INTEGER:
-      {
-        tp_result ret = tps_push_malloc (tp, TPS_SARRAY);
-        if (ret != TPR_SUCCESS)
-          {
-            return ret;
-          }
-        return tps_sarray (tp, t);
       }
 
     default:
@@ -1317,213 +920,239 @@ tps_array (type_parser *tp, token t)
     }
 }
 
-static inline tp_result
-tps_struct (type_parser *tp, token t)
+tp_result
+sb_accept_type (type_builder *sb, type *type)
 {
-  switch (t.type)
+  switch (sb->sb.state)
     {
-    case TT_LEFT_BRACE:
+    case SB_WAITING_FOR_TYPE:
       {
-        tps_push_simple_state (tp, TPS_STRUCT_0);
-        return TPR_SUCCESS;
+        sb->ret->st->types[sb->ret->st->len++] = *type;
+        free (type);
+        sb->sb.state = SB_WAITING_FOR_COMMA_OR_RIGHT;
+        return TPR_EXPECT_NEXT_TOKEN;
       }
     default:
       {
-        return tps_push_malloc (tp, TPS_TYPE);
-      }
-    }
-}
-
-static inline tp_result
-tps_struct_0 (type_parser *tp, token t)
-{
-  switch (t.type)
-    {
-    case TT_IDENTIFIER:
-      {
-        tps_push_ident (tp, t.str, TPS_TYPE);
-        return TPR_SUCCESS;
-      }
-    default:
-      {
-        return tps_push_malloc (tp, TPS_TYPE);
+        return TPR_SYNTAX_ERROR;
       }
     }
 }
 
-static inline tp_result
-tps_struct_1 (type_parser *tp, token t)
+tp_result
+ub_accept_token (type_builder *ub, token t)
 {
-  switch (t.type)
+  switch (ub->ub.state)
     {
+    // { -> IDENT
+    case UB_WAITING_FOR_LB:
+      {
+        if (t.type != TT_LEFT_BRACE)
+          {
+            return TPR_SYNTAX_ERROR;
+          }
+        ub->ub.state = UB_WAITING_FOR_IDENT;
+        return TPR_EXPECT_NEXT_TOKEN;
+      }
+
+    // IDENT -> TYPE
+    case UB_WAITING_FOR_IDENT:
+      {
+        if (t.type != TT_IDENTIFIER)
+          {
+            return TPR_SYNTAX_ERROR;
+          }
+
+        // Ident is first, type increments len
+        ub->ret->un->keys[ub->ret->un->len] = t.str;
+        ub->ub.state = UB_WAITING_FOR_TYPE;
+        return TPR_EXPECT_NEXT_TYPE;
+      }
+
+    // , -> IDENT
+    // } -> DONE
+    case UB_WAITING_FOR_COMMA_OR_RIGHT:
+      {
+        if (t.type == TT_COMMA)
+          {
+            ub->ub.state = UB_WAITING_FOR_IDENT;
+            return TPR_EXPECT_NEXT_TOKEN;
+          }
+        else if (t.type == TT_RIGHT_BRACE)
+          {
+            return TPR_DONE;
+          }
+        else
+          {
+            return TPR_SYNTAX_ERROR;
+          }
+      }
+
     default:
-      return TPR_SYNTAX_ERROR;
+      {
+        return TPR_SYNTAX_ERROR;
+      }
     }
 }
 
-static inline tp_result
-tps_struct_2 (type_parser *tp, token t)
+tp_result
+ub_accept_type (type_builder *ub, type *type)
 {
-  switch (t.type)
+  switch (ub->ub.state)
     {
+    case UB_WAITING_FOR_TYPE:
+      {
+        ub->ret->un->types[ub->ret->un->len++] = *type;
+        free (type);
+        ub->ub.state = UB_WAITING_FOR_COMMA_OR_RIGHT;
+        return TPR_EXPECT_NEXT_TOKEN;
+      }
     default:
-      return TPR_SYNTAX_ERROR;
+      {
+        return TPR_SYNTAX_ERROR;
+      }
     }
 }
 
-static inline tp_result
-tps_union_0 (type_parser *tp, token t)
+tp_result
+tb_accept_token (type_builder *tb, token t)
 {
-  switch (t.type)
+  switch (tb->type)
     {
-    default:
-      return TPR_SYNTAX_ERROR;
+    case TB_UNSURE:
+      {
+        switch (t.type)
+          {
+          case TT_STRUCT:
+            {
+              tb->ret->st = malloc (sizeof *tb->ret->st);
+              tb->ret->st->keys = malloc (1000);
+              tb->ret->st->types = malloc (1000);
+              tb->ret->st->len = 0;
+              tb->ret->type = T_STRUCT;
+
+              tb->type = TB_STRUCT;
+              tb->sb.state = SB_WAITING_FOR_LB;
+              return TPR_EXPECT_NEXT_TOKEN;
+            }
+          case TT_UNION:
+            {
+              tb->ret->un = malloc (sizeof *tb->ret->st);
+              tb->ret->un->keys = malloc (1000);
+              tb->ret->un->types = malloc (1000);
+              tb->ret->un->len = 0;
+              tb->ret->type = T_UNION;
+
+              tb->type = TB_UNION;
+              tb->ub.state = UB_WAITING_FOR_LB;
+              return TPR_EXPECT_NEXT_TOKEN;
+            }
+          case TT_PRIM:
+            {
+              tb->ret->p = t.prim;
+              tb->ret->type = T_PRIM;
+              return TPR_DONE;
+            }
+          default:
+            {
+              return TPR_SYNTAX_ERROR;
+            }
+          }
+      }
+    case TB_STRUCT:
+      {
+        return sb_accept_token (tb, t);
+      }
+    case TB_UNION:
+      {
+        return ub_accept_token (tb, t);
+      }
     }
+  ASSERT (0);
+  return 0;
 }
 
-static inline tp_result
-tps_union_1 (type_parser *tp, token t)
+tp_result
+tb_accept_type (type_builder *tb, type *t)
 {
-  switch (t.type)
+  switch (tb->type)
     {
+    case TB_STRUCT:
+      {
+        return sb_accept_type (tb, t);
+      }
+    case TB_UNION:
+      {
+        return ub_accept_type (tb, t);
+      }
     default:
-      return TPR_SYNTAX_ERROR;
-    }
-}
-
-static inline tp_result
-tps_union_2 (type_parser *tp, token t)
-{
-  switch (t.type)
-    {
-    default:
-      return TPR_SYNTAX_ERROR;
-    }
-}
-
-static inline tp_result
-tps_union_3 (type_parser *tp, token t)
-{
-  switch (t.type)
-    {
-    default:
-      return TPR_SYNTAX_ERROR;
-    }
-}
-
-static inline tp_result
-tps_enum_0 (type_parser *tp, token t)
-{
-  switch (t.type)
-    {
-    default:
-      return TPR_SYNTAX_ERROR;
-    }
-}
-
-static inline tp_result
-tps_enum_1 (type_parser *tp, token t)
-{
-  switch (t.type)
-    {
-    default:
-      return TPR_SYNTAX_ERROR;
-    }
-}
-
-static inline tp_result
-tps_enum_2 (type_parser *tp, token t)
-{
-  switch (t.type)
-    {
-    default:
-      return TPR_SYNTAX_ERROR;
+      {
+        return TPR_SYNTAX_ERROR;
+      }
     }
 }
 
 tp_result
 tp_feed_token (type_parser *tp, token t)
 {
-  type_parser_assert (tp);
-  ASSERT (tp->sp > 0);
+  // Pop top type builder
+  type_builder *top = &tp->stack[tp->sp - 1];
+  tp_result ret = tb_accept_token (top, t);
 
-  tp_state *f = &tp->stack[tp->sp - 1];
-
-  switch (f->state)
+  // Top expects a new type, push a new type
+  // builder to the stack
+  if (ret == TPR_EXPECT_NEXT_TYPE)
     {
-    case TPS_TYPE:
-      {
-        return tps_start (tp, t);
-      }
-
-    case TPS_ARRAY:
-      {
-        return tps_array (tp, t);
-      }
-
-    case TPS_VARRAY_0:
-      {
-        return tps_varray_0 (tp, t);
-      }
-    case TPS_VARRAY_1:
-      {
-        return tps_varray_1 (tp, t);
-      }
-
-    case TPS_SARRAY_0:
-      {
-        return tps_sarray_0 (tp, t);
-      }
-    case TPS_SARRAY_1:
-      {
-        return tps_sarray_1 (tp, t);
-      }
-    case TPS_SARRAY_2:
-      {
-        return tps_sarray_2 (tp, t);
-      }
-
-    case TPS_STRUCT_0:
-      {
-        return tps_struct_0 (tp, t);
-      }
-    case TPS_STRUCT_1:
-      {
-        return tps_struct_1 (tp, t);
-      }
-    case TPS_STRUCT_2:
-      {
-        return tps_struct_2 (tp, t);
-      }
-
-    case TPS_UNION_0:
-      {
-        return tps_union_0 (tp, t);
-      }
-    case TPS_UNION_1:
-      {
-        return tps_union_1 (tp, t);
-      }
-    case TPS_UNION_2:
-      {
-        return tps_union_2 (tp, t);
-      }
-    case TPS_UNION_3:
-      {
-        return tps_union_3 (tp, t);
-      }
-
-    case TPS_ENUM_0:
-      {
-        return tps_enum_0 (tp, t);
-      }
-    case TPS_ENUM_1:
-      {
-        return tps_enum_1 (tp, t);
-      }
-    case TPS_ENUM_2:
-      {
-        return tps_enum_2 (tp, t);
-      }
+      type_builder next;
+      next.ret = malloc (sizeof *next.ret);
+      next.type = TB_UNSURE;
+      tp->stack[tp->sp++] = next;
+      return TPR_EXPECT_NEXT_TOKEN;
     }
+
+  while (tp->sp > 1 && ret == TPR_DONE)
+    {
+      type_builder top = tp->stack[--tp->sp];
+      type_builder *newtop = &tp->stack[tp->sp - 1];
+      ret = tb_accept_type (newtop, top.ret);
+    }
+
+  return ret;
+}
+
+TEST (tp_feed_token)
+{
+  const char *str = "struct { a i32, b u32, c union { a bool, b bit, c cf128 } }";
+
+  char chars_input[10];
+  token tokens[10];
+  cbuffer input = cbuffer_create ((u8 *)chars_input, 10);
+  cbuffer output = cbuffer_create ((u8 *)tokens, 10 * sizeof *tokens);
+
+  lalloc alloc = lalloc_create (0);
+
+  scanner s;
+  scanner_create (&s, &input, &output, &alloc);
+
+  type_parser tp;
+  tp.stack = malloc (1000);
+  type_builder first;
+  first.ret = malloc (sizeof *first.ret);
+  first.type = TB_UNSURE;
+
+  tp.sp = 0;
+  tp.stack[tp.sp++] = first;
+
+  while (i_unsafe_strlen (str) > 0)
+    {
+      str += cbuffer_write (str, 1, i_unsafe_strlen (str), &input);
+      scanner_execute (&s);
+      while (cbuffer_len (&output) > 0)
+        {
+          token next;
+          cbuffer_read (&next, sizeof (token), 1, &output);
+          tp_feed_token (&tp, next);
+        }
+    }
+  i_log_type (tp.stack[0].ret);
 }

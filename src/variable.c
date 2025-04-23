@@ -20,6 +20,7 @@ fnv1a_hash (const string s)
   return hash;
 }
 
+/**
 ////////////////////////////// A Single Variable
 
 DEFINE_DBG_ASSERT_I (variable, variable, v)
@@ -113,3 +114,4 @@ vr_set (
     variable *dest,
     const string vname,
     const type *type);
+*/
