@@ -9,10 +9,10 @@
 
 typedef enum
 {
-  OP_CREATE,
-  OP_WRITE,
-  OP_READ,
-} op_t;
+  QT_CREATE,
+  QT_WRITE,
+  QT_READ,
+} query_t;
 
 //////////////////////////////// CREATE
 
@@ -48,23 +48,15 @@ typedef struct
 DEFINE_DBG_ASSERT_H (write_op, write_op, w);
 
 //////////////////////////////// OPERATION
-/**
- * An operation is the thing that's passed to the
- * VM. Unlike regular operations, it contains a lot of
- * information in it
- */
+
 typedef struct
 {
 
-#ifndef NDEBUG
-  u8 type;
-#else
-  op_t type;
-#endif
+  query_t type;
 
   union
   {
     create_op create;
     write_op write;
   };
-} op;
+} query_plan;

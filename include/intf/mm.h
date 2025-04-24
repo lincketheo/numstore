@@ -15,5 +15,6 @@ typedef struct
 DEFINE_DBG_ASSERT_H (lalloc, lalloc, l);
 lalloc lalloc_create (u64 limit);
 void *lmalloc (lalloc *a, u64 bytes);
+void *lcalloc (lalloc *a, u64 len, u64 size);
 void *lrealloc (lalloc *a, void *data, u64 bytes);
 void lfree (lalloc *a, void *data);

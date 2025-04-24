@@ -20,6 +20,7 @@ typedef struct
 } file_pager;
 
 DEFINE_DBG_ASSERT_H (file_pager, file_pager, p);
+
 err_t fpgr_create (file_pager *dest, i_file f, u32 page_size, u32 header_size); // Constructor - also reads file size
 err_t fpgr_new (file_pager *p, u64 *pgno);                                      // Allocates room for 1 page
 err_t fpgr_get_expect (file_pager *p, u8 *dest, u64 pgno);                      // Gets page - or returns invalid db state
@@ -48,6 +49,7 @@ typedef struct
 
 DEFINE_DBG_ASSERT_H (memory_pager, memory_pager, p);
 memory_pager mpgr_create (memory_page *pages, u32 len); // Note - caller must allocate and manage memory for pages
+bool mpgr_is_full (const memory_pager *p);              // Checks if mpgr is full
 u8 *mpgr_new (memory_pager *p, u64 pgno);               // Creates a new page, or NULL if not enough room
 u8 *mpgr_get (const memory_pager *p, u64 pgno);         // Fetches page, or NULL if it doesn't exist
 u64 mpgr_get_evictable (const memory_pager *p);         // Fetches next page that will be evicted
@@ -182,6 +184,8 @@ typedef struct
   u16 *offsets; // Pointers to where each key value header_sizes
 } hash_leaf;
 
+#define MIN_PAGE_SIZE 512
+
 typedef struct
 {
   u8 *header;
@@ -190,6 +194,7 @@ typedef struct
   u32 len;
 
   u64 pgno;
+
   union
   {
     data_list dl;
@@ -198,13 +203,6 @@ typedef struct
     hash_leaf hl;
   };
 } page;
-
-DEFINE_DBG_ASSERT_H (data_list, data_list, d);
-DEFINE_DBG_ASSERT_H (inner_node, inner_node, d);
-DEFINE_DBG_ASSERT_H (hash_page, hash_page, d);
-DEFINE_DBG_ASSERT_H (hash_leaf, hash_leaf, d);
-DEFINE_DBG_ASSERT_H (data_list, data_list, d);
-DEFINE_DBG_ASSERT_H (page, page, p);
 
 err_t page_read_expect (
     page *dest,
@@ -220,8 +218,25 @@ void page_init (
     u32 rlen,
     u64 pgno);
 
-//// HASH LEAF UTILS
-err_t hl_get_tuple (hash_leaf_tuple *dest, const page *hl, u16 idx);
+//// UTILS
+
+/**
+ * returns:
+ *  ERR_INVALID_STATE
+ */
+err_t hl_get_tuple (
+    hash_leaf_tuple *dest,
+    const page *hl,
+    u16 idx);
+
+/**
+ * returns:
+ *  ERR_INVALID_STATE
+ */
+err_t hp_get_hash (
+    u64 *dest,
+    page *p,
+    const string string);
 
 ///////////////////////////// PAGER
 
@@ -233,10 +248,8 @@ typedef struct
 } pager;
 
 DEFINE_DBG_ASSERT_H (pager, pager, p);
-pager pgr_create (
-    memory_pager mpager,
-    file_pager fpager,
-    u32 page_size);
+pager pgr_create (memory_pager mpager, file_pager fpager, u32 page_size);
+
 err_t pgr_get_expect (page *dest, page_type type, u64 pgno, pager *p);
 err_t pgr_new (page *dest, pager *p, page_type type);
 err_t pgr_commit (pager *p, u8 *data, u64 pgno);

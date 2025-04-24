@@ -13,6 +13,8 @@
  * ENUM = KEY (, KEY)*
  */
 
+typedef struct type type;
+
 typedef enum
 {
   T_PRIM,
@@ -58,14 +60,6 @@ typedef enum
   BIT = 24,
 } prim_t;
 
-DEFINE_DBG_ASSERT_H (type_t, type_t, t);
-DEFINE_DBG_ASSERT_H (prim_t, prim_t, p);
-u64 prim_bits_size (prim_t t);
-void i_log_prim_t (prim_t p);
-
-typedef struct type type;
-
-//////////////////////////////// Struct
 typedef struct
 {
   u32 len;
@@ -73,10 +67,6 @@ typedef struct
   type *types;
 } struct_t;
 
-DEFINE_DBG_ASSERT_H (struct_t, struct_t, s);
-err_t struct_t_bits_size (u64 *dest, struct_t *t);
-
-//////////////////////////////// Union
 typedef struct
 {
   u32 len;
@@ -84,30 +74,18 @@ typedef struct
   type *types;
 } union_t;
 
-DEFINE_DBG_ASSERT_H (union_t, union_t, s);
-err_t union_t_bits_size (u64 *dest, union_t *t);
-
-//////////////////////////////// Enum
 typedef struct
 {
   u32 len;
   string *keys;
 } enum_t;
 
-DEFINE_DBG_ASSERT_H (enum_t, enum_t, s);
-err_t enum_t_bits_size (u64 *dest, enum_t *t);
-
-//////////////////////////////// Variable Length Array
 typedef struct
 {
   u32 rank;
   type *t; // Not an array
 } varray_t;
 
-DEFINE_DBG_ASSERT_H (varray_t, varray_t, s);
-err_t varray_t_bits_size (u64 *dest, varray_t *sa);
-
-//////////////////////////////// Strict Array
 typedef struct
 {
   u32 rank;
@@ -115,10 +93,6 @@ typedef struct
   type *t; // Not an array
 } sarray_t;
 
-DEFINE_DBG_ASSERT_H (sarray_t, sarray_t, s);
-err_t sarray_t_bits_size (u64 *dest, sarray_t *sa);
-
-//////////////////////////////// Generic
 struct type
 {
   union
@@ -135,5 +109,5 @@ struct type
 };
 
 DEFINE_DBG_ASSERT_H (type, type, t);
-err_t type_bits_size (u64 *dest, type *t);
-void i_log_type (type *t);
+err_t type_bits_size (u64 *dest, const type *t);
+err_t type_deserialize (type *dest, const string tstr);

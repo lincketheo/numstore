@@ -312,7 +312,7 @@ DEFINE_DBG_ASSERT_I (type_subset, type_subset, t)
 */
 
 err_t
-type_bits_size (u64 *dest, type *t)
+type_bits_size (u64 *dest, const type *t)
 {
   type_assert (t);
 

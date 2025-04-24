@@ -1,4 +1,5 @@
 #include "database.h"
+#include "dev/assert.h"
 #include "dev/errors.h"
 #include "intf/io.h"
 #include "intf/logging.h"
@@ -7,37 +8,10 @@
 #include "paging.h"
 #include "sds.h"
 #include "types.h"
+#include "vhash_map.h"
 
 //////////////// Global Config
-static global_config c;
-
-DEFINE_DBG_ASSERT_I (global_config, global_config, g)
-{
-  ASSERT (g);
-  ASSERT (g->page_size > 0);
-  ASSERT (g->mpgr_len > 0);
-  ASSERT (g->header_size == sizeof (u32) * 2);
-}
-
-void
-set_global_config (u32 page_size, u32 mpgr_len)
-{
-  c.header_size = sizeof (u32) * 2;
-  c.page_size = page_size;
-  c.mpgr_len = mpgr_len;
-}
-
-const global_config *
-get_global_config (void)
-{
-  global_config_assert (&c);
-  return &c;
-}
-
-//////////////// Global Config
-static global_database db;
-
-DEFINE_DBG_ASSERT_I (global_database, global_database, g)
+DEFINE_DBG_ASSERT_I (database, database, g)
 {
   ASSERT (g);
   pager_assert (&g->pager);
@@ -45,83 +19,89 @@ DEFINE_DBG_ASSERT_I (global_database, global_database, g)
   i_file_assert (&g->resources.fp);
 }
 
-global_database *
-get_global_database (void)
-{
-  global_database_assert (&db);
-  return &db;
-}
-
 err_t
 db_create (const string fname, u32 page_size, u32 mpgr_len)
 {
   string_assert (&fname);
-  set_global_config (page_size, mpgr_len);
-  db.alloc = lalloc_create (1e10);
 
+  database db;
+
+  // Check if file already exists
   if (i_exists_rw (fname))
     {
       return ERR_ALREADY_EXISTS;
     }
 
-  i_file fp;
-  err_t_wrap (i_open (&fp, fname, 1, 1));
+  // Open the file or return error
+  err_t_wrap (i_open (&db.resources.fp, fname, 1, 1));
 
-  err_t ret = SUCCESS;
+  // The return value
+  err_t ret;
 
-  // write header
-  u32 header[2] = { c.page_size, c.mpgr_len };
-  ret = i_write_all (&fp, header, sizeof (header), 0);
-  if (ret)
+  // Write the header
+  u32 header[2] = { page_size, mpgr_len };
+  if ((ret = i_write_all (&db.resources.fp, header, sizeof (header), 0)))
     {
       goto cleanup;
     }
 
-  // initialize file pager
+  // Set configured parameters
+  db.page_size = page_size;
+  db.mpgr_len = mpgr_len;
+  db.header_size = 2 * sizeof (u32);
+
+  // Create allocator for internal db resources
+  db.alloc = lalloc_create (db.page_size);
+
+  // Open a file pager
   file_pager fpgr;
-  ret = fpgr_create (&fpgr, fp, c.page_size, c.header_size);
-  if (ret)
+  if ((ret = fpgr_create (
+           &fpgr,
+           db.resources.fp,
+           db.page_size,
+           db.header_size)))
     {
       goto cleanup;
     }
 
-  // allocate and commit hash page
-  u64 pgno;
-  ret = fpgr_new (&fpgr, &pgno);
-  if (ret)
-    {
-      goto cleanup;
-    }
-  ASSERT (pgno == 0);
+  // Allocate and commit the first hash page
+  {
+    // Allocate room in the file
+    u64 pgno;
+    ret = fpgr_new (&fpgr, &pgno);
+    if (ret)
+      {
+        goto cleanup;
+      }
+    ASSERT (pgno == 0);
 
-  u8 *buf = lmalloc (&db.alloc, c.page_size);
-  if (!buf)
-    {
-      goto cleanup;
-    }
+    // Create the hash page
+    u8 *buf = lmalloc (&db.alloc, db.page_size);
+    if (!buf)
+      {
+        goto cleanup;
+      }
 
-  page p;
-  page_init (&p, PG_HASH_PAGE, buf, c.page_size, pgno);
-  ret = fpgr_commit (&fpgr, buf, pgno);
-  if (ret)
-    {
-      goto cleanup;
-    }
-
-  ret = SUCCESS;
+    page p;
+    page_init (&p, PG_HASH_PAGE, buf, db.page_size, pgno);
+    if ((ret = fpgr_commit (&fpgr, buf, pgno)))
+      {
+        goto cleanup;
+      }
+  }
 
 cleanup:
 
-  i_close (&fp);
+  i_close (&db.resources.fp);
   return ret;
 }
 
 err_t
-db_open (const string fname)
+db_open (database *db, const string fname)
 {
   cstring_assert (&fname);
-  i_memset (&db, 0, sizeof (db));
-  db.alloc = lalloc_create (1e10);
+
+  err_t ret = SUCCESS;
 
   // verify file exists
   if (!i_exists_rw (fname))
@@ -129,51 +109,150 @@ db_open (const string fname)
       return ERR_ALREADY_EXISTS;
     }
 
-  // open file
-  err_t_wrap (i_open (&db.resources.fp, fname, 1, 1));
+  // Open then read header of file
+  {
+    // open file
+    err_t_wrap (i_open (&db->resources.fp, fname, 1, 1));
 
-  // read header
-  u32 header[2] = { 0 };
-  err_t bytes = i_read_all (&db.resources.fp, header, sizeof (header), 0);
-  if (bytes != sizeof (header))
-    {
-      return ERR_IO;
-    }
-  set_global_config (header[0], header[1]);
+    // Read it
+    u32 header[2] = { 0 };
+    i64 bytes = i_read_all (
+        &db->resources.fp,
+        header,
+        sizeof (header), 0);
 
-  // memory pager
-  u64 total = c.mpgr_len * (c.page_size + sizeof (memory_pager));
+    // Check if read successful
+    if (bytes != sizeof (header))
+      {
+        return ERR_IO;
+      }
 
-  u8 *block = lmalloc (&db.alloc, total);
-  if (!block)
-    {
-      return ERR_IO; // Questionable
-    }
+    // Set config
+    db->page_size = header[0];
+    db->mpgr_len = header[1];
+    if (db->page_size == 0 || db->mpgr_len == 0)
+      {
+        return ERR_INVALID_STATE;
+      }
+  }
 
-  u8 *ptr = block;
-  memory_page *pages = (memory_page *)ptr;
-  ptr += c.mpgr_len * sizeof (memory_pager);
-  for (u32 i = 0; i < c.mpgr_len; ++i)
-    {
-      pages[i].data = ptr + i * c.page_size;
-    }
-  db.resources._data = block;
-  db.mpgr = mpgr_create (pages, c.mpgr_len);
+  // Create allocator for internal resources
+  u64 total = db->mpgr_len * (db->page_size + sizeof (memory_pager));
+  db->alloc = lalloc_create (total);
 
-  // init pager
-  err_t ret = fpgr_create (&db.fpgr, db.resources.fp, c.page_size, c.header_size);
-  if (ret)
+  // Initialize a memory pager
+  memory_pager mpgr;
+  {
+    // Allocate memory for memory pages
+    if (!(db->resources._data = lmalloc (&db->alloc, total)))
+      {
+        return ERR_NOMEM;
+      }
+
+    // Initialize the memory_pages
+    u8 *ptr = db->resources._data;
+    memory_page *pages = (memory_page *)ptr;
+    ptr += db->mpgr_len * sizeof (memory_pager);
+    for (u32 i = 0; i < db->mpgr_len; ++i)
+      {
+        pages[i].data = ptr + i * db->page_size;
+      }
+
+    // Create
+    mpgr = mpgr_create (pages, db->mpgr_len);
+  }
+
+  // Initialize a file pager
+  file_pager fpgr;
+  if ((ret = fpgr_create (
+           &fpgr,
+           db->resources.fp,
+           db->page_size,
+           db->header_size)))
     {
       return ret;
     }
-  db.pager = pgr_create (db.mpgr, db.fpgr, c.page_size);
+
+  // Initialize the full pager
+  db->pager = pgr_create (mpgr, fpgr, db->page_size);
+
+  // Initialize hash map -
+  // TODO - don't use the db allocator here
+  if ((ret = vhash_map_create (
+           &db->variables,
+           db->page_size,
+           &db->alloc)))
+    {
+      return ret;
+    }
 
   return SUCCESS;
 }
 
 void
-db_close (void)
+db_close (database *db)
 {
-  lfree (&db.alloc, db.resources._data);
-  i_close (&db.resources.fp);
+  database_assert (db);
+  lfree (&db->alloc, db->resources._data);
+  i_close (&db->resources.fp);
+}
+
+lalloc *
+db_request_alloc (database *db, u32 limit)
+{
+  database_assert (db);
+  ASSERT (limit > 0);
+
+  u32 idx;
+
+  // First scan allocators to see if any of them
+  // are available
+  for (u32 i = 0; i < db->allocators.len; ++i)
+    {
+      if (!db->allocators.is_present[i])
+        {
+          idx = i;
+          goto theend;
+        }
+    }
+
+  // Next append allocator to the end of the list
+  // Check if len exceeds capacity
+  if (db->allocators.len == db->allocators.cap)
+    {
+      lalloc *allocs = lrealloc (
+          &db->alloc,
+          db->allocators.allocs,
+          2 * db->allocators.cap);
+      if (!allocs)
+        {
+          return NULL;
+        }
+      db->allocators.allocs = allocs;
+      db->allocators.cap *= 2;
+    }
+
+  idx = db->allocators.len++;
+
+theend:
+  db->allocators.allocs[idx] = lalloc_create (limit);
+  db->allocators.is_present[idx] = true;
+  return &db->allocators.allocs[idx];
+}
+
+void
+db_release_alloc (database *db, lalloc *alloc)
+{
+  lalloc_assert (alloc);
+
+  for (u32 i = 0; i < db->allocators.len; ++i)
+    {
+      if (&db->allocators.allocs[i] == alloc)
+        {
+          ASSERT (db->allocators.is_present[i]);
+          db->allocators.is_present[i] = false;
+          return;
+        }
+    }
+  ASSERT (0);
 }

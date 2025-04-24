@@ -3,11 +3,11 @@
 #include "dev/errors.h"
 #include "dev/testing.h"
 #include "intf/io.h"
-#include "intf/logging.h"
 #include "intf/mm.h"
 #include "intf/stdlib.h"
 #include "sds.h"
 #include "types.h"
+#include "utils/bounds.h"
 
 ///////////////////////////// FILE PAGING
 
@@ -21,21 +21,16 @@ static inline err_t
 fpgr_set_len (file_pager *p)
 {
   file_pager_assert (p);
+
   i64 size = i_file_size (&p->f); // TODO - can file size > i64?
   if (size < p->header_size)
     {
-      i_log_warn ("Error encountered while trying to fetch "
-                  "last page size in file_pager\n");
       return ERR_INVALID_STATE;
     }
 
   ASSERT (size >= p->header_size);
   if ((size - p->header_size) % p->page_size != 0)
     {
-      i_log_error ("The database is in an invalid state "
-                   "when trying to create a new page. File size "
-                   "is not a multiple of page size: %" PRIu32 " bytes\n",
-                   p->page_size);
       return ERR_INVALID_STATE;
     }
 
@@ -170,13 +165,11 @@ fpgr_get_expect (file_pager *p, u8 *dest, u64 pgno)
 
   if (nread == 0)
     {
-      i_log_error ("Early EOF encountered on fpgr_get\n");
       return ERR_INVALID_STATE;
     }
 
   if (nread < 0)
     {
-      i_log_warn ("Invalid read encountered on fpgr_get\n");
       return ERR_IO;
     }
 
@@ -268,7 +261,6 @@ fpgr_commit (file_pager *p, const u8 *src, u64 pgno)
   // TODO - Figure out when to call invalid_state over err_io
   if (ret)
     {
-      i_log_warn ("Failed to write page: %" PRIu64 "\n", pgno);
       return ERR_INVALID_STATE;
     }
 
@@ -384,6 +376,27 @@ mpgr_new (memory_pager *p, u64 pgno)
   return NULL;
 }
 
+bool
+mpgr_is_full (const memory_pager *p)
+{
+  memory_pager_assert (p);
+
+  u32 idx = p->idx;
+
+  for (u32 i = 0; i < p->len; ++i)
+    {
+      memory_page *mp = &p->pages[idx];
+      idx = (p->idx + 1) % p->len;
+
+      if (!mp->is_present)
+        {
+          return false;
+        }
+    }
+
+  return true;
+}
+
 u8 *
 mpgr_get (const memory_pager *p, u64 pgno)
 {
@@ -471,6 +484,8 @@ DEFINE_DBG_ASSERT_H (page, page, p)
   ASSERT (p);
   ASSERT (p->raw);
   ASSERT (p->header);
+  ASSERT (p->len >= MIN_PAGE_SIZE);
+
   switch (*p->header)
     {
     case PG_DATA_LIST:
@@ -564,8 +579,6 @@ page_read_expect (
 
   if (*dest->header != expected)
     {
-      i_log_error ("Expected page type: %d, got page type: %d\n",
-                   expected, *dest->header);
       return ERR_INVALID_STATE;
     }
 
@@ -608,7 +621,7 @@ page_init (page *dest, page_type type, u8 *raw, u32 rlen, u64 pgno)
     }
 }
 
-//// HASH LEAF UTILS
+//// UTILS
 err_t
 hl_get_tuple (hash_leaf_tuple *dest, const page *p, u16 idx)
 {
@@ -626,7 +639,9 @@ hl_get_tuple (hash_leaf_tuple *dest, const page *p, u16 idx)
   do                             \
     {                            \
       if (off + (_len) > p->len) \
-        goto overflow;           \
+        {                        \
+          goto overflow;         \
+        }                        \
       off += (_len);             \
     }                            \
   while (0)
@@ -658,9 +673,6 @@ hl_get_tuple (hash_leaf_tuple *dest, const page *p, u16 idx)
   return SUCCESS;
 
 overflow:
-  i_log_error ("Malformed page %" PRIu64 " at tuple %u:"
-               " offset %u overflows page (%u)\n",
-               p->pgno, idx, off, p->len);
   return ERR_INVALID_STATE;
 }
 
@@ -718,6 +730,30 @@ TEST (hl_get_tuple)
 
   err_t r2 = hl_get_tuple (&dest, &p2, 0);
   test_assert_int_equal ((int)r2, (int)ERR_INVALID_STATE);
+}
+
+static inline bool
+hp_valid (page *p)
+{
+  page_assert (p);
+  ASSERT (*p->header == PG_HASH_PAGE);
+  ASSERT (can_sub_u32 (p->len, sizeof (*p->hp.len)));
+  return *p->hp.len > 0 && *p->hp.len <= p->len - sizeof (*p->hp.len);
+}
+
+err_t
+hp_get_hash (u64 *dest, page *p, const string string)
+{
+  page_assert (p);
+  if (!hp_valid (p))
+    {
+      return ERR_INVALID_STATE;
+    }
+
+  u32 hash = fnv1a_hash (string);
+  hash %= *p->hp.len;
+  *dest = p->hp.hashes[hash];
+  return SUCCESS;
 }
 
 ///////////////////////////// PAGER
@@ -778,12 +814,19 @@ pgr_get_expect (page *dest, page_type type, u64 pgno, pager *p)
 
   if (page == NULL)
     {
-      // Evict a page
-      err_t ret = pgr_evict (p);
-      if (ret)
+      err_t ret;
+      // Check if we need to evict a page
+      if (mpgr_is_full (&p->mpager))
         {
-          return ret;
+
+          // Evict a page
+          ret = pgr_evict (p);
+          if (ret)
+            {
+              return ret;
+            }
         }
+      ASSERT (!mpgr_is_full (&p->mpager));
 
       // Then create a new in memory page
       page = mpgr_new (&p->mpager, pgno);

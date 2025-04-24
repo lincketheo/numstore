@@ -9,35 +9,11 @@
 typedef struct
 {
   const string vname;
-} variable;
+  const type type;
+} vcreate;
 
-DEFINE_DBG_ASSERT_H (variable, variable, v);
-
-////////////////////////////// A Subset of a Variable
 typedef struct
 {
-  variable v;
-  // type_subset *type_subset;
-} variable_subset;
-
-DEFINE_DBG_ASSERT_H (variable_subset, variable_subset, v);
-
-////////////////////////////// A Hash Map of Variables
-typedef struct
-{
-  pager *pgr;
-} var_retriver;
-
-DEFINE_DBG_ASSERT_H (var_retriver, var_retriver, v);
-
-err_t vr_get (
-    var_retriver *v,
-    variable *dest,
-    int *exists,
-    const string vname);
-
-err_t vr_set (
-    var_retriver *v,
-    variable *dest,
-    const string vname,
-    const type *type);
+  u64 pgn0;
+  const type type;
+} vmeta;

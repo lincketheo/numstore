@@ -1,5 +1,6 @@
 #include "dev/testing.h"
 #include "intf/mm.h"
+#include "intf/stdlib.h"
 #include "utils/bounds.h"
 #include <errno.h>
 
@@ -66,6 +67,26 @@ lmalloc (lalloc *a, u64 bytes)
   alloc_header_set (&p[1], bytes);
   a->total = new_total;
   return &p[1];
+}
+
+void *
+lcalloc (lalloc *a, u64 len, u64 size)
+{
+  lalloc_assert (a);
+  ASSERT (len > 0);
+  ASSERT (size > 0);
+  if (can_mul_u64 (len, size))
+    {
+      return NULL;
+    }
+
+  void *ret = lmalloc (a, len * size);
+  if (!ret)
+    {
+      return ret;
+    }
+  i_memset (ret, 0, len * size);
+  return ret;
 }
 
 void *

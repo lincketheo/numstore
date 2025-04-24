@@ -10,8 +10,73 @@
 #include "utils/bounds.h"
 #include "utils/macros.h"
 #include "utils/numbers.h"
-#include <stdio.h>
-#include <stdlib.h>
+
+////////////////////// TOKENS
+
+typedef enum
+{
+  // Tokens that start with a letter (alpha)
+  TT_WRITE,
+  TT_READ,
+  TT_TAKE,
+  TT_CREATE,
+  TT_DELETE,
+  TT_IDENTIFIER,
+
+  // Tokens that start with a number or +/-
+  TT_INTEGER,
+  TT_FLOAT,
+
+  // Types
+  //      Complex
+  TT_STRUCT,
+  TT_UNION,
+  TT_ENUM,
+  TT_PRIM,
+
+  // Tokens that are single characters
+  TT_SEMICOLON,
+  TT_LEFT_BRACKET,
+  TT_RIGHT_BRACKET,
+  TT_LEFT_BRACE,
+  TT_RIGHT_BRACE,
+  TT_LEFT_PAREN,
+  TT_RIGHT_PAREN,
+  TT_COMMA,
+
+  // Special Tokens
+  TT_ERROR, // An Error token, saying: next token start fresh
+} token_t;
+
+// Returns if this token is a single character
+#define TT_IS_SINGLE(t) (t == TT_SEMICOLON)
+
+/**
+ * A token is a tagged union that wraps
+ * the value and the type together
+ */
+typedef struct
+{
+  union
+  {
+    string str;
+    i32 integer;
+    f32 floating;
+    prim_t prim;
+  };
+  token_t type;
+} token;
+
+#define quick_tok(_type) \
+  (token) { .type = _type }
+#define tt_integer(val) \
+  (token) { .type = TT_INTEGER, .integer = val }
+#define tt_float(val) \
+  (token) { .type = TT_FLOAT, .floating = val }
+#define tt_ident(val) \
+  (token) { .type = TT_IDENTIFIER, .str = val }
+#define tt_prim(val) \
+  (token) { .type = TT_PRIM, .prim = val }
 
 ////////////////////// SCANNER (chars -> tokens)
 /// TODO - This recursion is really easy to remove and
@@ -870,6 +935,164 @@ parser_execute (parser *p)
 
 ////////////////////// TYPE PARSER
 
+typedef struct type_bldr_s type_bldr;
+
+typedef enum
+{
+
+  TPR_EXPECT_NEXT_TOKEN,
+  TPR_EXPECT_NEXT_TYPE,
+  TPR_MALLOC_ERROR,
+  TPR_SYNTAX_ERROR,
+  TPR_DONE,
+
+} tp_result;
+
+typedef struct
+{
+  type_bldr *stack;
+  u32 sp;
+
+  lalloc *type_allocator;
+} type_parser;
+
+/**
+ * T -> p |
+ *      struct { i T K } |
+ *      union { i T K } |
+ *      enum { i I } |
+ *      A T
+ *
+ * A -> V | S
+ * K -> \eps | , T K
+ * V -> [] V | []
+ * S -> [NUM] S | [NUM]
+ * I -> \eps | , i I
+ *
+ * Note:
+ * T = TYPE
+ * A = ARRAY_PREFIX
+ * K = KEY_VALUE_LIST
+ * V = VARRAY_BRACKETS
+ * S = SARRAY_BRACKETS
+ * I = ENUM_KEY_LIST
+ */
+
+typedef struct
+{
+
+  enum
+  {
+    SB_WAITING_FOR_LB,
+    SB_WAITING_FOR_IDENT,
+    SB_WAITING_FOR_TYPE,
+    SB_WAITING_FOR_COMMA_OR_RIGHT,
+  } state;
+
+  string *keys;
+  type *types;
+  u32 len;
+  u32 cap;
+
+} struct_bldr;
+
+typedef struct
+{
+
+  enum
+  {
+    UB_WAITING_FOR_LB,
+    UB_WAITING_FOR_IDENT,
+    UB_WAITING_FOR_TYPE,
+    UB_WAITING_FOR_COMMA_OR_RIGHT,
+  } state;
+
+  string *keys;
+  type *types;
+  u32 len;
+  u32 cap;
+
+} union_bldr;
+
+typedef struct
+{
+
+  enum
+  {
+    EB_WAITING_FOR_LB,
+    EB_WAITING_FOR_IDENT,
+    EB_WAITING_FOR_COMMA_OR_RIGHT,
+  } state;
+
+  string *keys;
+  u32 len;
+  u32 cap;
+
+} enum_bldr;
+
+typedef struct
+{
+
+  enum
+  {
+    VAB_WAITING_FOR_LEFT_OR_TYPE,
+    VAB_WAITING_FOR_RIGHT,
+    VAB_WAITING_FOR_TYPE,
+  } state;
+
+  u32 rank;
+
+} varray_bldr;
+
+typedef struct
+{
+
+  enum
+  {
+    SAB_WAITING_FOR_LEFT_OR_TYPE,
+    SAB_WAITING_FOR_NUMBER,
+    SAB_WAITING_FOR_RIGHT,
+    SAB_WAITING_FOR_TYPE,
+  } state;
+
+  u32 *dims;
+  u32 len;
+  u32 cap;
+
+} sarray_bldr;
+
+DEFINE_DBG_ASSERT_H (sarray_bldr, sarray_bldr, s);
+tp_result sabldr_incr (sarray_bldr *sb, u32 dim);
+
+struct type_bldr_s
+{
+
+  enum
+  {
+    TB_UNKNOWN,
+    TB_ARRAY_UNKNOWN,
+
+    TB_STRUCT,
+    TB_UNION,
+    TB_ENUM,
+    TB_VARRAY,
+    TB_SARRAY,
+    TB_PRIM,
+
+  } state;
+
+  union
+  {
+    struct_bldr sb;
+    union_bldr ub;
+    enum_bldr eb;
+    varray_bldr vab;
+    sarray_bldr sab;
+  };
+
+  type ret;
+};
+
 static inline type_bldr
 tb_create (void)
 {
@@ -1574,6 +1797,7 @@ tp_result
 sarray_bldr_create (sarray_bldr *dest, u32 dim, lalloc *alloc)
 {
   ASSERT (dest);
+  lalloc_assert (alloc);
 
   dest->dims = lmalloc (alloc, 5 * sizeof *dest->dims);
   if (!dest->dims)
@@ -1636,7 +1860,6 @@ static inline tp_result
 prim_create (type_bldr *tb, prim_t p)
 {
   type_bldr_assert (tb);
-  prim_t_assert (&p);
   ASSERT (tb->state == TB_UNKNOWN);
 
   tb->ret.p = p;
@@ -1649,6 +1872,9 @@ prim_create (type_bldr *tb, prim_t p)
 tp_result
 tb_accept_token (type_bldr *tb, token t, lalloc *alloc)
 {
+  type_bldr_assert (tb);
+  lalloc_assert (alloc);
+
   switch (tb->state)
     {
     case TB_UNKNOWN:
@@ -1722,6 +1948,7 @@ tb_accept_token (type_bldr *tb, token t, lalloc *alloc)
 tp_result
 tb_accept_type (type_bldr *tb, type t)
 {
+  type_bldr_assert (tb);
   switch (tb->state)
     {
     case TB_STRUCT:
@@ -1837,5 +2064,6 @@ TEST (tp_feed_token)
     }
 
   tb_build (&tp.stack[0], tp.type_allocator);
-  i_log_type (&tp.stack[0].ret);
 }
+
+tp_result tp_feed_token (type_parser *tp, token t);

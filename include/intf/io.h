@@ -1,7 +1,6 @@
 #pragma once
 
 #include "dev/assert.h"
-#include "dev/errors.h"
 #include "sds.h"
 #include "types.h"
 

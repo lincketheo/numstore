@@ -1,0 +1,2 @@
+
+LoadVar cid vname // Loads variable with name vname into cid
