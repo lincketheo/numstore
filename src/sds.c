@@ -1,147 +1,15 @@
 #include "sds.h"
+#include "dev/assert.h"
 #include "dev/errors.h"
 #include "dev/testing.h"
+#include "intf/mm.h"
 #include "intf/stdlib.h"
 #include "types.h"
-#include "utils.h"
+#include "utils/bounds.h"
+#include "utils/macros.h"
+#include "utils/numbers.h"
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
-
-//////////////////////// BUFFER
-DEFINE_DBG_ASSERT_I (buffer, buffer, b)
-{
-  ASSERT (b);
-  ASSERT (b->data);
-  ASSERT (b->cap > 0);
-  ASSERT (b->len <= b->cap);
-}
-
-buffer
-buffer_create (u8 *data, u32 cap)
-{
-  ASSERT (data);
-  ASSERT (cap > 0);
-  return (buffer){
-    .data = data,
-    .cap = cap,
-  };
-}
-
-u32
-buffer_write (const void *dest, u32 size, u32 n, buffer *b)
-{
-  u8 *head = b->data + b->len;
-  n = buffer_phantom_write (size, n, b);
-  i_memcpy (head, dest, size * n);
-  return n;
-}
-
-TEST (buffer_write)
-{
-  // write 4 single bytes
-  u8 raw1[8];
-  buffer b1 = buffer_create (raw1, 8);
-  u8 src1[4] = { 1, 2, 3, 4 };
-  u32 w1 = buffer_write (src1, 1, 4, &b1);
-  test_assert_int_equal (w1, 4);
-  test_assert_int_equal (b1.len, 4);
-  for (int i = 0; i < 4; ++i)
-    {
-      test_assert_equal ((int)raw1[i], (int)src1[i], "%d");
-    }
-
-  // overflow write: only 4 bytes left
-  u8 src2[10] = { 0 };
-  i_memset (src2, 9, sizeof (src2));
-  u32 w2 = buffer_write (src2, 1, 10, &b1);
-  test_assert_int_equal (w2, 4);
-  test_assert_int_equal (b1.len, 8);
-  for (int i = 4; i < 8; ++i)
-    {
-      test_assert_equal ((int)raw1[i], 9, "%d");
-    }
-
-  // multi-byte writes
-  u8 raw2[6];
-  buffer b2 = buffer_create (raw2, 6);
-  u16 src3[3] = { 0x1122, 0x3344, 0x5566 };
-  u32 w3 = buffer_write (src3, sizeof (u16), 3, &b2);
-  test_assert_int_equal (w3, 3);
-  test_assert_int_equal (b2.len, 6);
-  u16 *p = (u16 *)raw2;
-  test_assert_equal ((int)p[0], 0x1122, "%#x");
-  test_assert_equal ((int)p[2], 0x5566, "%#x");
-
-  // element size > capacity: nothing should be written
-  u8 raw3[5];
-  buffer b3 = buffer_create (raw3, 5);
-  u8 src4[6] = { 1, 2, 3, 4, 5, 6 };
-  u32 w4 = buffer_write (src4, 6, 1, &b3);
-  test_assert_int_equal (w4, 0);
-  test_assert_int_equal (b3.len, 0);
-}
-
-void
-buffer_reset (buffer *b)
-{
-  buffer_assert (b);
-  b->len = 0;
-}
-
-u32
-buffer_phantom_write (u32 size, u32 n, buffer *b)
-{
-  buffer_assert (b);
-  ASSERT (size > 0);
-  ASSERT (n > 0);
-
-  ASSERT (b->cap >= b->len);
-  u32 avail = b->cap - b->len;
-
-  u32 maxn = avail / size;
-  if (n > maxn)
-    {
-      n = maxn;
-    }
-  if (n == 0)
-    {
-      return 0;
-    }
-
-  b->len += size * n;
-
-  return n;
-}
-
-TEST (buffer_phantom_write)
-{
-  u8 data1[10];
-  buffer b1 = buffer_create (data1, 10);
-
-  // partial fit: size=3, n=4 => avail=10, maxn=3
-  u32 n1 = buffer_phantom_write (3, 4, &b1);
-  test_assert_int_equal (n1, 3);
-  test_assert_int_equal (b1.len, 9);
-
-  // exact fit: size=5, n=2 => avail=10, fits exactly
-  u8 data2[10];
-  buffer b2 = buffer_create (data2, 10);
-  u32 n2 = buffer_phantom_write (5, 2, &b2);
-  test_assert_int_equal (n2, 2);
-  test_assert_int_equal (b2.len, 10);
-
-  // no space left: avail=0
-  u32 n3 = buffer_phantom_write (1, 1, &b2);
-  test_assert_int_equal (n3, 0);
-  test_assert_int_equal (b2.len, 10);
-
-  // size > available capacity: should reserve nothing
-  u8 data3[5];
-  buffer b3 = buffer_create (data3, 5);
-  u32 n4 = buffer_phantom_write (6, 1, &b3);
-  test_assert_int_equal (n4, 0);
-  test_assert_int_equal (b3.len, 0);
-}
 
 //////////////////////// CBUFFER
 DEFINE_DBG_ASSERT_I (cbuffer, cbuffer, b)
@@ -196,10 +64,13 @@ cbuffer_len (const cbuffer *b)
     }
   else if (b->head >= b->tail)
     {
+      ASSERT (can_sub_u32 (b->head, b->tail));
       len = b->head - b->tail;
     }
   else
     {
+      ASSERT (can_sub_u32 (b->tail, b->head));
+      ASSERT (can_sub_u32 (b->cap, b->tail - b->head));
       len = b->cap - (b->tail - b->head);
     }
   return len;
@@ -294,6 +165,84 @@ TEST (cbuffer_read)
   test_assert_int_equal (r2, 2);
   test_assert_int_equal (out[0], 7);
   test_assert_int_equal (out[1], 8);
+  test_assert_int_equal (cbuffer_len (&b), 0);
+}
+
+u32
+cbuffer_copy (void *dest, u32 size, u32 n, const cbuffer *b)
+{
+  cbuffer_assert (b);
+  ASSERT (size > 0);
+  ASSERT (n > 0);
+
+  u32 len = cbuffer_len (b) / size;
+  u32 ntoread = (n < len) ? n : len;
+  u32 btoread = ntoread * size;
+  u32 bread = 0;
+
+  u8 *output = NULL;
+  if (dest)
+    {
+      output = (u8 *)dest;
+    }
+
+  // Literally the exact same as read but
+  // use these temp variables instead
+  // I was lazy
+  u32 tail = b->tail;
+  bool isfull = b->isfull;
+
+  while (bread < btoread)
+    {
+      u32 next;
+
+      if (!isfull && b->head > tail)
+        {
+          next = MIN (b->head - tail, btoread - bread);
+        }
+      else
+        {
+          next = MIN (b->cap - tail, btoread - bread);
+        }
+
+      if (output)
+        {
+          i_memcpy (output + bread, b->data + tail, next);
+        }
+      tail = (tail + next) % b->cap;
+      bread += next;
+      isfull = 0;
+    }
+
+  ASSERT (ntoread * size == bread);
+  return ntoread;
+}
+
+TEST (cbuffer_copy)
+{
+  u8 buf[3];
+  cbuffer b = cbuffer_create (buf, 3);
+  u8 out[3];
+
+  // read from empty: returns 0
+  u32 r1 = cbuffer_copy (out, 1, 1, &b);
+  test_assert_int_equal (r1, 0);
+
+  // read after write
+  u8 src[3] = { 7, 8, 9 };
+  cbuffer_write (src, 1, 3, &b);
+  u32 r2 = cbuffer_copy (out, 1, 2, &b);
+  test_assert_int_equal (r2, 2);
+  test_assert_int_equal (out[0], 7);
+  test_assert_int_equal (out[1], 8);
+  test_assert_int_equal (cbuffer_len (&b), 3);
+
+  // Do it again and get the same results
+  r2 = cbuffer_copy (out, 1, 2, &b);
+  test_assert_int_equal (r2, 2);
+  test_assert_int_equal (out[0], 7);
+  test_assert_int_equal (out[1], 8);
+  test_assert_int_equal (cbuffer_len (&b), 3);
 }
 
 u32
@@ -390,7 +339,7 @@ cbuffer_dequeue_no_check (cbuffer *b)
   return ret;
 }
 
-int
+bool
 cbuffer_get (u8 *dest, const cbuffer *b, int idx)
 {
   ASSERT (idx >= 0);
@@ -419,7 +368,7 @@ TEST (cbuffer_get)
   test_assert_int_equal (cbuffer_get (&v, &b, 1), 0);
 }
 
-int
+bool
 cbuffer_peek_dequeue (u8 *dest, const cbuffer *b)
 {
   ASSERT (dest);
@@ -619,185 +568,6 @@ TEST (cbuffer_strequal)
   test_assert_int_equal (cbuffer_strequal (&b1, "CXZ", 3), 0);
 }
 
-int
-cbuffer_parse_front_i32 (i32 *dest, const cbuffer *src, u32 until)
-{
-  ASSERT (dest);
-  cbuffer_assert (src);
-  ASSERT (until > 0);
-  ASSERT (until < cbuffer_len (src));
-  ASSERT (cbuffer_len (src) > 0);
-
-  int negative = 0;
-  u32 ret = 0;
-
-  u32 i = 0;
-  u8 next = cbuffer_get_no_check (src, i);
-
-  if (next == '-')
-    {
-      negative = 1;
-      i++;
-    }
-  else if (next == '+')
-    {
-      i++;
-    }
-
-  ASSERT (i < until); // Should have at least 1 digit
-
-  for (; i < until; ++i)
-    {
-      next = cbuffer_get_no_check (src, i);
-      ASSERT (is_num (next));
-      u32 _next = next - '0';
-      if (ret > (I32_ABS_MAX - _next) / 10)
-        {
-          return ERR_OVERFLOW; // Overflow
-        }
-      ret = ret * 10 + _next;
-    }
-
-  if (negative)
-    {
-      *dest = -1 * (i32)ret;
-    }
-  else
-    {
-      *dest = (i32)ret;
-    }
-  return SUCCESS;
-}
-
-TEST (cbuffer_parse_front_i32)
-{
-  i32 out;
-  u8 buf[12];
-
-  cbuffer b1 = cbuffer_create (buf, 12);
-  cbuffer_write ("1234X", 1, 5, &b1);
-  test_assert_int_equal (cbuffer_parse_front_i32 (&out, &b1, 4), SUCCESS);
-  test_assert_int_equal (out, 1234);
-
-  cbuffer b2 = cbuffer_create (buf, 12);
-  cbuffer_write ("-56Y", 1, 4, &b2);
-  test_assert_int_equal (cbuffer_parse_front_i32 (&out, &b2, 3), SUCCESS);
-  test_assert_int_equal (out, -56);
-
-  cbuffer b3 = cbuffer_create (buf, 12);
-  cbuffer_write ("9999999999Z", 1, 11, &b3);
-  test_assert_int_equal (cbuffer_parse_front_i32 (&out, &b3, 10), ERR_OVERFLOW);
-
-  // Wrap around
-  cbuffer b4 = cbuffer_create (buf, 5);
-  cbuffer_write ("12345", 1, 5, &b4);
-  cbuffer_read (NULL, 1, 2, &b4);
-  cbuffer_write ("67X", 1, 3, &b4); // writes only '6','7'
-  test_assert_int_equal (cbuffer_parse_front_i32 (&out, &b4, 4), SUCCESS);
-  test_assert_int_equal (out, 3456);
-}
-
-int
-cbuffer_parse_front_f32 (f32 *dest, const cbuffer *src, u32 until)
-{
-  ASSERT (dest);
-  cbuffer_assert (src);
-  ASSERT (until > 0);
-  ASSERT (until < cbuffer_len (src));
-
-  int negative = 0;
-  f32 ret = 0.0f;
-  u32 frac = 0;
-  f32 frac_div = 1.0f;
-  int seen_dot = 0;
-
-  u32 i = 0;
-  u8 next = cbuffer_get_no_check (src, i);
-
-  if (next == '-')
-    {
-      negative = 1;
-      i++;
-    }
-  else if (next == '+')
-    {
-      i++;
-    }
-
-  ASSERT (i < until); // Should have at least 1 digit
-
-  for (; i < until; ++i)
-    {
-      next = cbuffer_get_no_check (src, i);
-
-      if (next == '.')
-        {
-          ASSERT (!seen_dot);
-          seen_dot = 1;
-          continue;
-        }
-
-      ASSERT (is_num (next));
-      u32 _next = next - '0';
-
-      if (!seen_dot)
-        {
-          ret = ret * 10.0f + (f32)_next;
-        }
-      else
-        {
-          frac = frac * 10 + _next;
-          frac_div *= 10.0f;
-        }
-    }
-
-  ret += (f32)frac / frac_div;
-
-  if (negative)
-    {
-      *dest = -ret;
-    }
-  else
-    {
-      *dest = ret;
-    }
-
-  return SUCCESS;
-}
-
-TEST (cbuffer_parse_front_f32)
-{
-  f32 out;
-  u8 buf[10];
-
-  // simple float: write "12.34X", parse "12.34"
-  cbuffer b1 = cbuffer_create (buf, 10);
-  cbuffer_write ("12.34X", 1, 6, &b1);
-  test_assert_int_equal (cbuffer_parse_front_f32 (&out, &b1, 5), SUCCESS);
-  test_assert_equal ((int)(out * 100), 1234, "%d");
-
-  // negative float: write "-0.5Y", parse "-0.5"
-  cbuffer b2 = cbuffer_create (buf, 10);
-  cbuffer_write ("-0.5Y", 1, 5, &b2);
-  test_assert_int_equal (cbuffer_parse_front_f32 (&out, &b2, 4), SUCCESS);
-  test_assert_equal ((int)(out * 10), -5, "%d");
-
-  // integer parse: write "100Z", parse "100"
-  cbuffer b3 = cbuffer_create (buf, 10);
-  cbuffer_write ("100Z", 1, 4, &b3);
-  test_assert_int_equal (cbuffer_parse_front_f32 (&out, &b3, 3), SUCCESS);
-  test_assert_equal ((int)out, 100, "%d");
-
-  // wrap‑around float: cap=5, write 5, read 2, write 2
-  cbuffer b4 = cbuffer_create (buf, 5);
-  cbuffer_write ("12.34", 1, 5, &b4);
-  cbuffer_read (NULL, 1, 2, &b4);
-  cbuffer_write ("56X", 1, 3, &b4); // writes '5','6'
-  // buffer now holds ".","3","4","5","6"
-  test_assert_int_equal (cbuffer_parse_front_f32 (&out, &b4, 4), SUCCESS);
-  test_assert_equal ((int)(out * 1000), 345, "%d");
-}
-
 //////////////////////// BYTES
 
 DEFINE_DBG_ASSERT_I (bytes, bytes, b)
@@ -961,6 +731,18 @@ TEST (strings_all_unique)
   char h4[] = "dd";
   string s6[] = { { h1, 2 }, { h2, 2 }, { h3, 2 }, { h4, 2 } };
   test_assert_int_equal (strings_all_unique (s6, 4), 1);
+}
+
+bool
+string_equal (const string s1, const string s2)
+{
+  string_assert (&s1);
+  string_assert (&s2);
+  if (s1.len != s2.len)
+    {
+      return false;
+    }
+  return i_strncmp (s1.data, s2.data, s1.len) == 0;
 }
 
 DEFINE_DBG_ASSERT_I (array_range, array_range, a)

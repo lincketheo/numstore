@@ -1,3 +1,4 @@
+#include "database.h"
 #include "dev/testing.h"
 #include "intf/io.h"
 

@@ -1,75 +1,72 @@
 #pragma once
 
 #include "dev/assert.h"
+#include "intf/mm.h"
 #include "sds.h"
+#include "typing.h"
 
-/**
- * Compiler Architecture
- * Data In (chars) -> Scanner -> Tokens -> Parser -> ByteCode -> VM
- */
+////////////////////// SCANNER (chars -> tokens)
 
 typedef enum
 {
-  // Token starts with alpha
-  TT_WRITE,
-  TT_IDENTIFIER,
+  SS_START,
+  SS_CHAR_COLLECT,
+  SS_NUMBER_COLLECT,
+  SS_DECIMAL_COLLECT,
+  SS_ERROR_REWIND,
+} scanner_state;
 
-  // Token starts with num
-  TT_INTEGER,
-  TT_FLOAT,
-
-  // Types
-  TT_U32,
-
-  // Single chars
-  TT_SEMICOLON,
-} token_t;
-
-#define TT_IS_SINGLE(t) (t == TT_SEMICOLON)
-
-typedef struct
-{
-  union
-  {
-    string str;
-    i32 integer;
-    f32 floating;
-  };
-  u8 type;
-} token;
-
-////////////////////// SCANNER (chars -> tokens)
 typedef struct
 {
   cbuffer *chars_input;
   cbuffer *tokens_output;
-
   u32 current;
-  int is_error;
+  scanner_state state;
+
+  char *dcur;            // Current data for variable length data
+  u32 dcurlen;           // len of dcur
+  u32 dcurcap;           // capacity of dcur
+  lalloc *strings_alloc; // Allocator for strings
 } scanner;
 
 DEFINE_DBG_ASSERT_H (scanner, scanner, s);
-void scanner_create (scanner *dest, cbuffer *input, cbuffer *output);
-void scanner_execute (scanner *s); // Scans as many tokens as it can
 
-////////////////////// TOKEN PRINTER
-void token_log_info (token t);
-typedef struct
-{
-  cbuffer *tokens_input;
-} token_printer;
-
-void token_printer_create (token_printer *dest, cbuffer *input);
-void token_printer_execute (token_printer *t);
+// TODO - use database to request resources
+void scanner_create (
+    scanner *dest,
+    cbuffer *input,
+    cbuffer *output,
+    lalloc *strings_alloc);
+void scanner_execute (scanner *s); // Buffer will be empty at the end
 
 ////////////////////// PARSER
+
+typedef enum
+{
+  PS_START,
+  PS_CREATE,
+  PS_ERROR_REWIND,
+} parser_state;
+
 typedef struct
 {
-  cbuffer *tokens_input;
-  cbuffer *bytecode_output;
-  int is_error;
+  cbuffer *tokens_input;  // The input buffer for tokens
+  cbuffer *opcode_output; // The output for op codes
+  cbuffer *stack_output;  // The stack output for the vm
+
+  lalloc *input_strings; // The string allocator
+  lalloc *tokens;        // The type allocator
+
+  type *currenttype;  // While building types
+  parser_state state; // Current state for execute
 } parser;
 
 DEFINE_DBG_ASSERT_H (parser, parser, p);
-void parser_create (parser *dest, cbuffer *input, cbuffer *output);
+// TODO use database to request resources
+void parser_create (
+    parser *dest,
+    cbuffer *input,
+    cbuffer *output,
+    lalloc *input_strings,
+    lalloc *tokens);
 void parser_execute (parser *s);

@@ -5,31 +5,29 @@
 #include "sds.h"
 #include "types.h"
 #include "typing.h"
+#include "variable.h"
 
 typedef enum
 {
-  OP_CREATE,
-  OP_WRITE,
-  OP_READ,
-} op_t;
+  QT_CREATE,
+  QT_WRITE,
+  QT_READ,
+} query_t;
 
 //////////////////////////////// CREATE
+
 typedef struct
 {
   const string vname;
   const type *type;
-} create;
+  pager *p;
+} create_op;
 
-DEFINE_DBG_ASSERT_H (create, create, c);
-void create_init (create *c, const string vname, const type *type);
-void create_execute (create *c, file_pager *pager);
+DEFINE_DBG_ASSERT_H (create_op, create_op, c);
+
+void create_execute (create_op *c);
 
 //////////////////////////////// WRITE
-typedef struct
-{
-  u64 page0;
-  type *type;
-} wvar;
 
 typedef struct
 {
@@ -37,7 +35,7 @@ typedef struct
   struct
   {
     u32 len;
-    wvar *nbrs;
+    const string *vnames;
   } * seq;
 } wfmt;
 
@@ -45,47 +43,20 @@ typedef struct
 {
   u32 n;
   wfmt fmt;
-} write;
+} write_op;
 
-//////////////////////////////// READ
-typedef struct
-{
-  u64 page0;
-  type_subset *type;
-} rvar;
-
-typedef struct
-{
-  u32 len;
-  struct
-  {
-    u32 len;
-    rvar *nbrs;
-  } * seq;
-} rfmt;
-
-typedef struct
-{
-  int start;
-  int stop;
-  int end;
-  rfmt fmt;
-  cbuffer *input;
-} read;
+DEFINE_DBG_ASSERT_H (write_op, write_op, w);
 
 //////////////////////////////// OPERATION
-/**
- * An operation is the thing that's passed to the
- * VM. Unlike regular operations, it contains a lot of
- * information in it
- */
+
 typedef struct
 {
-  u8 type;
+
+  query_t type;
+
   union
   {
-    create create;
-    read read;
-    write write;
+    create_op create;
+    write_op write;
   };
-} op;
+} query_plan;

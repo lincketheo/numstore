@@ -1,6 +1,7 @@
 #pragma once
 
 #include "dev/assert.h"
+#include "dev/errors.h"
 #include "intf/io.h"
 #include "sds.h"
 #include "types.h"
@@ -12,65 +13,47 @@
  */
 typedef struct
 {
-  i_file *f;
+  u32 page_size;
+  u64 npages;
+  u32 header_size;
+  i_file f;
 } file_pager;
 
 DEFINE_DBG_ASSERT_H (file_pager, file_pager, p);
-int fpgr_new (file_pager *p, u64 *dest);
-int fpgr_delete (file_pager *p, u64 ptr);
-int fpgr_get (file_pager *p, u8 *dest_page, u64 ptr);
-int fpgr_get_or_create (file_pager *p, u8 *dest_page, u64 *ptr);
-int fpgr_commit (file_pager *p, const u8 *src, u64 ptr);
+
+err_t fpgr_create (file_pager *dest, i_file f, u32 page_size, u32 header_size); // Constructor - also reads file size
+err_t fpgr_new (file_pager *p, u64 *pgno);                                      // Allocates room for 1 page
+err_t fpgr_get_expect (file_pager *p, u8 *dest, u64 pgno);                      // Gets page - or returns invalid db state
+err_t fpgr_delete (file_pager *p, u64 pgno);
+err_t fpgr_commit (file_pager *p, const u8 *src, u64 pgno);
 
 ///////////////////////////// MEMORY PAGE
 typedef struct
 {
-  u8 *page;
-  u64 ptr;
-  u64 laccess;
+  u8 *data;
+  u64 pgno;
+  int is_present;
 } memory_page;
 
 DEFINE_DBG_ASSERT_H (memory_page, memory_page, p);
-void mp_create (memory_page *dest, u64 ptr, u64 clock);
-void mp_access (memory_page *m, u64 now);
-u64 mp_check (const memory_page *m, u64 now);
+void mp_create (memory_page *dest, u8 *data, u32 dlen, u64 pgno);
 
 ///////////////////////////// MEMORY PAGER
 
-/**
- * Memory pager is what textbooks usually call buffer pool.
- * It uses LRU-K algorithm to determine which pages to evict
- * Each memory page holds K most recently accessed times and
- * evicts the page where now - 7th previous time is greatest
- */
 typedef struct
 {
-  memory_page *pages;
-  u32 len;         // len of [pages]
-  int *is_present; // Array of bools if page[i] is present
-  u64 clock;       // Overflow negligible
+  memory_page *pages; // A list of memory pages
+  u32 len;            // Len of pages
+  u32 idx;            // For now, I'm just rotating through the pages, and kicking out the next one. This will change (TODO)
 } memory_pager;
 
 DEFINE_DBG_ASSERT_H (memory_pager, memory_pager, p);
-memory_pager mpgr_create (memory_page *pages, u32 len);
-int mpgr_find_avail (const memory_pager *p);
-u8 *mpgr_new (memory_pager *p, u64 ptr);
-u8 *mpgr_get_by_ptr (memory_pager *p, u64 ptr);
-u8 *mpgr_get_by_idx (memory_pager *p, u32 idx);
-int mpgr_check_page_exists (const memory_pager *p, u64 ptr);
-u64 mpgr_get_evictable (const memory_pager *p);
-void mpgr_delete (memory_pager *p, u64 ptr);
-void mpgr_update_pgnum (memory_pager *p, u64 oldptr, u64 newptr);
-
-///////////////////////////// PAGER
-
-typedef struct
-{
-  memory_pager mpager;
-  file_pager fpager;
-} pager;
-
-DEFINE_DBG_ASSERT_H (pager, pager, p);
+memory_pager mpgr_create (memory_page *pages, u32 len); // Note - caller must allocate and manage memory for pages
+bool mpgr_is_full (const memory_pager *p);              // Checks if mpgr is full
+u8 *mpgr_new (memory_pager *p, u64 pgno);               // Creates a new page, or NULL if not enough room
+u8 *mpgr_get (const memory_pager *p, u64 pgno);         // Fetches page, or NULL if it doesn't exist
+u64 mpgr_get_evictable (const memory_pager *p);         // Fetches next page that will be evicted
+void mpgr_evict (memory_pager *p, u64 pgno);            // Evicts the page - seperate from mpgr_get_evictable so that caller can do things in between
 
 ///////////////////////////// PAGE TYPES
 
@@ -82,8 +65,21 @@ typedef enum
   PG_HASH_LEAF = 4,
 } page_type;
 
-/////////////// DATA LIST
-
+/**
+ * ============ PAGE START
+ * HEADER
+ * NKEYS
+ * LENN (numerator)
+ * LEND (denominator)
+ * DATA0
+ * DATA1
+ * DATA2
+ * ...
+ * DATA(LENN / LEND)
+ * 0
+ * 0
+ * ============ PAGE END
+ */
 typedef struct
 {
   i64 *next;      // Pointer to the next node or -1
@@ -92,8 +88,27 @@ typedef struct
   u8 *data;       // The raw contiguous data pointer
 } data_list;
 
-/////////////// INNER NODE
-
+/**
+ * ============ PAGE START
+ * HEADER
+ * NKEYS
+ * LEAF0
+ * LEAF1
+ * ...
+ * LEAF(NKEYS)
+ * 0
+ * 0
+ * 0
+ * ...
+ * 0
+ * 0
+ * 0
+ * KEY(NKEYS - 1)
+ * ...
+ * KEY1
+ * KEY0
+ * ============ PAGE END
+ */
 typedef struct
 {
   u16 *nkeys; // Number of keys
@@ -101,35 +116,85 @@ typedef struct
   u64 *keys;  // The keys used for rope traversal
 } inner_node;
 
-DEFINE_DBG_ASSERT_H (inner_node, inner_node, d);
-
-/////////////// HASH PAGE
-
+/**
+ * ============ PAGE START
+ * HEADER
+ * LEN
+ * HASH0
+ * HASH1
+ * ...
+ * HASH(LEN - 1)
+ * 0
+ * 0
+ * ============ PAGE END
+ */
 typedef struct
 {
-  i64 *hashes; // Hashes pointing to start of linked list
+  u32 *len;    // Length of the hash table
+  u64 *hashes; // Hashes pointing to header_size of linked list
 } hash_page;
 
-DEFINE_DBG_ASSERT_H (hash_page, hash_page, d);
-
-/////////////// HASH LEAF
-
+/**
+ * ============ DATA START
+ * STRLEN
+ * STR0
+ * STR1
+ * ...
+ * STR(STRLEN - 1)
+ * PGNO
+ * TSTRLEN
+ * TSTR0
+ * TSTR1
+ * ...
+ * TSTR(TSTRLEN)
+ * ============ DATA END
+ */
 typedef struct
 {
-  u64 *next;    // Pointer to next hash map leaf
+  u16 *strlen;  // The length of the variable name
+  char *str;    // The name of the variable
+  u64 *pg0;     // Page 0 of the variable
+  u16 *tstrlen; // The length of the type string
+  char *tstr;   // The type string
+} hash_leaf_tuple;
+
+/**
+ * ============ PAGE START
+ * HEADER
+ * NEXT
+ * NVALUES
+ * OFFSET0
+ * OFFSET1
+ * ...
+ * OFFSET(NVALUES - 1)
+ * 0
+ * 0
+ * ...
+ * 0
+ * 0
+ * TPL2
+ * TPL1
+ * TPL0
+ * ============ PAGE END
+ */
+typedef struct
+{
+  u64 *next;    // Pointer to next hash map leaf - 0 if none
   u16 *nvalues; // Number of values in this node
-  u16 *offsets; // Pointers to where each key value starts
+  u16 *offsets; // Pointers to where each key value header_sizes
 } hash_leaf;
 
-DEFINE_DBG_ASSERT_H (hash_leaf, hash_leaf, d);
-
-/////////////// WRAPPER
+#define MIN_PAGE_SIZE 512
 
 typedef struct
 {
-  u8 *raw;
-
   u8 *header;
+
+  u8 *raw;
+  u32 len;
+
+  u64 pgno;
+
   union
   {
     data_list dl;
@@ -139,5 +204,52 @@ typedef struct
   };
 } page;
 
-int page_read_expect (page *dest, page_type expected, u8 *raw);
-void page_init (page *dest, page_type type, u8 *raw);
+err_t page_read_expect (
+    page *dest,
+    page_type expected,
+    u8 *raw,
+    u32 rlen,
+    u64 pgno);
+
+void page_init (
+    page *dest,
+    page_type type,
+    u8 *raw,
+    u32 rlen,
+    u64 pgno);
+
+//// UTILS
+
+/**
+ * returns:
+ *  ERR_INVALID_STATE
+ */
+err_t hl_get_tuple (
+    hash_leaf_tuple *dest,
+    const page *hl,
+    u16 idx);
+
+/**
+ * returns:
+ *  ERR_INVALID_STATE
+ */
+err_t hp_get_hash (
+    u64 *dest,
+    page *p,
+    const string string);
+
+///////////////////////////// PAGER
+
+typedef struct
+{
+  memory_pager mpager;
+  file_pager fpager;
+  u32 page_size;
+} pager;
+
+DEFINE_DBG_ASSERT_H (pager, pager, p);
+pager pgr_create (memory_pager mpager, file_pager fpager, u32 page_size);
+
+err_t pgr_get_expect (page *dest, page_type type, u64 pgno, pager *p);
+err_t pgr_new (page *dest, pager *p, page_type type);
+err_t pgr_commit (pager *p, u8 *data, u64 pgno);

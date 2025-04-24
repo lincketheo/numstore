@@ -1,13 +1,20 @@
 #pragma once
 
+#include "dev/assert.h"
+#include "dev/errors.h"
 #include "types.h"
 
-/////////////////////// Allocation
-void *i_malloc (u64 bytes);
-void *i_calloc (u64 n, u64 size);
-void i_free (void *ptr);
-void *i_realloc (void *ptr, u64 bytes);
+/////////////////////// Limited allocator
 
-// Idea: Program Allocation
-// Allocations that you know will be around for the
-// entire program - e.g. don't need a free until the end
+typedef struct
+{
+  u64 limit;
+  u64 total;
+} lalloc;
+
+DEFINE_DBG_ASSERT_H (lalloc, lalloc, l);
+lalloc lalloc_create (u64 limit);
+void *lmalloc (lalloc *a, u64 bytes);
+void *lcalloc (lalloc *a, u64 len, u64 size);
+void *lrealloc (lalloc *a, void *data, u64 bytes);
+void lfree (lalloc *a, void *data);

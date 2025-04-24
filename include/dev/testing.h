@@ -18,7 +18,8 @@ extern int test_ret;
     test_##name ();                                                  \
     if (test_ret)                                                    \
       {                                                              \
-        i_log_failure ("%s\n", #name);                               \
+        i_log_failure ("%s at %s:%d (%s)\n",                         \
+                       #name, __FILE__, __LINE__, __func__);         \
       }                                                              \
     else                                                             \
       {                                                              \
@@ -45,7 +46,9 @@ extern int test_ret;
     }                                                                                    \
   while (0)
 
-#define test_assert_int_equal(left, right) test_assert_equal (left, right, "%" PRId32)
+#define test_assert_int_equal(left, right) test_assert_equal ((int)(left), (int)(right), "%" PRId32)
+
+#define test_assert_ptr_equal(left, right) test_assert_equal ((void *)left, (void *)right, "%p")
 
 #define test_fail_if(expr)                                                 \
   do                                                                       \

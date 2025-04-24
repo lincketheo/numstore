@@ -1,5 +1,6 @@
 #include "net.h"
-#include "config.h"
+#include "dev/errors.h"
+#include "intf/io.h"
 #include "intf/mm.h"
 
 static file_pager fpgr;
@@ -63,7 +64,8 @@ server_execute (conn *dest, server *s)
       return ERR_IO;
     }
 
-  i_file *fp = i_open (unsafe_cstrfrom ("out.bin"), 1, 1);
+  i_file fp;
+  err_t_wrap (i_open (&fp, unsafe_cstrfrom ("out.bin"), 1, 1));
   fpgr.f = fp;
 
   dest->cfd = cfd;

@@ -1,5 +1,7 @@
 # Conventions
 
+- Constructors:
+    - Structs have constructures named `struct_name_create`
 - All methods meant to be interfaces are preceeded with `i_`.
     - Bob Martin would be mad, but:
         1. It discourages interfaces / abstraction
