@@ -293,11 +293,14 @@ typedef struct
   {
     TB_UNKNOWN,
     TB_ARRAY_UNKNOWN,
+
     TB_STRUCT,
     TB_UNION,
     TB_ENUM,
     TB_VARRAY,
     TB_SARRAY,
+    TB_PRIM,
+
   } state;
 
   union

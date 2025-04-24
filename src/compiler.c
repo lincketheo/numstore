@@ -111,7 +111,7 @@ scanner_cpy_advance_expect (scanner *s)
   // Check room
   if (s->dcurlen == s->dcurcap)
     {
-      char *next = lrealloc (s->strings_alloc, s->dcur, 2 * s->dcurcap);
+      char *next = lrealloc (s->strings_alloc, s->dcur, 2 * s->dcurcap * sizeof *next);
       if (!next)
         {
           return false; // No memory - block
@@ -141,7 +141,7 @@ scanner_cpy_advance (scanner *s)
   // Check room
   if (s->dcurlen == s->dcurcap)
     {
-      char *dcur = lrealloc (s->strings_alloc, s->dcur, 2 * s->dcurcap);
+      char *dcur = lrealloc (s->strings_alloc, s->dcur, 2 * s->dcurcap * sizeof *dcur);
       if (!dcur)
         {
           return false; // No memory - block
@@ -915,49 +915,58 @@ static inline DEFINE_DBG_ASSERT_I (struct_bldr, struct_bldr, s)
 }
 
 static inline tp_result
-stbldr_create (struct_bldr *dest, lalloc *alloc)
+stbldr_create (type_bldr *dest, lalloc *alloc)
 {
   ASSERT (dest);
+  lalloc_assert (alloc);
+  ASSERT (dest->state == TB_UNKNOWN);
 
-  dest->keys = lmalloc (alloc, 5 * sizeof *dest->keys);
-  if (!dest->keys)
+  dest->sb.keys = lmalloc (alloc, 5 * sizeof *dest->sb.keys);
+  if (!dest->sb.keys)
     {
       return TPR_MALLOC_ERROR;
     }
-  dest->types = lmalloc (alloc, 5 * sizeof *dest->types);
-  if (!dest->types)
+  dest->sb.types = lmalloc (alloc, 5 * sizeof *dest->sb.types);
+  if (!dest->sb.types)
     {
-      lfree (alloc, dest->keys);
+      lfree (alloc, dest->sb.keys);
       return TPR_MALLOC_ERROR;
     }
 
-  dest->cap = 5;
-  dest->len = 0;
-  dest->state = SB_WAITING_FOR_LB;
+  dest->sb.cap = 5;
+  dest->sb.len = 0;
+  dest->sb.state = SB_WAITING_FOR_LB;
+  dest->state = TB_STRUCT;
 
-  struct_bldr_assert (dest);
+  type_bldr_assert (dest);
 
   return TPR_EXPECT_NEXT_TOKEN;
 }
 
 static inline tp_result
-sb_handle_waiting_for_lb (struct_bldr *sb, token t)
+sb_handle_waiting_for_lb (type_bldr *sb, token t)
 {
+  ASSERT (sb->state == TB_STRUCT);
+  ASSERT (sb->sb.state == SB_WAITING_FOR_LB);
+
   if (t.type != TT_LEFT_BRACE)
     {
       return TPR_SYNTAX_ERROR;
     }
-  sb->state = SB_WAITING_FOR_IDENT;
+
+  sb->sb.state = SB_WAITING_FOR_IDENT;
+
   return TPR_EXPECT_NEXT_TOKEN;
 }
 
 // Push a string to the end
 static inline tp_result
-stbldr_push_key (struct_bldr *sb, token t, lalloc *alloc)
+stbldr_push_key (type_bldr *sb, token t, lalloc *alloc)
 {
-  struct_bldr_assert (sb);
+  struct_bldr_assert (&sb->sb);
   lalloc_assert (alloc);
-  ASSERT (sb->state == SB_WAITING_FOR_IDENT);
+  ASSERT (sb->state == TB_STRUCT);
+  ASSERT (sb->sb.state == SB_WAITING_FOR_IDENT);
 
   if (t.type != TT_IDENTIFIER)
     {
@@ -966,40 +975,44 @@ stbldr_push_key (struct_bldr *sb, token t, lalloc *alloc)
   string_assert (&t.str);
 
   // Check for size adjustments
-  if (sb->len == sb->cap)
+  if (sb->sb.len == sb->sb.cap)
     {
       // Restrict memory requirements to avoid overflow
-      ASSERT (can_mul_u64 (sb->cap, 2));
-      ASSERT (can_mul_u64 (2 * sb->cap, sizeof (string)));
-      u32 ncap = 2 * sb->cap;
-      string *keys = lrealloc (alloc, sb->keys, ncap * sizeof (string));
+      ASSERT (can_mul_u64 (sb->sb.cap, 2));
+      ASSERT (can_mul_u64 (2 * sb->sb.cap, sizeof (string)));
+      u32 ncap = 2 * sb->sb.cap;
+      string *keys = lrealloc (alloc, sb->sb.keys, ncap * sizeof *keys);
       if (!keys)
         {
           return TPR_MALLOC_ERROR;
         }
-      type *types = lrealloc (alloc, sb->types, ncap * sizeof (type));
+      type *types = lrealloc (alloc, sb->sb.types, ncap * sizeof *types);
       if (!keys)
         {
           lfree (alloc, keys);
           return TPR_MALLOC_ERROR;
         }
-      sb->keys = keys;
-      sb->types = types;
-      sb->cap = ncap;
+      sb->sb.keys = keys;
+      sb->sb.types = types;
+      sb->sb.cap = ncap;
     }
 
-  sb->keys[sb->len] = t.str; // DONT INC LEN - WAIT FOR TYPE ADD
-  sb->state = SB_WAITING_FOR_TYPE;
+  sb->sb.keys[sb->sb.len] = t.str; // DONT INC LEN - WAIT FOR TYPE ADD
+  sb->sb.state = SB_WAITING_FOR_TYPE;
 
-  return TPR_EXPECT_NEXT_TOKEN;
+  return TPR_EXPECT_NEXT_TYPE;
 }
 
 static inline tp_result
-sb_handle_comma_or_right (struct_bldr *sb, token t)
+sb_handle_comma_or_right (type_bldr *sb, token t)
 {
+  type_bldr_assert (sb);
+  ASSERT (sb->state == TB_STRUCT);
+  ASSERT (sb->sb.state == SB_WAITING_FOR_COMMA_OR_RIGHT);
+
   if (t.type == TT_COMMA)
     {
-      sb->state = SB_WAITING_FOR_IDENT;
+      sb->sb.state = SB_WAITING_FOR_IDENT;
       return TPR_EXPECT_NEXT_TOKEN;
     }
   else if (t.type == TT_RIGHT_BRACE)
@@ -1013,22 +1026,24 @@ static inline tp_result
 sb_accept_token (type_bldr *tb, token t, lalloc *alloc)
 {
   type_bldr_assert (tb);
+  lalloc_assert (alloc);
+  ASSERT (tb->state == TB_STRUCT);
 
   switch (tb->sb.state)
     {
     case SB_WAITING_FOR_LB:
       {
-        return sb_handle_waiting_for_lb (&tb->sb, t);
+        return sb_handle_waiting_for_lb (tb, t);
       }
 
     case SB_WAITING_FOR_IDENT:
       {
-        return stbldr_push_key (&tb->sb, t, alloc);
+        return stbldr_push_key (tb, t, alloc);
       }
 
     case SB_WAITING_FOR_COMMA_OR_RIGHT:
       {
-        return sb_handle_comma_or_right (&tb->sb, t);
+        return sb_handle_comma_or_right (tb, t);
       }
 
     default:
@@ -1039,32 +1054,77 @@ sb_accept_token (type_bldr *tb, token t, lalloc *alloc)
 }
 
 static inline tp_result
-stbldr_push_type (struct_bldr *sb, type t)
+stbldr_push_type (type_bldr *sb, type t)
 {
-  struct_bldr_assert (sb);
+  type_bldr_assert (sb);
   type_assert (&t);
-  ASSERT (sb->len < sb->cap); // From previous string push
-  ASSERT (sb->state == SB_WAITING_FOR_TYPE);
+  ASSERT (sb->sb.len < sb->sb.cap); // From previous string push
+  ASSERT (sb->state == TB_STRUCT);
+  ASSERT (sb->sb.state == SB_WAITING_FOR_TYPE);
 
-  sb->types[sb->len++] = t; // NOW YOU CAN INC LEN
-  sb->state = SB_WAITING_FOR_COMMA_OR_RIGHT;
+  sb->sb.types[sb->sb.len++] = t; // NOW YOU CAN INC LEN
+  sb->sb.state = SB_WAITING_FOR_COMMA_OR_RIGHT;
+
   return TPR_EXPECT_NEXT_TOKEN;
 }
 
 tp_result
 sb_accept_type (type_bldr *sb, type type)
 {
+  type_bldr_assert (sb);
+  ASSERT (sb->state == TB_STRUCT);
+
   switch (sb->sb.state)
     {
     case SB_WAITING_FOR_TYPE:
       {
-        return stbldr_push_type (&sb->sb, type);
+        return stbldr_push_type (sb, type);
       }
     default:
       {
         return TPR_SYNTAX_ERROR;
       }
     }
+}
+
+tp_result
+sb_build (type_bldr *sb, lalloc *alloc)
+{
+  type_bldr_assert (sb);
+  ASSERT (sb->state == TB_STRUCT);
+  ASSERT (sb->sb.state == SB_WAITING_FOR_COMMA_OR_RIGHT);
+
+  type *types = sb->sb.types;
+  string *strs = sb->sb.keys;
+
+  sb->ret.st = lmalloc (alloc, sizeof *sb->ret.st);
+  if (!sb->ret.st)
+    {
+      return TPR_MALLOC_ERROR;
+    }
+
+  // Clip buffers
+  if (sb->sb.len < sb->sb.cap)
+    {
+      types = lrealloc (alloc, types, sb->sb.len * sizeof *types);
+      if (!types)
+        {
+          return TPR_MALLOC_ERROR;
+        }
+
+      strs = lrealloc (alloc, strs, sb->sb.len * sizeof *strs);
+      if (!strs)
+        {
+          return TPR_MALLOC_ERROR;
+        }
+    }
+
+  sb->ret.st->types = types;
+  sb->ret.st->keys = strs;
+  sb->ret.st->len = sb->sb.len;
+  sb->ret.type = T_STRUCT;
+
+  return TPR_DONE;
 }
 
 //////////////// UNION BUILDER
@@ -1078,49 +1138,60 @@ static inline DEFINE_DBG_ASSERT_I (union_bldr, union_bldr, u)
 }
 
 static inline tp_result
-unbldr_create (union_bldr *dest, lalloc *alloc)
+unbldr_create (type_bldr *dest, lalloc *alloc)
 {
   ASSERT (dest);
+  lalloc_assert (alloc);
+  ASSERT (dest->state == TB_UNKNOWN);
 
-  dest->keys = lmalloc (alloc, 5 * sizeof *dest->keys);
-  if (!dest->keys)
+  dest->ub.keys = lmalloc (alloc, 5 * sizeof *dest->ub.keys);
+  if (!dest->ub.keys)
     {
       return TPR_MALLOC_ERROR;
     }
-  dest->types = lmalloc (alloc, 5 * sizeof *dest->types);
-  if (!dest->types)
+
+  dest->ub.types = lmalloc (alloc, 5 * sizeof *dest->ub.types);
+  if (!dest->ub.types)
     {
-      lfree (alloc, dest->keys);
+      lfree (alloc, dest->ub.keys);
       return TPR_MALLOC_ERROR;
     }
 
-  dest->cap = 5;
-  dest->len = 0;
-  dest->state = UB_WAITING_FOR_LB;
+  dest->ub.cap = 5;
+  dest->ub.len = 0;
+  dest->ub.state = UB_WAITING_FOR_LB;
+  dest->state = TB_UNION;
 
-  union_bldr_assert (dest);
+  type_bldr_assert (dest);
 
   return TPR_EXPECT_NEXT_TOKEN;
 }
 
 static inline tp_result
-ub_handle_waiting_for_lb (union_bldr *ub, token t)
+ub_handle_waiting_for_lb (type_bldr *ub, token t)
 {
+  type_bldr_assert (ub);
+  ASSERT (ub->state == TB_UNION);
+  ASSERT (ub->ub.state == UB_WAITING_FOR_LB);
+
   if (t.type != TT_LEFT_BRACE)
     {
       return TPR_SYNTAX_ERROR;
     }
-  ub->state = UB_WAITING_FOR_IDENT;
+
+  ub->ub.state = UB_WAITING_FOR_IDENT;
+
   return TPR_EXPECT_NEXT_TOKEN;
 }
 
 // Push a key to the end
 static inline tp_result
-unbldr_push_key (union_bldr *ub, token t, lalloc *alloc)
+unbldr_push_key (type_bldr *ub, token t, lalloc *alloc)
 {
-  union_bldr_assert (ub);
+  type_bldr_assert (ub);
   lalloc_assert (alloc);
-  ASSERT (ub->state == UB_WAITING_FOR_IDENT);
+  ASSERT (ub->state == TB_UNION);
+  ASSERT (ub->ub.state == UB_WAITING_FOR_IDENT);
 
   if (t.type != TT_IDENTIFIER)
     {
@@ -1129,67 +1200,77 @@ unbldr_push_key (union_bldr *ub, token t, lalloc *alloc)
   string_assert (&t.str);
 
   // Check for size adjustments
-  if (ub->len == ub->cap)
+  if (ub->ub.len == ub->ub.cap)
     {
       // Restrict memory requirements to avoid overflow
-      ASSERT (can_mul_u64 (ub->cap, 2));
-      ASSERT (can_mul_u64 (2 * ub->cap, sizeof (string)));
-      u32 ncap = 2 * ub->cap;
-      string *keys = lrealloc (alloc, ub->keys, ncap * sizeof (string));
+      ASSERT (can_mul_u64 (ub->ub.cap, 2));
+      ASSERT (can_mul_u64 (2 * ub->ub.cap, sizeof (string)));
+      u32 ncap = 2 * ub->ub.cap;
+      string *keys = lrealloc (alloc, ub->ub.keys, ncap * sizeof (string));
       if (!keys)
         {
           return TPR_MALLOC_ERROR;
         }
-      type *types = lrealloc (alloc, ub->types, ncap * sizeof (type));
+      type *types = lrealloc (alloc, ub->ub.types, ncap * sizeof (type));
       if (!keys)
         {
           lfree (alloc, keys);
           return TPR_MALLOC_ERROR;
         }
-      ub->keys = keys;
-      ub->types = types;
-      ub->cap = ncap;
+      ub->ub.keys = keys;
+      ub->ub.types = types;
+      ub->ub.cap = ncap;
     }
 
-  ub->keys[ub->len] = t.str; // DONT INC LEN - WAIT FOR TYPE ADD
-  ub->state = UB_WAITING_FOR_TYPE;
+  ub->ub.keys[ub->ub.len] = t.str; // DONT INC LEN - WAIT FOR TYPE ADD
+  ub->ub.state = UB_WAITING_FOR_TYPE;
 
   return TPR_EXPECT_NEXT_TYPE;
 }
 
 static inline tp_result
-ub_handle_comma_or_right (union_bldr *ub, token t)
+ub_handle_comma_or_right (type_bldr *ub, token t)
 {
+  type_bldr_assert (ub);
+  ASSERT (ub->state == TB_UNION);
+  ASSERT (ub->ub.state == UB_WAITING_FOR_COMMA_OR_RIGHT);
+
   if (t.type == TT_COMMA)
     {
-      ub->state = UB_WAITING_FOR_IDENT;
+      ub->ub.state = UB_WAITING_FOR_IDENT;
       return TPR_EXPECT_NEXT_TOKEN;
     }
   else if (t.type == TT_RIGHT_BRACE)
     {
       return TPR_DONE;
     }
+
   return TPR_SYNTAX_ERROR;
 }
 
 static inline tp_result
 ub_accept_token (type_bldr *ub, token t, lalloc *alloc)
 {
+  type_bldr_assert (ub);
+  lalloc_assert (alloc);
+  ASSERT (ub->state == TB_UNION);
+
   switch (ub->ub.state)
     {
+
     case UB_WAITING_FOR_LB:
       {
-        return ub_handle_waiting_for_lb (&ub->ub, t);
+        return ub_handle_waiting_for_lb (ub, t);
       }
 
     case UB_WAITING_FOR_IDENT:
       {
-        return unbldr_push_key (&ub->ub, t, alloc);
+        return unbldr_push_key (ub, t, alloc);
       }
 
     case UB_WAITING_FOR_COMMA_OR_RIGHT:
       {
-        return ub_handle_comma_or_right (&ub->ub, t);
+        return ub_handle_comma_or_right (ub, t);
       }
 
     default:
@@ -1200,15 +1281,16 @@ ub_accept_token (type_bldr *ub, token t, lalloc *alloc)
 }
 
 static inline tp_result
-unbldr_push_type (union_bldr *ub, type t)
+unbldr_push_type (type_bldr *ub, type t)
 {
-  union_bldr_assert (ub);
+  type_bldr_assert (ub);
   type_assert (&t);
-  ASSERT (ub->len < ub->cap);
-  ASSERT (ub->state == UB_WAITING_FOR_TYPE);
+  ASSERT (ub->ub.len < ub->ub.cap);
+  ASSERT (ub->state == TB_UNION);
+  ASSERT (ub->ub.state == UB_WAITING_FOR_TYPE);
 
-  ub->types[ub->len++] = t; // NOW YOU CAN INC LEN
-  ub->state = UB_WAITING_FOR_COMMA_OR_RIGHT;
+  ub->ub.types[ub->ub.len++] = t; // NOW YOU CAN INC LEN
+  ub->ub.state = UB_WAITING_FOR_COMMA_OR_RIGHT;
 
   return TPR_EXPECT_NEXT_TOKEN;
 }
@@ -1216,17 +1298,61 @@ unbldr_push_type (union_bldr *ub, type t)
 static inline tp_result
 ub_accept_type (type_bldr *ub, type type)
 {
+  type_bldr_assert (ub);
+  type_assert (&type);
+  ASSERT (ub->state == TB_UNION);
+
   switch (ub->ub.state)
     {
     case UB_WAITING_FOR_TYPE:
       {
-        return unbldr_push_type (&ub->ub, type);
+        return unbldr_push_type (ub, type);
       }
     default:
       {
         return TPR_SYNTAX_ERROR;
       }
     }
+}
+
+tp_result
+ub_build (type_bldr *ub, lalloc *alloc)
+{
+  type_bldr_assert (ub);
+  ASSERT (ub->state == TB_UNION);
+  ASSERT (ub->ub.state == UB_WAITING_FOR_COMMA_OR_RIGHT);
+
+  type *types = ub->ub.types;
+  string *strs = ub->ub.keys;
+
+  ub->ret.un = lmalloc (alloc, sizeof *ub->ret.un);
+  if (!ub->ret.un)
+    {
+      return TPR_MALLOC_ERROR;
+    }
+
+  // Clip buffers
+  if (ub->ub.len < ub->ub.cap)
+    {
+      types = lrealloc (alloc, types, ub->ub.len * sizeof *types);
+      if (!types)
+        {
+          return TPR_MALLOC_ERROR;
+        }
+
+      strs = lrealloc (alloc, strs, ub->ub.len * sizeof *strs);
+      if (!strs)
+        {
+          return TPR_MALLOC_ERROR;
+        }
+    }
+
+  ub->ret.un->types = types;
+  ub->ret.un->keys = strs;
+  ub->ret.un->len = ub->ub.len;
+  ub->ret.type = T_UNION;
+
+  return TPR_DONE;
 }
 
 //////////////// ENUM BUILDER
@@ -1239,42 +1365,50 @@ DEFINE_DBG_ASSERT_I (enum_bldr, enum_bldr, s)
 }
 
 static inline tp_result
-enbldr_create (enum_bldr *dest, lalloc *alloc)
+enbldr_create (type_bldr *dest, lalloc *alloc)
 {
   ASSERT (dest);
+  ASSERT (dest->state == TB_UNKNOWN);
 
-  dest->keys = lmalloc (alloc, 5 * sizeof *dest->keys);
-  if (!dest->keys)
+  dest->eb.keys = lmalloc (alloc, 5 * sizeof *dest->eb.keys);
+  if (!dest->eb.keys)
     {
       return TPR_MALLOC_ERROR;
     }
 
-  dest->cap = 5;
-  dest->len = 0;
-  dest->state = EB_WAITING_FOR_LB;
+  dest->eb.cap = 5;
+  dest->eb.len = 0;
+  dest->eb.state = EB_WAITING_FOR_LB;
+  dest->state = TB_ENUM;
 
-  enum_bldr_assert (dest);
+  type_bldr_assert (dest);
 
   return TPR_EXPECT_NEXT_TOKEN;
 }
 
 static inline tp_result
-eb_handle_waiting_for_lb (enum_bldr *eb, token t)
+eb_handle_waiting_for_lb (type_bldr *eb, token t)
 {
+  type_bldr_assert (eb);
+  ASSERT (eb->state == TB_ENUM);
+
   if (t.type != TT_LEFT_BRACE)
     {
       return TPR_SYNTAX_ERROR;
     }
-  eb->state = EB_WAITING_FOR_IDENT;
+
+  eb->eb.state = EB_WAITING_FOR_IDENT;
+
   return TPR_EXPECT_NEXT_TOKEN;
 }
 
 static inline tp_result
-enbldr_push_str (enum_bldr *eb, token t, lalloc *alloc)
+enbldr_push_str (type_bldr *eb, token t, lalloc *alloc)
 {
-  enum_bldr_assert (eb);
+  type_bldr_assert (eb);
   lalloc_assert (alloc);
-  ASSERT (eb->state == EB_WAITING_FOR_IDENT);
+  ASSERT (eb->state == TB_ENUM);
+  ASSERT (eb->eb.state == EB_WAITING_FOR_IDENT);
 
   if (t.type != TT_IDENTIFIER)
     {
@@ -1283,62 +1417,71 @@ enbldr_push_str (enum_bldr *eb, token t, lalloc *alloc)
   string_assert (&t.str);
 
   // Check for size adjustments
-  if (eb->len == eb->cap)
+  if (eb->eb.len == eb->eb.cap)
     {
       // Restrict memory requirements to avoid overflow
-      ASSERT (can_mul_u64 (eb->cap, 2));
-      ASSERT (can_mul_u64 (2 * eb->cap, sizeof (string)));
-      u32 ncap = 2 * eb->cap;
+      ASSERT (can_mul_u64 (eb->eb.cap, 2));
+      ASSERT (can_mul_u64 (2 * eb->eb.cap, sizeof (string)));
+      u32 ncap = 2 * eb->eb.cap;
 
-      string *keys = lrealloc (alloc, eb->keys, ncap * sizeof (string));
+      string *keys = lrealloc (alloc, eb->eb.keys, ncap * sizeof (string));
       if (!keys)
         {
           return TPR_MALLOC_ERROR;
         }
 
-      eb->keys = keys;
-      eb->cap = ncap;
+      eb->eb.keys = keys;
+      eb->eb.cap = ncap;
     }
 
-  eb->keys[eb->len++] = t.str;
-  eb->state = EB_WAITING_FOR_COMMA_OR_RIGHT;
+  eb->eb.keys[eb->eb.len++] = t.str;
+  eb->eb.state = EB_WAITING_FOR_COMMA_OR_RIGHT;
 
   return TPR_EXPECT_NEXT_TOKEN;
 }
 
 static inline tp_result
-eb_handle_comma_or_right (enum_bldr *eb, token t)
+eb_handle_comma_or_right (type_bldr *eb, token t)
 {
+  type_bldr_assert (eb);
+  ASSERT (eb->state == TB_ENUM);
+  ASSERT (eb->eb.state == EB_WAITING_FOR_COMMA_OR_RIGHT);
+
   if (t.type == TT_COMMA)
     {
-      eb->state = EB_WAITING_FOR_IDENT;
+      eb->eb.state = EB_WAITING_FOR_IDENT;
       return TPR_EXPECT_NEXT_TOKEN;
     }
   else if (t.type == TT_RIGHT_BRACE)
     {
       return TPR_DONE;
     }
+
   return TPR_SYNTAX_ERROR;
 }
 
 static inline tp_result
 eb_accept_token (type_bldr *eb, token t, lalloc *alloc)
 {
+  type_bldr_assert (eb);
+  lalloc_assert (alloc);
+  ASSERT (eb->state == TB_ENUM);
+
   switch (eb->eb.state)
     {
     case EB_WAITING_FOR_LB:
       {
-        return eb_handle_waiting_for_lb (&eb->eb, t);
+        return eb_handle_waiting_for_lb (eb, t);
       }
 
     case EB_WAITING_FOR_IDENT:
       {
-        return enbldr_push_str (&eb->eb, t, alloc);
+        return enbldr_push_str (eb, t, alloc);
       }
 
     case EB_WAITING_FOR_COMMA_OR_RIGHT:
       {
-        return eb_handle_comma_or_right (&eb->eb, t);
+        return eb_handle_comma_or_right (eb, t);
       }
 
     default:
@@ -1346,6 +1489,38 @@ eb_accept_token (type_bldr *eb, token t, lalloc *alloc)
         return TPR_SYNTAX_ERROR;
       }
     }
+}
+
+tp_result
+eb_build (type_bldr *eb, lalloc *alloc)
+{
+  type_bldr_assert (eb);
+  ASSERT (eb->state == TB_STRUCT);
+  ASSERT (eb->eb.state == EB_WAITING_FOR_COMMA_OR_RIGHT);
+
+  string *strs = eb->eb.keys;
+
+  eb->ret.en = lmalloc (alloc, sizeof *eb->ret.en);
+  if (!eb->ret.en)
+    {
+      return TPR_MALLOC_ERROR;
+    }
+
+  // Clip buffers
+  if (eb->eb.len < eb->eb.cap)
+    {
+      strs = lrealloc (alloc, strs, eb->eb.len * sizeof *strs);
+      if (!strs)
+        {
+          return TPR_MALLOC_ERROR;
+        }
+    }
+
+  eb->ret.en->keys = strs;
+  eb->ret.en->len = eb->eb.len;
+  eb->ret.type = T_UNION;
+
+  return TPR_DONE;
 }
 
 //////////////// VARRAY BUILDER
@@ -1368,6 +1543,7 @@ varray_bldr_create (varray_bldr *dest)
   return TPR_EXPECT_NEXT_TOKEN;
 }
 
+/**
 static inline tp_result
 varray_bldr_incr (varray_bldr *sb)
 {
@@ -1377,6 +1553,7 @@ varray_bldr_incr (varray_bldr *sb)
   sb->state = VAB_WAITING_FOR_LEFT_OR_TYPE;
   return TPR_EXPECT_NEXT_TOKEN;
 }
+*/
 
 //////////////// SARRAY BUILDER
 DEFINE_DBG_ASSERT_I (sarray_bldr, sarray_bldr, s)
@@ -1414,11 +1591,12 @@ sarray_bldr_create (sarray_bldr *dest, u32 dim, lalloc *alloc)
 }
 
 tp_result
-sarray_bldr_incr (sarray_bldr *sb, token t, lalloc *alloc)
+sarray_bldr_incr (type_bldr *sb, token t, lalloc *alloc)
 {
-  sarray_bldr_assert (sb);
+  type_bldr_assert (sb);
   lalloc_assert (alloc);
-  ASSERT (sb->state == SAB_WAITING_FOR_NUMBER);
+  ASSERT (sb->state == TB_SARRAY);
+  ASSERT (sb->sab.state == SAB_WAITING_FOR_NUMBER);
 
   if (t.type != TT_INTEGER)
     {
@@ -1431,25 +1609,25 @@ sarray_bldr_incr (sarray_bldr *sb, token t, lalloc *alloc)
   // TODO - maximum dimension size?
 
   // Check for size adjustments
-  if (sb->len == sb->cap)
+  if (sb->sab.len == sb->sab.cap)
     {
       // Restrict memory requirements to avoid overflow
-      ASSERT (can_mul_u64 (sb->cap, 2));
-      ASSERT (can_mul_u64 (2 * sb->cap, sizeof (string)));
-      u32 ncap = 2 * sb->cap;
+      ASSERT (can_mul_u64 (sb->sab.cap, 2));
+      ASSERT (can_mul_u64 (2 * sb->sab.cap, sizeof (string)));
+      u32 ncap = 2 * sb->sab.cap;
 
-      u32 *dims = lrealloc (alloc, sb->dims, ncap * sizeof (string));
+      u32 *dims = lrealloc (alloc, sb->sab.dims, ncap * sizeof (string));
       if (!dims)
         {
           return TPR_MALLOC_ERROR;
         }
 
-      sb->dims = dims;
-      sb->cap = ncap;
+      sb->sab.dims = dims;
+      sb->sab.cap = ncap;
     }
 
-  sb->dims[sb->len++] = (u32)t.integer;
-  sb->state = SAB_WAITING_FOR_RIGHT;
+  sb->sab.dims[sb->sab.len++] = (u32)t.integer;
+  sb->sab.state = SAB_WAITING_FOR_RIGHT;
 
   return TPR_EXPECT_NEXT_TOKEN;
 }
@@ -1463,6 +1641,7 @@ prim_create (type_bldr *tb, prim_t p)
 
   tb->ret.p = p;
   tb->ret.type = T_PRIM;
+  tb->state = TB_PRIM;
 
   return TPR_DONE;
 }
@@ -1478,15 +1657,15 @@ tb_accept_token (type_bldr *tb, token t, lalloc *alloc)
           {
           case TT_STRUCT:
             {
-              return stbldr_create (&tb->sb, alloc);
+              return stbldr_create (tb, alloc);
             }
           case TT_UNION:
             {
-              return unbldr_create (&tb->ub, alloc);
+              return unbldr_create (tb, alloc);
             }
           case TT_ENUM:
             {
-              return enbldr_create (&tb->eb, alloc);
+              return enbldr_create (tb, alloc);
             }
           case TT_LEFT_BRACKET:
             {
@@ -1531,6 +1710,10 @@ tb_accept_token (type_bldr *tb, token t, lalloc *alloc)
         ASSERT (0);
         return 0;
       }
+    default:
+      {
+        return TPR_SYNTAX_ERROR;
+      }
     }
   ASSERT (0);
   return 0;
@@ -1548,6 +1731,36 @@ tb_accept_type (type_bldr *tb, type t)
     case TB_UNION:
       {
         return ub_accept_type (tb, t);
+      }
+    default:
+      {
+        return TPR_SYNTAX_ERROR;
+      }
+    }
+}
+
+tp_result
+tb_build (type_bldr *tb, lalloc *alloc)
+{
+  type_bldr_assert (tb);
+
+  switch (tb->state)
+    {
+    case TB_STRUCT:
+      {
+        return sb_build (tb, alloc);
+      }
+    case TB_UNION:
+      {
+        return ub_build (tb, alloc);
+      }
+    case TB_ENUM:
+      {
+        return eb_build (tb, alloc);
+      }
+    case TB_PRIM:
+      {
+        return TPR_DONE;
       }
     default:
       {
@@ -1582,6 +1795,10 @@ tp_feed_token (type_parser *tp, token t)
     {
       // Pop the top off the stack
       type_bldr top = tp->stack[--tp->sp];
+      if ((ret = tb_build (&top, tp->type_allocator)) != TPR_DONE)
+        {
+          return ret;
+        }
 
       // Merge it with the previous
       ret = tb_accept_type (&tp->stack[tp->sp - 1], top.ret);
@@ -1618,5 +1835,7 @@ TEST (tp_feed_token)
           tp_feed_token (&tp, next);
         }
     }
+
+  tb_build (&tp.stack[0], tp.type_allocator);
   i_log_type (&tp.stack[0].ret);
 }
