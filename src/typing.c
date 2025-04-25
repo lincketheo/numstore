@@ -143,7 +143,6 @@ DEFINE_DBG_ASSERT_I (struct_t, struct_t, s)
   ASSERT (s->types);
   for (u32 i = 0; i < s->len; ++i)
     {
-      string_assert (&s->keys[i]);
       type_assert (&s->types[i]);
     }
   ASSERT (strings_all_unique (s->keys, s->len));

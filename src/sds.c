@@ -420,29 +420,29 @@ TEST (cbuffer_peek_dequeue)
   test_assert_int_equal (v, 7);
 }
 
-int
+bool
 cbuffer_enqueue (cbuffer *b, u8 val)
 {
   cbuffer_assert (b);
 
   if (b->isfull)
     {
-      return 0;
+      return false;
     }
 
   b->data[b->head] = val;
 
   if (++b->head == b->cap)
     {
-      b->head = 0;
+      b->head = false;
     }
 
   if (b->head == b->tail)
     {
-      b->isfull = 1;
+      b->isfull = true;
     }
 
-  return 1;
+  return true;
 }
 
 TEST (cbuffer_enqueue)
@@ -471,7 +471,7 @@ TEST (cbuffer_enqueue)
   test_assert_int_equal (cbuffer_enqueue (&b, 0x44), 0);
 }
 
-int
+bool
 cbuffer_dequeue (u8 *dest, cbuffer *b)
 {
   ASSERT (dest);
@@ -479,12 +479,12 @@ cbuffer_dequeue (u8 *dest, cbuffer *b)
 
   if (!b->isfull && b->head == b->tail)
     {
-      return 0;
+      return false;
     }
 
   *dest = cbuffer_dequeue_no_check (b);
 
-  return 1;
+  return true;
 }
 
 TEST (cbuffer_dequeue)

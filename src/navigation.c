@@ -13,15 +13,15 @@ DEFINE_DBG_ASSERT_I (navigator, navigator, n)
 err_t
 nav_create (navigator *dest, database *db)
 {
-  database_assert (db);
+  err_t ret;
 
-  lalloc *alloc = db_request_alloc (db, 10 * sizeof *dest->stack);
-  if (alloc == NULL)
+  lalloc *alloc;
+  if ((ret = db_request_alloc (&alloc, db, 0, 10 * sizeof *dest->stack)))
     {
-      return ERR_NOMEM;
+      return ret;
     }
 
-  nav_pgctx *stack = lmalloc (alloc, 5 * sizeof *stack);
+  nav_pgctx *stack = lmalloc_dyn (alloc, 5 * sizeof *stack);
   if (!stack)
     {
       db_release_alloc (db, alloc);
@@ -44,7 +44,7 @@ nav_resize (navigator *n, u32 cap)
   if (cap > n->scap)
     {
       // Add 2 - stack never get's too big
-      nav_pgctx *stack = lrealloc (
+      nav_pgctx *stack = lrealloc_dyn (
           n->stack_allocator,
           n->stack,
           (n->scap + 2) * sizeof *stack);
