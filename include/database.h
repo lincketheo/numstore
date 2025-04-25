@@ -12,37 +12,62 @@
 //////////////// Global Database
 typedef struct
 {
-  // PUBLIC
   pager pager;
-  u32 header_size;
   u32 page_size;
-  u32 mpgr_len;
   vhash_map variables;
 
-  /////// PRIVATE
-  /// Raw open resources
   struct
   {
-    u8 *_data;
+    u32 header_size;
+    u32 mpgr_len;
     i_file fp;
-  } resources;
 
-  struct
-  {
-    lalloc *allocs;
-    bool *is_present;
-    u32 len;
-    u32 cap;
-  } allocators;
+    // Eventually these will be specialized
+    struct
+    {
+      lalloc *allocs;
+      bool *is_present;
+      u32 len;
+      u32 cap;
+    } allocators;
 
-  lalloc alloc; // To allocate internal resources
+    struct
+    {
+      cbuffer *cbuffers;
+      u32 len;
+      u32 cap;
+    } cbuffers;
+
+    lalloc alloc;
+  } private;
 } database;
 
-DEFINE_DBG_ASSERT_H (database, database, g);
+typedef struct
+{
+  const string fname;
+  u32 page_size;
+  u32 mpgr_len;
+} dbcargs;
 
-err_t db_create (const string fname, u32 page_size, u32 mpgr_len);
-err_t db_open (database *dest, const string fname);
+typedef struct
+{
+  const string fname;
+} dboargs;
+
+err_t db_create (database *dest, dbcargs args);
+err_t db_open (database *dest, dboargs args);
 void db_close (database *db);
 
-lalloc *db_request_alloc (database *db, u32 limit);
-void db_release_alloc (database *db, lalloc *alloc);
+// Request a new allocator
+err_t db_request_alloc (
+    lalloc **dest,
+    database *db,
+    u64 climit,
+    u32 dlimit);
+void db_release_alloc (
+    database *db,
+    lalloc *alloc);
+
+// Request a new cbuffer
+err_t db_request_cbuffer (cbuffer **dest, database *db, u32 cap);
+void db_release_cbuffer (database *db, cbuffer *c);

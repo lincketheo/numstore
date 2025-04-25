@@ -23,8 +23,6 @@ DEFINE_DBG_ASSERT_I (i_file, i_file, fp)
 err_t
 i_open (i_file *dest, const string fname, int read, int write)
 {
-  cstring_assert (&fname);
-
   if (read && write)
     {
       dest->fd = open (fname.data, O_RDWR | O_CREAT, 0644);
@@ -214,7 +212,6 @@ i_file_size (i_file *fp)
 err_t
 i_remove_quiet (const string fname)
 {
-  cstring_assert (&fname);
   int ret = remove (fname.data);
 
   if (ret && errno != ENOENT)
@@ -230,7 +227,6 @@ i_remove_quiet (const string fname)
 err_t
 i_access_rw (const string fname)
 {
-  cstring_assert (&fname);
   if (access (fname.data, F_OK | W_OK | R_OK))
     {
       i_log_error ("failed to call access. Reason: %s\n",
@@ -243,7 +239,6 @@ i_access_rw (const string fname)
 bool
 i_exists_rw (const string fname)
 {
-  cstring_assert (&fname);
   if (access (fname.data, F_OK | W_OK | R_OK))
     {
       return false;
@@ -254,7 +249,6 @@ i_exists_rw (const string fname)
 err_t
 i_mkstemp (i_file *dest, string tmpl)
 {
-  cstring_assert (&tmpl);
   int fd = mkstemp (tmpl.data);
   if (fd == -1)
     {
@@ -270,7 +264,6 @@ i_mkstemp (i_file *dest, string tmpl)
 err_t
 i_unlink (const string name)
 {
-  cstring_assert (&name);
   if (unlink (name.data))
     {
       i_log_error ("Failed to call unlink on file: %s. Reason: %s\n",

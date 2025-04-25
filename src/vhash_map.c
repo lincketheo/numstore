@@ -9,7 +9,6 @@ DEFINE_DBG_ASSERT_I (vhash_map, vhash_map, v)
 {
   ASSERT (v);
   ASSERT (v->elems);
-  lalloc_assert (v->alloc);
 }
 
 static inline u32
@@ -30,9 +29,8 @@ vhash_map_create (vhash_map *dest, u32 len, lalloc *alloc)
 {
   ASSERT (dest);
   ASSERT (len > 0);
-  lalloc_assert (alloc);
 
-  dest->elems = lcalloc (alloc, len, sizeof *dest->elems);
+  dest->elems = lcalloc_const (alloc, len, sizeof *dest->elems);
   if (!dest->elems)
     {
       return ERR_NOMEM;
@@ -47,7 +45,6 @@ static inline err_t
 helem_insert (helem *node, const string key, vmeta value, lalloc *alloc)
 {
   ASSERT (node);
-  lalloc_assert (alloc);
 
   vnode *curr = node->head;
   vnode *prev = NULL;
@@ -64,17 +61,17 @@ helem_insert (helem *node, const string key, vmeta value, lalloc *alloc)
     }
 
   // Allocate new node
-  vnode *new_node = lmalloc (alloc, sizeof *new_node);
+  vnode *new_node = lmalloc_dyn (alloc, sizeof *new_node);
   if (!new_node)
     {
       return ERR_NOMEM;
     }
 
   // Allocate and copy over new string
-  char *newstr = lmalloc (alloc, key.len);
+  char *newstr = lmalloc_dyn (alloc, key.len);
   if (!newstr)
     {
-      lfree (alloc, new_node);
+      lfree_dyn (alloc, new_node);
       return ERR_NOMEM;
     }
   i_memcpy (newstr, key.data, key.len);
@@ -116,7 +113,6 @@ static inline err_t
 helem_get (vmeta *dest, const helem *node, const string v)
 {
   ASSERT (node);
-  string_assert (&v);
 
   vnode *curr = node->head;
 

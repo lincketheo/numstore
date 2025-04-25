@@ -45,7 +45,6 @@ err_t
 parse_i32_expect (i32 *dest, const string data)
 {
   ASSERT (dest);
-  string_assert (&data);
   ASSERT (data.len > 0);
 
   int negative = 0;
@@ -109,7 +108,6 @@ int
 parse_f32_expect (f32 *dest, const string src)
 {
   ASSERT (dest);
-  string_assert (&src);
   ASSERT (src.len > 0);
 
   int negative = 0;

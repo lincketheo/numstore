@@ -19,7 +19,6 @@ err_t
 crsr_create (cursor *dest, database *db)
 {
   ASSERT (dest);
-  database_assert (db);
 
   err_t ret = SUCCESS;
   if ((ret = nav_create (&dest->nav, db)))
@@ -30,6 +29,8 @@ crsr_create (cursor *dest, database *db)
   dest->loaded = false;
   dest->input = NULL;
   dest->output = NULL;
+
+  cursor_assert (dest);
 
   return ret;
 }

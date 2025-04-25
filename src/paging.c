@@ -732,30 +732,6 @@ TEST (hl_get_tuple)
   test_assert_int_equal ((int)r2, (int)ERR_INVALID_STATE);
 }
 
-static inline bool
-hp_valid (page *p)
-{
-  page_assert (p);
-  ASSERT (*p->header == PG_HASH_PAGE);
-  ASSERT (can_sub_u32 (p->len, sizeof (*p->hp.len)));
-  return *p->hp.len > 0 && *p->hp.len <= p->len - sizeof (*p->hp.len);
-}
-
-err_t
-hp_get_hash (u64 *dest, page *p, const string string)
-{
-  page_assert (p);
-  if (!hp_valid (p))
-    {
-      return ERR_INVALID_STATE;
-    }
-
-  u32 hash = fnv1a_hash (string);
-  hash %= *p->hp.len;
-  *dest = p->hp.hashes[hash];
-  return SUCCESS;
-}
-
 ///////////////////////////// PAGER
 
 DEFINE_DBG_ASSERT_I (pager, pager, p)
@@ -804,6 +780,23 @@ pgr_evict (pager *p)
   // Then evict that page
   mpgr_evict (&p->mpager, evict);
   return SUCCESS;
+}
+
+memory_page *mp_list_create (u32 page_size, u32 npages, lalloc *alloc);
+void
+ting ()
+{
+  // Initialize the memory_pages
+  u8 *ptr = db->resources._data;
+  memory_page *pages = (memory_page *)ptr;
+  ptr += db->mpgr_len * sizeof (memory_pager);
+  for (u32 i = 0; i < db->mpgr_len; ++i)
+    {
+      pages[i].data = ptr + i * db->page_size;
+    }
+
+  // Create
+  mpgr = mpgr_create (pages, db->mpgr_len);
 }
 
 err_t

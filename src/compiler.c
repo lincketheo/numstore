@@ -1,4 +1,5 @@
 #include "compiler.h"
+#include "database.h"
 #include "dev/assert.h"
 #include "dev/errors.h"
 #include "dev/testing.h"
@@ -10,6 +11,7 @@
 #include "utils/bounds.h"
 #include "utils/macros.h"
 #include "utils/numbers.h"
+#include <stdlib.h>
 
 ////////////////////// TOKENS
 
@@ -67,6 +69,7 @@ typedef struct
   token_t type;
 } token;
 
+// Shorthands
 #define quick_tok(_type) \
   (token) { .type = _type }
 #define tt_integer(val) \
@@ -79,39 +82,70 @@ typedef struct
   (token) { .type = TT_PRIM, .prim = val }
 
 ////////////////////// SCANNER (chars -> tokens)
-/// TODO - This recursion is really easy to remove and
-/// is unecessary - helped me think
+
+typedef enum
+{
+  SS_START,
+  SS_CHAR_COLLECT,
+  SS_NUMBER_COLLECT,
+  SS_DECIMAL_COLLECT,
+  SS_ERROR_REWIND,
+} scanner_state;
+
+struct scanner_s
+{
+  // Input and output buffers
+  cbuffer *chars_input;
+  cbuffer *tokens_output;
+
+  // Current state
+  scanner_state state;
+
+  // Internal growing string
+  char *dcur;  // Current data for variable length data
+  u32 dcurlen; // len of dcur
+  u32 dcurcap; // capacity of dcur
+
+  lalloc *string_allocator;
+};
+
 DEFINE_DBG_ASSERT_I (scanner, scanner, s)
 {
   ASSERT (s);
-  cbuffer_assert (s->chars_input);
-  cbuffer_assert (s->tokens_output);
+
+  if (s->dcur)
+    {
+      ASSERT (s->dcur);
+      ASSERT (s->dcurlen <= s->dcurcap);
+      ASSERT (s->dcurcap > 0);
+    }
+  else
+    {
+      ASSERT (s->dcur == NULL);
+      ASSERT (s->dcurlen == 0);
+      ASSERT (s->dcurcap == 0);
+    }
 }
 
-static inline bool
+static inline err_t
 scanner_alloc_init (scanner *s)
 {
   scanner_assert (s);
   ASSERT (s->dcur == NULL);
-  ASSERT (s->dcurlen == 0);
-  ASSERT (s->dcurcap == 0);
 
-#define STARTING_SIZE 10 // TODO - analyze common string lengths?
-
-  char *data = lmalloc (s->strings_alloc, STARTING_SIZE);
+  char *data = lmalloc_dyn (s->string_allocator, 10 * sizeof *data);
   if (!data)
     {
-      return false; // no memory
+      return ERR_NOMEM;
     }
 
   s->dcur = data;
-  s->dcurcap = STARTING_SIZE;
+  s->dcurcap = 10;
   s->dcurlen = 0;
 
-  return true;
+  return SUCCESS;
 }
 
-// Doesn't call free
 static inline void
 scanner_buffer_reset (scanner *s)
 {
@@ -120,52 +154,69 @@ scanner_buffer_reset (scanner *s)
   ASSERT (s->dcurlen > 0);
   ASSERT (s->dcurcap > 0);
 
+  // INTENTIONALLY DONT FREE
   s->dcur = NULL;
   s->dcurlen = 0;
   s->dcurcap = 0;
 }
 
-void
-scanner_create (
-    scanner *dest,
-    cbuffer *input,
-    cbuffer *output,
-    lalloc *strings_alloc)
+#define MAX_STRING_SIZE 1000
+
+err_t
+scnr_create (scanner **dest, database *db, cbuffer *inchars)
 {
   ASSERT (dest);
-  ASSERT (output->cap % sizeof (token) == 0);
-  cbuffer_assert (input);
-  cbuffer_assert (output);
-  lalloc_assert (strings_alloc);
 
-  dest->chars_input = input;
-  dest->tokens_output = output;
-  dest->state = SS_START;
-  dest->current = 0;
+  err_t ret;
 
-  dest->dcur = NULL;
-  dest->dcurlen = 0;
-  dest->dcurcap = 0;
-  dest->strings_alloc = strings_alloc;
+  lalloc *alloc;
+  if ((ret = db_request_alloc (&alloc, db, sizeof (scanner), MAX_STRING_SIZE)))
+    {
+      return ret;
+    }
+
+  cbuffer *tokens_output;
+  if ((ret = db_request_cbuffer (&tokens_output, db, 10 * sizeof (token))))
+    {
+      return ret;
+    }
+
+  scanner *s = lmalloc_const (alloc, sizeof *s);
+
+  s->chars_input = inchars;
+  s->tokens_output = tokens_output;
+
+  s->state = SS_START;
+
+  s->dcur = NULL;
+  s->dcurlen = 0;
+  s->dcurcap = 0;
+
+  s->string_allocator = alloc;
+  scanner_assert (s);
+
+  *dest = s;
+
+  return SUCCESS;
 }
 
+// Advances forward one char
 static inline void
 scanner_advance_expect (scanner *s)
 {
   scanner_assert (s);
-
   u8 next;
   ASCOPE (int more =)
   cbuffer_dequeue (&next, s->chars_input);
   ASSERT (more);
 }
 
-static inline bool
+// Advances forward one char and copies it to internal string
+static inline err_t
 scanner_cpy_advance_expect (scanner *s)
 {
   scanner_assert (s);
-  ASSERT (s->dcur != NULL);
-  ASSERT (s->dcurcap > 0);
+  ASSERT (s->dcur);
 
   // Dequeue and copy
   u8 next;
@@ -176,25 +227,27 @@ scanner_cpy_advance_expect (scanner *s)
   // Check room
   if (s->dcurlen == s->dcurcap)
     {
-      char *next = lrealloc (s->strings_alloc, s->dcur, 2 * s->dcurcap * sizeof *next);
+      char *next = lrealloc_dyn (s->string_allocator, s->dcur, 2 * s->dcurcap * sizeof *next);
       if (!next)
         {
-          return false; // No memory - block
+          return ERR_NOMEM; // No memory - block
         }
       s->dcur = next;
+      s->dcurcap = 2 * s->dcurcap;
     }
 
   s->dcur[s->dcurlen++] = next;
 
-  return true;
+  return SUCCESS;
 }
 
+// Advance forward one char if there is a char and can alloc data
+// returns true if advanced and copied false else
 static inline bool
 scanner_cpy_advance (scanner *s)
 {
   scanner_assert (s);
-  ASSERT (s->dcur != NULL);
-  ASSERT (s->dcurcap > 0);
+  ASSERT (s->dcur);
 
   // Dequeue and copy
   u8 next;
@@ -206,12 +259,13 @@ scanner_cpy_advance (scanner *s)
   // Check room
   if (s->dcurlen == s->dcurcap)
     {
-      char *dcur = lrealloc (s->strings_alloc, s->dcur, 2 * s->dcurcap * sizeof *dcur);
+      char *dcur = lrealloc_dyn (s->string_allocator, s->dcur, 2 * s->dcurcap * sizeof *dcur);
       if (!dcur)
         {
           return false; // No memory - block
         }
       s->dcur = dcur;
+      s->dcurcap = 2 * s->dcurcap;
     }
 
   s->dcur[s->dcurlen++] = next;
@@ -219,7 +273,7 @@ scanner_cpy_advance (scanner *s)
   return true;
 }
 
-static inline int
+static inline bool
 scanner_peek (u8 *dest, scanner *s)
 {
   scanner_assert (s);
@@ -227,7 +281,7 @@ scanner_peek (u8 *dest, scanner *s)
 }
 
 static inline void
-consume_head_whitespace (scanner *s)
+consume_whitespace (scanner *s)
 {
   scanner_assert (s);
   u8 c;
@@ -249,7 +303,7 @@ consume_head_whitespace (scanner *s)
 }
 
 static inline void
-scanner_write_token (scanner *s, token t)
+scanner_write_token_expect (scanner *s, token t)
 {
   scanner_assert (s);
   ASSERT (cbuffer_avail (s->tokens_output) >= sizeof (token));
@@ -260,11 +314,11 @@ scanner_write_token (scanner *s, token t)
 }
 
 static inline void
-scanner_write_token_t (scanner *s, token_t t)
+scanner_write_token_t_expect (scanner *s, token_t t)
 {
   scanner_assert (s);
   ASSERT (cbuffer_avail (s->tokens_output) >= sizeof (token));
-  scanner_write_token (s, quick_tok (t));
+  scanner_write_token_expect (s, quick_tok (t));
 }
 
 typedef struct
@@ -274,6 +328,7 @@ typedef struct
   prim_t type;
 } prim_token;
 
+// Maybe a trie for faster checks?
 static const prim_token prim_tokens[] = {
   { .data = "u8", .len = 2, .type = U8 },
   { .data = "u16", .len = 3, .type = U16 },
@@ -315,11 +370,7 @@ typedef struct
   token_t type;
 } magic_token;
 
-/**
- * TODO - this search can
- * be simplified by checking the first letter
- * Same logically, but less function calls to string_equal
- */
+// Maybe a trie
 static const magic_token magic_tokens[] = {
   { .data = "write", .len = 5, .type = TT_WRITE },
   { .data = "read", .len = 4, .type = TT_READ },
@@ -431,8 +482,8 @@ finish:
                            .len = magic_tokens[i].len,
                        }))
         {
-          scanner_write_token_t (s, magic_tokens[i].type);
-          lfree (s->strings_alloc, literal.data);
+          scanner_write_token_t_expect (s, magic_tokens[i].type);
+          lfree_dyn (s->string_allocator, literal.data);
           goto theend;
         }
     }
@@ -446,13 +497,13 @@ finish:
                            .len = prim_tokens[i].len,
                        }))
         {
-          scanner_write_token (s, tt_prim (prim_tokens[i].type));
-          lfree (s->strings_alloc, literal.data);
+          scanner_write_token_expect (s, tt_prim (prim_tokens[i].type));
+          lfree_dyn (s->string_allocator, literal.data);
           goto theend;
         }
     }
 
-  scanner_write_token (s, tt_ident (literal));
+  scanner_write_token_expect (s, tt_ident (literal));
 
 theend:
   ss_transition (s, SS_START);
@@ -485,9 +536,9 @@ ss_decimal_collect (scanner *s)
             }
 
           // Reset and write
-          lfree (s->strings_alloc, s->dcur);
+          lfree_dyn (s->string_allocator, s->dcur);
           scanner_buffer_reset (s);
-          scanner_write_token (s, tt_float (dest));
+          scanner_write_token_expect (s, tt_float (dest));
 
           // TODO - should I require whitespace after numbers?
           ss_transition (s, SS_START);
@@ -553,9 +604,9 @@ ss_number_collect (scanner *s)
                 }
 
               // Reset and write
-              lfree (s->strings_alloc, s->dcur);
+              lfree_dyn (s->string_allocator, s->dcur);
               scanner_buffer_reset (s);
-              scanner_write_token (s, tt_integer (dest));
+              scanner_write_token_expect (s, tt_integer (dest));
 
               ss_transition (s, SS_START);
               return;
@@ -577,7 +628,7 @@ ss_start (scanner *s)
   ASSERT (s->state == SS_START);
 
   // Consume all whitespace
-  consume_head_whitespace (s);
+  consume_whitespace (s);
 
   // First check if there's data available
   u8 next;
@@ -586,9 +637,9 @@ ss_start (scanner *s)
       return;
     }
 
-#define single_tok_continue(ttype)  \
-  scanner_write_token_t (s, ttype); \
-  scanner_advance_expect (s);       \
+#define single_tok_continue(ttype)         \
+  scanner_write_token_t_expect (s, ttype); \
+  scanner_advance_expect (s);              \
   ss_transition (s, SS_START)
 
   switch (next)
@@ -712,109 +763,31 @@ scanner_execute (scanner *s)
     }
 }
 
-#ifndef NTESTS
-void
-test_token_compare (const token t1, const token t2)
-{
-  test_assert_int_equal (t1.type, t2.type);
-  switch (t1.type)
-    {
-    case TT_FLOAT:
-      test_assert_equal (t1.floating, t2.floating, "%f");
-      break;
-    case TT_INTEGER:
-      test_assert_int_equal (t1.integer, t2.integer);
-      break;
-    case TT_IDENTIFIER:
-      test_fail_if (!string_equal (t1.str, t2.str));
-      break;
-    default:
-      break;
-    }
-}
-
-void
-scanner_test_helper (
-    const char *str,
-    const token *tokens,
-    u32 len,
-    u32 mlimit,
-    u32 inlen,
-    u32 outlen)
-{
-  lalloc alloc = lalloc_create (mlimit + inlen + outlen);
-
-  u8 *_input = lmalloc (&alloc, inlen);
-  test_fail_if_null (_input);
-  u8 *_output = lmalloc (&alloc, outlen);
-  test_fail_if_null (_output);
-
-  cbuffer input = cbuffer_create (_input, inlen);
-  cbuffer output = cbuffer_create (_output, outlen);
-
-  scanner s;
-  scanner_create (&s, &input, &output, &alloc);
-
-  u32 i = 0;
-
-  while (i_unsafe_strlen (str) > 0)
-    {
-      str += cbuffer_write (str, 1, i_unsafe_strlen (str), &input);
-      scanner_execute (&s);
-      while (cbuffer_len (&output) > 0)
-        {
-          token next;
-          u32 read = cbuffer_read (&next, sizeof (token), 1, &output);
-          test_assert_int_equal (read, 1);
-          test_fail_if (i >= len);
-          test_token_compare (next, tokens[i]);
-          i += 1;
-          if (next.type == TT_IDENTIFIER)
-            {
-              lfree (&alloc, next.str.data);
-            }
-        }
-    }
-  test_assert_int_equal (i, len);
-
-  // No memory leaks
-  test_assert_int_equal (alloc.total, 2 * 8 + inlen + outlen);
-}
-#endif
 /**
-TEST (scanner_execute)
-{
-  const char *str = "write 5 ; ; ;;create123create createc "
-                    "create 123createc 123create 12345.1create "
-                    "u32 write foo bar biz buz "; // space to terminate
-  const token tokens[] = {
-    quick_tok (TT_WRITE),
-    tt_integer (5),
-    quick_tok (TT_SEMICOLON),
-    quick_tok (TT_SEMICOLON),
-    quick_tok (TT_SEMICOLON),
-    quick_tok (TT_SEMICOLON),
-    tt_ident (unsafe_cstrfrom ("create123create")),
-    tt_ident (unsafe_cstrfrom ("createc")),
-    quick_tok (TT_CREATE),
-    tt_integer (123),
-    tt_ident (unsafe_cstrfrom ("createc")),
-    tt_integer (123),
-    quick_tok (TT_CREATE),
-    tt_float (12345.1),
-    quick_tok (TT_CREATE),
-    tt_prim (U32),
-    quick_tok (TT_WRITE),
-    tt_ident (unsafe_cstrfrom ("foo")),
-    tt_ident (unsafe_cstrfrom ("bar")),
-    tt_ident (unsafe_cstrfrom ("biz")),
-    tt_ident (unsafe_cstrfrom ("buz")),
-  };
-
-  scanner_test_helper (str, tokens, arrlen (tokens), 100, 10, 2 * sizeof (token));
-}
-
 ////////////////////// PARSER
+
+typedef enum
+{
+  PS_START,
+  PS_CREATE,
+  PS_ERROR_REWIND,
+} parser_state;
+
+typedef struct
+{
+  cbuffer *tokens_input;  // The input buffer for tokens
+  cbuffer *opcode_output; // The output for op codes
+  cbuffer *stack_output;  // The stack output for the vm
+
+  lalloc *input_strings; // The string allocator
+  lalloc *tokens;        // The type allocator
+
+  type *currenttype;  // While building types
+  parser_state state; // Current state for execute
+} parser;
+
+DEFINE_DBG_ASSERT_H (parser, parser, p);
+// TODO use database to request resources
 
 DEFINE_DBG_ASSERT_H (parser, parser, p)
 {
@@ -956,6 +929,13 @@ typedef struct
   lalloc *type_allocator;
 } type_parser;
 
+DEFINE_DBG_ASSERT_I (type_parser, type_parser, t)
+{
+  ASSERT (t);
+  ASSERT (t->stack);
+  ASSERT (t->sp > 0);
+}
+
 /**
  * T -> p |
  *      struct { i T K } |
@@ -1061,9 +1041,6 @@ typedef struct
 
 } sarray_bldr;
 
-DEFINE_DBG_ASSERT_H (sarray_bldr, sarray_bldr, s);
-tp_result sabldr_incr (sarray_bldr *sb, u32 dim);
-
 struct type_bldr_s
 {
 
@@ -1093,6 +1070,11 @@ struct type_bldr_s
   type ret;
 };
 
+DEFINE_DBG_ASSERT_I (type_bldr, type_bldr, tb)
+{
+  ASSERT (tb);
+}
+
 static inline type_bldr
 tb_create (void)
 {
@@ -1102,12 +1084,19 @@ tb_create (void)
 }
 
 err_t
-tp_create (type_parser *dest, lalloc *type_allocator)
+tp_create (type_parser *dest, database *db)
 {
   ASSERT (dest);
-  lalloc_assert (type_allocator);
 
-  type_bldr *stack = lmalloc (type_allocator, 3 * sizeof *stack);
+  err_t ret;
+
+  lalloc *type_allocator;
+  if ((ret = db_request_alloc (&type_allocator, db, 0, 100)))
+    {
+      return ret;
+    }
+
+  type_bldr *stack = lmalloc_dyn (type_allocator, 3 * sizeof *stack);
   if (!stack)
     {
       return ERR_OVERFLOW;
@@ -1120,11 +1109,6 @@ tp_create (type_parser *dest, lalloc *type_allocator)
   dest->stack[dest->sp++] = tb_create ();
 
   return SUCCESS;
-}
-
-DEFINE_DBG_ASSERT_I (type_bldr, type_bldr, tb)
-{
-  ASSERT (tb);
 }
 
 //////////////// STRUCT BUILDER
@@ -1141,18 +1125,17 @@ static inline tp_result
 stbldr_create (type_bldr *dest, lalloc *alloc)
 {
   ASSERT (dest);
-  lalloc_assert (alloc);
   ASSERT (dest->state == TB_UNKNOWN);
 
-  dest->sb.keys = lmalloc (alloc, 5 * sizeof *dest->sb.keys);
+  dest->sb.keys = lmalloc_dyn (alloc, 5 * sizeof *dest->sb.keys);
   if (!dest->sb.keys)
     {
       return TPR_MALLOC_ERROR;
     }
-  dest->sb.types = lmalloc (alloc, 5 * sizeof *dest->sb.types);
+  dest->sb.types = lmalloc_dyn (alloc, 5 * sizeof *dest->sb.types);
   if (!dest->sb.types)
     {
-      lfree (alloc, dest->sb.keys);
+      lfree_dyn (alloc, dest->sb.keys);
       return TPR_MALLOC_ERROR;
     }
 
@@ -1187,7 +1170,6 @@ static inline tp_result
 stbldr_push_key (type_bldr *sb, token t, lalloc *alloc)
 {
   struct_bldr_assert (&sb->sb);
-  lalloc_assert (alloc);
   ASSERT (sb->state == TB_STRUCT);
   ASSERT (sb->sb.state == SB_WAITING_FOR_IDENT);
 
@@ -1204,15 +1186,15 @@ stbldr_push_key (type_bldr *sb, token t, lalloc *alloc)
       ASSERT (can_mul_u64 (sb->sb.cap, 2));
       ASSERT (can_mul_u64 (2 * sb->sb.cap, sizeof (string)));
       u32 ncap = 2 * sb->sb.cap;
-      string *keys = lrealloc (alloc, sb->sb.keys, ncap * sizeof *keys);
+      string *keys = lrealloc_dyn (alloc, sb->sb.keys, ncap * sizeof *keys);
       if (!keys)
         {
           return TPR_MALLOC_ERROR;
         }
-      type *types = lrealloc (alloc, sb->sb.types, ncap * sizeof *types);
+      type *types = lrealloc_dyn (alloc, sb->sb.types, ncap * sizeof *types);
       if (!keys)
         {
-          lfree (alloc, keys);
+          lfree_dyn (alloc, keys);
           return TPR_MALLOC_ERROR;
         }
       sb->sb.keys = keys;
@@ -1249,7 +1231,6 @@ static inline tp_result
 sb_accept_token (type_bldr *tb, token t, lalloc *alloc)
 {
   type_bldr_assert (tb);
-  lalloc_assert (alloc);
   ASSERT (tb->state == TB_STRUCT);
 
   switch (tb->sb.state)
@@ -1320,7 +1301,7 @@ sb_build (type_bldr *sb, lalloc *alloc)
   type *types = sb->sb.types;
   string *strs = sb->sb.keys;
 
-  sb->ret.st = lmalloc (alloc, sizeof *sb->ret.st);
+  sb->ret.st = lmalloc_dyn (alloc, sizeof *sb->ret.st);
   if (!sb->ret.st)
     {
       return TPR_MALLOC_ERROR;
@@ -1329,13 +1310,13 @@ sb_build (type_bldr *sb, lalloc *alloc)
   // Clip buffers
   if (sb->sb.len < sb->sb.cap)
     {
-      types = lrealloc (alloc, types, sb->sb.len * sizeof *types);
+      types = lrealloc_dyn (alloc, types, sb->sb.len * sizeof *types);
       if (!types)
         {
           return TPR_MALLOC_ERROR;
         }
 
-      strs = lrealloc (alloc, strs, sb->sb.len * sizeof *strs);
+      strs = lrealloc_dyn (alloc, strs, sb->sb.len * sizeof *strs);
       if (!strs)
         {
           return TPR_MALLOC_ERROR;
@@ -1364,19 +1345,18 @@ static inline tp_result
 unbldr_create (type_bldr *dest, lalloc *alloc)
 {
   ASSERT (dest);
-  lalloc_assert (alloc);
   ASSERT (dest->state == TB_UNKNOWN);
 
-  dest->ub.keys = lmalloc (alloc, 5 * sizeof *dest->ub.keys);
+  dest->ub.keys = lmalloc_dyn (alloc, 5 * sizeof *dest->ub.keys);
   if (!dest->ub.keys)
     {
       return TPR_MALLOC_ERROR;
     }
 
-  dest->ub.types = lmalloc (alloc, 5 * sizeof *dest->ub.types);
+  dest->ub.types = lmalloc_dyn (alloc, 5 * sizeof *dest->ub.types);
   if (!dest->ub.types)
     {
-      lfree (alloc, dest->ub.keys);
+      lfree_dyn (alloc, dest->ub.keys);
       return TPR_MALLOC_ERROR;
     }
 
@@ -1412,7 +1392,6 @@ static inline tp_result
 unbldr_push_key (type_bldr *ub, token t, lalloc *alloc)
 {
   type_bldr_assert (ub);
-  lalloc_assert (alloc);
   ASSERT (ub->state == TB_UNION);
   ASSERT (ub->ub.state == UB_WAITING_FOR_IDENT);
 
@@ -1429,15 +1408,15 @@ unbldr_push_key (type_bldr *ub, token t, lalloc *alloc)
       ASSERT (can_mul_u64 (ub->ub.cap, 2));
       ASSERT (can_mul_u64 (2 * ub->ub.cap, sizeof (string)));
       u32 ncap = 2 * ub->ub.cap;
-      string *keys = lrealloc (alloc, ub->ub.keys, ncap * sizeof (string));
+      string *keys = lrealloc_dyn (alloc, ub->ub.keys, ncap * sizeof (string));
       if (!keys)
         {
           return TPR_MALLOC_ERROR;
         }
-      type *types = lrealloc (alloc, ub->ub.types, ncap * sizeof (type));
+      type *types = lrealloc_dyn (alloc, ub->ub.types, ncap * sizeof (type));
       if (!keys)
         {
-          lfree (alloc, keys);
+          lfree_dyn (alloc, keys);
           return TPR_MALLOC_ERROR;
         }
       ub->ub.keys = keys;
@@ -1475,7 +1454,6 @@ static inline tp_result
 ub_accept_token (type_bldr *ub, token t, lalloc *alloc)
 {
   type_bldr_assert (ub);
-  lalloc_assert (alloc);
   ASSERT (ub->state == TB_UNION);
 
   switch (ub->ub.state)
@@ -1548,7 +1526,7 @@ ub_build (type_bldr *ub, lalloc *alloc)
   type *types = ub->ub.types;
   string *strs = ub->ub.keys;
 
-  ub->ret.un = lmalloc (alloc, sizeof *ub->ret.un);
+  ub->ret.un = lmalloc_dyn (alloc, sizeof *ub->ret.un);
   if (!ub->ret.un)
     {
       return TPR_MALLOC_ERROR;
@@ -1557,13 +1535,13 @@ ub_build (type_bldr *ub, lalloc *alloc)
   // Clip buffers
   if (ub->ub.len < ub->ub.cap)
     {
-      types = lrealloc (alloc, types, ub->ub.len * sizeof *types);
+      types = lrealloc_dyn (alloc, types, ub->ub.len * sizeof *types);
       if (!types)
         {
           return TPR_MALLOC_ERROR;
         }
 
-      strs = lrealloc (alloc, strs, ub->ub.len * sizeof *strs);
+      strs = lrealloc_dyn (alloc, strs, ub->ub.len * sizeof *strs);
       if (!strs)
         {
           return TPR_MALLOC_ERROR;
@@ -1593,7 +1571,7 @@ enbldr_create (type_bldr *dest, lalloc *alloc)
   ASSERT (dest);
   ASSERT (dest->state == TB_UNKNOWN);
 
-  dest->eb.keys = lmalloc (alloc, 5 * sizeof *dest->eb.keys);
+  dest->eb.keys = lmalloc_dyn (alloc, 5 * sizeof *dest->eb.keys);
   if (!dest->eb.keys)
     {
       return TPR_MALLOC_ERROR;
@@ -1629,7 +1607,6 @@ static inline tp_result
 enbldr_push_str (type_bldr *eb, token t, lalloc *alloc)
 {
   type_bldr_assert (eb);
-  lalloc_assert (alloc);
   ASSERT (eb->state == TB_ENUM);
   ASSERT (eb->eb.state == EB_WAITING_FOR_IDENT);
 
@@ -1647,7 +1624,7 @@ enbldr_push_str (type_bldr *eb, token t, lalloc *alloc)
       ASSERT (can_mul_u64 (2 * eb->eb.cap, sizeof (string)));
       u32 ncap = 2 * eb->eb.cap;
 
-      string *keys = lrealloc (alloc, eb->eb.keys, ncap * sizeof (string));
+      string *keys = lrealloc_dyn (alloc, eb->eb.keys, ncap * sizeof (string));
       if (!keys)
         {
           return TPR_MALLOC_ERROR;
@@ -1687,7 +1664,6 @@ static inline tp_result
 eb_accept_token (type_bldr *eb, token t, lalloc *alloc)
 {
   type_bldr_assert (eb);
-  lalloc_assert (alloc);
   ASSERT (eb->state == TB_ENUM);
 
   switch (eb->eb.state)
@@ -1723,7 +1699,7 @@ eb_build (type_bldr *eb, lalloc *alloc)
 
   string *strs = eb->eb.keys;
 
-  eb->ret.en = lmalloc (alloc, sizeof *eb->ret.en);
+  eb->ret.en = lmalloc_dyn (alloc, sizeof *eb->ret.en);
   if (!eb->ret.en)
     {
       return TPR_MALLOC_ERROR;
@@ -1732,7 +1708,7 @@ eb_build (type_bldr *eb, lalloc *alloc)
   // Clip buffers
   if (eb->eb.len < eb->eb.cap)
     {
-      strs = lrealloc (alloc, strs, eb->eb.len * sizeof *strs);
+      strs = lrealloc_dyn (alloc, strs, eb->eb.len * sizeof *strs);
       if (!strs)
         {
           return TPR_MALLOC_ERROR;
@@ -1797,9 +1773,8 @@ tp_result
 sarray_bldr_create (sarray_bldr *dest, u32 dim, lalloc *alloc)
 {
   ASSERT (dest);
-  lalloc_assert (alloc);
 
-  dest->dims = lmalloc (alloc, 5 * sizeof *dest->dims);
+  dest->dims = lmalloc_dyn (alloc, 5 * sizeof *dest->dims);
   if (!dest->dims)
     {
       return TPR_MALLOC_ERROR;
@@ -1818,7 +1793,6 @@ tp_result
 sarray_bldr_incr (type_bldr *sb, token t, lalloc *alloc)
 {
   type_bldr_assert (sb);
-  lalloc_assert (alloc);
   ASSERT (sb->state == TB_SARRAY);
   ASSERT (sb->sab.state == SAB_WAITING_FOR_NUMBER);
 
@@ -1840,7 +1814,7 @@ sarray_bldr_incr (type_bldr *sb, token t, lalloc *alloc)
       ASSERT (can_mul_u64 (2 * sb->sab.cap, sizeof (string)));
       u32 ncap = 2 * sb->sab.cap;
 
-      u32 *dims = lrealloc (alloc, sb->sab.dims, ncap * sizeof (string));
+      u32 *dims = lrealloc_dyn (alloc, sb->sab.dims, ncap * sizeof (string));
       if (!dims)
         {
           return TPR_MALLOC_ERROR;
@@ -1873,7 +1847,6 @@ tp_result
 tb_accept_token (type_bldr *tb, token t, lalloc *alloc)
 {
   type_bldr_assert (tb);
-  lalloc_assert (alloc);
 
   switch (tb->state)
     {
@@ -2033,37 +2006,3 @@ tp_feed_token (type_parser *tp, token t)
 
   return ret;
 }
-
-TEST (tp_feed_token)
-{
-  const char *str = "struct { a i32, b u32, c union { a bool, b bit, c cf128 } }";
-
-  char chars_input[10];
-  token tokens[10];
-  cbuffer input = cbuffer_create ((u8 *)chars_input, 10);
-  cbuffer output = cbuffer_create ((u8 *)tokens, 10 * sizeof *tokens);
-
-  lalloc alloc = lalloc_create (0);
-
-  scanner s;
-  type_parser tp;
-
-  scanner_create (&s, &input, &output, &alloc);
-  test_fail_if (tp_create (&tp, &alloc));
-
-  while (i_unsafe_strlen (str) > 0)
-    {
-      str += cbuffer_write (str, 1, i_unsafe_strlen (str), &input);
-      scanner_execute (&s);
-      while (cbuffer_len (&output) > 0)
-        {
-          token next;
-          cbuffer_read (&next, sizeof (token), 1, &output);
-          tp_feed_token (&tp, next);
-        }
-    }
-
-  tb_build (&tp.stack[0], tp.type_allocator);
-}
-
-tp_result tp_feed_token (type_parser *tp, token t);

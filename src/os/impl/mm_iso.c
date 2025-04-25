@@ -1,3 +1,4 @@
+#include "dev/errors.h"
 #include "dev/testing.h"
 #include "intf/mm.h"
 #include "intf/stdlib.h"
@@ -5,164 +6,223 @@
 #include <errno.h>
 
 /////////////////////// Allocation
+
 DEFINE_DBG_ASSERT_I (lalloc, lalloc, l)
 {
   ASSERT (l);
+  if (l->data)
+    {
+      ASSERT (l->cdlen <= l->cdcap);
+      ASSERT (l->cdcap > 0);
+    }
+  else
+    {
+      ASSERT (l->cdlen == 0);
+      ASSERT (l->cdcap == 0);
+    }
+
+  ASSERT (l->dyn_used <= l->dyn_limit);
 }
 
-#define ALLOC_HEADER sizeof (u64)
-
-static inline u64 *
-alloc_header_ptr (void *data)
+err_t
+lalloc_create (lalloc *dest, u64 climit, u32 dlimit)
 {
-  return (u64 *)data - 1;
-}
+  ASSERT (dest);
 
-static inline u64
-alloc_header_get (void *data)
-{
-  return *alloc_header_ptr (data);
-}
+  u8 *data = NULL;
 
-static inline void
-alloc_header_set (void *data, u64 bytes)
-{
-  *alloc_header_ptr (data) = bytes;
-}
+  if (dlimit > 0)
+    {
+      data = malloc (climit);
+      if (data == NULL)
+        {
+          return ERR_NOMEM;
+        }
+    }
 
-lalloc
-lalloc_create (u64 limit)
-{
-  return (lalloc){
-    .limit = limit,
-    .total = 0,
+  *dest = (lalloc){
+    .data = data,
+    .cdlen = 0,
+    .cdcap = climit,
+    .dyn_used = 0,
+    .dyn_limit = dlimit,
   };
+  lalloc_assert (dest);
+
+  return SUCCESS;
+}
+
+void
+lalloc_create_from (lalloc *dest, u8 *data, u64 climit, u32 dlimit)
+{
+  ASSERT (dest);
+
+  *dest = (lalloc){
+    .data = data,
+    .cdlen = 0,
+    .cdcap = climit,
+    .dyn_used = 0,
+    .dyn_limit = dlimit,
+  };
+
+  lalloc_assert (dest);
+}
+
+void
+lalloc_free (lalloc *l)
+{
+  lalloc_assert (l);
+
+  if (l->cdcap > 0)
+    {
+      free (l->data);
+      l->data = NULL;
+      l->cdcap = 0;
+      l->cdlen = 0;
+    }
+
+  ASSERT (l->dyn_used == 0);
+  l->dyn_used = 0;
+  l->dyn_limit = 0;
+
+  lalloc_assert (l);
 }
 
 void *
-lmalloc (lalloc *a, u64 bytes)
+lmalloc_dyn (lalloc *a, u32 bytes)
 {
   lalloc_assert (a);
   ASSERT (bytes > 0);
 
   // check payload + header fits
-  ASSERT (can_add_u64 (bytes, ALLOC_HEADER));
-  bytes += ALLOC_HEADER;
-  ASSERT (can_add_u64 (a->total, bytes));
+  if (!can_add_u32 (bytes, sizeof (u32)))
+    {
+      return NULL;
+    }
+  bytes += sizeof (u32);
+  if (!can_add_u32 (a->dyn_used, bytes))
+    {
+      return NULL;
+    }
 
-  u64 new_total = a->total + bytes;
-  if (a->limit > 0 && new_total > a->limit)
+  // No space available
+  u32 new_dyn_used = a->dyn_used + bytes;
+  if (a->dyn_limit > 0 && new_dyn_used > a->dyn_limit)
     {
       return NULL;
     }
 
   // system allocation
-  u64 *p = malloc ((size_t)bytes);
+  u32 *p = malloc ((size_t)bytes);
   if (p == NULL)
     {
       return NULL;
     }
 
-  // store header and return user pointer
-  alloc_header_set (&p[1], bytes);
-  a->total = new_total;
+  p[0] = bytes;
+  a->dyn_used = new_dyn_used;
+
   return &p[1];
 }
 
 void *
-lcalloc (lalloc *a, u64 len, u64 size)
+lmalloc_const (lalloc *a, u64 bytes)
 {
   lalloc_assert (a);
-  ASSERT (len > 0);
+  ASSERT (bytes > 0);
+
+  if (!can_add_u64 (a->cdlen, bytes))
+    {
+      return NULL;
+    }
+  if (a->cdlen + bytes > a->cdcap)
+    {
+      return NULL;
+    }
+  u64 idx = a->cdlen;
+  a->cdlen += bytes;
+  return &a->data[idx];
+}
+
+void *
+lcalloc_dyn (lalloc *a, u32 n, u32 size)
+{
+  lalloc_assert (a);
+  ASSERT (n > 0);
   ASSERT (size > 0);
-  if (can_mul_u64 (len, size))
+
+  if (!can_mul_u32 (n, size))
     {
       return NULL;
     }
 
-  void *ret = lmalloc (a, len * size);
-  if (!ret)
+  void *ret = lmalloc_dyn (a, n * size);
+  if (ret != NULL)
     {
-      return ret;
+      i_memset (ret, 0, n * size);
     }
-  i_memset (ret, 0, len * size);
+
   return ret;
 }
 
 void *
-lrealloc (lalloc *a, void *data, u64 bytes)
+lcalloc_const (lalloc *a, u64 n, u64 size)
+{
+  lalloc_assert (a);
+  ASSERT (n > 0);
+  ASSERT (size > 0);
+
+  if (!can_mul_u64 (n, size))
+    {
+      return NULL;
+    }
+
+  void *ret = lmalloc_const (a, n * size);
+  if (ret != NULL)
+    {
+      i_memset (ret, 0, n * size);
+    }
+
+  return ret;
+}
+
+void *
+lrealloc_dyn (lalloc *a, void *data, u32 bytes)
 {
   lalloc_assert (a);
   ASSERT (data);
   ASSERT (bytes > 0);
 
-  u64 *oldp = alloc_header_ptr (data);
-  u64 old_size = alloc_header_get (data);
+  u32 old_bytes = *((u32 *)data - 1);
+  ASSERT (old_bytes > sizeof (u32));
+  ASSERT (a->dyn_limit == 0 || old_bytes <= a->dyn_limit);
+  ASSERT (old_bytes <= a->dyn_used);
+  ASSERT (old_bytes > 0);
 
-  ASSERT (can_add_u64 (bytes, ALLOC_HEADER));
-  ASSERT (can_sub_u64 (a->total, old_size));
-  ASSERT (can_add_u64 (a->total - old_size, bytes + ALLOC_HEADER));
-
-  u64 new_total = a->total - old_size + (bytes + ALLOC_HEADER);
-  if (a->limit > 0 && new_total > a->limit)
+  if (!can_add_u32 (bytes, sizeof (u32)))
+    {
+      return NULL;
+    }
+  bytes += sizeof (u32);
+  ASSERT (can_sub_u32 (a->dyn_used, old_bytes)); // See prev assertion
+  if (!can_add_u32 (a->dyn_used - old_bytes, bytes))
+    {
+      return NULL;
+    }
+  if (a->dyn_used - old_bytes + bytes > a->dyn_limit)
     {
       return NULL;
     }
 
-  u64 *p = realloc (oldp, (size_t)(bytes + ALLOC_HEADER));
-  if (p == NULL)
+  u32 *new_data = realloc ((u8 *)data - 1, bytes);
+  if (new_data == NULL)
     {
       return NULL;
     }
+  new_data[0] = bytes;
 
-  alloc_header_set (&p[1], bytes + ALLOC_HEADER);
-  a->total = new_total;
-  return &p[1];
-}
+  a->dyn_used = a->dyn_used - old_bytes + bytes;
+  lalloc_assert (a);
 
-void
-lfree (lalloc *a, void *data)
-{
-  ASSERT (data != NULL);
-  u64 size = alloc_header_get (data);
-  ASSERT (can_sub_u64 (a->total, size));
-  a->total -= size;
-  free (alloc_header_ptr (data));
-}
-
-TEST (lalloc)
-{
-  // limited allocator
-  lalloc a = lalloc_create (100);
-  u8 *pt1 = lmalloc (&a, 10);
-  test_assert_int_equal ((int)a.total, ALLOC_HEADER + 10);
-  test_assert_int_equal (pt1 != NULL, 1);
-
-  u8 *pt2 = lmalloc (&a, 2 * 5);
-  test_assert_int_equal (pt2 != NULL, 1);
-  test_assert_int_equal ((int)a.total, ALLOC_HEADER + 10 + ALLOC_HEADER + 2 * 5);
-
-  pt1 = lrealloc (&a, pt1, 5);
-  test_assert_int_equal (pt1 != NULL, 1);
-  test_assert_int_equal ((int)a.total, ALLOC_HEADER + 5 + ALLOC_HEADER + 2 * 5);
-
-  lfree (&a, pt2);
-  test_assert_int_equal ((int)a.total, ALLOC_HEADER + 5);
-
-  lfree (&a, pt1);
-  test_assert_int_equal ((int)a.total, 0);
-
-  // unlimited allocator
-  lalloc b = lalloc_create (0);
-
-  pt1 = lmalloc (&b, 2 * 5);
-  test_assert_int_equal (pt1 != NULL, 1);
-  test_assert_int_equal ((int)b.total, ALLOC_HEADER + 2 * 5);
-
-  pt1 = lrealloc (&b, pt1, 5);
-  test_assert_int_equal (pt1 != NULL, 1);
-  test_assert_int_equal ((int)b.total, ALLOC_HEADER + 5);
-
-  lfree (&b, pt1);
-  test_assert_int_equal ((int)b.total, 0);
+  return &new_data[1];
 }
