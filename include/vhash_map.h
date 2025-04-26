@@ -1,6 +1,7 @@
 #pragma once
 
-#include "sds.h"
+#include "ds/strings.h"
+#include "intf/mm.h"
 #include "typing.h"
 #include "variable.h"
 
@@ -20,9 +21,30 @@ typedef struct
 {
   helem *elems;
   u32 len;
-  lalloc *alloc;
+
+  lalloc *type_allocator;
+  lalloc *node_allocator;
 } vhash_map;
 
-err_t vhash_map_create (vhash_map *dest, u32 len, lalloc *alloc);
+typedef struct
+{
+  u32 len;
+  lalloc *type_allocator;
+  lalloc *node_allocator;
+  salloc *map_allocator;
+} vhm_params;
+
+/**
+ * Returns:
+ *   - ERR_NOMEM if you don't have enough room to allocate elems
+ */
+err_t vhash_map_create (vhash_map *dest, vhm_params params);
+
+/**
+ * Returns:
+ *   - ERR_ALREADY_EXISTS if [key] exists
+ *   - ERR_NOMEM if node_allocator can't create node
+ *   - ERR_NOMEM if type_allocator can't create
+ */
 err_t vhash_map_insert (vhash_map *h, const string key, vmeta value);
 err_t vhash_map_get (vmeta *dest, const vhash_map *h, const string key);

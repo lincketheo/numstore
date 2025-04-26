@@ -1,9 +1,7 @@
 #pragma once
 
-#include "types.h"
-
-#include <math.h>
-#include <stdlib.h>
+#include "intf/stdlib.h"
+#include "intf/types.h"
 
 /////////////////////////////////////////// UNSIGNED ADD/SUB
 

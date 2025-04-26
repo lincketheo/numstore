@@ -3,93 +3,31 @@
 #include "intf/mm.h"
 #include "intf/stdlib.h"
 #include "utils/bounds.h"
+
 #include <errno.h>
 
-/////////////////////// Allocation
+/////////////////////// Limited Allocator
 
 DEFINE_DBG_ASSERT_I (lalloc, lalloc, l)
 {
   ASSERT (l);
-  if (l->data)
-    {
-      ASSERT (l->cdlen <= l->cdcap);
-      ASSERT (l->cdcap > 0);
-    }
-  else
-    {
-      ASSERT (l->cdlen == 0);
-      ASSERT (l->cdcap == 0);
-    }
-
-  ASSERT (l->dyn_used <= l->dyn_limit);
-}
-
-err_t
-lalloc_create (lalloc *dest, u64 climit, u32 dlimit)
-{
-  ASSERT (dest);
-
-  u8 *data = NULL;
-
-  if (dlimit > 0)
-    {
-      data = malloc (climit);
-      if (data == NULL)
-        {
-          return ERR_NOMEM;
-        }
-    }
-
-  *dest = (lalloc){
-    .data = data,
-    .cdlen = 0,
-    .cdcap = climit,
-    .dyn_used = 0,
-    .dyn_limit = dlimit,
-  };
-  lalloc_assert (dest);
-
-  return SUCCESS;
+  ASSERT (l->used <= l->limit);
 }
 
 void
-lalloc_create_from (lalloc *dest, u8 *data, u64 climit, u32 dlimit)
+lalloc_create (lalloc *dest, u32 limit)
 {
   ASSERT (dest);
 
   *dest = (lalloc){
-    .data = data,
-    .cdlen = 0,
-    .cdcap = climit,
-    .dyn_used = 0,
-    .dyn_limit = dlimit,
+    .used = 0,
+    .limit = limit,
   };
-
   lalloc_assert (dest);
-}
-
-void
-lalloc_free (lalloc *l)
-{
-  lalloc_assert (l);
-
-  if (l->cdcap > 0)
-    {
-      free (l->data);
-      l->data = NULL;
-      l->cdcap = 0;
-      l->cdlen = 0;
-    }
-
-  ASSERT (l->dyn_used == 0);
-  l->dyn_used = 0;
-  l->dyn_limit = 0;
-
-  lalloc_assert (l);
 }
 
 void *
-lmalloc_dyn (lalloc *a, u32 bytes)
+lmalloc (lalloc *a, u32 bytes)
 {
   lalloc_assert (a);
   ASSERT (bytes > 0);
@@ -100,14 +38,14 @@ lmalloc_dyn (lalloc *a, u32 bytes)
       return NULL;
     }
   bytes += sizeof (u32);
-  if (!can_add_u32 (a->dyn_used, bytes))
+  if (!can_add_u32 (a->used, bytes))
     {
       return NULL;
     }
 
   // No space available
-  u32 new_dyn_used = a->dyn_used + bytes;
-  if (a->dyn_limit > 0 && new_dyn_used > a->dyn_limit)
+  u32 new_used = a->used + bytes;
+  if (a->limit > 0 && new_used > a->limit)
     {
       return NULL;
     }
@@ -120,32 +58,13 @@ lmalloc_dyn (lalloc *a, u32 bytes)
     }
 
   p[0] = bytes;
-  a->dyn_used = new_dyn_used;
+  a->used = new_used;
 
   return &p[1];
 }
 
 void *
-lmalloc_const (lalloc *a, u64 bytes)
-{
-  lalloc_assert (a);
-  ASSERT (bytes > 0);
-
-  if (!can_add_u64 (a->cdlen, bytes))
-    {
-      return NULL;
-    }
-  if (a->cdlen + bytes > a->cdcap)
-    {
-      return NULL;
-    }
-  u64 idx = a->cdlen;
-  a->cdlen += bytes;
-  return &a->data[idx];
-}
-
-void *
-lcalloc_dyn (lalloc *a, u32 n, u32 size)
+lcalloc (lalloc *a, u32 n, u32 size)
 {
   lalloc_assert (a);
   ASSERT (n > 0);
@@ -156,7 +75,7 @@ lcalloc_dyn (lalloc *a, u32 n, u32 size)
       return NULL;
     }
 
-  void *ret = lmalloc_dyn (a, n * size);
+  void *ret = lmalloc (a, n * size);
   if (ret != NULL)
     {
       i_memset (ret, 0, n * size);
@@ -166,28 +85,7 @@ lcalloc_dyn (lalloc *a, u32 n, u32 size)
 }
 
 void *
-lcalloc_const (lalloc *a, u64 n, u64 size)
-{
-  lalloc_assert (a);
-  ASSERT (n > 0);
-  ASSERT (size > 0);
-
-  if (!can_mul_u64 (n, size))
-    {
-      return NULL;
-    }
-
-  void *ret = lmalloc_const (a, n * size);
-  if (ret != NULL)
-    {
-      i_memset (ret, 0, n * size);
-    }
-
-  return ret;
-}
-
-void *
-lrealloc_dyn (lalloc *a, void *data, u32 bytes)
+lrealloc (lalloc *a, void *data, u32 bytes)
 {
   lalloc_assert (a);
   ASSERT (data);
@@ -195,8 +93,8 @@ lrealloc_dyn (lalloc *a, void *data, u32 bytes)
 
   u32 old_bytes = *((u32 *)data - 1);
   ASSERT (old_bytes > sizeof (u32));
-  ASSERT (a->dyn_limit == 0 || old_bytes <= a->dyn_limit);
-  ASSERT (old_bytes <= a->dyn_used);
+  ASSERT (a->limit == 0 || old_bytes <= a->limit);
+  ASSERT (old_bytes <= a->used);
   ASSERT (old_bytes > 0);
 
   if (!can_add_u32 (bytes, sizeof (u32)))
@@ -204,12 +102,12 @@ lrealloc_dyn (lalloc *a, void *data, u32 bytes)
       return NULL;
     }
   bytes += sizeof (u32);
-  ASSERT (can_sub_u32 (a->dyn_used, old_bytes)); // See prev assertion
-  if (!can_add_u32 (a->dyn_used - old_bytes, bytes))
+  ASSERT (can_sub_u32 (a->used, old_bytes)); // See prev assertion
+  if (!can_add_u32 (a->used - old_bytes, bytes))
     {
       return NULL;
     }
-  if (a->dyn_used - old_bytes + bytes > a->dyn_limit)
+  if (a->used - old_bytes + bytes > a->limit)
     {
       return NULL;
     }
@@ -221,8 +119,168 @@ lrealloc_dyn (lalloc *a, void *data, u32 bytes)
     }
   new_data[0] = bytes;
 
-  a->dyn_used = a->dyn_used - old_bytes + bytes;
+  a->used = a->used - old_bytes + bytes;
   lalloc_assert (a);
 
   return &new_data[1];
+}
+
+void
+lalloc_release (lalloc *l)
+{
+  lalloc_assert (l);
+  ASSERT (l->used = 0);
+  l->used = 0;
+  l->limit = 0;
+  lalloc_assert (l);
+}
+
+//////////////////////////// Scoped Allocator
+
+DEFINE_DBG_ASSERT_I (salloc, salloc, l)
+{
+  ASSERT (l);
+  if (l->data)
+    {
+      ASSERT (l->len <= l->cap);
+      ASSERT (l->cap > 0);
+    }
+  else
+    {
+      ASSERT (l->len == 0);
+      ASSERT (l->cap == 0);
+    }
+}
+
+err_t
+salloc_create (salloc *dest, u64 cap)
+{
+  ASSERT (dest);
+
+  u8 *data = NULL;
+
+  if (cap > 0)
+    {
+      data = malloc (cap);
+      if (data == NULL)
+        {
+          return ERR_NOMEM;
+        }
+    }
+
+  *dest = (salloc){
+    .data = data,
+    .len = 0,
+    .cap = cap,
+  };
+  salloc_assert (dest);
+
+  return SUCCESS;
+}
+
+void
+salloc_create_from (salloc *dest, u8 *data, u64 cap)
+{
+  ASSERT (dest);
+
+  *dest = (salloc){
+    .data = data,
+    .len = 0,
+    .cap = cap,
+  };
+
+  salloc_assert (dest);
+}
+
+void *
+smalloc (salloc *a, u64 bytes)
+{
+  salloc_assert (a);
+  ASSERT (bytes > 0);
+
+  if (!can_add_u64 (bytes, sizeof (u64)))
+    {
+      return NULL;
+    }
+
+  u64 total = bytes + sizeof (u64);
+
+  if (!can_add_u64 (a->len, total))
+    {
+      return NULL;
+    }
+  if (a->len + total > a->cap)
+    {
+      return NULL;
+    }
+
+  u64 idx = a->len;
+  a->len += total;
+
+  // [0, 1, 2, 3, ..., bytes - 1, bytes, bytes + 1, ..., bytes + 7]
+  a->data[idx + bytes] = bytes;
+
+  return &a->data[idx];
+}
+
+void *
+scalloc (salloc *a, u64 n, u64 size)
+{
+  salloc_assert (a);
+  ASSERT (n > 0);
+  ASSERT (size > 0);
+
+  if (!can_mul_u64 (n, size))
+    {
+      return NULL;
+    }
+
+  void *ret = smalloc (a, n * size);
+  if (ret != NULL)
+    {
+      i_memset (ret, 0, n * size);
+    }
+
+  return ret;
+}
+
+void
+spop (salloc *a)
+{
+  salloc_assert (a);
+  ASSERT (a->len > sizeof (u64));
+
+  a->len -= sizeof (u64);
+  u64 bytes = *((u64 *)&a->data[a->len]);
+  ASSERT (bytes > 0);
+  ASSERT (can_sub_u64 (a->len, bytes));
+  a->len -= bytes;
+
+  salloc_assert (a);
+}
+
+///////////////////////// Generic Allocator
+
+void *
+gmalloc (galloc *a, u32 bytes)
+{
+  switch (a->type)
+    {
+    case AT_LIMITED:
+      return lmalloc (&a->l, bytes);
+    case AT_SCOPED:
+      return smalloc (&a->s, bytes);
+    }
+}
+
+void *
+gcalloc (galloc *a, u32 len, u32 size)
+{
+  switch (a->type)
+    {
+    case AT_LIMITED:
+      return lcalloc (&a->l, len, size);
+    case AT_SCOPED:
+      return scalloc (&a->s, len, size);
+    }
 }

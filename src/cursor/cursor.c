@@ -1,13 +1,5 @@
-#include "cursor.h"
-#include "database.h"
-#include "dev/assert.h"
-#include "dev/errors.h"
+#include "cursor/cursor.h"
 #include "intf/stdlib.h"
-#include "navigation.h"
-#include "paging.h"
-#include "sds.h"
-#include "typing.h"
-#include "vhash_map.h"
 
 DEFINE_DBG_ASSERT_I (cursor, cursor, c)
 {
@@ -16,19 +8,21 @@ DEFINE_DBG_ASSERT_I (cursor, cursor, c)
 }
 
 err_t
-crsr_create (cursor *dest, database *db)
+crsr_create (cursor *dest, crsr_params params)
 {
   ASSERT (dest);
 
   err_t ret = SUCCESS;
-  if ((ret = nav_create (&dest->nav, db)))
+  if ((ret = nav_create (&dest->nav, params.nparams)))
     {
       return ret;
     }
 
   dest->loaded = false;
-  dest->input = NULL;
-  dest->output = NULL;
+
+  dest->input = params.input;
+  dest->output = params.output;
+  dest->variables = params.variables;
 
   cursor_assert (dest);
 

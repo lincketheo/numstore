@@ -5,11 +5,8 @@
 #include "intf/logging.h"
 #include "intf/mm.h"
 #include "intf/stdlib.h"
-#include "paging.h"
-#include "sds.h"
-#include "types.h"
+#include "intf/types.h"
 #include "vhash_map.h"
-#include <stdlib.h>
 
 //////////////// Global Config
 DEFINE_DBG_ASSERT_I (database, database, g)
@@ -31,7 +28,10 @@ db_create_file (database *db, dbcargs args)
     }
 
   // Open the file or return error
-  err_t_wrap (i_open (&db->private.fp, args.fname, 1, 1));
+  if ((ret = i_open (&db->private.fp, args.fname, 1, 1)))
+    {
+      return ret;
+    }
 
   // Write the header
   u32 header[2] = { args.page_size, args.mpgr_len };

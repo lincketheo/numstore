@@ -2,37 +2,53 @@
 
 #include "dev/assert.h"
 #include "dev/errors.h"
-#include "types.h"
+#include "intf/types.h"
 
 /////////////////////// Limited allocator
 
-/**
- * Can allocate "dynamic" memory
- * or "const" memory (with locality)
- */
+// Limited Allocator
+typedef struct
+{
+  u32 used;
+  u32 limit;
+} lalloc;
 
-typedef struct lalloc_s lalloc;
+void lalloc_create (lalloc *dest, u32 limit);
+void *lmalloc (lalloc *a, u32 bytes);
+void *lcalloc (lalloc *a, u32 len, u32 size);
+void *lrealloc (lalloc *a, void *data, u32 bytes);
+void lfree (lalloc *a, void *data);
+void lalloc_release (lalloc *l);
 
-struct lalloc_s
+// Scoped allocator (no call alloc and free once)
+typedef struct
 {
   u8 *data;
-  u64 cdlen;
-  u64 cdcap;
+  u64 len;
+  u64 cap;
+} salloc;
 
-  u32 dyn_used;
-  u32 dyn_limit;
-};
+void salloc_create_from (salloc *dest, u8 *data, u64 cap);
+err_t salloc_create (salloc *dest, u64 cap);
+void *smalloc (salloc *a, u64 bytes);
+void *scalloc (salloc *a, u64 len, u64 size);
+void spop (salloc *a);
 
-err_t lalloc_create (lalloc *dest, u64 climit, u32 dlimit);
-void lalloc_create_from (lalloc *dest, u8 *data, u64 climit, u32 dlimit);
-void lalloc_free (lalloc *l);
+typedef enum
+{
+  AT_LIMITED,
+  AT_SCOPED,
+} alloc_t;
 
-// Const allocations
-void *lmalloc_const (lalloc *a, u64 bytes);
-void *lcalloc_const (lalloc *a, u64 len, u64 size);
+typedef struct
+{
+  alloc_t type;
+  union
+  {
+    lalloc l;
+    salloc s;
+  };
+} galloc;
 
-// Dynamic allocations
-void *lmalloc_dyn (lalloc *a, u32 bytes);
-void *lcalloc_dyn (lalloc *a, u32 len, u32 size);
-void *lrealloc_dyn (lalloc *a, void *data, u32 bytes);
-void lfree_dyn (lalloc *a, void *data);
+void *gmalloc (galloc *a, u32 bytes);
+void *gcalloc (galloc *a, u32 len, u32 size);

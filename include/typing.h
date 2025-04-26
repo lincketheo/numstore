@@ -2,7 +2,9 @@
 
 #include "dev/assert.h"
 #include "dev/errors.h"
-#include "sds.h"
+#include "ds/strings.h"
+#include "intf/mm.h"
+#include "intf/types.h"
 
 /**
  * TYPE = PRIM | STRUCT | VARRAY | SARRAY | UNION | ENUM
@@ -62,33 +64,33 @@ typedef enum
 
 typedef struct
 {
-  u32 len;
+  u16 len;
   string *keys;
   type *types;
 } struct_t;
 
 typedef struct
 {
-  u32 len;
+  u16 len;
   string *keys;
   type *types;
 } union_t;
 
 typedef struct
 {
-  u32 len;
+  u16 len;
   string *keys;
 } enum_t;
 
 typedef struct
 {
-  u32 rank;
+  u16 rank;
   type *t; // Not an array
 } varray_t;
 
 typedef struct
 {
-  u32 rank;
+  u16 rank;
   u32 *dims;
   type *t; // Not an array
 } sarray_t;
@@ -108,6 +110,24 @@ struct type
   type_t type;
 };
 
-DEFINE_DBG_ASSERT_H (type, type, t);
+err_t type_get_serial_size (u16 *dest, const type *t);
 err_t type_bits_size (u64 *dest, const type *t);
-err_t type_deserialize (type *dest, const string tstr);
+
+typedef struct
+{
+  type *src;
+  lalloc *type_deallocator; // TODO
+  u8 *dest;
+  u16 dlen;
+} type_serialize_params;
+
+typedef struct
+{
+  type *dest;
+  lalloc *type_allocator;
+  u8 *src;
+  u16 dlen;
+} type_deserialize_params;
+
+err_t type_serialize (type_serialize_params params);
+err_t type_deserialize (type_deserialize_params params);

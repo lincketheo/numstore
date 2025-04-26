@@ -1,8 +1,9 @@
 #pragma once
 
 #include "dev/assert.h"
-#include "sds.h"
-#include "types.h"
+#include "dev/errors.h"
+#include "ds/strings.h"
+#include "intf/types.h"
 
 /////////////////////// Files
 typedef struct i_file i_file;
@@ -12,7 +13,6 @@ struct i_file
   int fd;
 };
 
-DEFINE_DBG_ASSERT_H (i_file, i_file, p);
 err_t i_open (i_file *dest, const string fname, int read, int write);
 err_t i_close (i_file *fp);
 i64 i_read_some (i_file *fp, void *dest, u64 n, u64 offset);

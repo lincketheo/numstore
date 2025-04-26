@@ -19,9 +19,6 @@
 
 #define ASCOPE(expr) expr
 
-#define DEFINE_DBG_ASSERT_H(type, name, variable) \
-  __attribute__ ((unused)) void name##_assert (const type *variable)
-
 #define DEFINE_DBG_ASSERT_I(type, name, variable) \
   __attribute__ ((unused)) void name##_assert (const type *variable)
 
@@ -31,9 +28,6 @@
 #define ASSERT(expr)
 
 #define ASCOPE(expr)
-
-#define DEFINE_DBG_ASSERT_H(type, name, variable) \
-  __attribute__ ((unused)) void name##_assert (const type *variable __attribute__ ((unused)))
 
 #define DEFINE_DBG_ASSERT_I(type, name, variable)                                             \
   __attribute__ ((unused)) void name##_assert (const type *variable __attribute__ ((unused))) \

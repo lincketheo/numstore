@@ -1,8 +1,7 @@
 #pragma once
 
 #include "dev/assert.h"
-#include "paging.h"
-#include "sds.h"
+#include "ds/strings.h"
 #include "typing.h"
 
 ////////////////////////////// A Single Variable

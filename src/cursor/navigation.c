@@ -1,38 +1,31 @@
-#include "navigation.h"
-#include "database.h"
+#include "cursor/navigation.h"
 #include "dev/errors.h"
 #include "intf/mm.h"
-#include "paging.h"
 
 DEFINE_DBG_ASSERT_I (navigator, navigator, n)
 {
   ASSERT (n);
-  // TODO
 }
 
 err_t
-nav_create (navigator *dest, database *db)
+nav_create (navigator *dest, nav_params params)
 {
-  err_t ret;
+  nav_pgctx *stack = lmalloc (
+      params.stack_allocator,
+      params.stack_starting_capacity * sizeof *stack);
 
-  lalloc *alloc;
-  if ((ret = db_request_alloc (&alloc, db, 0, 10 * sizeof *dest->stack)))
-    {
-      return ret;
-    }
-
-  nav_pgctx *stack = lmalloc_dyn (alloc, 5 * sizeof *stack);
   if (!stack)
     {
-      db_release_alloc (db, alloc);
       return ERR_NOMEM;
     }
 
   dest->stack = stack;
   dest->sp = 0;
-  dest->scap = 5;
-  dest->stack_allocator = alloc;
-  dest->pager = &db->pager;
+  dest->scap = params.stack_starting_capacity;
+  dest->stack_allocator = params.stack_allocator;
+  dest->pager = params.pager;
+
+  navigator_assert (dest);
 
   return SUCCESS;
 }
@@ -40,17 +33,19 @@ nav_create (navigator *dest, database *db)
 static inline err_t
 nav_resize (navigator *n, u32 cap)
 {
+  navigator_assert (n);
+
   // Check if we need to resize the stack
   if (cap > n->scap)
     {
-      // Add 2 - stack never get's too big
-      nav_pgctx *stack = lrealloc_dyn (
+      // Add 2 - stack never gets too big
+      nav_pgctx *stack = lrealloc (
           n->stack_allocator,
           n->stack,
           (n->scap + 2) * sizeof *stack);
       if (!stack)
         {
-          return ERR_NOMEM;
+          return ERR_PGSTACK_OVERFLOW;
         }
       n->stack = stack;
       n->scap = (n->scap + 2);

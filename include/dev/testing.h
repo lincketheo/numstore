@@ -1,7 +1,7 @@
 #pragma once
 
 #include "dev/assert.h"
-#include "types.h"
+#include "intf/types.h"
 
 typedef void (*test_func) (void);
 extern u64 ntests;

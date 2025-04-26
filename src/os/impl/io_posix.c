@@ -1,8 +1,8 @@
 #include "dev/errors.h"
+#include "ds/strings.h"
 #include "intf/io.h"
 #include "intf/logging.h"
 #include "intf/mm.h"
-#include "sds.h"
 
 #include <errno.h>
 #include <fcntl.h>

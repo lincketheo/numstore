@@ -2,11 +2,11 @@
 
 #include "dev/assert.h"
 #include "dev/errors.h"
+#include "ds/cbuffer.h"
 #include "intf/io.h"
 #include "intf/mm.h"
-#include "paging.h"
-#include "sds.h"
-#include "types.h"
+#include "intf/types.h"
+#include "paging/pager.h"
 #include "vhash_map.h"
 
 //////////////// Global Database
@@ -57,17 +57,3 @@ typedef struct
 err_t db_create (database *dest, dbcargs args);
 err_t db_open (database *dest, dboargs args);
 void db_close (database *db);
-
-// Request a new allocator
-err_t db_request_alloc (
-    lalloc **dest,
-    database *db,
-    u64 climit,
-    u32 dlimit);
-void db_release_alloc (
-    database *db,
-    lalloc *alloc);
-
-// Request a new cbuffer
-err_t db_request_cbuffer (cbuffer **dest, database *db, u32 cap);
-void db_release_cbuffer (database *db, cbuffer *c);

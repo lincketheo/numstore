@@ -1,9 +1,9 @@
 #include "vhash_map.h"
 #include "dev/assert.h"
 #include "dev/errors.h"
+#include "ds/strings.h"
 #include "intf/mm.h"
 #include "intf/stdlib.h"
-#include "sds.h"
 
 DEFINE_DBG_ASSERT_I (vhash_map, vhash_map, v)
 {
@@ -25,24 +25,33 @@ fnv1a_hash (const string s)
 }
 
 err_t
-vhash_map_create (vhash_map *dest, u32 len, lalloc *alloc)
+vhash_map_create (vhash_map *dest, vhm_params params)
 {
   ASSERT (dest);
-  ASSERT (len > 0);
+  ASSERT (params.len > 0);
 
-  dest->elems = lcalloc_const (alloc, len, sizeof *dest->elems);
+  dest->elems = scalloc (
+      params.map_allocator,
+      params.len,
+      sizeof *dest->elems);
   if (!dest->elems)
     {
       return ERR_NOMEM;
     }
 
-  dest->alloc = alloc;
-  dest->len = len;
+  dest->type_allocator = params.type_allocator;
+  dest->node_allocator = params.node_allocator;
+  dest->len = params.len;
+
   return SUCCESS;
 }
 
 static inline err_t
-helem_insert (helem *node, const string key, vmeta value, lalloc *alloc)
+helem_insert (
+    helem *node,
+    const string key,
+    vmeta value,
+    lalloc *node_allocator)
 {
   ASSERT (node);
 
@@ -61,17 +70,17 @@ helem_insert (helem *node, const string key, vmeta value, lalloc *alloc)
     }
 
   // Allocate new node
-  vnode *new_node = lmalloc_dyn (alloc, sizeof *new_node);
+  vnode *new_node = lmalloc (node_allocator, sizeof *new_node);
   if (!new_node)
     {
       return ERR_NOMEM;
     }
 
   // Allocate and copy over new string
-  char *newstr = lmalloc_dyn (alloc, key.len);
+  char *newstr = lmalloc (node_allocator, key.len);
   if (!newstr)
     {
-      lfree_dyn (alloc, new_node);
+      lfree (node_allocator, new_node);
       return ERR_NOMEM;
     }
   i_memcpy (newstr, key.data, key.len);
@@ -102,11 +111,11 @@ err_t
 vhash_map_insert (vhash_map *h, const string key, vmeta value)
 {
   vhash_map_assert (h);
-  ASSERT (h && h->elems && h->alloc);
+  ASSERT (h);
 
   u32 idx = fnv1a_hash (key);
 
-  return helem_insert (&h->elems[idx], key, value, h->alloc);
+  return helem_insert (&h->elems[idx], key, value, h->node_allocator);
 }
 
 static inline err_t

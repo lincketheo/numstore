@@ -1,6 +1,10 @@
 #pragma once
 
-#include "types.h"
+#include "intf/types.h"
+
+// For now - not wrapping these two
+#include <math.h>
+#include <stdlib.h>
 
 void *i_memset (void *s, int c, u64 n);
 void *i_memcpy (void *dest, const void *src, u64 bytes);
