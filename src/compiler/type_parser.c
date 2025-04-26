@@ -167,7 +167,7 @@ tp_create (type_parser *dest, tp_params params)
   ASSERT (dest);
 
   // Allocate the stack - start with 3 layers, which is pretty normal
-  type_bldr *stack = lmalloc_dyn (
+  type_bldr *stack = lmalloc (
       params.stack_allocator,
       3 * sizeof *stack);
 
@@ -203,15 +203,15 @@ stbldr_create (type_bldr *dest, lalloc *alloc)
   ASSERT (dest);
   ASSERT (dest->state == TB_UNKNOWN);
 
-  dest->sb.keys = lmalloc_dyn (alloc, 5 * sizeof *dest->sb.keys);
+  dest->sb.keys = lmalloc (alloc, 5 * sizeof *dest->sb.keys);
   if (!dest->sb.keys)
     {
       return TPR_MALLOC_ERROR;
     }
-  dest->sb.types = lmalloc_dyn (alloc, 5 * sizeof *dest->sb.types);
+  dest->sb.types = lmalloc (alloc, 5 * sizeof *dest->sb.types);
   if (!dest->sb.types)
     {
-      lfree_dyn (alloc, dest->sb.keys);
+      lfree (alloc, dest->sb.keys);
       return TPR_MALLOC_ERROR;
     }
 
@@ -261,15 +261,15 @@ stbldr_push_key (type_bldr *sb, token t, lalloc *alloc)
       ASSERT (can_mul_u64 (2 * sb->sb.cap, sizeof (string)));
 
       u32 ncap = 2 * sb->sb.cap;
-      string *keys = lrealloc_dyn (alloc, sb->sb.keys, ncap * sizeof *keys);
+      string *keys = lrealloc (alloc, sb->sb.keys, ncap * sizeof *keys);
       if (!keys)
         {
           return TPR_MALLOC_ERROR;
         }
-      type *types = lrealloc_dyn (alloc, sb->sb.types, ncap * sizeof *types);
+      type *types = lrealloc (alloc, sb->sb.types, ncap * sizeof *types);
       if (!keys)
         {
-          lfree_dyn (alloc, keys);
+          lfree (alloc, keys);
           return TPR_MALLOC_ERROR;
         }
       sb->sb.keys = keys;
@@ -336,7 +336,6 @@ static inline tp_result
 stbldr_push_type (type_bldr *sb, type t)
 {
   type_bldr_assert (sb);
-  type_assert (&t);
   ASSERT (sb->sb.len < sb->sb.cap); // From previous string push
   ASSERT (sb->state == TB_STRUCT);
   ASSERT (sb->sb.state == SB_WAITING_FOR_TYPE);
@@ -376,7 +375,7 @@ sb_build (type_bldr *sb, lalloc *alloc)
   type *types = sb->sb.types;
   string *strs = sb->sb.keys;
 
-  sb->ret.st = lmalloc_dyn (alloc, sizeof *sb->ret.st);
+  sb->ret.st = lmalloc (alloc, sizeof *sb->ret.st);
   if (!sb->ret.st)
     {
       return TPR_MALLOC_ERROR;
@@ -385,13 +384,13 @@ sb_build (type_bldr *sb, lalloc *alloc)
   // Clip buffers
   if (sb->sb.len < sb->sb.cap)
     {
-      types = lrealloc_dyn (alloc, types, sb->sb.len * sizeof *types);
+      types = lrealloc (alloc, types, sb->sb.len * sizeof *types);
       if (!types)
         {
           return TPR_MALLOC_ERROR;
         }
 
-      strs = lrealloc_dyn (alloc, strs, sb->sb.len * sizeof *strs);
+      strs = lrealloc (alloc, strs, sb->sb.len * sizeof *strs);
       if (!strs)
         {
           return TPR_MALLOC_ERROR;
@@ -422,16 +421,16 @@ unbldr_create (type_bldr *dest, lalloc *alloc)
   ASSERT (dest);
   ASSERT (dest->state == TB_UNKNOWN);
 
-  dest->ub.keys = lmalloc_dyn (alloc, 5 * sizeof *dest->ub.keys);
+  dest->ub.keys = lmalloc (alloc, 5 * sizeof *dest->ub.keys);
   if (!dest->ub.keys)
     {
       return TPR_MALLOC_ERROR;
     }
 
-  dest->ub.types = lmalloc_dyn (alloc, 5 * sizeof *dest->ub.types);
+  dest->ub.types = lmalloc (alloc, 5 * sizeof *dest->ub.types);
   if (!dest->ub.types)
     {
-      lfree_dyn (alloc, dest->ub.keys);
+      lfree (alloc, dest->ub.keys);
       return TPR_MALLOC_ERROR;
     }
 
@@ -482,15 +481,15 @@ unbldr_push_key (type_bldr *ub, token t, lalloc *alloc)
       ASSERT (can_mul_u64 (ub->ub.cap, 2));
       ASSERT (can_mul_u64 (2 * ub->ub.cap, sizeof (string)));
       u32 ncap = 2 * ub->ub.cap;
-      string *keys = lrealloc_dyn (alloc, ub->ub.keys, ncap * sizeof (string));
+      string *keys = lrealloc (alloc, ub->ub.keys, ncap * sizeof (string));
       if (!keys)
         {
           return TPR_MALLOC_ERROR;
         }
-      type *types = lrealloc_dyn (alloc, ub->ub.types, ncap * sizeof (type));
+      type *types = lrealloc (alloc, ub->ub.types, ncap * sizeof (type));
       if (!keys)
         {
-          lfree_dyn (alloc, keys);
+          lfree (alloc, keys);
           return TPR_MALLOC_ERROR;
         }
       ub->ub.keys = keys;
@@ -559,7 +558,6 @@ static inline tp_result
 unbldr_push_type (type_bldr *ub, type t)
 {
   type_bldr_assert (ub);
-  type_assert (&t);
   ASSERT (ub->ub.len < ub->ub.cap);
   ASSERT (ub->state == TB_UNION);
   ASSERT (ub->ub.state == UB_WAITING_FOR_TYPE);
@@ -574,7 +572,6 @@ static inline tp_result
 ub_accept_type (type_bldr *ub, type type)
 {
   type_bldr_assert (ub);
-  type_assert (&type);
   ASSERT (ub->state == TB_UNION);
 
   switch (ub->ub.state)
@@ -600,7 +597,7 @@ ub_build (type_bldr *ub, lalloc *alloc)
   type *types = ub->ub.types;
   string *strs = ub->ub.keys;
 
-  ub->ret.un = lmalloc_dyn (alloc, sizeof *ub->ret.un);
+  ub->ret.un = lmalloc (alloc, sizeof *ub->ret.un);
   if (!ub->ret.un)
     {
       return TPR_MALLOC_ERROR;
@@ -609,13 +606,13 @@ ub_build (type_bldr *ub, lalloc *alloc)
   // Clip buffers
   if (ub->ub.len < ub->ub.cap)
     {
-      types = lrealloc_dyn (alloc, types, ub->ub.len * sizeof *types);
+      types = lrealloc (alloc, types, ub->ub.len * sizeof *types);
       if (!types)
         {
           return TPR_MALLOC_ERROR;
         }
 
-      strs = lrealloc_dyn (alloc, strs, ub->ub.len * sizeof *strs);
+      strs = lrealloc (alloc, strs, ub->ub.len * sizeof *strs);
       if (!strs)
         {
           return TPR_MALLOC_ERROR;
@@ -645,7 +642,7 @@ enbldr_create (type_bldr *dest, lalloc *alloc)
   ASSERT (dest);
   ASSERT (dest->state == TB_UNKNOWN);
 
-  dest->eb.keys = lmalloc_dyn (alloc, 5 * sizeof *dest->eb.keys);
+  dest->eb.keys = lmalloc (alloc, 5 * sizeof *dest->eb.keys);
   if (!dest->eb.keys)
     {
       return TPR_MALLOC_ERROR;
@@ -697,7 +694,7 @@ enbldr_push_str (type_bldr *eb, token t, lalloc *alloc)
       ASSERT (can_mul_u64 (2 * eb->eb.cap, sizeof (string)));
       u32 ncap = 2 * eb->eb.cap;
 
-      string *keys = lrealloc_dyn (alloc, eb->eb.keys, ncap * sizeof (string));
+      string *keys = lrealloc (alloc, eb->eb.keys, ncap * sizeof (string));
       if (!keys)
         {
           return TPR_MALLOC_ERROR;
@@ -772,7 +769,7 @@ eb_build (type_bldr *eb, lalloc *alloc)
 
   string *strs = eb->eb.keys;
 
-  eb->ret.en = lmalloc_dyn (alloc, sizeof *eb->ret.en);
+  eb->ret.en = lmalloc (alloc, sizeof *eb->ret.en);
   if (!eb->ret.en)
     {
       return TPR_MALLOC_ERROR;
@@ -781,7 +778,7 @@ eb_build (type_bldr *eb, lalloc *alloc)
   // Clip buffers
   if (eb->eb.len < eb->eb.cap)
     {
-      strs = lrealloc_dyn (alloc, strs, eb->eb.len * sizeof *strs);
+      strs = lrealloc (alloc, strs, eb->eb.len * sizeof *strs);
       if (!strs)
         {
           return TPR_MALLOC_ERROR;
@@ -847,7 +844,7 @@ sarray_bldr_create (sarray_bldr *dest, u32 dim, lalloc *alloc)
 {
   ASSERT (dest);
 
-  dest->dims = lmalloc_dyn (alloc, 5 * sizeof *dest->dims);
+  dest->dims = lmalloc (alloc, 5 * sizeof *dest->dims);
   if (!dest->dims)
     {
       return TPR_MALLOC_ERROR;
@@ -887,7 +884,7 @@ sarray_bldr_incr (type_bldr *sb, token t, lalloc *alloc)
       ASSERT (can_mul_u64 (2 * sb->sab.cap, sizeof (string)));
       u32 ncap = 2 * sb->sab.cap;
 
-      u32 *dims = lrealloc_dyn (alloc, sb->sab.dims, ncap * sizeof (string));
+      u32 *dims = lrealloc (alloc, sb->sab.dims, ncap * sizeof (string));
       if (!dims)
         {
           return TPR_MALLOC_ERROR;
@@ -1086,5 +1083,5 @@ void
 type_parser_release (type_parser *t)
 {
   type_parser_assert (t);
-  lfree_dyn (t->stack_allocator, t->stack);
+  lfree (t->stack_allocator, t->stack);
 }

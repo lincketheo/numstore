@@ -1,27 +1,45 @@
-#include "navigation.h"
 #include "database.h"
+#include "dev/errors.h"
+#include "ds/strings.h"
 #include "intf/mm.h"
-#include "paging.h"
-#include "sds.h"
+#include "intf/stdlib.h"
 
 int
 main ()
 {
+  // Create database
+  dbcargs cargs = {
+    .fname = unsafe_cstrfrom ("test.db"),
+    .page_size = 4096,
+    .mpgr_len = 100,
+  };
+
+  database db;
+
+  err_t ret;
+  if ((ret = db_create (&db, cargs)))
+    {
+      switch (ret)
+        {
+        case SUCCESS:
+        case ERR_ALREADY_EXISTS:
+          break;
+        default:
+          return ret;
+        }
+    }
+
   // Open database
-  if (db_open (unsafe_cstrfrom ("test.db")))
+  dboargs args = {
+    .fname = unsafe_cstrfrom ("test.db"),
+  };
+
+  if ((ret = db_open (&db, args)))
     {
-      return -1;
+      return ret;
     }
 
-  global_database *db = get_global_database ();
-  if (!db)
-    {
-      return -1;
-    }
-
-  navigator nav;
-  lalloc alloc = lalloc_create (0);
-  nav_create (&nav, &db->pager, &alloc);
+  db_close (&db);
 
   return 0;
 }

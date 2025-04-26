@@ -126,7 +126,7 @@ db_open (database *db, dboargs args)
       return ret;
     }
 
-  lalloc_create (&db->alloc, 100);
+  lalloc_create (&db->alloc, 10000);
 
   // Create the pager
   pgr_params params = {
@@ -136,6 +136,7 @@ db_open (database *db, dboargs args)
     .memory_pager_len = db->mpgr_len,
     .memory_pager_allocator = &db->alloc,
   };
+
   if ((ret = pgr_create (&db->pager, params)))
     {
       return ret;

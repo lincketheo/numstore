@@ -31,7 +31,7 @@ typedef struct
   u32 len;
   lalloc *type_allocator;
   lalloc *node_allocator;
-  salloc *map_allocator;
+  lalloc *map_allocator;
 } vhm_params;
 
 /**

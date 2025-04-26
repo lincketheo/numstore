@@ -2,6 +2,7 @@
 #include "dev/errors.h"
 #include "dev/testing.h"
 #include "intf/mm.h"
+#include "intf/stdlib.h"
 #include "intf/types.h"
 #include "utils/bounds.h"
 
@@ -62,6 +63,113 @@ DEFINE_DBG_ASSERT_I (type, type, t)
       break;
     default:
       break; // TODO
+    }
+}
+
+///////////////////////////// FREE
+static inline void
+_free_struct (type *t, lalloc *alloc)
+{
+  type_assert (t);
+  ASSERT (t->st);
+  for (u32 i = 0; i < t->st->len; ++i)
+    {
+      ASSERT (t->st->keys[i].data);
+      lfree (alloc, t->st->keys[i].data);
+      type_free_internals (&t->st->types[i], alloc);
+    }
+  ASSERT (t->st->keys && t->st->types);
+  lfree (alloc, t->st->keys);
+  lfree (alloc, t->st->types);
+}
+
+static inline void
+_free_union (type *t, lalloc *alloc)
+{
+  type_assert (t);
+  ASSERT (t->un);
+  for (u32 i = 0; i < t->un->len; ++i)
+    {
+      ASSERT (t->un->keys[i].data);
+      lfree (alloc, t->un->keys[i].data);
+      type_free_internals (&t->un->types[i], alloc);
+    }
+  ASSERT (t->un->keys && t->un->types);
+  lfree (alloc, t->un->keys);
+  lfree (alloc, t->un->types);
+}
+
+static inline void
+_free_enum (type *t, lalloc *alloc)
+{
+  type_assert (t);
+  ASSERT (t->en);
+  for (u32 i = 0; i < t->en->len; ++i)
+    {
+      ASSERT (t->en->keys[i].data);
+      lfree (alloc, t->en->keys[i].data);
+    }
+  ASSERT (t->en->keys);
+  lfree (alloc, t->en->keys);
+}
+
+static inline void
+_free_sarray (type *t, lalloc *alloc)
+{
+  type_assert (t);
+  ASSERT (t->sa && t->sa->dims && t->sa->t);
+  lfree (alloc, t->sa->dims);
+  type_free_internals (t->sa->t, alloc);
+}
+
+static inline void
+_free_varray (type *t, lalloc *alloc)
+{
+  type_assert (t);
+  ASSERT (t->va && t->va->t);
+  type_free_internals (t->va->t, alloc);
+}
+
+void
+type_free_internals (type *t, lalloc *alloc)
+{
+  type_assert (t);
+  ASSERT (alloc);
+  switch (t->type)
+    {
+    case T_PRIM:
+      {
+        break;
+      }
+    case T_STRUCT:
+      {
+        _free_struct (t, alloc);
+        break;
+      }
+    case T_UNION:
+      {
+        _free_union (t, alloc);
+        break;
+      }
+    case T_ENUM:
+      {
+        _free_enum (t, alloc);
+        break;
+      }
+    case T_SARRAY:
+      {
+        _free_sarray (t, alloc);
+        break;
+      }
+    case T_VARRAY:
+      {
+        _free_varray (t, alloc);
+        break;
+      }
+    default:
+      {
+        ASSERT (0);
+      }
     }
 }
 
@@ -212,6 +320,52 @@ struct_t_bits_size (u64 *dest, struct_t *t)
   return SUCCESS;
 }
 
+TEST (struct_t_bits_size)
+{
+  struct_t st;
+  st.len = 4;
+  st.keys = (string[]){
+    {
+        .len = 3,
+        .data = "foo",
+    },
+    {
+        .len = 2,
+        .data = "fo",
+    },
+    {
+        .len = 4,
+        .data = "baro",
+    },
+    {
+        .len = 5,
+        .data = "bazbi",
+    },
+  };
+  st.types = (type[]){
+    {
+        .type = T_PRIM,
+        .p = U32,
+    },
+    {
+        .type = T_PRIM,
+        .p = BOOL,
+    },
+    {
+        .type = T_PRIM,
+        .p = U16,
+    },
+    {
+        .type = T_PRIM,
+        .p = BIT,
+    },
+  };
+  u64 act;
+  u64 exp = (sizeof (u32) + sizeof (u8) + sizeof (u16)) * 8 + 1;
+  test_fail_if (struct_t_bits_size (&act, &st));
+  test_assert_int_equal (exp, act);
+}
+
 //////////////////////////////// Strict Array
 
 err_t
@@ -276,6 +430,18 @@ type_bits_size (u64 *dest, const type *t)
 
 //////////////////////////////// Get Type Serializable Size
 
+/**
+ * TODO - Before release, all this serialization junk
+ * needs to be refactored. It's a mess. Here's the start:
+typedef struct
+{
+  type *t;
+  u8 *data;
+  u16 dlen;
+  u16 idx;
+} type_ser;
+*/
+
 static inline err_t
 ser_size_add (u16 *size, u16 inc)
 {
@@ -329,6 +495,60 @@ ser_size_struct (u16 *size, const struct_t *st)
   return SUCCESS;
 }
 
+TEST (ser_size_struct)
+{
+  struct_t st;
+  st.len = 4;
+  st.keys = (string[]){
+    {
+        .len = 3,
+        .data = "foo",
+    },
+    {
+        .len = 2,
+        .data = "fo",
+    },
+    {
+        .len = 4,
+        .data = "baro",
+    },
+    {
+        .len = 5,
+        .data = "bazbi",
+    },
+  };
+  st.types = (type[]){
+    {
+        .type = T_PRIM,
+        .p = U32,
+    },
+    {
+        .type = T_PRIM,
+        .p = BOOL,
+    },
+    {
+        .type = T_PRIM,
+        .p = U16,
+    },
+    {
+        .type = T_PRIM,
+        .p = U8,
+    },
+  };
+  u16 one_type = sizeof (u8) + sizeof (u8);
+
+  // Expected
+  u16 exp = 0;
+  exp += sizeof (u16);                     // Len
+  exp += 4 * sizeof (u16) + 3 + 2 + 4 + 5; // String keys
+  exp += 4 * one_type;                     // Type values
+
+  u16 act;
+  ser_size_struct (&act, &st);
+
+  test_assert_int_equal (exp, act);
+}
+
 static inline err_t
 ser_size_union (u16 *size, const union_t *un)
 {
@@ -371,6 +591,60 @@ ser_size_union (u16 *size, const union_t *un)
   return SUCCESS;
 }
 
+TEST (ser_size_union)
+{
+  union_t un;
+  un.len = 4;
+  un.keys = (string[]){
+    {
+        .len = 3,
+        .data = "foo",
+    },
+    {
+        .len = 2,
+        .data = "fo",
+    },
+    {
+        .len = 4,
+        .data = "baro",
+    },
+    {
+        .len = 5,
+        .data = "bazbi",
+    },
+  };
+  un.types = (type[]){
+    {
+        .type = T_PRIM,
+        .p = U32,
+    },
+    {
+        .type = T_PRIM,
+        .p = BOOL,
+    },
+    {
+        .type = T_PRIM,
+        .p = U16,
+    },
+    {
+        .type = T_PRIM,
+        .p = U8,
+    },
+  };
+  u16 one_type = sizeof (u8) + sizeof (u8);
+
+  // Expected
+  u16 exp = 0;
+  exp += sizeof (u16);                     // Len
+  exp += 4 * sizeof (u16) + 3 + 2 + 4 + 5; // String keys
+  exp += 4 * one_type;                     // Type values
+
+  u16 act;
+  ser_size_union (&act, &un);
+
+  test_assert_int_equal (exp, act);
+}
+
 static inline err_t
 ser_size_enum (u16 *size, const enum_t *en)
 {
@@ -400,6 +674,40 @@ ser_size_enum (u16 *size, const enum_t *en)
   return SUCCESS;
 }
 
+TEST (ser_size_enum)
+{
+  enum_t en;
+  en.len = 4;
+  en.keys = (string[]){
+    {
+        .len = 3,
+        .data = "foo",
+    },
+    {
+        .len = 2,
+        .data = "fo",
+    },
+    {
+        .len = 4,
+        .data = "baro",
+    },
+    {
+        .len = 5,
+        .data = "bazbi",
+    },
+  };
+
+  // Expected
+  u16 exp = 0;
+  exp += sizeof (u16);                     // Len
+  exp += 4 * sizeof (u16) + 3 + 2 + 4 + 5; // String keys
+
+  u16 act;
+  ser_size_enum (&act, &en);
+
+  test_assert_int_equal (exp, act);
+}
+
 static inline err_t
 ser_size_varray (u16 *size, const varray_t *va)
 {
@@ -425,6 +733,26 @@ ser_size_varray (u16 *size, const varray_t *va)
   }
 
   return SUCCESS;
+}
+
+TEST (ser_size_varray)
+{
+  varray_t va;
+  va.rank = 4;
+  va.t = &(type){
+    .type = T_PRIM,
+    .p = U8,
+  };
+
+  // Expected
+  u16 exp = 0;
+  exp += sizeof (u16);              // Len
+  exp += sizeof (u8) + sizeof (u8); // Type values
+
+  u16 act;
+  ser_size_varray (&act, &va);
+
+  test_assert_int_equal (exp, act);
 }
 
 static inline err_t
@@ -467,6 +795,28 @@ ser_size_sarray (u16 *size, const sarray_t *sa)
   return SUCCESS;
 }
 
+TEST (ser_size_sarray)
+{
+  sarray_t sa;
+  sa.rank = 4;
+  sa.dims = (u32[]){ 10, 20, 30, 40 };
+  sa.t = &(type){
+    .type = T_PRIM,
+    .p = U8,
+  };
+
+  // Expected
+  u16 exp = 0;
+  exp += sizeof (u16);              // Len
+  exp += 4 * sizeof (u32);          // Dims
+  exp += sizeof (u8) + sizeof (u8); // Type salues
+
+  u16 act;
+  ser_size_sarray (&act, &sa);
+
+  test_assert_int_equal (exp, act);
+}
+
 err_t
 type_get_serial_size (u16 *dest, const type *t)
 {
@@ -481,70 +831,169 @@ type_get_serial_size (u16 *dest, const type *t)
     case T_PRIM:
       {
         // tag + subtype byte
-        if ((ret = ser_size_add (&size, 1)))
-          {
-            return ret;
-          }
+        ret = ser_size_add (&size, 1);
         break;
       }
 
     case T_STRUCT:
       {
-        if ((ret = ser_size_struct (&size, t->st)))
-          {
-            return ret;
-          }
+        ret = ser_size_struct (&size, t->st);
         break;
       }
 
     case T_UNION:
       {
-        if ((ret = ser_size_union (&size, t->un)))
-          {
-            return ret;
-          }
+        ret = ser_size_union (&size, t->un);
         break;
       }
 
     case T_ENUM:
       {
-        if ((ret = ser_size_enum (&size, t->en)))
-          {
-            return ret;
-          }
+        ret = ser_size_enum (&size, t->en);
         break;
       }
 
     case T_VARRAY:
       {
-        if ((ret = ser_size_varray (&size, t->va)))
-          {
-            return ret;
-          }
+        ret = ser_size_varray (&size, t->va);
         break;
       }
 
     case T_SARRAY:
       {
-        if ((ret = ser_size_sarray (&size, t->sa)))
-          {
-            return ret;
-          }
+        ret = ser_size_sarray (&size, t->sa);
         break;
       }
 
     default:
       {
         ASSERT (0);
-        break;
+        return ERR_FALLBACK;
       }
+    }
+
+  if (ret)
+    {
+      return ret;
     }
 
   *dest = size;
   return SUCCESS;
 }
 
+TEST (type_get_serial_size)
+{
+  // Oooooof
+  type t = {
+    .type = T_STRUCT,
+    .st = &(struct_t){
+        .len = 2,
+        .keys = (string[]){
+            { .len = 3, .data = "foo" },
+            { .len = 3, .data = "bar" },
+        },
+        .types = (type[]){
+            // Field 0: UNION
+            {
+                .type = T_UNION,
+                .un = &(union_t){
+                    .len = 2,
+                    .keys = (string[]){
+                        { .len = 2, .data = "a0" },
+                        { .len = 2, .data = "a1" },
+                    },
+                    .types = (type[]){
+                        // Variant 0: PRIM (U8)
+                        {
+                            .type = T_PRIM,
+                            .p = U8,
+                        },
+                        // Variant 1: VARRAY of PRIM (BOOL)
+                        {
+                            .type = T_VARRAY,
+                            .va = &(varray_t){
+                                .rank = 2,
+                                .t = &(type){
+                                    .type = T_PRIM,
+                                    .p = BOOL,
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            // Field 1: SARRAY
+            {
+                .type = T_SARRAY,
+                .sa = &(sarray_t){
+                    .rank = 2,
+                    .dims = (u32[]){ 3, 5 },
+                    .t = &(type){
+                        .type = T_ENUM,
+                        .en = &(enum_t){
+                            .len = 2,
+                            .keys = (string[]){
+                                { .len = 2, .data = "e0" },
+                                { .len = 2, .data = "e1" },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    },
+  };
+
+  // Manually calculate expected serialized size
+
+  u16 exp = 0;
+  exp += 1; // Root tag (T_STRUCT)
+
+  // STRUCT
+  exp += sizeof (u16); // struct len = 2
+
+  // Field 0: key "foo"
+  exp += sizeof (u16) + 3; // key length + key bytes
+  exp += 1;                // UNION tag
+  exp += sizeof (u16);     // union len = 2
+
+  // UNION Variant 0: "a0"
+  exp += sizeof (u16) + 2; // key length + key bytes
+  exp += 1;                // PRIM tag
+  exp += 1;                // PRIM subtype
+
+  // UNION Variant 1: "a1"
+  exp += sizeof (u16) + 2; // key length + key bytes
+  exp += 1;                // VARRAY tag
+  exp += sizeof (u16);     // rank
+  exp += 1;                // PRIM tag
+  exp += 1;                // PRIM subtype
+
+  // Field 1: key "bar"
+  exp += sizeof (u16) + 3; // key length + key bytes
+  exp += 1;                // SARRAY tag
+  exp += sizeof (u16);     // rank
+  exp += 2 * sizeof (u32); // 2 dims
+  exp += 1;                // ENUM tag
+  exp += sizeof (u16);     // enum len = 2
+
+  // ENUM variant 0: "e0"
+  exp += sizeof (u16) + 2;
+
+  // ENUM variant 1: "e1"
+  exp += sizeof (u16) + 2;
+
+  u16 act;
+  err_t r = type_get_serial_size (&act, &t);
+  test_assert_int_equal (r, SUCCESS);
+  test_assert_int_equal (exp, act);
+}
+
 //////////////////////////////// Serialize
+
+// Recursive implementations
+static err_t _type_serialize (type_serialize_params params, u16 *idx);
+static err_t _type_deserialize (type_deserialize_params params, u16 *idx);
 
 static inline err_t
 ser_write_bytes (u8 *dest, u16 dlen, u16 *idx, const void *src, u16 len)
@@ -575,20 +1024,14 @@ ser_write_u16 (u8 *dest, u16 dlen, u16 *idx, u16 val)
 }
 
 static inline err_t
-ser_write_u32 (u8 *dest, u16 dlen, u16 *idx, u32 val)
-{
-  return ser_write_bytes (dest, dlen, idx, &val, sizeof (val));
-}
-
-static inline err_t
-type_serialize_prim (type_serialize_params p, u16 *idx)
+_type_serialize_prim (type_serialize_params p, u16 *idx)
 {
   // write the subtype byte
   return ser_write_u8 (p.dest, p.dlen, idx, p.src->p);
 }
 
 static inline err_t
-type_serialize_struct (type_serialize_params p, u16 *idx)
+_type_serialize_struct (type_serialize_params p, u16 *idx)
 {
   err_t ret;
   struct_t *st = p.src->st;
@@ -616,35 +1059,119 @@ type_serialize_struct (type_serialize_params p, u16 *idx)
 
       // nested type
       {
-        u16 sublen;
-        if ((ret = type_get_serial_size (&sublen, &st->types[i])))
-          {
-            return ret;
-          }
         type_serialize_params subp = {
           .src = &st->types[i],
-          .dest = p.dest + *idx,
-          .dlen = (u16)(p.dlen - *idx)
+          .dest = p.dest,
+          .dlen = p.dlen,
         };
-        if ((ret = type_serialize (subp)))
+        if ((ret = _type_serialize (subp, idx)))
           {
             return ret;
           }
-        *idx += sublen;
       }
     }
 
   return SUCCESS;
 }
 
+TEST (_type_serialize_struct)
+{
+  struct_t st;
+  st.len = 4;
+  st.keys = (string[]){
+    {
+        .len = 3,
+        .data = "foo",
+    },
+    {
+        .len = 2,
+        .data = "fo",
+    },
+    {
+        .len = 4,
+        .data = "baro",
+    },
+    {
+        .len = 5,
+        .data = "bazbi",
+    },
+  };
+  st.types = (type[]){
+    {
+        .type = T_PRIM,
+        .p = U32,
+    },
+    {
+        .type = T_PRIM,
+        .p = BOOL,
+    },
+    {
+        .type = T_PRIM,
+        .p = U16,
+    },
+    {
+        .type = T_PRIM,
+        .p = U8,
+    },
+  };
+
+  u16 size;
+  ser_size_struct (&size, &st);
+  u8 *output = malloc (size);
+  test_fail_if_null (output);
+
+  type t = {
+    .type = T_STRUCT,
+    .st = &st,
+  };
+
+  type_serialize_params params = {
+    .dest = output,
+    .src = &t,
+    .dlen = size,
+  };
+  u16 idx = 0;
+  test_fail_if (_type_serialize_struct (params, &idx));
+  test_assert_int_equal (idx, size);
+  test_assert_int_equal (idx, 32);
+
+  // Length
+  test_assert_int_equal (*(u16 *)&output[0], 4);
+
+  // Field 1
+  test_assert_int_equal (*(u16 *)&output[2], 3);
+  test_assert_int_equal (i_strncmp ((char *)&output[4], "foo", 3), 0);
+  test_assert_int_equal (*(u8 *)&output[7], (u8)T_PRIM);
+  test_assert_int_equal (*(u8 *)&output[8], (u8)U32);
+
+  // Field 2
+  test_assert_int_equal (*(u16 *)&output[9], 2);
+  test_assert_int_equal (i_strncmp ((char *)&output[11], "fo", 2), 0);
+  test_assert_int_equal (*(u8 *)&output[13], (u8)T_PRIM);
+  test_assert_int_equal (*(u8 *)&output[14], (u8)BOOL);
+
+  // Field 3
+  test_assert_int_equal (*(u16 *)&output[15], 4);
+  test_assert_int_equal (i_strncmp ((char *)&output[17], "baro", 4), 0);
+  test_assert_int_equal (*(u8 *)&output[21], (u8)T_PRIM);
+  test_assert_int_equal (*(u8 *)&output[22], (u8)U16);
+
+  // Field 4
+  test_assert_int_equal (*(u16 *)&output[23], 5);
+  test_assert_int_equal (i_strncmp ((char *)&output[25], "bazbi", 5), 0);
+  test_assert_int_equal (*(u8 *)&output[30], (u8)T_PRIM);
+  test_assert_int_equal (*(u8 *)&output[31], (u8)U8);
+  free (output);
+}
+
 static inline err_t
-type_serialize_union (type_serialize_params p, u16 *idx)
+_type_serialize_union (type_serialize_params p, u16 *idx)
 {
   err_t ret;
   union_t *un = p.src->un;
 
   // number of variants
-  if ((ret = ser_write_u32 (p.dest, p.dlen, idx, un->len)))
+  if ((ret = ser_write_u16 (p.dest, p.dlen, idx, un->len)))
     {
       return ret;
     }
@@ -666,35 +1193,118 @@ type_serialize_union (type_serialize_params p, u16 *idx)
 
       // nested type
       {
-        u16 sublen;
-        if ((ret = type_get_serial_size (&sublen, &un->types[i])))
-          {
-            return ret;
-          }
         type_serialize_params subp = {
           .src = &un->types[i],
-          .dest = p.dest + *idx,
-          .dlen = (u16)(p.dlen - *idx)
+          .dest = p.dest,
+          .dlen = p.dlen,
         };
-        if ((ret = type_serialize (subp)))
+        if ((ret = _type_serialize (subp, idx)))
           {
             return ret;
           }
-        *idx += sublen;
       }
     }
 
   return SUCCESS;
 }
 
+TEST (_type_serialize_union)
+{
+  union_t un;
+  un.len = 4;
+  un.keys = (string[]){
+    {
+        .len = 3,
+        .data = "foo",
+    },
+    {
+        .len = 2,
+        .data = "fo",
+    },
+    {
+        .len = 4,
+        .data = "baro",
+    },
+    {
+        .len = 5,
+        .data = "bazbi",
+    },
+  };
+  un.types = (type[]){
+    {
+        .type = T_PRIM,
+        .p = U32,
+    },
+    {
+        .type = T_PRIM,
+        .p = BOOL,
+    },
+    {
+        .type = T_PRIM,
+        .p = U16,
+    },
+    {
+        .type = T_PRIM,
+        .p = U8,
+    },
+  };
+
+  u16 size;
+  ser_size_union (&size, &un);
+  u8 *output = malloc (size);
+  test_fail_if_null (output);
+
+  type t = {
+    .type = T_STRUCT,
+    .un = &un,
+  };
+
+  type_serialize_params params = {
+    .dest = output,
+    .src = &t,
+    .dlen = size,
+  };
+  u16 idx = 0;
+  test_fail_if (_type_serialize_union (params, &idx));
+  test_assert_int_equal (idx, size);
+  test_assert_int_equal (idx, 32);
+
+  test_assert_int_equal (*(u16 *)&output[0], 4);
+
+  // Field 1
+  test_assert_int_equal (*(u16 *)&output[2], 3);
+  test_assert_int_equal (i_strncmp ((char *)&output[4], "foo", 3), 0);
+  test_assert_int_equal (*(u8 *)&output[7], (u8)T_PRIM);
+  test_assert_int_equal (*(u8 *)&output[8], (u8)U32);
+
+  // Field 2
+  test_assert_int_equal (*(u16 *)&output[9], 2);
+  test_assert_int_equal (i_strncmp ((char *)&output[11], "fo", 2), 0);
+  test_assert_int_equal (*(u8 *)&output[13], (u8)T_PRIM);
+  test_assert_int_equal (*(u8 *)&output[14], (u8)BOOL);
+
+  // Field 3
+  test_assert_int_equal (*(u16 *)&output[15], 4);
+  test_assert_int_equal (i_strncmp ((char *)&output[17], "baro", 4), 0);
+  test_assert_int_equal (*(u8 *)&output[21], (u8)T_PRIM);
+  test_assert_int_equal (*(u8 *)&output[22], (u8)U16);
+
+  // Field 4
+  test_assert_int_equal (*(u16 *)&output[23], 5);
+  test_assert_int_equal (i_strncmp ((char *)&output[25], "bazbi", 5), 0);
+  test_assert_int_equal (*(u8 *)&output[30], (u8)T_PRIM);
+  test_assert_int_equal (*(u8 *)&output[31], (u8)U8);
+  free (output);
+}
+
 static inline err_t
-type_serialize_enum (type_serialize_params p, u16 *idx)
+_type_serialize_enum (type_serialize_params p, u16 *idx)
 {
   err_t ret;
   enum_t *en = p.src->en;
 
   // number of entries
-  if ((ret = ser_write_u32 (p.dest, p.dlen, idx, en->len)))
+  if ((ret = ser_write_u16 (p.dest, p.dlen, idx, en->len)))
     {
       return ret;
     }
@@ -718,8 +1328,71 @@ type_serialize_enum (type_serialize_params p, u16 *idx)
   return SUCCESS;
 }
 
+TEST (_type_serialize_enum)
+{
+  enum_t en;
+  en.len = 4;
+  en.keys = (string[]){
+    {
+        .len = 3,
+        .data = "foo",
+    },
+    {
+        .len = 2,
+        .data = "fo",
+    },
+    {
+        .len = 4,
+        .data = "baro",
+    },
+    {
+        .len = 5,
+        .data = "bazbi",
+    },
+  };
+
+  u16 size;
+  ser_size_enum (&size, &en);
+  u8 *output = malloc (size);
+  test_fail_if_null (output);
+
+  type t = {
+    .type = T_STRUCT,
+    .en = &en,
+  };
+
+  type_serialize_params params = {
+    .dest = output,
+    .src = &t,
+    .dlen = size,
+  };
+  u16 idx = 0;
+  test_fail_if (_type_serialize_enum (params, &idx));
+  test_assert_int_equal (idx, size);
+  test_assert_int_equal (idx, 24);
+
+  test_assert_int_equal (*(u16 *)&output[0], 4);
+
+  // Field 1
+  test_assert_int_equal (*(u16 *)&output[2], 3);
+  test_assert_int_equal (i_strncmp ((char *)&output[4], "foo", 3), 0);
+
+  // Field 2
+  test_assert_int_equal (*(u16 *)&output[7], 2);
+  test_assert_int_equal (i_strncmp ((char *)&output[9], "fo", 2), 0);
+
+  // Field 3
+  test_assert_int_equal (*(u16 *)&output[11], 4);
+  test_assert_int_equal (i_strncmp ((char *)&output[13], "baro", 4), 0);
+
+  // Field 4
+  test_assert_int_equal (*(u16 *)&output[17], 5);
+  test_assert_int_equal (i_strncmp ((char *)&output[19], "bazbi", 5), 0);
+  free (output);
+}
+
 static inline err_t
-type_serialize_varray (type_serialize_params p, u16 *idx)
+_type_serialize_varray (type_serialize_params p, u16 *idx)
 {
   err_t ret;
   varray_t *va = p.src->va;
@@ -732,28 +1405,60 @@ type_serialize_varray (type_serialize_params p, u16 *idx)
 
   // nested element type
   {
-    u16 sublen;
-    if ((ret = type_get_serial_size (&sublen, va->t)))
-      {
-        return ret;
-      }
     type_serialize_params subp = {
       .src = va->t,
-      .dest = p.dest + *idx,
-      .dlen = (u16)(p.dlen - *idx)
+      .dest = p.dest,
+      .dlen = p.dlen,
     };
-    if ((ret = type_serialize (subp)))
+    if ((ret = _type_serialize (subp, idx)))
       {
         return ret;
       }
-    *idx += sublen;
   }
 
   return SUCCESS;
 }
 
+TEST (_type_serialize_varray)
+{
+  varray_t va;
+  va.rank = 4;
+  va.t = &(type){
+    .type = T_PRIM,
+    .p = U8,
+  };
+
+  u16 size;
+  ser_size_varray (&size, &va);
+  u8 *output = malloc (size);
+  test_fail_if_null (output);
+
+  type t = {
+    .type = T_STRUCT,
+    .va = &va,
+  };
+
+  type_serialize_params params = {
+    .dest = output,
+    .src = &t,
+    .dlen = size,
+  };
+  u16 idx = 0;
+  test_fail_if (_type_serialize_varray (params, &idx));
+  test_assert_int_equal (idx, size);
+  test_assert_int_equal (idx, 4);
+
+  // Rank
+  test_assert_int_equal (*(u16 *)&output[0], 4);
+
+  // Data type
+  test_assert_int_equal (*(u8 *)&output[2], (u8)T_PRIM);
+  test_assert_int_equal (*(u8 *)&output[3], (u8)U8);
+  free (output);
+}
+
 static inline err_t
-type_serialize_sarray (type_serialize_params p, u16 *idx)
+_type_serialize_sarray (type_serialize_params p, u16 *idx)
 {
   err_t ret;
   sarray_t *sa = p.src->sa;
@@ -782,38 +1487,76 @@ type_serialize_sarray (type_serialize_params p, u16 *idx)
 
   // nested element type
   {
-    u16 sublen;
-    if ((ret = type_get_serial_size (&sublen, sa->t)))
-      {
-        return ret;
-      }
     type_serialize_params subp = {
       .src = sa->t,
-      .dest = p.dest + *idx,
-      .dlen = (u16)(p.dlen - *idx)
+      .dest = p.dest,
+      .dlen = p.dlen,
     };
-    if ((ret = type_serialize (subp)))
+    if ((ret = _type_serialize (subp, idx)))
       {
         return ret;
       }
-    *idx += sublen;
   }
 
   return SUCCESS;
 }
 
-err_t
-type_serialize (type_serialize_params params)
+TEST (_type_serialize_sarray)
+{
+  sarray_t sa;
+  sa.rank = 4;
+  sa.dims = (u32[]){ 10, 11, 25, 30 };
+  sa.t = &(type){
+    .type = T_PRIM,
+    .p = U8,
+  };
+
+  u16 size;
+  ser_size_sarray (&size, &sa);
+  u8 *output = malloc (size);
+  test_fail_if_null (output);
+
+  type t = {
+    .type = T_STRUCT,
+    .sa = &sa,
+  };
+
+  type_serialize_params params = {
+    .dest = output,
+    .src = &t,
+    .dlen = size,
+  };
+  u16 idx = 0;
+  test_fail_if (_type_serialize_sarray (params, &idx));
+  test_assert_int_equal (idx, size);
+  test_assert_int_equal (idx, 20);
+
+  // Dims Length
+  test_assert_int_equal (*(u16 *)&output[0], 4);
+
+  // Each Dim
+  test_assert_int_equal (*(u32 *)&output[2], 10);
+  test_assert_int_equal (*(u32 *)&output[6], 11);
+  test_assert_int_equal (*(u32 *)&output[10], 25);
+  test_assert_int_equal (*(u32 *)&output[14], 30);
+
+  // Data type
+  test_assert_int_equal (*(u8 *)&output[18], (u8)T_PRIM);
+  test_assert_int_equal (*(u8 *)&output[19], (u8)U8);
+  free (output);
+}
+
+static err_t
+_type_serialize (type_serialize_params params, u16 *idx)
 {
   type_assert (params.src);
   ASSERT (params.dest);
 
-  u16 idx = 0;
   err_t ret;
 
   // write the type tag
   if ((ret = ser_write_u8 (
-           params.dest, params.dlen, &idx,
+           params.dest, params.dlen, idx,
            (u8)params.src->type)))
     {
       return ret;
@@ -823,27 +1566,27 @@ type_serialize (type_serialize_params params)
     {
     case T_PRIM:
       {
-        return type_serialize_prim (params, &idx);
+        return _type_serialize_prim (params, idx);
       }
     case T_STRUCT:
       {
-        return type_serialize_struct (params, &idx);
+        return _type_serialize_struct (params, idx);
       }
     case T_UNION:
       {
-        return type_serialize_union (params, &idx);
+        return _type_serialize_union (params, idx);
       }
     case T_ENUM:
       {
-        return type_serialize_enum (params, &idx);
+        return _type_serialize_enum (params, idx);
       }
     case T_VARRAY:
       {
-        return type_serialize_varray (params, &idx);
+        return _type_serialize_varray (params, idx);
       }
     case T_SARRAY:
       {
-        return type_serialize_sarray (params, &idx);
+        return _type_serialize_sarray (params, idx);
       }
     default:
       {
@@ -851,6 +1594,15 @@ type_serialize (type_serialize_params params)
         return ERR_INVALID_STATE;
       }
     }
+}
+
+err_t
+type_serialize (type_serialize_params params)
+{
+  type_assert (params.src);
+  ASSERT (params.dest);
+  u16 idx = 0;
+  return _type_serialize (params, &idx);
 }
 
 ///////////////// Deserialization
@@ -884,340 +1636,456 @@ ser_read_u16 (const u8 *src, u16 dlen, u16 *idx, u16 *out)
 }
 
 static inline err_t
-ser_read_u32 (const u8 *src, u16 dlen, u16 *idx, u32 *out)
-{
-  return ser_read_bytes (src, dlen, idx, out, sizeof (*out));
-}
-
-static inline err_t
-type_deserialize_prim (type_deserialize_params p, u16 *idx)
-{
-  u8 _p = (u8)p.dest->p;
-  return ser_read_u8 (p.src, p.dlen, idx, &_p);
-}
-
-static inline err_t
-type_deserialize_struct (type_deserialize_params p, u16 *idx)
+_type_deserialize_prim (type_deserialize_params p, u16 *idx)
 {
   err_t ret;
-  struct_t *st;
-  u32 len;
+  u8 _p = (u8)p.dest->p;
+  if ((ret = ser_read_u8 (p.src, p.dlen, idx, &_p)))
+    {
+      return ret;
+    }
+  p.dest->p = (prim_t)_p;
+  return SUCCESS;
+}
 
-  // allocate struct descriptor
-  st = lmalloc (p.type_allocator, sizeof (*st));
-  if (st == NULL)
+// Common code for struct and union (they have
+// similar string / type array pattern)
+static inline err_t
+_deserialize_keys_and_types (
+    type_deserialize_params p,
+    string **out_keys,
+    type **out_types,
+    u16 len,
+    u16 *idx)
+{
+  err_t ret;
+  string *keys = NULL;
+  type *types = NULL;
+  i32 i = 0;
+
+  // allocate arrays
+  keys = lmalloc (p.type_allocator, len * sizeof (*keys));
+  types = lmalloc (p.type_allocator, len * sizeof (*types));
+  if (keys == NULL || types == NULL)
+    {
+      ret = ERR_NOMEM;
+      goto failed;
+    }
+
+  for (i = 0; i < len; ++i)
+    {
+      ////////// Deserialize string key
+      // Length
+      if ((ret = ser_read_u16 (p.src, p.dlen, idx, &keys[i].len)))
+        {
+          goto failed;
+        }
+
+      // Data
+      keys[i].data = lmalloc (p.type_allocator, keys[i].len);
+      if (keys[i].data == NULL)
+        {
+          ret = ERR_NOMEM;
+          goto failed;
+        }
+      if ((ret = ser_read_bytes (
+               p.src, p.dlen, idx,
+               keys[i].data, keys[i].len)))
+        {
+          goto failed;
+        }
+
+      ////////// Deserialize types of field
+      type_deserialize_params subp = {
+        .dest = &types[i],
+        .type_allocator = p.type_allocator,
+        .src = p.src,
+        .dlen = p.dlen,
+      };
+      if ((ret = _type_deserialize (subp, idx)))
+        {
+          lfree (p.type_allocator, keys[i].data);
+          keys[i].data = NULL;
+
+          // Assume all functions are
+          // good citizens and clean up
+          // on failure
+          goto failed;
+        }
+    }
+
+  // assign out pointers on success
+  *out_keys = keys;
+  *out_types = types;
+
+  return SUCCESS;
+
+failed:
+  if (keys && types)
+    {
+      // Start at the previous one
+      // because we freed the top
+      for (i = i - 1; i >= 0; --i)
+        {
+          ASSERT (keys[i].data);
+          type_assert (&types[i]);
+
+          lfree (p.type_allocator, keys[i].data);
+          type_free_internals (&types[i], p.type_allocator);
+        }
+    }
+  if (keys)
+    {
+      lfree (p.type_allocator, keys);
+    }
+  if (types)
+    {
+      lfree (p.type_allocator, types);
+    }
+
+  return ret;
+}
+
+static inline err_t
+_type_deserialize_struct (type_deserialize_params p, u16 *idx)
+{
+  err_t ret;
+  struct_t *st = NULL;
+  u16 len = 0;
+
+  // Allocate room for struct
+  if ((st = lmalloc (p.type_allocator, sizeof (*st))) == NULL)
     {
       return ERR_NOMEM;
     }
-  p.dest->st = st;
 
-  // read number of fields
-  if ((ret = ser_read_u32 (p.src, p.dlen, idx, &len)))
+  // Read in length of keys / types
+  if ((ret = ser_read_u16 (p.src, p.dlen, idx, &len)))
     {
-      return ret;
+      goto failed;
     }
   st->len = len;
 
-  // allocate arrays
-  st->keys = lmalloc (p.type_allocator, len * sizeof (*st->keys));
-  if (st->keys == NULL)
+  // Read in keys and types
+  if ((ret = _deserialize_keys_and_types (
+           p, &st->keys, &st->types, len, idx)))
     {
-      return ERR_NOMEM;
-    }
-  st->types = lmalloc (p.type_allocator, len * sizeof (*st->types));
-  if (st->types == NULL)
-    {
-      return ERR_NOMEM;
+      // Assume Good citizen
+      goto failed;
     }
 
-  // for each entry
-  for (u32 i = 0; i < len; ++i)
-    {
-      // read key length
-      if ((ret = ser_read_u16 (p.src, p.dlen, idx, &st->keys[i].len)))
-        {
-          return ret;
-        }
-      // allocate and read key data
-      st->keys[i].data = lmalloc (
-          p.type_allocator,
-          st->keys[i].len);
-      if (st->keys[i].data == NULL)
-        {
-          return ERR_NOMEM;
-        }
-      if ((ret = ser_read_bytes (
-               p.src, p.dlen, idx,
-               st->keys[i].data,
-               st->keys[i].len)))
-        {
-          return ret;
-        }
-
-      // nested type
-      {
-        u16 sublen;
-        if ((ret = type_get_serial_size (&sublen, &st->types[i])))
-          {
-            return ret;
-          }
-        type_deserialize_params subp = {
-          .dest = &st->types[i],
-          .type_allocator = p.type_allocator,
-          .src = p.src + *idx,
-          .dlen = (u16)(p.dlen - *idx)
-        };
-        if ((ret = type_deserialize (subp)))
-          {
-            return ret;
-          }
-        *idx += sublen;
-      }
-    }
-
+  p.dest->st = st;
   return SUCCESS;
+
+failed:
+  if (st)
+    {
+      lfree (p.type_allocator, st);
+    }
+  return ret;
 }
 
 static inline err_t
-type_deserialize_union (type_deserialize_params p, u16 *idx)
+_type_deserialize_union (type_deserialize_params p, u16 *idx)
 {
   err_t ret;
-  union_t *un;
-  u32 len;
+  union_t *un = NULL;
+  u16 len = 0;
 
-  un = lmalloc (p.type_allocator, sizeof (*un));
-  if (un == NULL)
+  // Allocate space for union
+  if ((un = lmalloc (p.type_allocator, sizeof (*un))) == NULL)
     {
       return ERR_NOMEM;
     }
-  p.dest->un = un;
 
-  // read variant count
-  if ((ret = ser_read_u32 (p.src, p.dlen, idx, &len)))
+  // Read in the len of keys / types
+  if ((ret = ser_read_u16 (p.src, p.dlen, idx, &len)))
     {
-      return ret;
+      goto failed;
     }
   un->len = len;
 
-  un->keys = lmalloc (p.type_allocator, len * sizeof (*un->keys));
-  if (un->keys == NULL)
+  // Read in keys and types
+  if ((ret = _deserialize_keys_and_types (
+           p, &un->keys, &un->types, len, idx)))
     {
-      return ERR_NOMEM;
-    }
-  un->types = lmalloc (p.type_allocator, len * sizeof (*un->types));
-  if (un->types == NULL)
-    {
-      return ERR_NOMEM;
+      // Assume Good citizen
+      goto failed;
     }
 
-  for (u32 i = 0; i < len; ++i)
-    {
-      // key length
-      if ((ret = ser_read_u16 (p.src, p.dlen, idx, &un->keys[i].len)))
-        {
-          return ret;
-        }
-      // allocate & read key data
-      un->keys[i].data = lmalloc (
-          p.type_allocator,
-          un->keys[i].len);
-      if (un->keys[i].data == NULL)
-        {
-          return ERR_NOMEM;
-        }
-      if ((ret = ser_read_bytes (
-               p.src, p.dlen, idx,
-               un->keys[i].data,
-               un->keys[i].len)))
-        {
-          return ret;
-        }
-
-      // nested type
-      {
-        u16 sublen;
-        if ((ret = type_get_serial_size (&sublen, &un->types[i])))
-          {
-            return ret;
-          }
-        type_deserialize_params subp = {
-          .dest = &un->types[i],
-          .type_allocator = p.type_allocator,
-          .src = p.src + *idx,
-          .dlen = (u16)(p.dlen - *idx)
-        };
-        if ((ret = type_deserialize (subp)))
-          {
-            return ret;
-          }
-        *idx += sublen;
-      }
-    }
-
+  p.dest->un = un;
   return SUCCESS;
+
+failed:
+  if (un)
+    {
+      lfree (p.type_allocator, un);
+    }
+  return ret;
 }
 
 static inline err_t
-type_deserialize_enum (type_deserialize_params p, u16 *idx)
+_type_deserialize_enum (type_deserialize_params p, u16 *idx)
 {
   err_t ret;
-  enum_t *en;
-  u32 len;
-
-  en = lmalloc (p.type_allocator, sizeof (*en));
-  if (en == NULL)
-    {
-      return ERR_NOMEM;
-    }
-  p.dest->en = en;
+  enum_t *en = NULL;
+  string *keys = NULL;
+  u16 len;
+  i32 i = 0;
 
   // read entry count
-  if ((ret = ser_read_u32 (p.src, p.dlen, idx, &len)))
+  if ((ret = ser_read_u16 (p.src, p.dlen, idx, &len)))
     {
       return ret;
     }
-  en->len = len;
 
-  en->keys = lmalloc (p.type_allocator, len * sizeof (*en->keys));
-  if (en->keys == NULL)
+  en = lmalloc (p.type_allocator, sizeof (*en));
+  keys = lmalloc (p.type_allocator, len * sizeof (*keys));
+  if (en == NULL || keys == NULL)
     {
-      return ERR_NOMEM;
+      goto failed;
     }
 
-  for (u32 i = 0; i < len; ++i)
+  en->keys = keys;
+  en->len = len;
+
+  for (; i < len; ++i)
     {
       // key length
       if ((ret = ser_read_u16 (p.src, p.dlen, idx, &en->keys[i].len)))
         {
-          return ret;
+          goto failed;
         }
+
       // allocate & read key data
       en->keys[i].data = lmalloc (
           p.type_allocator,
           en->keys[i].len);
+
       if (en->keys[i].data == NULL)
         {
-          return ERR_NOMEM;
+          ret = ERR_NOMEM;
+          goto failed;
         }
+
       if ((ret = ser_read_bytes (
                p.src, p.dlen, idx,
                en->keys[i].data,
                en->keys[i].len)))
         {
-          return ret;
+          lfree (p.type_allocator, en->keys[i].data);
+          goto failed;
         }
     }
 
+  p.dest->en = en;
   return SUCCESS;
+
+failed:
+  if (en && keys)
+    {
+      // i - 1 because top element is already freed on error
+      for (i = i - 1; i >= 0; --i)
+        {
+          ASSERT (en->keys[i].data);
+          lfree (p.type_allocator, en->keys[i].data);
+        }
+    }
+  if (en)
+    {
+      lfree (p.type_allocator, en);
+    }
+  if (keys)
+    {
+      lfree (p.type_allocator, keys);
+    }
+  return ret;
 }
 
 static inline err_t
-type_deserialize_varray (type_deserialize_params p, u16 *idx)
+_type_deserialize_varray (type_deserialize_params p, u16 *idx)
 {
-  err_t ret;
-  varray_t *va;
+  varray_t *va = NULL;
+  type *t = NULL;
+  err_t ret = SUCCESS;
   u16 rank;
 
-  va = lmalloc (p.type_allocator, sizeof (*va));
-  if (va == NULL)
-    {
-      return ERR_NOMEM;
-    }
-  p.dest->va = va;
-
-  // read rank
+  // Read the rank from the array
   if ((ret = ser_read_u16 (p.src, p.dlen, idx, &rank)))
     {
-      return ret;
+      goto failed;
     }
+
+  // Allocate memory
+  va = lmalloc (p.type_allocator, sizeof (*va));
+  t = lmalloc (p.type_allocator, sizeof *t);
+
+  // Error check
+  if (va == NULL || t == NULL)
+    {
+      ret = ERR_NOMEM;
+      goto failed;
+    }
+
+  va->t = t;
   va->rank = rank;
 
-  // nested type
-  {
-    u16 sublen;
-    if ((ret = type_get_serial_size (&sublen, va->t)))
-      {
-        return ret;
-      }
-    type_deserialize_params subp = {
-      .dest = va->t,
-      .type_allocator = p.type_allocator,
-      .src = p.src + *idx,
-      .dlen = (u16)(p.dlen - *idx)
-    };
-    if ((ret = type_deserialize (subp)))
-      {
-        return ret;
-      }
-    *idx += sublen;
-  }
+  // Deserialize sub type
+  type_deserialize_params subp = {
+    .dest = va->t,
+    .type_allocator = p.type_allocator,
+    .src = p.src,
+    .dlen = p.dlen,
+  };
+  if ((ret = _type_deserialize (subp, idx)))
+    {
+      goto failed;
+    }
 
+  p.dest->va = va;
   return SUCCESS;
+
+failed:
+  if (va)
+    {
+      lfree (p.type_allocator, va);
+    }
+  if (t)
+    {
+      lfree (p.type_allocator, t);
+    }
+  return ret;
 }
 
 static inline err_t
-type_deserialize_sarray (type_deserialize_params p, u16 *idx)
+_type_deserialize_sarray (type_deserialize_params p, u16 *idx)
 {
   err_t ret;
-  sarray_t *sa;
+  sarray_t *sa = NULL;
+  type *t = NULL;
+  u32 *dims = NULL;
   u16 rank;
 
-  sa = lmalloc (p.type_allocator, sizeof (*sa));
-  if (sa == NULL)
-    {
-      return ERR_NOMEM;
-    }
-  p.dest->sa = sa;
-
-  // read rank
+  // First, parse rank
   if ((ret = ser_read_u16 (p.src, p.dlen, idx, &rank)))
+    {
+      goto failed;
+    }
+  if (!can_mul_u16 ((u16)sizeof *sa->dims, rank))
+    {
+      return ERR_ARITH;
+    }
+
+  // Allocate memory
+  sa = lmalloc (p.type_allocator, sizeof *sa);
+  t = lmalloc (p.type_allocator, sizeof *t);
+  dims = lmalloc (p.type_allocator, rank * sizeof *dims);
+
+  // Error check
+  if (sa == NULL || t == NULL || dims == NULL)
+    {
+      ret = ERR_NOMEM;
+      goto failed;
+    }
+
+  sa->t = t;
+  sa->dims = dims;
+  sa->rank = rank;
+
+  // Read dims array
+  if ((ret = ser_read_bytes (
+           p.src,
+           p.dlen,
+           idx,
+           sa->dims,
+           sa->rank * sizeof *sa->dims)))
+    {
+      goto failed;
+    }
+
+  // TODO - maybe here you could check each
+  // of the u32s? Max dim size maybe
+
+  // nested type
+  type_deserialize_params subp = {
+    .dest = sa->t,
+    .type_allocator = p.type_allocator,
+    .src = p.src,
+    .dlen = p.dlen,
+  };
+  if ((ret = _type_deserialize (subp, idx)))
+    {
+      // Trust that sub functions are good citizens
+      // and free memory on failure
+      goto failed;
+    }
+
+  p.dest->sa = sa;
+  return SUCCESS;
+
+failed:
+  if (sa)
+    {
+      lfree (p.type_allocator, sa);
+    }
+  if (t)
+    {
+      lfree (p.type_allocator, t);
+    }
+  if (dims)
+    {
+      lfree (p.type_allocator, dims);
+    }
+  return ret;
+}
+
+static err_t
+_type_deserialize (type_deserialize_params params, u16 *idx)
+{
+  ASSERT (params.src);
+  ASSERT (params.type_allocator);
+
+  err_t ret;
+  u8 tag;
+
+  // read the type tag
+  if ((ret = ser_read_u8 (params.src, params.dlen, idx, &tag)))
     {
       return ret;
     }
-  sa->rank = rank;
+  params.dest->type = (type_t)tag;
 
-  // fixed dims
-  {
-    u16 dims_size = sa->rank * (u16)sizeof (*sa->dims);
-    if (!can_mul_u16 ((u16)sizeof (*sa->dims), sa->rank))
+  switch (params.dest->type)
+    {
+    case T_PRIM:
       {
-        return ERR_ARITH;
+        return _type_deserialize_prim (params, idx);
       }
-    sa->dims = lmalloc (p.type_allocator, dims_size);
-    if (sa->dims == NULL)
+    case T_STRUCT:
       {
-        return ERR_NOMEM;
+        return _type_deserialize_struct (params, idx);
       }
-    if ((ret = ser_read_bytes (
-             p.src, p.dlen, idx,
-             sa->dims,
-             dims_size)))
+    case T_UNION:
       {
-        return ret;
+        return _type_deserialize_union (params, idx);
       }
-  }
-
-  // nested type
-  {
-    u16 sublen;
-    if ((ret = type_get_serial_size (&sublen, sa->t)))
+    case T_ENUM:
       {
-        return ret;
+        return _type_deserialize_enum (params, idx);
       }
-    type_deserialize_params subp = {
-      .dest = sa->t,
-      .type_allocator = p.type_allocator,
-      .src = p.src + *idx,
-      .dlen = (u16)(p.dlen - *idx)
-    };
-    if ((ret = type_deserialize (subp)))
+    case T_VARRAY:
       {
-        return ret;
+        return _type_deserialize_varray (params, idx);
       }
-    *idx += sublen;
-  }
-
-  return SUCCESS;
+    case T_SARRAY:
+      {
+        return _type_deserialize_sarray (params, idx);
+      }
+    default:
+      {
+        return ERR_INVALID_STATE;
+      }
+    }
 }
 
 err_t
@@ -1242,27 +2110,27 @@ type_deserialize (type_deserialize_params params)
     {
     case T_PRIM:
       {
-        return type_deserialize_prim (params, &idx);
+        return _type_deserialize_prim (params, &idx);
       }
     case T_STRUCT:
       {
-        return type_deserialize_struct (params, &idx);
+        return _type_deserialize_struct (params, &idx);
       }
     case T_UNION:
       {
-        return type_deserialize_union (params, &idx);
+        return _type_deserialize_union (params, &idx);
       }
     case T_ENUM:
       {
-        return type_deserialize_enum (params, &idx);
+        return _type_deserialize_enum (params, &idx);
       }
     case T_VARRAY:
       {
-        return type_deserialize_varray (params, &idx);
+        return _type_deserialize_varray (params, &idx);
       }
     case T_SARRAY:
       {
-        return type_deserialize_sarray (params, &idx);
+        return _type_deserialize_sarray (params, &idx);
       }
     default:
       {
@@ -1271,10 +2139,10 @@ type_deserialize (type_deserialize_params params)
     }
 }
 
-TEST (type_serialize_deserialize)
+TEST (_type_serialize_deserialize)
 {
   lalloc alloc;
-  lalloc_create (&alloc, 4096);
+  lalloc_create (&alloc, 40960);
 
   // Primitive type
   type prim = { .type = T_PRIM, .p = U16 };

@@ -1,9 +1,9 @@
 #include "dev/assert.h"
 #include "dev/errors.h"
 #include "dev/testing.h"
+#include "ds/strings.h"
 #include "intf/stdlib.h"
-#include "sds.h"
-#include "types.h"
+#include "intf/types.h"
 #include "utils/bounds.h"
 #include "utils/macros.h"
 

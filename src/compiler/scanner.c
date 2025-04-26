@@ -30,7 +30,7 @@ scanner_alloc_init (scanner *s)
   scanner_assert (s);
   ASSERT (s->dcur == NULL);
 
-  char *data = lmalloc_dyn (s->string_allocator, 10 * sizeof *data);
+  char *data = lmalloc (s->string_allocator, 10 * sizeof *data);
   if (!data)
     {
       return ERR_NOMEM;
@@ -105,7 +105,7 @@ scanner_cpy_advance_expect (scanner *s)
   // Check room
   if (s->dcurlen == s->dcurcap)
     {
-      char *next = lrealloc_dyn (s->string_allocator, s->dcur, 2 * s->dcurcap * sizeof *next);
+      char *next = lrealloc (s->string_allocator, s->dcur, 2 * s->dcurcap * sizeof *next);
       if (!next)
         {
           return ERR_NOMEM; // No memory - block
@@ -137,7 +137,7 @@ scanner_cpy_advance (scanner *s)
   // Check room
   if (s->dcurlen == s->dcurcap)
     {
-      char *dcur = lrealloc_dyn (s->string_allocator, s->dcur, 2 * s->dcurcap * sizeof *dcur);
+      char *dcur = lrealloc (s->string_allocator, s->dcur, 2 * s->dcurcap * sizeof *dcur);
       if (!dcur)
         {
           return false; // No memory - block
@@ -361,7 +361,7 @@ finish:
                        }))
         {
           scanner_write_token_t_expect (s, magic_tokens[i].type);
-          lfree_dyn (s->string_allocator, literal.data);
+          lfree (s->string_allocator, literal.data);
           goto theend;
         }
     }
@@ -376,7 +376,7 @@ finish:
                        }))
         {
           scanner_write_token_expect (s, tt_prim (prim_tokens[i].type));
-          lfree_dyn (s->string_allocator, literal.data);
+          lfree (s->string_allocator, literal.data);
           goto theend;
         }
     }
@@ -414,7 +414,7 @@ ss_decimal_collect (scanner *s)
             }
 
           // Reset and write
-          lfree_dyn (s->string_allocator, s->dcur);
+          lfree (s->string_allocator, s->dcur);
           scanner_buffer_reset (s);
           scanner_write_token_expect (s, tt_float (dest));
 
@@ -482,7 +482,7 @@ ss_number_collect (scanner *s)
                 }
 
               // Reset and write
-              lfree_dyn (s->string_allocator, s->dcur);
+              lfree (s->string_allocator, s->dcur);
               scanner_buffer_reset (s);
               scanner_write_token_expect (s, tt_integer (dest));
 

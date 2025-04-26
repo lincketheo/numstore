@@ -1,6 +1,8 @@
 #include "cursor/navigation.h"
 #include "dev/errors.h"
 #include "intf/mm.h"
+#include "paging/page.h"
+#include "paging/pager.h"
 
 DEFINE_DBG_ASSERT_I (navigator, navigator, n)
 {
@@ -30,6 +32,14 @@ nav_create (navigator *dest, nav_params params)
   return SUCCESS;
 }
 
+nav_pgctx *
+nav_top (navigator *n)
+{
+  navigator_assert (n);
+  return &n->stack[n->sp - 1];
+}
+
+// Resize page stack if needed to accomodate [cap]
 static inline err_t
 nav_resize (navigator *n, u32 cap)
 {
@@ -55,86 +65,66 @@ nav_resize (navigator *n, u32 cap)
 }
 
 err_t
-nav_goto_page (navigator *n, u64 pgno, page_type expect)
+nav_rewind (navigator *n, u64 pgno, u64 size)
 {
   navigator_assert (n);
 
-  nav_pgctx *top;
-  if (n->sp > 0)
-    {
-      top = &n->stack[n->sp - 1];
-    }
-  else
-    {
-      return nav_push_page (n, pgno, expect);
-    }
-
   err_t ret;
-  if ((ret = pgr_get_expect (&top->page, expect, pgno, n->pager)))
+
+  // Ensure there's enough space
+  if ((ret = nav_resize (n, 1)))
     {
       return ret;
     }
 
-  top->idn = 0;
-  top->idd = 1;
+  // Get then push the root page
+  page top;
+  if ((ret = pgr_get_expect (&top, PG_INNER_NODE, pgno, n->pager)))
+    {
+      return ret;
+    }
+
+  // Reset the stack
+  n->sp = 0;
+  n->stack[n->sp++] = (nav_pgctx){
+    .page = top,
+    .idn = 0,
+    .idd = 1,
+  };
+  n->size = size;
+  n->pgno = top.pgno;
 
   return SUCCESS;
 }
 
 err_t
-nav_push_page (navigator *n, u64 pgno, page_type expect)
+nav_new_root (navigator *n, u64 *pgno, u64 size)
 {
   navigator_assert (n);
+  ASSERT (pgno);
 
   err_t ret;
-  if ((ret = nav_resize (n, n->sp + 1)))
+
+  page new_page;
+  if ((ret = pgr_new (&new_page, n->pager, PG_INNER_NODE)))
     {
       return ret;
     }
-
-  n->sp++;
-
-  return nav_goto_page (n, pgno, expect);
-}
-
-err_t
-nav_goto_new_page (navigator *n, page_type type)
-{
-  navigator_assert (n);
-
-  nav_pgctx *top = &n->stack[n->sp - 1];
-
-  err_t ret;
-  if ((ret = pgr_new (&top->page, n->pager, type)))
+  if ((ret = nav_rewind (n, new_page.pgno, size)))
     {
+      // TODO - should I rollback the new page here?
       return ret;
     }
 
-  top->idn = 0;
-  top->idd = 1;
+  *pgno = new_page.pgno;
 
   return SUCCESS;
 }
 
 err_t
-nav_push_new_page (navigator *n, page_type type)
+nav_navigate (navigator *n, u64 idx)
 {
   navigator_assert (n);
-
-  err_t ret;
-  if ((ret = nav_resize (n, n->sp + 1)))
-    {
-      return ret;
-    }
-
-  n->sp++;
-
-  return nav_goto_new_page (n, type);
-}
-
-nav_pgctx *
-nav_top (navigator *n)
-{
-  navigator_assert (n);
-  return &n->stack[n->sp - 1];
+  ASSERT (0 == idx);
+  return ERR_FALLBACK;
 }

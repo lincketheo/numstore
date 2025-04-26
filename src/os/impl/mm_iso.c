@@ -126,6 +126,19 @@ lrealloc (lalloc *a, void *data, u32 bytes)
 }
 
 void
+lfree (lalloc *a, void *data)
+{
+  lalloc_assert (a);
+  ASSERT (data);
+  u32 *ptr = (u32 *)data;
+  u32 bytes = *(ptr - 1);
+  ASSERT (bytes > 0);
+  ASSERT (a->used >= bytes);
+  free (ptr - 1);
+  a->used -= bytes;
+}
+
+void
 lalloc_release (lalloc *l)
 {
   lalloc_assert (l);
@@ -257,30 +270,4 @@ spop (salloc *a)
   a->len -= bytes;
 
   salloc_assert (a);
-}
-
-///////////////////////// Generic Allocator
-
-void *
-gmalloc (galloc *a, u32 bytes)
-{
-  switch (a->type)
-    {
-    case AT_LIMITED:
-      return lmalloc (&a->l, bytes);
-    case AT_SCOPED:
-      return smalloc (&a->s, bytes);
-    }
-}
-
-void *
-gcalloc (galloc *a, u32 len, u32 size)
-{
-  switch (a->type)
-    {
-    case AT_LIMITED:
-      return lcalloc (&a->l, len, size);
-    case AT_SCOPED:
-      return scalloc (&a->s, len, size);
-    }
 }

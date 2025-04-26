@@ -56,7 +56,7 @@ mpgr_create (memory_pager *dest, mpgr_params params)
   ASSERT (dest);
   ASSERT (params.len > 0);
 
-  memory_page *pages = lmalloc_const (
+  memory_page *pages = lmalloc (
       params.alloc,
       params.len * sizeof *pages);
 
@@ -65,13 +65,13 @@ mpgr_create (memory_pager *dest, mpgr_params params)
       return ERR_NOMEM;
     }
 
-  u8 *page_block = lmalloc_const (
+  u8 *page_block = lmalloc (
       params.alloc,
       params.len * params.page_size);
 
   if (page_block == NULL)
     {
-      lpop_const (params.alloc);
+      // TODO - free here
       return ERR_NOMEM;
     }
 

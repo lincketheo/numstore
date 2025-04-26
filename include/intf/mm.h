@@ -33,22 +33,3 @@ err_t salloc_create (salloc *dest, u64 cap);
 void *smalloc (salloc *a, u64 bytes);
 void *scalloc (salloc *a, u64 len, u64 size);
 void spop (salloc *a);
-
-typedef enum
-{
-  AT_LIMITED,
-  AT_SCOPED,
-} alloc_t;
-
-typedef struct
-{
-  alloc_t type;
-  union
-  {
-    lalloc l;
-    salloc s;
-  };
-} galloc;
-
-void *gmalloc (galloc *a, u32 bytes);
-void *gcalloc (galloc *a, u32 len, u32 size);

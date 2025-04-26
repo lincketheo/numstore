@@ -13,7 +13,6 @@ typedef struct
   struct
   {
     vmeta meta;
-    u64 size; // Cached
     bool loaded;
   };
 

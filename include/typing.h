@@ -112,11 +112,11 @@ struct type
 
 err_t type_get_serial_size (u16 *dest, const type *t);
 err_t type_bits_size (u64 *dest, const type *t);
+void type_free_internals (type *t, lalloc *alloc);
 
 typedef struct
 {
   type *src;
-  lalloc *type_deallocator; // TODO
   u8 *dest;
   u16 dlen;
 } type_serialize_params;

@@ -30,7 +30,7 @@ vhash_map_create (vhash_map *dest, vhm_params params)
   ASSERT (dest);
   ASSERT (params.len > 0);
 
-  dest->elems = scalloc (
+  dest->elems = lcalloc (
       params.map_allocator,
       params.len,
       sizeof *dest->elems);

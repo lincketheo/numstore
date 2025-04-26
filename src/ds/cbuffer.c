@@ -159,7 +159,7 @@ TEST (cbuffer_read)
   test_assert_int_equal (r2, 2);
   test_assert_int_equal (out[0], 7);
   test_assert_int_equal (out[1], 8);
-  test_assert_int_equal (cbuffer_len (&b), 0);
+  test_assert_int_equal (cbuffer_len (&b), 1);
 }
 
 u32

@@ -18,6 +18,7 @@ typedef struct
   u32 sp;
   u32 scap;
 
+  // Meta data for this current stack
   struct
   {
     u64 pgno;
@@ -47,6 +48,22 @@ nav_pgctx *nav_top (navigator *n);
  * All Return:
  *  - ERR_PGSTACK_OVERFLOW if the stack is overfull and can't grow
  */
-err_t nav_goto_root (navigator *n, u64 pgno);
-err_t nav_goto_new_root (navigator *n, u64 *pgno);
-err_t nav_navigate (navigator *n, u64 pgno, u64 idx, u64 size);
+
+/**
+ * Positions navigation on the root node [pgno]
+ * and starts a new page stack.
+ */
+err_t nav_rewind (navigator *n, u64 pgno, u64 size);
+
+/**
+ * Creates a new root page
+ */
+err_t nav_new_root (navigator *n, u64 *pgno, u64 size);
+
+/**
+ * Assuming you're positioned on the root page,
+ * navigates to index idex (must also tell it
+ * what the size of each element so you can get
+ * internal traversals)
+ */
+err_t nav_navigate (navigator *n, u64 idx);

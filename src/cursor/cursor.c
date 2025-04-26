@@ -6,7 +6,6 @@
 DEFINE_DBG_ASSERT_I (cursor, cursor, c)
 {
   ASSERT (c);
-  // TODO
 }
 
 err_t
@@ -39,14 +38,29 @@ crsr_create_var (cursor *c, const vcreate v)
   err_t ret = SUCCESS;
 
   // First check if exists
-  if ((ret = vhash_map_get (NULL, c->variables, v.vname)))
+  switch ((ret = vhash_map_get (NULL, c->variables, v.vname)))
+    {
+    case SUCCESS:
+      return ERR_ALREADY_EXISTS;
+    case ERR_DOESNT_EXIST:
+      break;
+    default:
+      return ret;
+    }
+
+  // Fetch the size of the variable type
+  // TODO - I think this function should not return
+  // errors for internal types - All sizes inside must
+  // valid
+  u64 size;
+  if ((ret = type_bits_size (&size, &v.type)))
     {
       return ret;
     }
 
   // Create a new index page
   u64 pgno;
-  if ((ret = nav_goto_new_root (&c->nav, &pgno)))
+  if ((ret = nav_new_root (&c->nav, &pgno, size)))
     {
       return ret;
     }
@@ -73,19 +87,29 @@ crsr_load_var_str (cursor *c, const string vname)
 
   err_t ret = SUCCESS;
 
+  // Fetch the variable meta information from the hash map
   vmeta meta;
   if ((ret = vhash_map_get (&meta, c->variables, vname)))
     {
       return ret;
     }
 
+  // Fetch the size of the variable type
+  // TODO - I think this function should not return
+  // errors for internal types - All sizes inside must
+  // valid
   u64 size;
   if ((ret = type_bits_size (&size, &meta.type)))
     {
       return ret;
     }
 
-  c->size = size; // TODO
+  // Rewind to that new variable
+  if ((ret = nav_rewind (&c->nav, meta.pgn0, size)))
+    {
+      return ret;
+    }
+
   i_memcpy (&c->meta, &meta, sizeof meta);
   c->loaded = true;
 
@@ -119,15 +143,30 @@ crsr_navigate (cursor *c, u64 toloc)
       return ERR_NOT_LOADED;
     }
 
-  if ((ret = nav_goto_root (&c->nav, c->meta.pgn0)))
-    {
-      return ret;
-    }
-
-  if ((ret = nav_navigate (&c->nav, toloc, c->size)))
+  if ((ret = nav_navigate (&c->nav, toloc)))
     {
       return ret;
     }
 
   return SUCCESS;
 }
+
+/**
+ * Returns:
+ */
+err_t crsr_read (cursor *c, u64 n, u64 step);
+
+/**
+ * Returns:
+ */
+err_t crsr_write (cursor *c, u64 n);
+
+/**
+ * Returns:
+ */
+err_t crsr_update (cursor *c, u64 n, u64 step);
+
+/**
+ * Returns:
+ */
+err_t crsr_delete (cursor *c, u64 n, u64 step);
