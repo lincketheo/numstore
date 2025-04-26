@@ -16,30 +16,11 @@ typedef struct
   u32 page_size;
   vhash_map variables;
 
-  struct
-  {
-    u32 header_size;
-    u32 mpgr_len;
-    i_file fp;
+  u32 header_size;
+  u32 mpgr_len;
+  i_file fp;
 
-    // Eventually these will be specialized
-    struct
-    {
-      lalloc *allocs;
-      bool *is_present;
-      u32 len;
-      u32 cap;
-    } allocators;
-
-    struct
-    {
-      cbuffer *cbuffers;
-      u32 len;
-      u32 cap;
-    } cbuffers;
-
-    lalloc alloc;
-  } private;
+  lalloc alloc;
 } database;
 
 typedef struct

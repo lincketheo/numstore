@@ -38,17 +38,6 @@ typedef struct
  */
 err_t crsr_create (cursor *dest, crsr_params params);
 
-// API Commands
-
-/**
- * Returns:
- *   - Forwards errors from:
- *     - vhash_map_get
- *     - type_bits_size
- *     - nav_goto_page
- */
-err_t crsr_rewind (cursor *c, const string vname);
-
 /**
  * Returns:
  *   - Forwards errors from:
@@ -56,4 +45,47 @@ err_t crsr_rewind (cursor *c, const string vname);
  *     - vhash_map_insert
  *     - nav_goto_new_page
  */
-err_t crsr_create_variable (cursor *c, const vcreate v);
+err_t crsr_create_var (cursor *c, const vcreate v);
+
+/**
+ * Returns:
+ *   - Forwards errors from:
+ *     - vhash_map_get
+ */
+err_t crsr_load_var_str (cursor *c, const string vname);
+
+/**
+ * Returns:
+ *   - ERR_NOT_LOADED - no variable to unload
+ */
+err_t crsr_unload_var_str (cursor *c);
+
+/**
+ * Returns:
+ *  - DOESNT
+ *   - Forwards errors from:
+ *     - vhash_map_get
+ *     - type_bits_size
+ *     - nav_goto_page
+ */
+err_t crsr_navigate (cursor *c, u64 toloc);
+
+/**
+ * Returns:
+ */
+err_t crsr_read (cursor *c, u64 n, u64 step);
+
+/**
+ * Returns:
+ */
+err_t crsr_write (cursor *c, u64 n);
+
+/**
+ * Returns:
+ */
+err_t crsr_update (cursor *c, u64 n, u64 step);
+
+/**
+ * Returns:
+ */
+err_t crsr_delete (cursor *c, u64 n, u64 step);

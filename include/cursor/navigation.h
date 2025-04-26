@@ -18,6 +18,12 @@ typedef struct
   u32 sp;
   u32 scap;
 
+  struct
+  {
+    u64 pgno;
+    u64 size;
+  };
+
   pager *pager;
   lalloc *stack_allocator;
 } navigator;
@@ -41,7 +47,6 @@ nav_pgctx *nav_top (navigator *n);
  * All Return:
  *  - ERR_PGSTACK_OVERFLOW if the stack is overfull and can't grow
  */
-err_t nav_goto_page (navigator *n, u64 pgno, page_type expect);
-err_t nav_push_page (navigator *n, u64 pgno, page_type expect);
-err_t nav_goto_new_page (navigator *n, page_type type);
-err_t nav_push_new_page (navigator *n, page_type type);
+err_t nav_goto_root (navigator *n, u64 pgno);
+err_t nav_goto_new_root (navigator *n, u64 *pgno);
+err_t nav_navigate (navigator *n, u64 pgno, u64 idx, u64 size);

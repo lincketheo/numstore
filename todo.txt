@@ -1,3 +1,7 @@
+04/26/2025 
+  - Get a self contained loop of using cursor and a variable
+  - No language interface
+
 04/24/2025 
   - Cursor
 

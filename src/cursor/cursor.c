@@ -1,4 +1,6 @@
 #include "cursor/cursor.h"
+#include "cursor/navigation.h"
+#include "dev/errors.h"
 #include "intf/stdlib.h"
 
 DEFINE_DBG_ASSERT_I (cursor, cursor, c)
@@ -30,37 +32,7 @@ crsr_create (cursor *dest, crsr_params params)
 }
 
 err_t
-crsr_rewind (cursor *c, const string vname)
-{
-  cursor_assert (c);
-
-  err_t ret;
-
-  vmeta dest;
-  u64 size;
-
-  if ((ret = vhash_map_get (&dest, c->variables, vname)))
-    {
-      return ret;
-    }
-
-  if ((ret = type_bits_size (&size, &dest.type)))
-    {
-      return ret;
-    }
-
-  if ((ret = nav_goto_page (&c->nav, dest.pgn0, PG_INNER_NODE)))
-    {
-      return ret;
-    }
-
-  i_memcpy (&c->meta, &dest, sizeof (dest));
-
-  return SUCCESS;
-}
-
-err_t
-crsr_create_variable (cursor *c, const vcreate v)
+crsr_create_var (cursor *c, const vcreate v)
 {
   cursor_assert (c);
 
@@ -72,21 +44,88 @@ crsr_create_variable (cursor *c, const vcreate v)
       return ret;
     }
 
-  // Then create and go to new page
-  if ((ret = nav_goto_new_page (&c->nav, PG_INNER_NODE)))
+  // Create a new index page
+  u64 pgno;
+  if ((ret = nav_goto_new_root (&c->nav, &pgno)))
     {
       return ret;
     }
 
   // Finally, insert the new variable
   const vmeta meta = {
-    .pgn0 = nav_top (&c->nav)->page.pgno,
+    .pgn0 = pgno,
     .type = v.type,
   };
 
   if ((ret = vhash_map_insert (c->variables, v.vname, meta)))
     {
       // TODO - rollback new page
+      return ret;
+    }
+
+  return SUCCESS;
+}
+
+err_t
+crsr_load_var_str (cursor *c, const string vname)
+{
+  cursor_assert (c);
+
+  err_t ret = SUCCESS;
+
+  vmeta meta;
+  if ((ret = vhash_map_get (&meta, c->variables, vname)))
+    {
+      return ret;
+    }
+
+  u64 size;
+  if ((ret = type_bits_size (&size, &meta.type)))
+    {
+      return ret;
+    }
+
+  c->size = size; // TODO
+  i_memcpy (&c->meta, &meta, sizeof meta);
+  c->loaded = true;
+
+  return SUCCESS;
+}
+
+err_t
+crsr_unload_var_str (cursor *c)
+{
+  cursor_assert (c);
+
+  if (!c->loaded)
+    {
+      return ERR_NOT_LOADED;
+    }
+
+  c->loaded = false;
+
+  return SUCCESS;
+}
+
+err_t
+crsr_navigate (cursor *c, u64 toloc)
+{
+  cursor_assert (c);
+
+  err_t ret;
+
+  if (!c->loaded)
+    {
+      return ERR_NOT_LOADED;
+    }
+
+  if ((ret = nav_goto_root (&c->nav, c->meta.pgn0)))
+    {
+      return ret;
+    }
+
+  if ((ret = nav_navigate (&c->nav, toloc, c->size)))
+    {
       return ret;
     }
 
