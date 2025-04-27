@@ -126,7 +126,7 @@ db_open (database *db, dboargs args)
       return ret;
     }
 
-  lalloc_create (&db->alloc, 10000);
+  lalloc_create (&db->alloc, 1000000);
 
   // Create the pager
   pgr_params params = {
@@ -161,6 +161,6 @@ void
 db_close (database *db)
 {
   database_assert (db);
-  lalloc_release (&db->alloc);
+  // lalloc_release (&db->alloc);
   i_close (&db->fp);
 }

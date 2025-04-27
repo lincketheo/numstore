@@ -1,6 +1,7 @@
 #include "paging/page.h"
 #include "dev/assert.h"
 #include "intf/stdlib.h"
+#include "utils/bounds.h"
 
 ///////////////////////////// PAGE TYPES
 
@@ -47,7 +48,9 @@ page_set (page *p, page_interpret_params params)
       {
         advance (p->in.nkeys, u16);
         advance (p->in.leafs, u64);
-        advance (p->in.keys, u64); // TODO - this should be at the end
+        ASSERT (can_mul_u16 (sizeof (u64), *p->in.nkeys));
+        ASSERT (can_sub_u32 (p->len, sizeof (u64) * *p->in.keys));
+        p->in.keys = (u64 *)&p->raw[p->len - (sizeof (u64) * *p->in.nkeys)];
         break;
       }
     case PG_HASH_PAGE:
@@ -75,7 +78,7 @@ page_read_expect (page *dest, page_interpret_params params)
 
   page_set (dest, params);
 
-  if (*dest->header != params.type)
+  if (!(*dest->header & params.type))
     {
       return ERR_INVALID_STATE;
     }

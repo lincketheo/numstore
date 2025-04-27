@@ -1,13 +1,13 @@
 #pragma once
 
+#include "cursor/btree_cursor.h"
 #include "ds/cbuffer.h"
-#include "navigation.h"
 #include "typing.h"
 #include "vhash_map.h"
 
 typedef struct
 {
-  navigator nav;
+  btree_cursor btc;
 
   // The currently loaded variable
   struct
@@ -23,7 +23,7 @@ typedef struct
 
 typedef struct
 {
-  nav_params nparams;
+  btc_params nparams;
 
   cbuffer *input;
   cbuffer *output;
@@ -33,7 +33,7 @@ typedef struct
 /**
  * Returns:
  *   - Forwards errors from:
- *     - nav_create
+ *     - btc_create
  */
 err_t crsr_create (cursor *dest, crsr_params params);
 
@@ -42,7 +42,7 @@ err_t crsr_create (cursor *dest, crsr_params params);
  *   - Forwards errors from:
  *     - vhash_map_get
  *     - vhash_map_insert
- *     - nav_goto_new_page
+ *     - btc_goto_new_page
  */
 err_t crsr_create_var (cursor *c, const vcreate v);
 
@@ -65,9 +65,9 @@ err_t crsr_unload_var_str (cursor *c);
  *   - Forwards errors from:
  *     - vhash_map_get
  *     - type_bits_size
- *     - nav_goto_page
+ *     - btc_goto_page
  */
-err_t crsr_navigate (cursor *c, u64 toloc);
+err_t crsr_btcigate (cursor *c, u64 toloc);
 
 /**
  * Returns:

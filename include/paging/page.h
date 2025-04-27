@@ -12,10 +12,10 @@ typedef struct page_s page;
 
 typedef enum
 {
-  PG_DATA_LIST = 1,
-  PG_INNER_NODE = 2,
-  PG_HASH_PAGE = 3,
-  PG_HASH_LEAF = 4,
+  PG_DATA_LIST = (1 << 0),
+  PG_INNER_NODE = (1 << 1),
+  PG_HASH_PAGE = (1 << 2),
+  PG_HASH_LEAF = (1 << 3),
 } page_type;
 
 ///////////// Generic Page type
@@ -39,7 +39,7 @@ typedef struct page_s
 
 typedef struct
 {
-  page_type type;
+  int type;
   u8 *raw;
   u32 page_size;
   u64 pgno;

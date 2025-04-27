@@ -20,8 +20,7 @@
  */
 typedef struct
 {
-  i64 *next;      // Pointer to the next node or -1
-  u16 *len_num;   // Numerator of the length of this node
-  u16 *len_denom; // Denominator of the length of this node
-  u8 *data;       // The raw contiguous data pointer
+  i64 *next; // Pointer to the next node or -1
+  u16 *blen; // Numerator of the length of this node
+  u8 *data;  // The raw contiguous data pointer
 } data_list;

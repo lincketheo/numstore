@@ -30,3 +30,9 @@ typedef struct
   u64 *leafs; // len(leafs) == nkeys + 1
   u64 *keys;  // The keys used for rope traversal
 } inner_node;
+
+u64 *in_get_keys_ptr (const u8 *raw, u32 page_size);
+u64 in_choose_leaf (const inner_node *node, u64 *before, u64 loc);
+u64 in_get_nkeys (const inner_node *node);
+u64 in_get_key (const inner_node *node, u32 idx);
+u64 in_get_leaf (const inner_node *node, u32 idx);

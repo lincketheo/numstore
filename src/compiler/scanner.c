@@ -640,3 +640,9 @@ scanner_execute (scanner *s)
       }
     }
 }
+
+void
+scanner_release (scanner *s)
+{
+  (void)s;
+}

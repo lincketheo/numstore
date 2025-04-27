@@ -11,7 +11,7 @@ main ()
   dbcargs cargs = {
     .fname = unsafe_cstrfrom ("test.db"),
     .page_size = 4096,
-    .mpgr_len = 100,
+    .mpgr_len = 10,
   };
 
   database db;
