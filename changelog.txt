@@ -1,3 +1,6 @@
+04/29/2025
+  - Implements polling server
+  - Starts client and repl
 04/22/2025
   - Scraps allocator for a simpler design
   - Scanner is now non blocking on strings > len of the buffer
