@@ -42,6 +42,9 @@ clean:
 	rm -f $(addprefix apps/,$(APP_BIN:=.o))
 	rm -f $(APP_BIN)
 
+host-docs:
+	cd docs && npm run dev
+
 format:
 	clang-format -i $(FORMAT_FILES)
 
