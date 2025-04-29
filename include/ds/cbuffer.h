@@ -32,8 +32,8 @@ u32 cbuffer_cbuffer_move (cbuffer *dest, u32 size, u32 n, cbuffer *src);
 u32 cbuffer_cbuffer_copy (cbuffer *dest, u32 size, u32 n, const cbuffer *src);
 
 ///////////////////////// IO Read / Write
-i32 cbuffer_write_max_from_file (i_file *src, cbuffer *b);
-i32 cbuffer_read_max_to_file (i_file *dest, cbuffer *b);
+i32 cbuffer_write_some_from_file (i_file *src, cbuffer *b);
+i32 cbuffer_read_some_to_file (i_file *dest, cbuffer *b);
 
 ///////////////////////// Working with Single Elements
 bool cbuffer_get (u8 *dest, const cbuffer *b, int idx);

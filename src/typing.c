@@ -5,6 +5,7 @@
 #include "intf/stdlib.h"
 #include "intf/types.h"
 #include "utils/bounds.h"
+#include <stdlib.h>
 
 //////////////////////////////// Asserts
 DEFINE_DBG_ASSERT_I (type, type, t);
@@ -198,6 +199,7 @@ prim_bits_size (prim_t t)
     case U32:
     case I32:
     case F32:
+    case CF32:
     case CI32:
     case CU32:
       return 32;
@@ -256,6 +258,8 @@ prim_to_str (prim_t p)
     case F128:
       return "F128";
 
+    case CF32:
+      return "CF32";
     case CF64:
       return "CF64";
     case CF128:

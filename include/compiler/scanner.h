@@ -37,10 +37,11 @@ typedef struct
 {
   cbuffer *chars_input;
   cbuffer *tokens_output;
-
   lalloc *string_allocator;
 } scanner_params;
 
 void scanner_create (scanner *dest, scanner_params params);
+
 void scanner_execute (scanner *s);
+
 void scanner_release (scanner *dest);

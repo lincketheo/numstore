@@ -38,9 +38,6 @@ typedef enum
   TT_ERROR, // An Error token, saying: next token start fresh
 } token_t;
 
-// Returns if this token is a single character
-#define TT_IS_SINGLE(t) (t == TT_SEMICOLON)
-
 /**
  * A token is a tagged union that wraps
  * the value and the type together

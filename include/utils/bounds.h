@@ -2,6 +2,8 @@
 
 #include "intf/stdlib.h"
 #include "intf/types.h"
+#include <math.h>
+#include <stdlib.h>
 
 /////////////////////////////////////////// UNSIGNED ADD/SUB
 

@@ -2,12 +2,15 @@
 
 #include "intf/types.h"
 
-// For now - not wrapping these two
-#include <math.h>
-#include <stdlib.h>
+#include <string.h>
 
-void *i_memset (void *s, int c, u64 n);
-void *i_memcpy (void *dest, const void *src, u64 bytes);
-int i_strncmp (char *left, char *right, u64 len);
-int i_unsafe_strlen (const char *cstr);
-int i_memcmp (const void *s1, const void *s2, u64 n);
+// I just like this pattern just to know
+// which functions from the standard library I'm
+// using. Not fully ocd about it, it's all iso
+
+#define i_memset(s, c, n) memset (s, c, n)
+#define i_memcpy(dest, src, bytes) memcpy (dest, src, bytes)
+#define i_strncmp(left, right, len) strncmp (left, right, len)
+#define i_unsafe_strlen(cstr) strlen (cstr)
+#define i_memcmp(s1, s2, n) memcmp (s1, s2, n)
+#define i_memchr(buf, c, len) memchr (buf, c, len)

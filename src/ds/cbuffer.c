@@ -101,6 +101,7 @@ TEST (cbuffer_avail)
 }
 
 ///////////////////////// Raw Read / Write
+/// TODO - Code Review
 u32
 cbuffer_read (void *dest, u32 size, u32 n, cbuffer *b)
 {
@@ -501,7 +502,7 @@ TEST (cbuffer_cbuffer_copy)
 
 ///////////////////////// IO Read / Write
 i32
-cbuffer_write_max_from_file (i_file *src, cbuffer *b)
+cbuffer_write_some_from_file (i_file *src, cbuffer *b)
 {
   cbuffer_assert (b);
   ASSERT (src);
@@ -568,7 +569,7 @@ cbuffer_write_max_from_file (i_file *src, cbuffer *b)
 }
 
 i32
-cbuffer_read_max_to_file (i_file *dest, cbuffer *b)
+cbuffer_read_some_to_file (i_file *dest, cbuffer *b)
 {
   cbuffer_assert (b);
   ASSERT (dest);

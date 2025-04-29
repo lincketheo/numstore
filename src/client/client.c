@@ -1,0 +1,101 @@
+#include "client/client.h"
+#include "dev/assert.h"
+#include "dev/errors.h"
+#include "ds/cbuffer.h"
+
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <stdio.h>
+#include <unistd.h>
+
+DEFINE_DBG_ASSERT_I (client, client, c)
+{
+  ASSERT (c);
+}
+
+void
+client_create (client *dest)
+{
+  ASSERT (dest);
+  dest->sfd = (i_file){ .fd = -1 };
+  dest->send = cbuffer_create (dest->_send, sizeof (dest->_send));
+  dest->recv = cbuffer_create (dest->_recv, sizeof (dest->_recv));
+  client_assert (dest);
+}
+
+err_t
+client_connect (client *c, const char *ipaddr, u16 port)
+{
+  client_assert (c);
+  ASSERT (ipaddr);
+
+  // Create the socket
+  int sock = socket (AF_INET, SOCK_STREAM, 0);
+  if (sock < 0)
+    {
+      perror ("socket");
+      goto failed;
+    }
+
+  // Create the ip address
+  struct sockaddr_in saddr;
+  saddr.sin_family = AF_INET;
+  saddr.sin_port = htons (port);
+  if (inet_pton (AF_INET, ipaddr, &saddr.sin_addr) <= 0)
+    {
+      perror ("inet_pton");
+      goto failed;
+    }
+
+  // Connect
+  if (connect (sock, (struct sockaddr *)&saddr, sizeof (saddr)) < 0)
+    {
+      perror ("connect");
+      goto failed;
+    }
+
+  c->server_addr = saddr;
+  c->sfd = (i_file){ .fd = sock };
+
+  return SUCCESS;
+
+failed:
+  if (sock >= 0)
+    {
+      close (sock);
+    }
+  return ERR_IO;
+}
+
+void
+client_disconnect (client *c)
+{
+  client_assert (c);
+  ASSERT (c->sfd.fd >= 0);
+  i_close (&c->sfd);
+  c->sfd = (i_file){ .fd = -1 };
+}
+
+err_t
+client_send_some (client *c)
+{
+  client_assert (c);
+  i32 written = cbuffer_read_some_to_file (&c->sfd, &c->send);
+  if (written < 0)
+    {
+      return (err_t)written;
+    }
+  return SUCCESS;
+}
+
+err_t
+client_recv_some (client *c)
+{
+  client_assert (c);
+  i32 read = cbuffer_write_some_from_file (&c->sfd, &c->recv);
+  if (read < 0)
+    {
+      return (err_t)read;
+    }
+  return SUCCESS;
+}

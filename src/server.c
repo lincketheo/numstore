@@ -142,7 +142,7 @@ err_t
 con_read (connection *c)
 {
   connection_assert (c);
-  i32 read = cbuffer_write_max_from_file (&c->cfd, &c->input);
+  i32 read = cbuffer_write_some_from_file (&c->cfd, &c->input);
   if (read < 0)
     {
       return (err_t)read;
@@ -154,7 +154,7 @@ err_t
 con_write (connection *c)
 {
   connection_assert (c);
-  i32 written = cbuffer_read_max_to_file (&c->cfd, &c->output);
+  i32 written = cbuffer_read_some_to_file (&c->cfd, &c->output);
   if (written < 0)
     {
       return (err_t)written;
