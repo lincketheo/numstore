@@ -39,8 +39,6 @@ page_set (page *p, page_interpret_params params)
     case PG_DATA_LIST:
       {
         advance (p->dl.next, i64);
-        advance (p->dl.len_num, u16);
-        advance (p->dl.len_denom, u16);
         advance (p->dl.data, u8);
         break;
       }

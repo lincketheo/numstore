@@ -15,12 +15,12 @@ in_choose_leaf (const inner_node *node, u64 *before, u64 loc)
   inner_node_assert (node);
   ASSERT (before);
 
-  u32 n = in_get_nkeys (node);
-  u32 i = 0;
+  u16 n = in_get_nkeys (node);
+  u16 i = 0;
 
   for (; i < n; ++i)
     {
-      if (loc <= in_get_key (node, i))
+      if (loc < in_get_key (node, i))
         {
           break;
         }
@@ -39,15 +39,22 @@ in_choose_leaf (const inner_node *node, u64 *before, u64 loc)
 }
 
 u64
-in_get_key (const inner_node *node, u32 idx)
+in_get_nkeys (const inner_node *node)
 {
   inner_node_assert (node);
-  ASSERT (idx <= *node->nkeys);
-  return node->keys[*node->nkeys - idx];
+  return *node->nkeys;
 }
 
 u64
-in_get_leaf (const inner_node *node, u32 idx)
+in_get_key (const inner_node *node, u16 idx)
+{
+  inner_node_assert (node);
+  ASSERT (idx <= *node->nkeys);
+  return node->keys[*node->nkeys - idx - 1];
+}
+
+u64
+in_get_leaf (const inner_node *node, u16 idx)
 {
   inner_node_assert (node);
   ASSERT (idx <= (*node->nkeys + 1));

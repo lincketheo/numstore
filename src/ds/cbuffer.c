@@ -1,6 +1,7 @@
 #include "ds/cbuffer.h"
 #include "dev/assert.h"
 #include "dev/testing.h"
+#include "intf/io.h"
 #include "utils/bounds.h"
 #include "utils/macros.h"
 
@@ -32,6 +33,7 @@ cbuffer_create (u8 *data, u32 cap)
   };
 }
 
+///////////////////////// Utils
 bool
 cbuffer_isempty (const cbuffer *b)
 {
@@ -98,6 +100,7 @@ TEST (cbuffer_avail)
   test_assert_int_equal (cbuffer_avail (&b), 3);
 }
 
+///////////////////////// Raw Read / Write
 u32
 cbuffer_read (void *dest, u32 size, u32 n, cbuffer *b)
 {
@@ -307,6 +310,327 @@ TEST (cbuffer_write)
   test_assert_int_equal (cbuffer_len (&b), 3);
 }
 
+///////////////////////// CBuffer Read / Write
+
+u32
+cbuffer_cbuffer_move (cbuffer *dest, u32 sz, u32 cnt, cbuffer *src)
+{
+  cbuffer_assert (dest);
+  cbuffer_assert (src);
+  ASSERT (sz > 0 && cnt > 0);
+
+  // calculate number of elements to move
+  u32 src_elems = cbuffer_len (src) / sz;
+  u32 dst_space = cbuffer_avail (dest) / sz;
+  u32 n;
+  if (cnt < src_elems)
+    {
+      n = cnt;
+    }
+  else
+    {
+      n = src_elems;
+    }
+  if (dst_space < n)
+    {
+      n = dst_space;
+    }
+  if (n == 0)
+    {
+      return 0;
+    }
+
+  // total bytes to transfer
+  u32 bytes = n * sz;
+
+  // first chunk: from tail up to end of buffer
+  u32 first;
+  if (src->isfull || src->head <= src->tail)
+    {
+      first = src->cap - src->tail;
+    }
+  else
+    {
+      first = src->head - src->tail;
+    }
+  if (first > bytes)
+    {
+      first = bytes;
+    }
+
+  // write first chunk into dest
+  cbuffer_write (src->data + src->tail, 1, first, dest);
+
+  // advance tail and clear full flag
+  src->tail = (src->tail + first) % src->cap;
+  src->isfull = false;
+  bytes -= first;
+
+  // second chunk if any remains
+  if (bytes > 0)
+    {
+      cbuffer_write (src->data + src->tail, 1, bytes, dest);
+      src->tail = (src->tail + bytes) % src->cap;
+    }
+
+  return n;
+}
+
+TEST (cbuffer_cbuffer_move)
+{
+  u8 buf_s[4];
+  u8 buf_d[4];
+  cbuffer src = cbuffer_create (buf_s, 4);
+  cbuffer dst = cbuffer_create (buf_d, 4);
+  u8 out[4];
+
+  // empty source: should read 0 elements
+  u32 r0 = cbuffer_cbuffer_move (&dst, 1, 1, &src);
+  test_assert_int_equal (r0, 0);
+
+  // fill source with 3 bytes
+  u8 data2[3] = { 4, 5, 6 };
+  cbuffer_write (data2, 1, 3, &src);
+
+  // read 2 elements into dst
+  u32 r1 = cbuffer_cbuffer_move (&dst, 1, 2, &src);
+  test_assert_int_equal (r1, 2);
+  test_assert_int_equal (cbuffer_len (&src), 1);
+  test_assert_int_equal (cbuffer_len (&dst), 2);
+
+  // verify dst contents
+  u32 r2 = cbuffer_read (out, 1, 2, &dst);
+  test_assert_int_equal (r2, 2);
+  test_assert_int_equal (out[0], 4);
+  test_assert_int_equal (out[1], 5);
+}
+u32
+cbuffer_cbuffer_copy (cbuffer *dest, u32 sz, u32 cnt, const cbuffer *src)
+{
+  cbuffer_assert (dest);
+  cbuffer_assert (src);
+  ASSERT (sz > 0 && cnt > 0);
+
+  // calculate number of elements to copy
+  u32 src_elems = cbuffer_len (src) / sz;
+  u32 dst_space = cbuffer_avail (dest) / sz;
+  u32 n;
+  if (cnt < src_elems)
+    {
+      n = cnt;
+    }
+  else
+    {
+      n = src_elems;
+    }
+  if (dst_space < n)
+    {
+      n = dst_space;
+    }
+  if (n == 0)
+    {
+      return 0;
+    }
+
+  // total bytes to copy
+  u32 bytes = n * sz;
+
+  // local cursor and copy of full flag
+  u32 pos = src->tail;
+  bool full = src->isfull;
+
+  // first chunk: from pos up to end of buffer
+  u32 first;
+  if (full || src->head <= pos)
+    {
+      first = src->cap - pos;
+    }
+  else
+    {
+      first = src->head - pos;
+    }
+  if (first > bytes)
+    {
+      first = bytes;
+    }
+
+  // write first chunk into dest
+  cbuffer_write (src->data + pos, 1, first, dest);
+
+  // advance local cursor
+  pos = (pos + first) % src->cap;
+  full = false;
+  bytes -= first;
+
+  // second chunk if any remains
+  if (bytes > 0)
+    {
+      cbuffer_write (src->data + pos, 1, bytes, dest);
+    }
+
+  return n;
+}
+TEST (cbuffer_cbuffer_copy)
+{
+  u8 buf_s[4];
+  u8 buf_d[4];
+  cbuffer src = cbuffer_create (buf_s, 4);
+  cbuffer dst = cbuffer_create (buf_d, 4);
+  u8 out[4];
+
+  // empty source: should copy 0 elements
+  u32 r0 = cbuffer_cbuffer_copy (&dst, 1, 1, &src);
+  test_assert_int_equal (r0, 0);
+
+  // fill source with 3 bytes
+  u8 data1[3] = { 1, 2, 3 };
+  cbuffer_write (data1, 1, 3, &src);
+
+  // copy 2 elements into dst
+  u32 r1 = cbuffer_cbuffer_copy (&dst, 1, 2, &src);
+  test_assert_int_equal (r1, 2);
+  test_assert_int_equal (cbuffer_len (&src), 3);
+  test_assert_int_equal (cbuffer_len (&dst), 2);
+
+  // verify dst contents
+  u32 r2 = cbuffer_read (out, 1, 2, &dst);
+  test_assert_int_equal (r2, 2);
+  test_assert_int_equal (out[0], 1);
+  test_assert_int_equal (out[1], 2);
+}
+
+///////////////////////// IO Read / Write
+i32
+cbuffer_write_max_from_file (i_file *src, cbuffer *b)
+{
+  cbuffer_assert (b);
+  ASSERT (src);
+
+  u32 total = 0;
+  u32 avail = cbuffer_avail (b);
+
+  if (avail == 0 || b->isfull)
+    {
+      return 0;
+    }
+
+  // First: write to [head, cap)
+  if (b->head >= b->tail)
+    {
+      u32 right_space = b->cap - b->head;
+      if (right_space > 0)
+        {
+          i64 read = i_read_some (src, b->data + b->head, right_space);
+          if (read < 0)
+            {
+              return (u32)read; // Error
+            }
+          if (read == 0)
+            {
+              return total; // EOF
+            }
+
+          b->head = (b->head + read) % b->cap;
+          total += (u32)read;
+
+          if (b->head == b->tail)
+            {
+              b->isfull = true;
+              return total;
+            }
+        }
+    }
+
+  // Second: write to [head, tail)
+  if (b->head < b->tail)
+    {
+      u32 left_space = b->tail - b->head;
+      i64 read = i_read_some (src, b->data + b->head, left_space);
+      if (read < 0)
+        {
+          return (i32)read;
+        }
+      if (read == 0)
+        {
+          return total;
+        }
+
+      b->head += (u32)read;
+      total += (u32)read;
+
+      if (b->head == b->tail)
+        {
+          b->isfull = true;
+        }
+    }
+
+  return total;
+}
+
+i32
+cbuffer_read_max_to_file (i_file *dest, cbuffer *b)
+{
+  cbuffer_assert (b);
+  ASSERT (dest);
+
+  u32 stored = cbuffer_len (b);
+  if (stored == 0)
+    {
+      return 0;
+    }
+
+  i32 total = 0;
+
+  u32 chunk1;
+  if (!b->isfull && b->head > b->tail)
+    {
+      chunk1 = b->head - b->tail;
+    }
+  else
+    {
+      chunk1 = b->cap - b->tail;
+    }
+
+  i64 w1 = i_write_some (dest, b->data + b->tail, chunk1);
+  if (w1 < 0)
+    {
+      return (i32)w1;
+    }
+  if (w1 == 0)
+    {
+      return total;
+    }
+
+  b->tail = (b->tail + (u32)w1) % b->cap;
+  total += (i32)w1;
+  b->isfull = false;
+
+  if ((u32)w1 < chunk1)
+    {
+      return total;
+    }
+
+  u32 chunk2 = stored - chunk1;
+  if (chunk2 > 0)
+    {
+      i64 w2 = i_write_some (dest, b->data + b->tail, chunk2);
+      if (w2 < 0)
+        {
+          return (i32)w2;
+        }
+      if (w2 == 0)
+        {
+          return total;
+        }
+
+      b->tail = (b->tail + (u32)w2) % b->cap;
+      total += (i32)w2;
+    }
+
+  return total;
+}
+
+///////////////////////// Working with Single Elements
 static inline u8
 cbuffer_get_no_check (const cbuffer *b, int idx)
 {

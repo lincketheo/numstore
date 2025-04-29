@@ -35,6 +35,7 @@ typedef struct
   const string fname;
 } dboargs;
 
-err_t db_create (database *dest, dbcargs args);
+bool db_exists (const string fname);
+err_t db_create_and_open (database *dest, dbcargs args);
 err_t db_open (database *dest, dboargs args);
 void db_close (database *db);

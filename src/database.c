@@ -37,7 +37,7 @@ db_create_file (database *db, dbcargs args)
   // Write the header
   u32 header[2] = { args.page_size, args.mpgr_len };
   db->header_size = sizeof (header);
-  if ((ret = i_write_all (&db->fp, header, sizeof (header), 0)))
+  if ((ret = i_pwrite_all (&db->fp, header, sizeof (header), 0)))
     {
       return ret;
     }
@@ -75,7 +75,7 @@ db_open_file (database *db, dboargs args)
   // Read it
   u32 header[2] = { 0 };
   db->header_size = sizeof (header);
-  i64 bytes = i_read_all (&db->fp, header, sizeof (header), 0);
+  i64 bytes = i_pread_all (&db->fp, header, sizeof (header), 0);
   if (bytes != sizeof (header))
     {
       goto invalid_state;
@@ -100,8 +100,18 @@ invalid_state:
   return ERR_INVALID_STATE;
 }
 
+bool
+db_exists (const string fname)
+{
+  if (i_exists_rw (fname))
+    {
+      return true;
+    }
+  return false;
+}
+
 err_t
-db_create (database *db, dbcargs args)
+db_create_and_open (database *db, dbcargs args)
 {
   err_t ret;
   if ((ret = db_create_file (db, args)))

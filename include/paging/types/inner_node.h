@@ -32,7 +32,16 @@ typedef struct
 } inner_node;
 
 u64 *in_get_keys_ptr (const u8 *raw, u32 page_size);
+
+/**
+ * Picks which child contains [loc]
+ * Sets before to the number to the left
+ * of the selected key so that you can
+ * subtract loc - *before to get the next
+ * loc for the layer beneath
+ */
 u64 in_choose_leaf (const inner_node *node, u64 *before, u64 loc);
+
 u64 in_get_nkeys (const inner_node *node);
-u64 in_get_key (const inner_node *node, u32 idx);
-u64 in_get_leaf (const inner_node *node, u32 idx);
+u64 in_get_key (const inner_node *node, u16 idx);
+u64 in_get_leaf (const inner_node *node, u16 idx);

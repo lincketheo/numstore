@@ -1,8 +1,9 @@
 #include "cursor/cursor.h"
-#include "cursor/navigation.h"
+#include "cursor/btree_cursor.h"
 #include "dev/errors.h"
 #include "intf/stdlib.h"
 
+/**
 DEFINE_DBG_ASSERT_I (cursor, cursor, c)
 {
   ASSERT (c);
@@ -150,6 +151,7 @@ crsr_navigate (cursor *c, u64 toloc)
 
   return SUCCESS;
 }
+*/
 
 /**
  * Returns:

@@ -4,6 +4,7 @@
 #include "intf/logging.h"
 #include "intf/mm.h"
 
+#include <asm-generic/errno-base.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -20,6 +21,7 @@ DEFINE_DBG_ASSERT_I (i_file, i_file, fp)
   ASSERT (fcntl (fp->fd, F_GETFD) != -1 || errno != EBADF);
 }
 
+////////////////// Open / Close
 err_t
 i_open (i_file *dest, const string fname, int read, int write)
 {
@@ -42,8 +44,7 @@ i_open (i_file *dest, const string fname, int read, int write)
 
   if (dest->fd == -1)
     {
-      i_log_error ("Failed to open file: %s. Reason: %s\n",
-                   fname.data, strerror (errno));
+      perror ("open");
       return ERR_IO;
     }
 
@@ -60,26 +61,33 @@ i_close (i_file *fp)
   int ret = close (fp->fd);
   if (ret)
     {
-      i_log_error ("Failed to close file: %d. Reason: %s\n",
-                   fp->fd, strerror (errno));
+      perror ("close");
       return ERR_IO;
     }
   return SUCCESS;
 }
 
+////////////////// Positional Read / Write
 i64
-i_read_some (i_file *fp, void *dest, u64 n, u64 offset)
+i_pread_some (i_file *fp, void *dest, u64 n, u64 offset)
 {
   i_file_assert (fp);
   ASSERT (dest);
   ASSERT (n > 0);
 
   ssize_t ret = pread (fp->fd, dest, n, (size_t)offset);
+
+  if (ret < 0 && errno != EINTR)
+    {
+      perror ("pread");
+      return ERR_IO;
+    }
+
   return (i64)ret;
 }
 
 i64
-i_read_all (i_file *fp, void *dest, u64 n, u64 offset)
+i_pread_all (i_file *fp, void *dest, u64 n, u64 offset)
 {
   i_file_assert (fp);
   ASSERT (dest);
@@ -90,7 +98,6 @@ i_read_all (i_file *fp, void *dest, u64 n, u64 offset)
 
   while (nread < n)
     {
-
       // Do read
       ASSERT (n > nread);
       ssize_t _nread = pread (
@@ -106,13 +113,10 @@ i_read_all (i_file *fp, void *dest, u64 n, u64 offset)
         }
 
       // Error
-      if (_nread < 0)
+      if (_nread < 0 && errno != EINTR)
         {
-          if (errno == EINTR)
-            {
-              continue;
-            }
-          return _nread;
+          perror ("pread");
+          return ERR_IO;
         }
 
       nread += (i64)_nread;
@@ -124,18 +128,23 @@ i_read_all (i_file *fp, void *dest, u64 n, u64 offset)
 }
 
 i64
-i_write_some (i_file *fp, const void *src, u64 n, u64 offset)
+i_pwrite_some (i_file *fp, const void *src, u64 n, u64 offset)
 {
   i_file_assert (fp);
   ASSERT (src);
   ASSERT (n > 0);
 
   ssize_t ret = pwrite (fp->fd, src, n, (size_t)offset);
+  if (ret < 0 && errno != EINTR)
+    {
+      perror ("pread");
+      return ERR_IO;
+    }
   return (i64)ret;
 }
 
 err_t
-i_write_all (i_file *fp, const void *src, u64 n, u64 offset)
+i_pwrite_all (i_file *fp, const void *src, u64 n, u64 offset)
 {
   i_file_assert (fp);
   ASSERT (src);
@@ -146,32 +155,18 @@ i_write_all (i_file *fp, const void *src, u64 n, u64 offset)
 
   while (nwrite < n)
     {
-      // Do read
+      // Do write
       ASSERT (n > nwrite);
-
       ssize_t _nwrite = pwrite (
           fp->fd,
           _src + nwrite,
           n - nwrite,
           offset + nwrite);
 
-      // IEEE Std 1003.1 2017
-      // Assuming write = 0 with
-      // requested > 0 is an error
-      if (_nwrite == 0)
-        {
-          return ERR_IO;
-        }
-
       // Error
-      if (_nwrite < 0)
+      if (_nwrite < 0 && errno != EINTR)
         {
-          if (errno == EINTR)
-            {
-              continue;
-            }
-          i_log_error ("Write failed to write %" PRIu64 " bytes. Reason: %s\n",
-                       n, strerror (errno));
+          perror ("pwrite");
           return ERR_IO;
         }
 
@@ -183,13 +178,121 @@ i_write_all (i_file *fp, const void *src, u64 n, u64 offset)
   return SUCCESS;
 }
 
+////////////////// Stream Read / Write
+i64
+i_read_some (i_file *fp, void *dest, u64 nbytes)
+{
+  i_file_assert (fp);
+  ASSERT (dest);
+  ASSERT (nbytes > 0);
+
+  ssize_t ret = read (fp->fd, dest, nbytes);
+  if (ret < 0 && errno != EINTR)
+    {
+      perror ("pread");
+      return ERR_IO;
+    }
+  return (i64)ret;
+}
+
+i64
+i_read_all (i_file *fp, void *dest, u64 nbytes)
+{
+  i_file_assert (fp);
+  ASSERT (dest);
+  ASSERT (nbytes > 0);
+
+  u8 *_dest = (u8 *)dest;
+  u64 nread = 0;
+
+  while (nread < nbytes)
+    {
+      // Do read
+      ASSERT (nbytes > nread);
+      ssize_t _nread = read (
+          fp->fd,
+          _dest + nread,
+          nbytes - nread);
+
+      // EOF
+      if (_nread == 0)
+        {
+          return (i64)nread;
+        }
+
+      // Error
+      if (_nread < 0 && errno != EINTR)
+        {
+          perror ("read");
+          return ERR_IO;
+        }
+
+      nread += (i64)_nread;
+    }
+
+  ASSERT (nread == nbytes);
+
+  return nread;
+}
+
+i64
+i_write_some (i_file *fp, const void *src, u64 nbytes)
+{
+  i_file_assert (fp);
+  ASSERT (src);
+  ASSERT (nbytes > 0);
+
+  ssize_t ret = write (fp->fd, src, nbytes);
+  if (ret < 0 && errno != EINTR)
+    {
+      perror ("pread");
+      return ERR_IO;
+    }
+  return (i64)ret;
+}
+
+err_t
+i_write_all (i_file *fp, const void *src, u64 nbytes)
+{
+  i_file_assert (fp);
+  ASSERT (src);
+  ASSERT (nbytes > 0);
+
+  u8 *_src = (u8 *)src;
+  u64 nwrite = 0;
+
+  while (nwrite < nbytes)
+    {
+      // Do read
+      ASSERT (nbytes > nwrite);
+
+      ssize_t _nwrite = write (
+          fp->fd,
+          _src + nwrite,
+          nbytes - nwrite);
+
+      // Error
+      if (_nwrite < 0 && errno != EINTR)
+        {
+          perror ("write");
+          return ERR_IO;
+        }
+
+      nwrite += _nwrite;
+    }
+
+  ASSERT (nwrite == nbytes);
+
+  return SUCCESS;
+}
+
+////////////////// Others
 err_t
 i_truncate (i_file *fp, u64 bytes)
 {
   if (ftruncate (fp->fd, bytes) == -1)
     {
-      i_log_error ("Failed to call ftruncate. Reason: %s\n",
-                   strerror (errno));
+      perror ("ftruncate");
       return ERR_IO;
     }
 
@@ -202,8 +305,7 @@ i_file_size (i_file *fp)
   struct stat st;
   if (fstat (fp->fd, &st) == -1)
     {
-      i_log_error ("Failed to call fstat. Reason: %s\n",
-                   strerror (errno));
+      perror ("fstat");
       return ERR_IO;
     }
   return (off_t)st.st_size;
@@ -216,8 +318,7 @@ i_remove_quiet (const string fname)
 
   if (ret && errno != ENOENT)
     {
-      i_log_error ("Failed to remove file: %s. Reason: %s\n",
-                   fname.data, strerror (errno));
+      perror ("remove");
       return ERR_IO;
     }
 
@@ -225,12 +326,37 @@ i_remove_quiet (const string fname)
 }
 
 err_t
+i_mkstemp (i_file *dest, string tmpl)
+{
+  int fd = mkstemp (tmpl.data);
+  if (fd == -1)
+    {
+      perror ("mkstemp");
+      return ERR_IO;
+    }
+
+  dest->fd = fd;
+  return SUCCESS;
+}
+
+err_t
+i_unlink (const string name)
+{
+  if (unlink (name.data))
+    {
+      perror ("unlink");
+      return ERR_IO;
+    }
+  return SUCCESS;
+}
+
+////////////////// Wrappers
+err_t
 i_access_rw (const string fname)
 {
   if (access (fname.data, F_OK | W_OK | R_OK))
     {
-      i_log_error ("failed to call access. Reason: %s\n",
-                   strerror (errno));
+      perror ("access");
       return ERR_IO;
     }
   return SUCCESS;
@@ -244,31 +370,4 @@ i_exists_rw (const string fname)
       return false;
     }
   return true;
-}
-
-err_t
-i_mkstemp (i_file *dest, string tmpl)
-{
-  int fd = mkstemp (tmpl.data);
-  if (fd == -1)
-    {
-      i_log_error ("Failed to call mkstemp for file: %s. Reason: %s\n",
-                   tmpl.data, strerror (errno));
-      return ERR_IO;
-    }
-
-  dest->fd = fd;
-  return SUCCESS;
-}
-
-err_t
-i_unlink (const string name)
-{
-  if (unlink (name.data))
-    {
-      i_log_error ("Failed to call unlink on file: %s. Reason: %s\n",
-                   name.data, strerror (errno));
-      return ERR_IO;
-    }
-  return SUCCESS;
 }

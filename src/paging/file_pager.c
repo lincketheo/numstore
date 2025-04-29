@@ -173,7 +173,7 @@ fpgr_get_expect (file_pager *p, u8 *dest, u64 pgno)
   ASSERT (pgno < p->npages);
 
   // Read all from file
-  i64 nread = i_read_all (
+  i64 nread = i_pread_all (
       &p->f, dest,
       p->page_size,
       p->header_size + pgno * p->page_size);
@@ -278,7 +278,7 @@ fpgr_commit (file_pager *p, const u8 *src, u64 pgno)
   ASSERT (src);
   ASSERT (pgno < p->npages);
 
-  err_t ret = i_write_all (
+  err_t ret = i_pwrite_all (
       &p->f, src,
       p->page_size,
       p->header_size + pgno * p->page_size);
