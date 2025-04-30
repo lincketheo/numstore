@@ -26,3 +26,5 @@ void client_disconnect (client *c);
 
 err_t client_send_some (client *c);
 err_t client_recv_some (client *c);
+
+err_t client_execute_all (client *c, const string str);

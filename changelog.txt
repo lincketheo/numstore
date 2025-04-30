@@ -1,3 +1,5 @@
+04/30/2025 
+  - Implements query builders and makes AST building more generic
 04/29/2025
   - Implements polling server
   - Starts client and repl

@@ -95,7 +95,51 @@ client_recv_some (client *c)
   i32 read = cbuffer_write_some_from_file (&c->sfd, &c->recv);
   if (read < 0)
     {
-      return (err_t)read;
+      return ERR_IO;
     }
+
+  // Print to stdout
+  if (read > 0)
+    {
+      i_file out = { .fd = fileno (stdout) };
+      i32 written = cbuffer_read_some_to_file (&out, &c->recv);
+      if (written < 0)
+        {
+          return ERR_IO;
+        }
+    }
+  return SUCCESS;
+}
+
+err_t
+client_execute_all (client *c, const string str)
+{
+  client_assert (c);
+  err_t ret = SUCCESS;
+  u32 written;
+
+  // Send all
+  for (int i = 0; i < str.len; i += written)
+    {
+      written = cbuffer_write (&str.data[i], str.len - i, 1, &c->send);
+      if ((ret = client_send_some (c)))
+        {
+          return ret;
+        }
+      if ((ret = client_recv_some (c)))
+        {
+          return ret;
+        }
+    }
+
+  // Flush
+  for (int i = 0; i < 10; ++i)
+    {
+      if ((ret = client_recv_some (c)))
+        {
+          return ret;
+        }
+    }
+
   return SUCCESS;
 }

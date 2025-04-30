@@ -20,7 +20,7 @@
 #define ASCOPE(expr) expr
 
 #define DEFINE_DBG_ASSERT_I(type, name, variable) \
-  __attribute__ ((unused)) void name##_assert (const type *variable)
+  __attribute__ ((unused)) static inline void name##_assert (const type *variable)
 
 ////////////////////////////// Release
 #else
@@ -29,11 +29,11 @@
 
 #define ASCOPE(expr)
 
-#define DEFINE_DBG_ASSERT_I(type, name, variable)                                             \
-  __attribute__ ((unused)) void name##_assert (const type *variable __attribute__ ((unused))) \
-  {                                                                                           \
-    /* do nothing*/                                                                           \
-  }                                                                                           \
+#define DEFINE_DBG_ASSERT_I(type, name, variable)                                                           \
+  __attribute__ ((unused)) static inline void name##_assert (const type *variable __attribute__ ((unused))) \
+  {                                                                                                         \
+    /* do nothing*/                                                                                         \
+  }                                                                                                         \
   __attribute__ ((unused)) static inline void name##_assert__ (const type *variable __attribute__ ((unused)))
 
 #endif

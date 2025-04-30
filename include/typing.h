@@ -101,11 +101,11 @@ struct type
   union
   {
     prim_t p;
-    struct_t *st;
-    union_t *un;
-    enum_t *en;
-    varray_t *va;
-    sarray_t *sa;
+    struct_t st;
+    union_t un;
+    enum_t en;
+    varray_t va;
+    sarray_t sa;
   };
 
   type_t type;

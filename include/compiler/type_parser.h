@@ -1,27 +1,17 @@
 #pragma once
 
+#include "compiler/ast_builders/common.h"
 #include "compiler/tokens.h"
 #include "ds/strings.h"
 #include "intf/mm.h"
 #include "intf/types.h"
 #include "typing.h"
 
-typedef struct type_bldr_s type_bldr;
-
-typedef enum
-{
-
-  TPR_EXPECT_NEXT_TOKEN,
-  TPR_EXPECT_NEXT_TYPE,
-  TPR_MALLOC_ERROR,
-  TPR_SYNTAX_ERROR,
-  TPR_DONE,
-
-} tp_result;
+typedef struct type_builder_s type_builder;
 
 typedef struct
 {
-  type_bldr *stack;
+  type_builder *stack;
   u32 sp;
 
   lalloc *type_allocator;  // for allocating return types onto
@@ -35,5 +25,5 @@ typedef struct
 } tp_params;
 
 err_t tp_create (type_parser *dest, tp_params params);
-tp_result tp_feed_token (type_parser *tp, token t);
+parse_result tp_feed_token (type_parser *tp, token t);
 void tp_release (type_parser *t);

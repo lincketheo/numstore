@@ -1,5 +1,5 @@
 <script setup>
-import LanguageGuide from "@/LanguageGuide.vue";
+  import LanguageGuide from "@/LanguageGuide.vue";
 </script>
 
 <template>

@@ -1,8 +1,10 @@
 #include "intf/logging.h"
 // DO NOT INCLUDE assert
 
+#include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 
 // Regular colors
 #define BLACK "\033[0;30m"
@@ -26,6 +28,12 @@
 
 // Reset
 #define RESET "\033[0m"
+
+void
+i_perror (const char *msg)
+{
+  i_log_error ("System error [%s]: %s\n", msg, strerror (errno));
+}
 
 /////////////////////// Logging
 #ifndef NLOGGING
@@ -63,7 +71,7 @@ i_log_trace (const char *fmt, ...)
 {
   va_list args;
   va_start (args, fmt);
-  i_log_internal ("TRACE", BOLD_BLACK, fmt, args);
+  i_log_internal ("TRACE", BOLD_WHITE, fmt, args);
   va_end (args);
 }
 

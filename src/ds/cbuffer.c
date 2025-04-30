@@ -524,7 +524,7 @@ cbuffer_write_some_from_file (i_file *src, cbuffer *b)
           i64 read = i_read_some (src, b->data + b->head, right_space);
           if (read < 0)
             {
-              return (u32)read; // Error
+              return (i32)read; // Error
             }
           if (read == 0)
             {

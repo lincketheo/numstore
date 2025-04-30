@@ -1,6 +1,8 @@
 #pragma once
 
 /////////////////////// Logging
+void i_perror (const char *msg);
+
 #ifndef NLOGGING
 
 void i_log_trace (const char *fmt, ...) __attribute__ ((format (printf, 1, 2)));

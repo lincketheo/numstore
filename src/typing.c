@@ -57,10 +57,10 @@ DEFINE_DBG_ASSERT_I (type, type, t)
       prim_t_assert (&t->p);
       break;
     case T_STRUCT:
-      struct_t_assert (t->st);
+      struct_t_assert (&t->st);
       break;
     case T_SARRAY:
-      sarray_t_assert (t->sa);
+      sarray_t_assert (&t->sa);
       break;
     default:
       break; // TODO
@@ -72,63 +72,63 @@ static inline void
 _free_struct (type *t, lalloc *alloc)
 {
   type_assert (t);
-  ASSERT (t->st);
-  for (u32 i = 0; i < t->st->len; ++i)
+  ASSERT (&t->st);
+  for (u32 i = 0; i < t->st.len; ++i)
     {
-      ASSERT (t->st->keys[i].data);
-      lfree (alloc, t->st->keys[i].data);
-      type_free_internals (&t->st->types[i], alloc);
+      ASSERT (t->st.keys[i].data);
+      lfree (alloc, t->st.keys[i].data);
+      type_free_internals (&t->st.types[i], alloc);
     }
-  ASSERT (t->st->keys && t->st->types);
-  lfree (alloc, t->st->keys);
-  lfree (alloc, t->st->types);
+  ASSERT (t->st.keys && t->st.types);
+  lfree (alloc, t->st.keys);
+  lfree (alloc, t->st.types);
 }
 
 static inline void
 _free_union (type *t, lalloc *alloc)
 {
   type_assert (t);
-  ASSERT (t->un);
-  for (u32 i = 0; i < t->un->len; ++i)
+  ASSERT (&t->un);
+  for (u32 i = 0; i < t->un.len; ++i)
     {
-      ASSERT (t->un->keys[i].data);
-      lfree (alloc, t->un->keys[i].data);
-      type_free_internals (&t->un->types[i], alloc);
+      ASSERT (t->un.keys[i].data);
+      lfree (alloc, t->un.keys[i].data);
+      type_free_internals (&t->un.types[i], alloc);
     }
-  ASSERT (t->un->keys && t->un->types);
-  lfree (alloc, t->un->keys);
-  lfree (alloc, t->un->types);
+  ASSERT (t->un.keys && t->un.types);
+  lfree (alloc, t->un.keys);
+  lfree (alloc, t->un.types);
 }
 
 static inline void
 _free_enum (type *t, lalloc *alloc)
 {
   type_assert (t);
-  ASSERT (t->en);
-  for (u32 i = 0; i < t->en->len; ++i)
+  ASSERT (&t->en);
+  for (u32 i = 0; i < t->en.len; ++i)
     {
-      ASSERT (t->en->keys[i].data);
-      lfree (alloc, t->en->keys[i].data);
+      ASSERT (t->en.keys[i].data);
+      lfree (alloc, t->en.keys[i].data);
     }
-  ASSERT (t->en->keys);
-  lfree (alloc, t->en->keys);
+  ASSERT (t->en.keys);
+  lfree (alloc, t->en.keys);
 }
 
 static inline void
 _free_sarray (type *t, lalloc *alloc)
 {
   type_assert (t);
-  ASSERT (t->sa && t->sa->dims && t->sa->t);
-  lfree (alloc, t->sa->dims);
-  type_free_internals (t->sa->t, alloc);
+  ASSERT (t->sa.dims && t->sa.t);
+  lfree (alloc, t->sa.dims);
+  type_free_internals (t->sa.t, alloc);
 }
 
 static inline void
 _free_varray (type *t, lalloc *alloc)
 {
   type_assert (t);
-  ASSERT (t->va && t->va->t);
-  type_free_internals (t->va->t, alloc);
+  ASSERT (t->va.t);
+  type_free_internals (t->va.t, alloc);
 }
 
 void
@@ -297,7 +297,7 @@ prim_to_str (prim_t p)
 //////////////////////////////// Struct
 
 err_t
-struct_t_bits_size (u64 *dest, struct_t *t)
+struct_t_bits_size (u64 *dest, const struct_t *t)
 {
   ASSERT (dest);
   struct_t_assert (t);
@@ -373,7 +373,7 @@ TEST (struct_t_bits_size)
 //////////////////////////////// Strict Array
 
 err_t
-sarray_t_bits_size (u64 *dest, sarray_t *sa)
+sarray_t_bits_size (u64 *dest, const sarray_t *sa)
 {
   ASSERT (dest);
   sarray_t_assert (sa);
@@ -417,11 +417,11 @@ type_bits_size (u64 *dest, const type *t)
       }
     case T_STRUCT:
       {
-        return struct_t_bits_size (dest, t->st);
+        return struct_t_bits_size (dest, &t->st);
       }
     case T_SARRAY:
       {
-        return sarray_t_bits_size (dest, t->sa);
+        return sarray_t_bits_size (dest, &t->sa);
       }
     default:
       {
@@ -841,31 +841,31 @@ type_get_serial_size (u16 *dest, const type *t)
 
     case T_STRUCT:
       {
-        ret = ser_size_struct (&size, t->st);
+        ret = ser_size_struct (&size, &t->st);
         break;
       }
 
     case T_UNION:
       {
-        ret = ser_size_union (&size, t->un);
+        ret = ser_size_union (&size, &t->un);
         break;
       }
 
     case T_ENUM:
       {
-        ret = ser_size_enum (&size, t->en);
+        ret = ser_size_enum (&size, &t->en);
         break;
       }
 
     case T_VARRAY:
       {
-        ret = ser_size_varray (&size, t->va);
+        ret = ser_size_varray (&size, &t->va);
         break;
       }
 
     case T_SARRAY:
       {
-        ret = ser_size_sarray (&size, t->sa);
+        ret = ser_size_sarray (&size, &t->sa);
         break;
       }
 
@@ -890,7 +890,7 @@ TEST (type_get_serial_size)
   // Oooooof
   type t = {
     .type = T_STRUCT,
-    .st = &(struct_t){
+    .st = (struct_t){
         .len = 2,
         .keys = (string[]){
             { .len = 3, .data = "foo" },
@@ -900,7 +900,7 @@ TEST (type_get_serial_size)
             // Field 0: UNION
             {
                 .type = T_UNION,
-                .un = &(union_t){
+                .un = (union_t){
                     .len = 2,
                     .keys = (string[]){
                         { .len = 2, .data = "a0" },
@@ -915,7 +915,7 @@ TEST (type_get_serial_size)
                         // Variant 1: VARRAY of PRIM (BOOL)
                         {
                             .type = T_VARRAY,
-                            .va = &(varray_t){
+                            .va = (varray_t){
                                 .rank = 2,
                                 .t = &(type){
                                     .type = T_PRIM,
@@ -929,12 +929,12 @@ TEST (type_get_serial_size)
             // Field 1: SARRAY
             {
                 .type = T_SARRAY,
-                .sa = &(sarray_t){
+                .sa = (sarray_t){
                     .rank = 2,
                     .dims = (u32[]){ 3, 5 },
                     .t = &(type){
                         .type = T_ENUM,
-                        .en = &(enum_t){
+                        .en = (enum_t){
                             .len = 2,
                             .keys = (string[]){
                                 { .len = 2, .data = "e0" },
@@ -1038,7 +1038,7 @@ static inline err_t
 _type_serialize_struct (type_serialize_params p, u16 *idx)
 {
   err_t ret;
-  struct_t *st = p.src->st;
+  struct_t *st = &p.src->st;
 
   // number of fields
   if ((ret = ser_write_u16 (p.dest, p.dlen, idx, st->len)))
@@ -1126,7 +1126,7 @@ TEST (_type_serialize_struct)
 
   type t = {
     .type = T_STRUCT,
-    .st = &st,
+    .st = st,
   };
 
   type_serialize_params params = {
@@ -1172,7 +1172,7 @@ static inline err_t
 _type_serialize_union (type_serialize_params p, u16 *idx)
 {
   err_t ret;
-  union_t *un = p.src->un;
+  union_t *un = &p.src->un;
 
   // number of variants
   if ((ret = ser_write_u16 (p.dest, p.dlen, idx, un->len)))
@@ -1260,7 +1260,7 @@ TEST (_type_serialize_union)
 
   type t = {
     .type = T_STRUCT,
-    .un = &un,
+    .un = un,
   };
 
   type_serialize_params params = {
@@ -1305,7 +1305,7 @@ static inline err_t
 _type_serialize_enum (type_serialize_params p, u16 *idx)
 {
   err_t ret;
-  enum_t *en = p.src->en;
+  enum_t *en = &p.src->en;
 
   // number of entries
   if ((ret = ser_write_u16 (p.dest, p.dlen, idx, en->len)))
@@ -1362,7 +1362,7 @@ TEST (_type_serialize_enum)
 
   type t = {
     .type = T_STRUCT,
-    .en = &en,
+    .en = en,
   };
 
   type_serialize_params params = {
@@ -1399,7 +1399,7 @@ static inline err_t
 _type_serialize_varray (type_serialize_params p, u16 *idx)
 {
   err_t ret;
-  varray_t *va = p.src->va;
+  varray_t *va = &p.src->va;
 
   // rank
   if ((ret = ser_write_u16 (p.dest, p.dlen, idx, va->rank)))
@@ -1439,7 +1439,7 @@ TEST (_type_serialize_varray)
 
   type t = {
     .type = T_STRUCT,
-    .va = &va,
+    .va = va,
   };
 
   type_serialize_params params = {
@@ -1465,7 +1465,7 @@ static inline err_t
 _type_serialize_sarray (type_serialize_params p, u16 *idx)
 {
   err_t ret;
-  sarray_t *sa = p.src->sa;
+  sarray_t *sa = &p.src->sa;
 
   // rank
   if ((ret = ser_write_u16 (p.dest, p.dlen, idx, sa->rank)))
@@ -1522,7 +1522,7 @@ TEST (_type_serialize_sarray)
 
   type t = {
     .type = T_STRUCT,
-    .sa = &sa,
+    .sa = sa,
   };
 
   type_serialize_params params = {
@@ -1754,85 +1754,57 @@ static inline err_t
 _type_deserialize_struct (type_deserialize_params p, u16 *idx)
 {
   err_t ret;
-  struct_t *st = NULL;
+  struct_t st;
   u16 len = 0;
-
-  // Allocate room for struct
-  if ((st = lmalloc (p.type_allocator, sizeof (*st))) == NULL)
-    {
-      return ERR_NOMEM;
-    }
 
   // Read in length of keys / types
   if ((ret = ser_read_u16 (p.src, p.dlen, idx, &len)))
     {
-      goto failed;
+      return ret;
     }
-  st->len = len;
+  st.len = len;
 
   // Read in keys and types
   if ((ret = _deserialize_keys_and_types (
-           p, &st->keys, &st->types, len, idx)))
+           p, &st.keys, &st.types, len, idx)))
     {
-      // Assume Good citizen
-      goto failed;
+      return ret;
     }
 
   p.dest->st = st;
   return SUCCESS;
-
-failed:
-  if (st)
-    {
-      lfree (p.type_allocator, st);
-    }
-  return ret;
 }
 
 static inline err_t
 _type_deserialize_union (type_deserialize_params p, u16 *idx)
 {
   err_t ret;
-  union_t *un = NULL;
+  union_t un;
   u16 len = 0;
-
-  // Allocate space for union
-  if ((un = lmalloc (p.type_allocator, sizeof (*un))) == NULL)
-    {
-      return ERR_NOMEM;
-    }
 
   // Read in the len of keys / types
   if ((ret = ser_read_u16 (p.src, p.dlen, idx, &len)))
     {
-      goto failed;
+      return ret;
     }
-  un->len = len;
+  un.len = len;
 
   // Read in keys and types
   if ((ret = _deserialize_keys_and_types (
-           p, &un->keys, &un->types, len, idx)))
+           p, &un.keys, &un.types, len, idx)))
     {
-      // Assume Good citizen
-      goto failed;
+      return ret;
     }
 
   p.dest->un = un;
   return SUCCESS;
-
-failed:
-  if (un)
-    {
-      lfree (p.type_allocator, un);
-    }
-  return ret;
 }
 
 static inline err_t
 _type_deserialize_enum (type_deserialize_params p, u16 *idx)
 {
   err_t ret;
-  enum_t *en = NULL;
+  enum_t en;
   string *keys = NULL;
   u16 len;
   i32 i = 0;
@@ -1843,30 +1815,29 @@ _type_deserialize_enum (type_deserialize_params p, u16 *idx)
       return ret;
     }
 
-  en = lmalloc (p.type_allocator, sizeof (*en));
   keys = lmalloc (p.type_allocator, len * sizeof (*keys));
-  if (en == NULL || keys == NULL)
+  if (keys == NULL)
     {
       goto failed;
     }
 
-  en->keys = keys;
-  en->len = len;
+  en.keys = keys;
+  en.len = len;
 
   for (; i < len; ++i)
     {
       // key length
-      if ((ret = ser_read_u16 (p.src, p.dlen, idx, &en->keys[i].len)))
+      if ((ret = ser_read_u16 (p.src, p.dlen, idx, &en.keys[i].len)))
         {
           goto failed;
         }
 
       // allocate & read key data
-      en->keys[i].data = lmalloc (
+      en.keys[i].data = lmalloc (
           p.type_allocator,
-          en->keys[i].len);
+          en.keys[i].len);
 
-      if (en->keys[i].data == NULL)
+      if (en.keys[i].data == NULL)
         {
           ret = ERR_NOMEM;
           goto failed;
@@ -1874,10 +1845,10 @@ _type_deserialize_enum (type_deserialize_params p, u16 *idx)
 
       if ((ret = ser_read_bytes (
                p.src, p.dlen, idx,
-               en->keys[i].data,
-               en->keys[i].len)))
+               en.keys[i].data,
+               en.keys[i].len)))
         {
-          lfree (p.type_allocator, en->keys[i].data);
+          lfree (p.type_allocator, en.keys[i].data);
           goto failed;
         }
     }
@@ -1886,21 +1857,14 @@ _type_deserialize_enum (type_deserialize_params p, u16 *idx)
   return SUCCESS;
 
 failed:
-  if (en && keys)
+  if (keys)
     {
       // i - 1 because top element is already freed on error
       for (i = i - 1; i >= 0; --i)
         {
-          ASSERT (en->keys[i].data);
-          lfree (p.type_allocator, en->keys[i].data);
+          ASSERT (en.keys[i].data);
+          lfree (p.type_allocator, en.keys[i].data);
         }
-    }
-  if (en)
-    {
-      lfree (p.type_allocator, en);
-    }
-  if (keys)
-    {
       lfree (p.type_allocator, keys);
     }
   return ret;
@@ -1909,7 +1873,7 @@ failed:
 static inline err_t
 _type_deserialize_varray (type_deserialize_params p, u16 *idx)
 {
-  varray_t *va = NULL;
+  varray_t va;
   type *t = NULL;
   err_t ret = SUCCESS;
   u16 rank;
@@ -1921,22 +1885,21 @@ _type_deserialize_varray (type_deserialize_params p, u16 *idx)
     }
 
   // Allocate memory
-  va = lmalloc (p.type_allocator, sizeof (*va));
   t = lmalloc (p.type_allocator, sizeof *t);
 
   // Error check
-  if (va == NULL || t == NULL)
+  if (t == NULL)
     {
       ret = ERR_NOMEM;
       goto failed;
     }
 
-  va->t = t;
-  va->rank = rank;
+  va.t = t;
+  va.rank = rank;
 
   // Deserialize sub type
   type_deserialize_params subp = {
-    .dest = va->t,
+    .dest = va.t,
     .type_allocator = p.type_allocator,
     .src = p.src,
     .dlen = p.dlen,
@@ -1950,10 +1913,6 @@ _type_deserialize_varray (type_deserialize_params p, u16 *idx)
   return SUCCESS;
 
 failed:
-  if (va)
-    {
-      lfree (p.type_allocator, va);
-    }
   if (t)
     {
       lfree (p.type_allocator, t);
@@ -1965,7 +1924,7 @@ static inline err_t
 _type_deserialize_sarray (type_deserialize_params p, u16 *idx)
 {
   err_t ret;
-  sarray_t *sa = NULL;
+  sarray_t sa;
   type *t = NULL;
   u32 *dims = NULL;
   u16 rank;
@@ -1975,34 +1934,33 @@ _type_deserialize_sarray (type_deserialize_params p, u16 *idx)
     {
       goto failed;
     }
-  if (!can_mul_u16 ((u16)sizeof *sa->dims, rank))
+  if (!can_mul_u16 ((u16)sizeof *sa.dims, rank))
     {
       return ERR_ARITH;
     }
 
   // Allocate memory
-  sa = lmalloc (p.type_allocator, sizeof *sa);
   t = lmalloc (p.type_allocator, sizeof *t);
   dims = lmalloc (p.type_allocator, rank * sizeof *dims);
 
   // Error check
-  if (sa == NULL || t == NULL || dims == NULL)
+  if (t == NULL || dims == NULL)
     {
       ret = ERR_NOMEM;
       goto failed;
     }
 
-  sa->t = t;
-  sa->dims = dims;
-  sa->rank = rank;
+  sa.t = t;
+  sa.dims = dims;
+  sa.rank = rank;
 
   // Read dims array
   if ((ret = ser_read_bytes (
            p.src,
            p.dlen,
            idx,
-           sa->dims,
-           sa->rank * sizeof *sa->dims)))
+           sa.dims,
+           sa.rank * sizeof *sa.dims)))
     {
       goto failed;
     }
@@ -2012,7 +1970,7 @@ _type_deserialize_sarray (type_deserialize_params p, u16 *idx)
 
   // nested type
   type_deserialize_params subp = {
-    .dest = sa->t,
+    .dest = sa.t,
     .type_allocator = p.type_allocator,
     .src = p.src,
     .dlen = p.dlen,
@@ -2028,10 +1986,6 @@ _type_deserialize_sarray (type_deserialize_params p, u16 *idx)
   return SUCCESS;
 
 failed:
-  if (sa)
-    {
-      lfree (p.type_allocator, sa);
-    }
   if (t)
     {
       lfree (p.type_allocator, t);
@@ -2160,7 +2114,7 @@ TEST (_type_serialize_deserialize)
   st_val.types = lmalloc (&alloc, sizeof (type));
   st_val.types[0] = struct_inner;
 
-  type struct_type = { .type = T_STRUCT, .st = &st_val };
+  type struct_type = { .type = T_STRUCT, .st = st_val };
 
   // Union with one variant
   type union_inner = { .type = T_PRIM, .p = U32 };
@@ -2171,7 +2125,7 @@ TEST (_type_serialize_deserialize)
   un_val.types = lmalloc (&alloc, sizeof (type));
   un_val.types[0] = union_inner;
 
-  type union_type = { .type = T_UNION, .un = &un_val };
+  type union_type = { .type = T_UNION, .un = un_val };
 
   // Enum with two variants
   enum_t en_val;
@@ -2180,7 +2134,7 @@ TEST (_type_serialize_deserialize)
   en_val.keys[0] = (string){ .len = 5, .data = "first" };
   en_val.keys[1] = (string){ .len = 6, .data = "second" };
 
-  type enum_type = { .type = T_ENUM, .en = &en_val };
+  type enum_type = { .type = T_ENUM, .en = en_val };
 
   // Varray of a primitive
   type varray_inner = { .type = T_PRIM, .p = F64 };
@@ -2188,7 +2142,7 @@ TEST (_type_serialize_deserialize)
   va_val.rank = 1;
   va_val.t = &varray_inner;
 
-  type varray_type = { .type = T_VARRAY, .va = &va_val };
+  type varray_type = { .type = T_VARRAY, .va = va_val };
 
   // Sarray of a primitive
   type sarray_inner = { .type = T_PRIM, .p = I32 };
@@ -2199,7 +2153,7 @@ TEST (_type_serialize_deserialize)
   sa_val.dims[1] = 20;
   sa_val.t = &sarray_inner;
 
-  type sarray_type = { .type = T_SARRAY, .sa = &sa_val };
+  type sarray_type = { .type = T_SARRAY, .sa = sa_val };
 
   // --- Wrap all of these inside a top-level struct ---
 
@@ -2223,7 +2177,7 @@ TEST (_type_serialize_deserialize)
 
   type top;
   top.type = T_STRUCT;
-  top.st = &top_st_val;
+  top.st = top_st_val;
 
   // --- Now actually test serialize/deserialize ---
 
@@ -2253,18 +2207,18 @@ TEST (_type_serialize_deserialize)
   // --- spot check the deserialized data ---
 
   test_assert_int_equal (roundtrip.type, T_STRUCT);
-  test_assert_int_equal (roundtrip.st->len, 6);
-  test_assert_int_equal (roundtrip.st->keys[0].len, 4);
-  test_assert_int_equal (i_memcmp (roundtrip.st->keys[0].data, "prim", 4), 0);
+  test_assert_int_equal (roundtrip.st.len, 6);
+  test_assert_int_equal (roundtrip.st.keys[0].len, 4);
+  test_assert_int_equal (i_memcmp (roundtrip.st.keys[0].data, "prim", 4), 0);
 
-  test_assert_int_equal (roundtrip.st->types[0].type, T_PRIM);
-  test_assert_int_equal (roundtrip.st->types[0].p, U16);
+  test_assert_int_equal (roundtrip.st.types[0].type, T_PRIM);
+  test_assert_int_equal (roundtrip.st.types[0].p, U16);
 
-  test_assert_int_equal (roundtrip.st->types[1].type, T_STRUCT);
-  test_assert_int_equal (roundtrip.st->types[2].type, T_UNION);
-  test_assert_int_equal (roundtrip.st->types[3].type, T_ENUM);
-  test_assert_int_equal (roundtrip.st->types[4].type, T_VARRAY);
-  test_assert_int_equal (roundtrip.st->types[5].type, T_SARRAY);
+  test_assert_int_equal (roundtrip.st.types[1].type, T_STRUCT);
+  test_assert_int_equal (roundtrip.st.types[2].type, T_UNION);
+  test_assert_int_equal (roundtrip.st.types[3].type, T_ENUM);
+  test_assert_int_equal (roundtrip.st.types[4].type, T_VARRAY);
+  test_assert_int_equal (roundtrip.st.types[5].type, T_SARRAY);
 
   free (buf);
 }

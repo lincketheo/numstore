@@ -6,23 +6,36 @@
 typedef enum
 {
   // Tokens that start with a letter (alpha)
-  TT_WRITE,
-  TT_READ,
-  TT_TAKE,
+  //      Json Operations
   TT_CREATE,
   TT_DELETE,
+  TT_APPEND,
+  TT_INSERT,
+  TT_UPDATE,
+  TT_READ,
+  TT_TAKE,
+
+  //      Binary Operations
+  TT_BCREATE,
+  TT_BDELETE,
+  TT_BAPPEND,
+  TT_BINSERT,
+  TT_BUPDATE,
+  TT_BREAD,
+  TT_BTAKE,
+
+  //      Type Utils
+  TT_STRUCT,
+  TT_UNION,
+  TT_ENUM,
+  TT_PRIM,
+
+  //      Other
   TT_IDENTIFIER,
 
   // Tokens that start with a number or +/-
   TT_INTEGER,
   TT_FLOAT,
-
-  // Types
-  //      Complex
-  TT_STRUCT,
-  TT_UNION,
-  TT_ENUM,
-  TT_PRIM,
 
   // Tokens that are single characters
   TT_SEMICOLON,
@@ -33,9 +46,6 @@ typedef enum
   TT_LEFT_PAREN,
   TT_RIGHT_PAREN,
   TT_COMMA,
-
-  // Special Tokens
-  TT_ERROR, // An Error token, saying: next token start fresh
 } token_t;
 
 /**
@@ -69,3 +79,6 @@ typedef struct
 
 #define tt_prim(val) \
   (token) { .type = TT_PRIM, .prim = val }
+
+#define MAX_TOK_T_LEN 16
+string tt_tostr (token_t t);

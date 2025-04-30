@@ -1,9 +1,10 @@
-#include "server.h"
 #include "database.h"
 #include "dev/errors.h"
 #include "ds/strings.h"
 #include "intf/logging.h"
 #include "intf/mm.h"
+#include "server.h"
+#include "server/server.h"
 
 #include <signal.h>
 #include <unistd.h>

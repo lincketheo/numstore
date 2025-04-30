@@ -11,6 +11,7 @@ typedef enum
   ERR_PGSTACK_OVERFLOW = -10, // Page stack overflow
   ERR_ARITH = -11,            // Integer overflow or div by 0
   ERR_NOT_LOADED = -12,       // Variable is not loaded into a cursor
+  ERR_INVALID_ARGUMENT = -13,
 
   ERR_FALLBACK = -100000,
 } err_t;

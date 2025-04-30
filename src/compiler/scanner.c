@@ -24,7 +24,7 @@ DEFINE_DBG_ASSERT_I (scanner, scanner, s)
     }
 }
 
-static inline err_t
+static inline bool
 scanner_alloc_init (scanner *s)
 {
   scanner_assert (s);
@@ -33,14 +33,14 @@ scanner_alloc_init (scanner *s)
   char *data = lmalloc (s->string_allocator, 10 * sizeof *data);
   if (!data)
     {
-      return ERR_NOMEM;
+      return false;
     }
 
   s->dcur = data;
   s->dcurcap = 10;
   s->dcurlen = 0;
 
-  return SUCCESS;
+  return true;
 }
 
 static inline void
@@ -90,7 +90,7 @@ scanner_advance_expect (scanner *s)
 }
 
 // Advances forward one char and copies it to internal string
-static inline err_t
+static inline bool
 scanner_cpy_advance_expect (scanner *s)
 {
   scanner_assert (s);
@@ -108,7 +108,7 @@ scanner_cpy_advance_expect (scanner *s)
       char *next = lrealloc (s->string_allocator, s->dcur, 2 * s->dcurcap * sizeof *next);
       if (!next)
         {
-          return ERR_NOMEM; // No memory - block
+          return false; // No memory - block
         }
       s->dcur = next;
       s->dcurcap = 2 * s->dcurcap;
@@ -116,7 +116,7 @@ scanner_cpy_advance_expect (scanner *s)
 
   s->dcur[s->dcurlen++] = next;
 
-  return SUCCESS;
+  return true;
 }
 
 // Advance forward one char if there is a char and can alloc data
@@ -207,6 +207,7 @@ typedef struct
 } prim_token;
 
 // Maybe a trie for faster checks?
+// TODO - move this to prim_t module
 static const prim_token prim_tokens[] = {
   { .data = "u8", .len = 2, .type = U8 },
   { .data = "u16", .len = 3, .type = U16 },
@@ -223,6 +224,7 @@ static const prim_token prim_tokens[] = {
   { .data = "f64", .len = 3, .type = F64 },
   { .data = "f128", .len = 4, .type = F128 },
 
+  { .data = "cf32", .len = 4, .type = CF32 },
   { .data = "cf64", .len = 4, .type = CF64 },
   { .data = "cf128", .len = 5, .type = CF128 },
   { .data = "cf256", .len = 5, .type = CF256 },
@@ -250,13 +252,25 @@ typedef struct
 
 // Maybe a trie
 static const magic_token magic_tokens[] = {
-  { .data = "write", .len = 5, .type = TT_WRITE },
-  { .data = "read", .len = 4, .type = TT_READ },
-  { .data = "take", .len = 4, .type = TT_TAKE },
+  // Json commands
   { .data = "create", .len = 6, .type = TT_CREATE },
   { .data = "delete", .len = 6, .type = TT_DELETE },
+  { .data = "append", .len = 6, .type = TT_APPEND },
+  { .data = "insert", .len = 6, .type = TT_INSERT },
+  { .data = "update", .len = 6, .type = TT_UPDATE },
+  { .data = "read", .len = 4, .type = TT_READ },
+  { .data = "take", .len = 4, .type = TT_TAKE },
 
-  // Complex types
+  // Binary commands
+  { .data = "bcreate", .len = 7, .type = TT_BCREATE },
+  { .data = "bdelete", .len = 7, .type = TT_BDELETE },
+  { .data = "bappend", .len = 7, .type = TT_BAPPEND },
+  { .data = "binsert", .len = 7, .type = TT_BINSERT },
+  { .data = "bupdate", .len = 7, .type = TT_BUPDATE },
+  { .data = "bread", .len = 5, .type = TT_BREAD },
+  { .data = "btake", .len = 5, .type = TT_BTAKE },
+
+  // Types
   { .data = "struct", .len = 6, .type = TT_STRUCT },
   { .data = "union", .len = 5, .type = TT_UNION },
   { .data = "enum", .len = 4, .type = TT_ENUM },

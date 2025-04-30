@@ -1,5 +1,6 @@
 #pragma once
 
+#include "compiler/scanner.h"
 #include "dev/errors.h"
 #include "ds/cbuffer.h"
 #include "intf/io.h"
@@ -24,32 +25,6 @@ typedef struct
 
   u8 _input[10];
   u8 _output[10];
+
+  scanner scanner;
 } connection;
-
-typedef struct
-{
-  i_file fd;
-
-  // A list of connections
-  // indexed by fd
-  connection *cons;
-  u32 ccap;
-
-  // Polls for sockets
-  struct pollfd pollfds[20];
-  u32 pfdlen;
-
-  lalloc *cons_alloc;
-} server;
-
-typedef struct
-{
-  u16 port;
-  lalloc *cons_alloc;
-} server_params;
-
-err_t server_create (server *dest, server_params params);
-
-err_t server_execute (server *s);
-
-void server_close (server *s);
