@@ -115,6 +115,7 @@ void i_log_type (const type *t);
 err_t type_get_serial_size (u16 *dest, const type *t);
 err_t type_bits_size (u64 *dest, const type *t);
 void type_free_internals (type *t, lalloc *alloc);
+const char *prim_to_str (prim_t p);
 
 typedef struct
 {

@@ -10,9 +10,10 @@
 typedef enum
 {
   SS_START,
-  SS_CHAR_COLLECT,
-  SS_NUMBER_COLLECT,
-  SS_DECIMAL_COLLECT,
+  SS_IDENT,
+  SS_STRING,
+  SS_NUMBER,
+  SS_DECIMAL,
   SS_ERROR_REWIND,
 } scanner_state;
 

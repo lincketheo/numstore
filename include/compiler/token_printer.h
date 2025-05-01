@@ -2,17 +2,16 @@
 
 #include "ds/cbuffer.h"
 #include "intf/mm.h"
+
 typedef struct
 {
   cbuffer *tokens_inputs;
-  cbuffer *chars_output;
   lalloc *strings_deallocator;
 } token_printer;
 
 typedef struct
 {
   cbuffer *tokens_inputs;
-  cbuffer *chars_output;
   lalloc *strings_deallocator;
 } tokp_params;
 

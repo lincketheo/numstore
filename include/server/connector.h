@@ -14,6 +14,8 @@
 #include <netinet/in.h>
 #include <poll.h>
 
+#define CONNECTOR_TOK_DEBUG
+
 typedef struct
 {
   i_file cfd;
@@ -29,8 +31,14 @@ typedef struct
   query _queries[10];
 
   scanner scanner;
+
+#ifdef CONNECTOR_TOK_DEBUG
+  token_printer tokp;
+#else
   parser parser;
   vm vm;
+#endif
+
 } connector;
 
 typedef struct

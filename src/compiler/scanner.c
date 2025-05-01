@@ -48,7 +48,6 @@ scanner_buffer_reset (scanner *s)
 {
   scanner_assert (s);
   ASSERT (s->dcur != NULL);
-  ASSERT (s->dcurlen > 0);
   ASSERT (s->dcurcap > 0);
 
   // INTENTIONALLY DONT FREE
@@ -278,9 +277,10 @@ static const magic_token magic_tokens[] = {
 
 static void ss_transition (scanner *s, scanner_state state);
 static void ss_start (scanner *s);
-static void ss_char_collect (scanner *s);
-static void ss_number_collect (scanner *s);
-static void ss_decimal_collect (scanner *s);
+static void ss_ident (scanner *s);
+static void ss_string (scanner *s);
+static void ss_number (scanner *s);
+static void ss_decimal (scanner *s);
 static void ss_error_rewind (scanner *s);
 
 static void
@@ -299,19 +299,47 @@ ss_transition (scanner *s, scanner_state state)
         ss_start (s);
         break;
       }
-    case SS_CHAR_COLLECT:
+    case SS_IDENT:
       {
-        ss_char_collect (s);
+        // No room in allocator
+        if (!scanner_alloc_init (s))
+          {
+            return;
+          }
+        if (!scanner_cpy_advance (s))
+          {
+            return;
+          }
+        ss_ident (s);
         break;
       }
-    case SS_NUMBER_COLLECT:
+    case SS_STRING:
       {
-        ss_number_collect (s);
+        if (!scanner_alloc_init (s))
+          {
+            return;
+          }
+        scanner_advance_expect (s); // Skip over "
+        ss_string (s);
         break;
       }
-    case SS_DECIMAL_COLLECT:
+    case SS_NUMBER:
       {
-        ss_decimal_collect (s);
+        if (!scanner_alloc_init (s))
+          {
+            return;
+          }
+        // Advance once first
+        if (!scanner_cpy_advance (s))
+          {
+            return;
+          }
+        ss_number (s);
+        break;
+      }
+    case SS_DECIMAL:
+      {
+        ss_decimal (s);
         break;
       }
     case SS_ERROR_REWIND:
@@ -324,10 +352,10 @@ ss_transition (scanner *s, scanner_state state)
 
 // starts on the SECOND char of the sequence
 static void
-ss_char_collect (scanner *s)
+ss_ident (scanner *s)
 {
   scanner_assert (s);
-  ASSERT (s->state == SS_CHAR_COLLECT);
+  ASSERT (s->state == SS_IDENT);
 
   u8 c;
 
@@ -403,10 +431,55 @@ theend:
 }
 
 static void
-ss_decimal_collect (scanner *s)
+ss_string (scanner *s)
 {
   scanner_assert (s);
-  ASSERT (s->state == SS_DECIMAL_COLLECT);
+  ASSERT (s->state == SS_STRING);
+
+  u8 c;
+
+  while (scanner_peek (&c, s))
+    {
+      if (c == '"')
+        {
+          scanner_advance_expect (s); // Skip over quote
+          goto finish;
+        }
+
+      if (!scanner_cpy_advance_expect (s))
+        {
+          return;
+        }
+    }
+
+  return;
+
+finish:
+  scanner_assert (s);
+
+  ASSERT (s->dcur);
+
+  string literal = (string){
+    .data = s->dcur,
+    .len = s->dcurlen,
+  };
+
+  /**
+   * WARNING - This looks like it's causing
+   * a dangling pointer but really I'm transferring
+   * responsibility to the next block
+   */
+  scanner_buffer_reset (s);
+  s->state = SS_START;
+
+  scanner_write_token_expect (s, tt_string (literal));
+}
+
+static void
+ss_decimal (scanner *s)
+{
+  scanner_assert (s);
+  ASSERT (s->state == SS_DECIMAL);
 
   u8 c;
   while (scanner_peek (&c, s))
@@ -457,10 +530,10 @@ ss_error_rewind (scanner *s)
 
 // Starts on the SECOND char of the sequence
 static void
-ss_number_collect (scanner *s)
+ss_number (scanner *s)
 {
   scanner_assert (s);
-  ASSERT (s->state == SS_NUMBER_COLLECT);
+  ASSERT (s->state == SS_NUMBER);
 
   u8 c;
 
@@ -476,7 +549,7 @@ ss_number_collect (scanner *s)
                   return;
                 }
 
-              ss_transition (s, SS_DECIMAL_COLLECT);
+              ss_transition (s, SS_DECIMAL);
               return;
             }
           else
@@ -576,37 +649,23 @@ ss_start (scanner *s)
         single_tok_continue (TT_COMMA);
         return;
       }
+    case '"':
+      {
+
+        ss_transition (s, SS_STRING);
+        return;
+      }
     default:
       {
         if (is_alpha (next))
           {
-            // No room in allocator
-            if (!scanner_alloc_init (s))
-              {
-                return;
-              }
-            if (!scanner_cpy_advance (s))
-              {
-                return;
-              }
-
-            // Move onto char collect
-            ss_transition (s, SS_CHAR_COLLECT);
+            ss_transition (s, SS_IDENT);
             return;
           }
         else if (is_num (next) || next == '+' || next == '-')
           {
-            // No room in allocator
-            if (!scanner_alloc_init (s))
-              {
-                return;
-              }
-            if (!scanner_cpy_advance (s))
-              {
-                return;
-              }
 
-            ss_transition (s, SS_NUMBER_COLLECT);
+            ss_transition (s, SS_NUMBER);
             return;
           }
         else
@@ -630,27 +689,32 @@ scanner_execute (scanner *s)
     case SS_START:
       {
         ss_transition (s, SS_START);
-        return;
+        break;
       }
-    case SS_CHAR_COLLECT:
+    case SS_IDENT:
       {
-        ss_transition (s, SS_CHAR_COLLECT);
-        return;
+        ss_transition (s, SS_IDENT);
+        break;
       }
-    case SS_NUMBER_COLLECT:
+    case SS_NUMBER:
       {
-        ss_transition (s, SS_NUMBER_COLLECT);
-        return;
+        ss_transition (s, SS_NUMBER);
+        break;
       }
-    case SS_DECIMAL_COLLECT:
+    case SS_DECIMAL:
       {
-        ss_transition (s, SS_DECIMAL_COLLECT);
-        return;
+        ss_transition (s, SS_DECIMAL);
+        break;
+      }
+    case SS_STRING:
+      {
+        ss_transition (s, SS_STRING);
+        break;
       }
     case SS_ERROR_REWIND:
       {
         ss_transition (s, SS_ERROR_REWIND);
-        return;
+        break;
       }
     }
 }

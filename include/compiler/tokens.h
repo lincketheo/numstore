@@ -32,6 +32,7 @@ typedef enum
 
   //      Other
   TT_IDENTIFIER,
+  TT_STRING,
 
   // Tokens that start with a number or +/-
   TT_INTEGER,
@@ -77,8 +78,13 @@ typedef struct
 #define tt_ident(val) \
   (token) { .type = TT_IDENTIFIER, .str = val }
 
+#define tt_string(val) \
+  (token) { .type = TT_STRING, .str = val }
+
 #define tt_prim(val) \
   (token) { .type = TT_PRIM, .prim = val }
 
 #define MAX_TOK_T_LEN 16
+
 string tt_tostr (token_t t);
+void i_log_token (token t);

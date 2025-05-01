@@ -1,5 +1,46 @@
 #include "compiler/tokens.h"
 
+void
+i_log_token (token t)
+{
+  string tokt = tt_tostr (t.type);
+  switch (t.type)
+    {
+    case TT_IDENTIFIER:
+      {
+        i_log_info ("%.*s %.*s\n",
+                    tokt.len, tokt.data, t.str.len, t.str.data);
+        break;
+      }
+    case TT_STRING:
+      {
+        i_log_info ("%.*s %.*s\n",
+                    tokt.len, tokt.data, t.str.len, t.str.data);
+        break;
+      }
+    case TT_FLOAT:
+      {
+        i_log_info ("%.*s %f\n", tokt.len, tokt.data, t.floating);
+        break;
+      }
+    case TT_INTEGER:
+      {
+        i_log_info ("%.*s %d\n", tokt.len, tokt.data, t.integer);
+        break;
+      }
+    case TT_PRIM:
+      {
+        i_log_info ("%.*s %s\n", tokt.len, tokt.data, prim_to_str (t.prim));
+        break;
+      }
+    default:
+      {
+        i_log_info ("%.*s\n", tokt.len, tokt.data);
+        break;
+      }
+    }
+}
+
 string
 tt_tostr (token_t t)
 {
@@ -51,16 +92,18 @@ tt_tostr (token_t t)
       //      Other
     case TT_IDENTIFIER:
       return (string){ .data = "TT_IDENTIFIER", .len = 13 };
+    case TT_STRING:
+      return (string){ .data = "TT_STRING", .len = 13 };
 
       // Tokens that start with a number or +/-
     case TT_INTEGER:
       return (string){ .data = "TT_INTEGER", .len = 9 };
     case TT_FLOAT:
-      return (string){ .data = "TT_FLOAT", .len = 7 };
+      return (string){ .data = "TT_FLOAT", .len = 8 };
 
       // Tokens that are single characters
     case TT_SEMICOLON:
-      return (string){ .data = "TT_SEMICOLON", .len = 11 };
+      return (string){ .data = "TT_SEMICOLON", .len = 12 };
     case TT_LEFT_BRACKET:
       return (string){ .data = "TT_LEFT_BRACKET", .len = 15 };
     case TT_RIGHT_BRACKET:

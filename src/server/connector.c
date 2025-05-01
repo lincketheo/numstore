@@ -37,6 +37,13 @@ con_create (connector *dest, con_params params)
   };
   scanner_create (&dest->scanner, sparams);
 
+#ifdef CONNECTOR_TOK_DEBUG
+  tokp_params tparams = {
+    .tokens_inputs = &dest->tokens,
+    .strings_deallocator = params.scanner_string_allocator,
+  };
+  tokp_create (&dest->tokp, tparams);
+#else
   // Create the parser
   parser_params pparams = {
     .type_allocator = params.type_allocator,
@@ -55,6 +62,7 @@ con_create (connector *dest, con_params params)
     .queries_input = &dest->queries,
   };
   vm_create (&dest->vm, vparams);
+#endif
 
   connector_assert (dest);
   ASSERT (!con_is_open (dest));
@@ -128,6 +136,10 @@ con_execute (connector *c)
   ASSERT (con_is_open (c));
 
   scanner_execute (&c->scanner);
+#ifdef CONNECTOR_TOK_DEBUG
+  tokp_execute (&c->tokp);
+#else
   parser_execute (&c->parser);
   vm_execute (&c->vm);
+#endif
 }
