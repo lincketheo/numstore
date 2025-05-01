@@ -1,6 +1,7 @@
 #include "compiler/stack_parser/common.h"
 #include "compiler/stack_parser/type_builder.h"
 #include "compiler/tokens.h"
+#include "typing.h"
 #include "utils/bounds.h"
 
 ////////////////////////// DEV
@@ -58,7 +59,7 @@ sab_build (type_builder *tb, lalloc *alloc)
 {
   sarray_builder_assert_state (tb, SAB_DONE);
 
-  tb->ret.sa.t = lmalloc (alloc, sizeof tb->ret.sa.t);
+  tb->ret.sa.t = lmalloc (alloc, sizeof *tb->ret.sa.t);
   if (tb->ret.sa.t == NULL)
     {
       return SPR_MALLOC_ERROR;
@@ -77,6 +78,7 @@ sab_build (type_builder *tb, lalloc *alloc)
       tb->sab.cap = tb->sab.len;
     }
 
+  tb->ret.type = T_SARRAY;
   *tb->ret.sa.t = tb->sab.type;
   tb->ret.sa.dims = dims;
   tb->ret.sa.rank = tb->sab.len;
@@ -190,7 +192,6 @@ stackp_result
 sab_accept_token (type_builder *sab, token t, lalloc *alloc)
 {
   sarray_builder_assert (sab);
-  ASSERT (sab->state == TB_ENUM);
 
   switch (sab->sab.state)
     {
@@ -231,7 +232,6 @@ stackp_result
 sab_accept_type (type_builder *sab, type t)
 {
   sarray_builder_assert (sab);
-  ASSERT (sab->state == TB_ENUM);
 
   switch (sab->sab.state)
     {

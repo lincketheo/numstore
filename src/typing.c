@@ -424,13 +424,13 @@ i_log_struct (const struct_t *st)
   fprintf (stdout, "%.*s ", st->keys[0].len, st->keys[0].data);
   i_log_type_internal (&st->types[0]);
 
-  for (u32 i = 0; i < st->len; ++i)
+  for (u32 i = 1; i < st->len; ++i)
     {
-      fprintf (stdout, ",");
+      fprintf (stdout, ", ");
       fprintf (stdout, "%.*s ", st->keys[i].len, st->keys[i].data);
       i_log_type_internal (&st->types[i]);
     }
-  fprintf (stdout, "}");
+  fprintf (stdout, " }");
 }
 
 static inline void
@@ -442,13 +442,13 @@ i_log_union (const union_t *un)
   fprintf (stdout, "%.*s ", un->keys[0].len, un->keys[0].data);
   i_log_type_internal (&un->types[0]);
 
-  for (u32 i = 0; i < un->len; ++i)
+  for (u32 i = 1; i < un->len; ++i)
     {
-      fprintf (stdout, ",");
+      fprintf (stdout, ", ");
       fprintf (stdout, "%.*s ", un->keys[i].len, un->keys[i].data);
       i_log_type_internal (&un->types[i]);
     }
-  fprintf (stdout, "}");
+  fprintf (stdout, " }");
 }
 
 static inline void
@@ -457,14 +457,14 @@ i_log_enum (const enum_t *en)
   enum_t_assert (en);
 
   fprintf (stdout, "enum { ");
-  fprintf (stdout, "%.*s ", en->keys[0].len, en->keys[0].data);
+  fprintf (stdout, "%.*s", en->keys[0].len, en->keys[0].data);
 
-  for (u32 i = 0; i < en->len; ++i)
+  for (u32 i = 1; i < en->len; ++i)
     {
-      fprintf (stdout, ",");
-      fprintf (stdout, "%.*s ", en->keys[i].len, en->keys[i].data);
+      fprintf (stdout, ", ");
+      fprintf (stdout, "%.*s", en->keys[i].len, en->keys[i].data);
     }
-  fprintf (stdout, "}");
+  fprintf (stdout, " }");
 }
 
 static inline void
@@ -472,7 +472,6 @@ i_log_varray (const varray_t *va)
 {
   varray_t_assert (va);
 
-  fprintf (stdout, "{ ");
   for (u32 i = 0; i < va->rank; ++i)
     {
       fprintf (stdout, "[]");
@@ -485,7 +484,6 @@ i_log_sarray (const sarray_t *sa)
 {
   sarray_t_assert (sa);
 
-  fprintf (stdout, "{ ");
   for (u32 i = 0; i < sa->rank; ++i)
     {
       fprintf (stdout, "[%d]", sa->dims[i]);

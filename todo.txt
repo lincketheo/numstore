@@ -1,5 +1,11 @@
 05/01/2025 
   - Split up typing into different sections
+  - Get basic parsing / building for all types in the create command 
+  - Build out AST for other query plans 
+  - Write parsing logic for above
+  - Get above working (debug session)
+  - Write tests for all the above and add docs
+  - Fix client logic
 
 04/29/2025 
   - Server read in buffer and feed it to the scanner 

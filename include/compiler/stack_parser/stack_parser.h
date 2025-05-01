@@ -38,6 +38,7 @@ typedef struct
 {
   ast_builder *stack;
   u32 sp;
+  u32 cap;
 
   lalloc *type_allocator;  // for allocating return types onto
   lalloc *stack_allocator; // for allocating the internal stack
@@ -57,6 +58,6 @@ err_t stackp_create (stack_parser *dest, sp_params params);
 
 stackp_result stackp_feed_token (stack_parser *sp, token t);
 
-void stackp_push (stack_parser *sp, sb_build_type type);
+void stackp_begin (stack_parser *sp, sb_build_type type);
 
-ast_result stackp_pop (stack_parser *sp);
+ast_result stackp_get (stack_parser *sp);

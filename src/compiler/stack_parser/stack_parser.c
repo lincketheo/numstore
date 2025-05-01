@@ -13,6 +13,23 @@ DEFINE_DBG_ASSERT_I (stack_parser, stack_parser, t)
 {
   ASSERT (t);
   ASSERT (t->stack);
+  ASSERT (t->sp <= t->cap);
+}
+
+static inline ast_builder
+stackp_pop (stack_parser *sp)
+{
+  stack_parser_assert (sp);
+  ASSERT (sp->sp > 0);
+  return sp->stack[--sp->sp];
+}
+
+static inline void
+stackp_push (ast_builder value, stack_parser *sp)
+{
+  stack_parser_assert (sp);
+  ASSERT (sp->sp < sp->cap);
+  sp->stack[sp->sp++] = value;
 }
 
 err_t
@@ -23,7 +40,7 @@ stackp_create (stack_parser *dest, sp_params params)
   // Allocate the stack - start with 3 layers
   ast_builder *stack = lmalloc (
       params.stack_allocator,
-      3 * sizeof *stack);
+      10 * sizeof *stack);
 
   if (!stack)
     {
@@ -32,6 +49,7 @@ stackp_create (stack_parser *dest, sp_params params)
 
   dest->stack = stack;
   dest->sp = 0;
+  dest->cap = 10;
 
   dest->type_allocator = params.type_allocator;
   dest->stack_allocator = params.stack_allocator;
@@ -136,10 +154,11 @@ stackp_feed_token (stack_parser *tp, token t)
     {
       type_builder next;
       next.state = TB_UNKNOWN;
-      tp->stack[tp->sp++] = (ast_builder){
-        .tb = next,
-        .type = SBBT_TYPE,
-      };
+      stackp_push ((ast_builder){
+                       .tb = next,
+                       .type = SBBT_TYPE,
+                   },
+                   tp);
       top = &tp->stack[tp->sp - 1];
       ASSERT (astb_expect_next (top, t) == SBFT_TOKEN);
     }
@@ -154,7 +173,7 @@ stackp_feed_token (stack_parser *tp, token t)
   while (tp->sp > 1 && ret == SPR_DONE)
     {
       // Pop the top off the stack
-      ast_builder top = tp->stack[--tp->sp];
+      ast_builder top = stackp_pop (tp);
       if ((ret = astb_build (&top, tp->type_allocator)) != SPR_DONE)
         {
           return ret;
@@ -168,7 +187,7 @@ stackp_feed_token (stack_parser *tp, token t)
 }
 
 void
-stackp_push (stack_parser *sp, sb_build_type type)
+stackp_begin (stack_parser *sp, sb_build_type type)
 {
   stack_parser_assert (sp);
   ASSERT (sp->sp == 0);
@@ -177,30 +196,33 @@ stackp_push (stack_parser *sp, sb_build_type type)
     {
     case SBBT_TYPE:
       {
-        sp->stack[sp->sp++] = (ast_builder){
-          .tb = typeb_create (),
-          .type = type,
-        };
+        stackp_push (
+            (ast_builder){
+                .tb = typeb_create (),
+                .type = type,
+            },
+            sp);
         break;
       }
     case SBBT_QUERY:
       {
-        sp->stack[sp->sp++] = (ast_builder){
-          .qb = qb_create (),
-          .type = type,
-        };
+        stackp_push ((ast_builder){
+                         .qb = qb_create (),
+                         .type = type,
+                     },
+                     sp);
         break;
       }
     }
 }
 
 ast_result
-stackp_pop (stack_parser *sp)
+stackp_get (stack_parser *sp)
 {
   stack_parser_assert (sp);
   ASSERT (sp->sp == 1);
 
-  ast_builder top = sp->stack[--sp->sp];
+  ast_builder top = stackp_pop (sp);
 
   stackp_result res = astb_build (&top, sp->type_allocator);
   ASSERT (res == SPR_DONE);

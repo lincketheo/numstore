@@ -88,13 +88,11 @@ typeb_accept_token (type_builder *tb, token t, lalloc *alloc)
       }
     case TB_SARRAY:
       {
-        ASSERT (0);
-        return 0;
+        return sab_accept_token (tb, t, alloc);
       }
     case TB_VARRAY:
       {
-        ASSERT (0);
-        return 0;
+        return vab_accept_token (tb, t);
       }
     default:
       {
@@ -118,6 +116,14 @@ typeb_accept_type (type_builder *tb, type t)
     case TB_UNION:
       {
         return ub_accept_type (tb, t);
+      }
+    case TB_VARRAY:
+      {
+        return vab_accept_type (tb, t);
+      }
+    case TB_SARRAY:
+      {
+        return sab_accept_type (tb, t);
       }
     default:
       {
@@ -148,6 +154,14 @@ typeb_build (type_builder *tb, lalloc *alloc)
     case TB_PRIM:
       {
         return SPR_DONE;
+      }
+    case TB_VARRAY:
+      {
+        return vab_build (tb, alloc);
+      }
+    case TB_SARRAY:
+      {
+        return sab_build (tb, alloc);
       }
     default:
       {

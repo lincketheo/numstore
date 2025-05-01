@@ -1,6 +1,7 @@
 #include "compiler/stack_parser/common.h"
 #include "compiler/stack_parser/type_builder.h"
 #include "compiler/tokens.h"
+#include "typing.h"
 #include "utils/bounds.h"
 
 ////////////////////////// DEV
@@ -42,7 +43,7 @@ vab_build (type_builder *tb, lalloc *alloc)
 {
   varray_builder_assert_state (tb, VAB_DONE);
 
-  tb->ret.va.t = lmalloc (alloc, sizeof tb->ret.va.t);
+  tb->ret.va.t = lmalloc (alloc, sizeof *tb->ret.va.t);
   if (tb->ret.va.t == NULL)
     {
       return SPR_MALLOC_ERROR;
@@ -50,6 +51,7 @@ vab_build (type_builder *tb, lalloc *alloc)
 
   *tb->ret.va.t = tb->vab.type;
   tb->ret.va.rank = tb->vab.rank;
+  tb->ret.type = T_VARRAY;
 
   return SPR_DONE;
 }
@@ -111,7 +113,7 @@ TOK_HANDLER_FUNC (VAB_WAITING_FOR_LEFT_OR_TYPE) (type_builder *sb, token t)
       return SPR_SYNTAX_ERROR;
     }
 
-  sb->vab.state = VAB_WAITING_FOR_LEFT_OR_TYPE;
+  sb->vab.state = VAB_WAITING_FOR_RIGHT;
 
   return SPR_CONTINUE;
 }
@@ -120,7 +122,6 @@ stackp_result
 vab_accept_token (type_builder *vab, token t)
 {
   varray_builder_assert (vab);
-  ASSERT (vab->state == TB_ENUM);
 
   switch (vab->vab.state)
     {
@@ -156,7 +157,6 @@ stackp_result
 vab_accept_type (type_builder *vab, type t)
 {
   varray_builder_assert (vab);
-  ASSERT (vab->state == TB_ENUM);
 
   switch (vab->vab.state)
     {

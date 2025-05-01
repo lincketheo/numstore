@@ -2,6 +2,7 @@
 #include "compiler/stack_parser/common.h"
 #include "compiler/stack_parser/type_builder.h"
 #include "compiler/tokens.h"
+#include "typing.h"
 #include "utils/bounds.h"
 
 ////////////////////////// DEV
@@ -67,7 +68,7 @@ eb_build (type_builder *eb, lalloc *alloc)
 
   eb->ret.en.keys = strs;
   eb->ret.en.len = eb->eb.len;
-  eb->ret.type = T_UNION;
+  eb->ret.type = T_ENUM;
 
   return SPR_DONE;
 }

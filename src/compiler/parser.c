@@ -30,7 +30,7 @@ parser_create (parser *dest, parser_params params)
     {
       return ret;
     }
-  stackp_push (&dest->sp, SBBT_QUERY);
+  stackp_begin (&dest->sp, SBBT_QUERY);
 
   parser_assert (dest);
 
@@ -58,12 +58,12 @@ parser_execute (parser *p)
         {
         case SPR_DONE:
           {
-            ast_result res = stackp_pop (&p->sp);
+            ast_result res = stackp_get (&p->sp);
             ASSERT (res.type == SBBT_QUERY);
             u32 written = cbuffer_write (
                 &res.q, sizeof res.q, 1, p->queries_output);
             ASSERT (written == 1);
-            stackp_push (&p->sp, SBBT_QUERY);
+            stackp_begin (&p->sp, SBBT_QUERY);
             return;
           }
         case SPR_CONTINUE:
