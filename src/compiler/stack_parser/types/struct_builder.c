@@ -157,6 +157,7 @@ HANDLER_FUNC (SB_WAITING_FOR_COMMA_OR_RIGHT) (type_builder *sb, token t)
     }
   else if (t.type == TT_RIGHT_BRACE)
     {
+      sb->sb.state = SB_DONE;
       return SPR_DONE;
     }
 

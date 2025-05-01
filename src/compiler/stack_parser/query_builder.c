@@ -99,6 +99,10 @@ qb_accept_token (query_builder *qb, token t)
             }
           }
       }
+    case QB_CREATE:
+      {
+        return cb_accept_token (qb, t);
+      }
     default:
       {
         return SPR_SYNTAX_ERROR;

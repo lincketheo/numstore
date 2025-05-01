@@ -64,6 +64,7 @@ parser_execute (parser *p)
                 &res.q, sizeof res.q, 1, p->queries_output);
             ASSERT (written == 1);
             stackp_push (&p->sp, SBBT_QUERY);
+            return;
           }
         case SPR_CONTINUE:
           {

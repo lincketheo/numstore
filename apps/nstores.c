@@ -24,7 +24,7 @@ main (void)
   err_t ret = SUCCESS;
   server s;
   lalloc cons_alloc;
-  lalloc_create (&cons_alloc, 10000);
+  lalloc_create (&cons_alloc, 100000);
 
   server_params params = {
     .port = 12345,
@@ -40,7 +40,6 @@ main (void)
   while (!stop)
     {
       server_execute (&s);
-      sleep (2);
     }
 
   server_close (&s);

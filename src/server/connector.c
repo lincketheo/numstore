@@ -26,6 +26,8 @@ con_create (connector *dest, con_params params)
       dest->_input, sizeof (dest->_input));
   dest->tokens = cbuffer_create (
       (u8 *)dest->_tokens, sizeof (dest->_tokens));
+  dest->queries = cbuffer_create (
+      (u8 *)dest->_queries, sizeof (dest->_queries));
 
   // Create the scanner
   scanner_params sparams = {
@@ -50,7 +52,7 @@ con_create (connector *dest, con_params params)
 
   // Create the virtual machine
   vm_params vparams = {
-    .queries_input = NULL,
+    .queries_input = &dest->queries,
   };
   vm_create (&dest->vm, vparams);
 

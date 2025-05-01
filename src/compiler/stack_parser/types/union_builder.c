@@ -59,9 +59,7 @@ ub_create (type_builder *dest, lalloc *alloc)
 stackp_result
 ub_build (type_builder *ub, lalloc *alloc)
 {
-  union_builder_assert (ub);
-  ASSERT (ub->state == TB_UNION);
-  ASSERT (ub->ub.state == UB_WAITING_FOR_COMMA_OR_RIGHT);
+  union_builder_assert_state (ub, UB_DONE);
 
   type *types = ub->ub.types;
   string *strs = ub->ub.keys;

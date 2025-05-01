@@ -119,20 +119,23 @@ client_execute_all (client *c, const string str)
   u32 written;
 
   // Send all
-  for (int i = 0; i < str.len; i += written)
+  for (u32 i = 0; i < str.len; i += written)
     {
-      written = cbuffer_write (&str.data[i], str.len - i, 1, &c->send);
+      written = cbuffer_write (&str.data[i], 1, str.len - i, &c->send);
       if ((ret = client_send_some (c)))
         {
           return ret;
         }
-      if ((ret = client_recv_some (c)))
-        {
-          return ret;
-        }
+      /*
+        if ((ret = client_recv_some (c)))
+          {
+            return ret;
+          }
+          */
     }
 
   // Flush
+  /*
   for (int i = 0; i < 10; ++i)
     {
       if ((ret = client_recv_some (c)))
@@ -140,6 +143,7 @@ client_execute_all (client *c, const string str)
           return ret;
         }
     }
+  */
 
   return SUCCESS;
 }

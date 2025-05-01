@@ -1,0 +1,7 @@
+
+(gdb) p alloc
+$12 = (lalloc *) 0x7fffffffd778
+(gdb) p dest->sb.types
+$13 = (type *) 0x555555589b34
+(gdb) p dest->sb.keys
+$14 = (string *) 0x555555589ad4

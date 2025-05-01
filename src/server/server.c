@@ -61,6 +61,8 @@ server_create (server *dest, server_params params)
     {
       con_params cparams = {
         .scanner_string_allocator = dest->cons_alloc,
+        .type_allocator = dest->cons_alloc,
+        .stack_allocator = dest->cons_alloc,
       };
       con_create (&dest->cons[i], cparams);
     }
@@ -101,10 +103,10 @@ server_accept (conc_params *dest, server *s)
   ASSERT (dest);
 
   // Accept new connector
-  int cfd;
   struct sockaddr_in client_addr;
   socklen_t addrlen = sizeof (client_addr);
-  if ((cfd = accept (s->fd.fd, (struct sockaddr *)&client_addr, &addrlen)) == -1)
+  int cfd = accept (s->fd.fd, (struct sockaddr *)&client_addr, &addrlen);
+  if (cfd == -1)
     {
       i_perror ("accept");
       return ERR_IO;

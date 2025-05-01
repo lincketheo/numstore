@@ -101,7 +101,7 @@ TEST (cbuffer_avail)
 }
 
 ///////////////////////// Raw Read / Write
-/// TODO - Code Review
+
 u32
 cbuffer_read (void *dest, u32 size, u32 n, cbuffer *b)
 {
@@ -114,6 +114,7 @@ cbuffer_read (void *dest, u32 size, u32 n, cbuffer *b)
   u32 btoread = ntoread * size;
   u32 bread = 0;
 
+  // dest can be NULL, and it just blindly consumes
   u8 *output = NULL;
   if (dest)
     {
@@ -501,134 +502,100 @@ TEST (cbuffer_cbuffer_copy)
 }
 
 ///////////////////////// IO Read / Write
+
 i32
 cbuffer_write_some_from_file (i_file *src, cbuffer *b)
 {
   cbuffer_assert (b);
   ASSERT (src);
 
-  u32 total = 0;
-  u32 avail = cbuffer_avail (b);
+  u32 btowrite = cbuffer_avail (b);
+  u32 bwrite = 0;
 
-  if (avail == 0 || b->isfull)
+  while (bwrite < btowrite)
     {
-      return 0;
-    }
+      u32 next;
 
-  // First: write to [head, cap)
-  if (b->head >= b->tail)
-    {
-      u32 right_space = b->cap - b->head;
-      if (right_space > 0)
+      ASSERT (btowrite > bwrite);
+      if (b->head >= b->tail)
         {
-          i64 read = i_read_some (src, b->data + b->head, right_space);
-          if (read < 0)
-            {
-              return (i32)read; // Error
-            }
-          if (read == 0)
-            {
-              return total; // EOF
-            }
+          ASSERT (b->cap > b->head);
+          next = MIN (b->cap - b->head, btowrite - bwrite);
 
-          b->head = (b->head + read) % b->cap;
-          total += (u32)read;
-
-          if (b->head == b->tail)
+          if (next == 0)
             {
-              b->isfull = true;
-              return total;
+              b->head = 0;
+              next = b->tail;
             }
         }
-    }
+      else
+        {
+          ASSERT (b->tail > b->head);
+          next = MIN (b->tail - b->head, btowrite - bwrite);
+        }
 
-  // Second: write to [head, tail)
-  if (b->head < b->tail)
-    {
-      u32 left_space = b->tail - b->head;
-      i64 read = i_read_some (src, b->data + b->head, left_space);
+      i64 read = i_read_some (src, b->data + b->head, next);
       if (read < 0)
         {
-          return (i32)read;
-        }
-      if (read == 0)
-        {
-          return total;
+          return ERR_IO;
         }
 
-      b->head += (u32)read;
-      total += (u32)read;
+      b->head = (b->head + read) % b->cap;
+      bwrite += read;
+
+      if (read < next)
+        {
+          // File is done
+          return bwrite;
+        }
 
       if (b->head == b->tail)
         {
-          b->isfull = true;
+          b->isfull = 1;
         }
     }
 
-  return total;
+  return bwrite;
 }
 
 i32
 cbuffer_read_some_to_file (i_file *dest, cbuffer *b)
 {
   cbuffer_assert (b);
-  ASSERT (dest);
 
-  u32 stored = cbuffer_len (b);
-  if (stored == 0)
-    {
-      return 0;
-    }
+  u32 btoread = cbuffer_len (b);
+  u32 bread = 0;
 
-  i32 total = 0;
+  while (bread < btoread)
+    {
+      u32 next;
 
-  u32 chunk1;
-  if (!b->isfull && b->head > b->tail)
-    {
-      chunk1 = b->head - b->tail;
-    }
-  else
-    {
-      chunk1 = b->cap - b->tail;
-    }
-
-  i64 w1 = i_write_some (dest, b->data + b->tail, chunk1);
-  if (w1 < 0)
-    {
-      return (i32)w1;
-    }
-  if (w1 == 0)
-    {
-      return total;
-    }
-
-  b->tail = (b->tail + (u32)w1) % b->cap;
-  total += (i32)w1;
-  b->isfull = false;
-
-  if ((u32)w1 < chunk1)
-    {
-      return total;
-    }
-
-  u32 chunk2 = stored - chunk1;
-  if (chunk2 > 0)
-    {
-      i64 w2 = i_write_some (dest, b->data + b->tail, chunk2);
-      if (w2 < 0)
+      if (!b->isfull && b->head > b->tail)
         {
-          return (i32)w2;
+          next = MIN (b->head - b->tail, btoread - bread);
         }
-      if (w2 == 0)
+      else
         {
-          return total;
+          next = MIN (b->cap - b->tail, btoread - bread);
         }
 
-      b->tail = (b->tail + (u32)w2) % b->cap;
-      total += (i32)w2;
+      i64 written = i_write_some (dest, b->data + b->tail, next);
+      if (written < 0)
+        {
+          return ERR_IO;
+        }
+
+      b->tail = (b->tail + written) % b->cap;
+      bread += written;
+      b->isfull = 0;
+
+      if (written < next)
+        {
+          return bread;
+        }
     }
 
-  return total;
+  return btoread;
 }
 
 ///////////////////////// Working with Single Elements

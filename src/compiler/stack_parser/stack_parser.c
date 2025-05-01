@@ -13,7 +13,6 @@ DEFINE_DBG_ASSERT_I (stack_parser, stack_parser, t)
 {
   ASSERT (t);
   ASSERT (t->stack);
-  ASSERT (t->sp > 0);
 }
 
 err_t
@@ -38,65 +37,6 @@ stackp_create (stack_parser *dest, sp_params params)
   dest->stack_allocator = params.stack_allocator;
 
   return SUCCESS;
-}
-
-void
-stackp_push (stack_parser *sp, sb_build_type type)
-{
-  stack_parser_assert (sp);
-  ASSERT (sp->sp == 0);
-
-  switch (type)
-    {
-    case SBBT_TYPE:
-      {
-        sp->stack[sp->sp++] = (ast_builder){
-          .tb = typeb_create (),
-          .type = type,
-        };
-        break;
-      }
-    case SBBT_QUERY:
-      {
-        sp->stack[sp->sp++] = (ast_builder){
-          .qb = qb_create (),
-          .type = type,
-        };
-        break;
-      }
-    }
-}
-
-ast_result
-stackp_pop (stack_parser *sp)
-{
-  stack_parser_assert (sp);
-  ASSERT (sp->sp == 1);
-
-  ast_builder top = sp->stack[--sp->sp];
-
-  switch (top.type)
-    {
-    case SBBT_TYPE:
-      {
-        return (ast_result){
-          .type = top.type,
-          .t = top.tb.ret,
-        };
-      }
-    case SBBT_QUERY:
-      {
-        return (ast_result){
-          .type = top.type,
-          .q = top.qb.ret,
-        };
-      }
-    default:
-      {
-        ASSERT (0);
-        return (ast_result){ 0 };
-      }
-    }
 }
 
 static inline sb_feed_t
@@ -225,6 +165,68 @@ stackp_feed_token (stack_parser *tp, token t)
     }
 
   return ret;
+}
+
+void
+stackp_push (stack_parser *sp, sb_build_type type)
+{
+  stack_parser_assert (sp);
+  ASSERT (sp->sp == 0);
+
+  switch (type)
+    {
+    case SBBT_TYPE:
+      {
+        sp->stack[sp->sp++] = (ast_builder){
+          .tb = typeb_create (),
+          .type = type,
+        };
+        break;
+      }
+    case SBBT_QUERY:
+      {
+        sp->stack[sp->sp++] = (ast_builder){
+          .qb = qb_create (),
+          .type = type,
+        };
+        break;
+      }
+    }
+}
+
+ast_result
+stackp_pop (stack_parser *sp)
+{
+  stack_parser_assert (sp);
+  ASSERT (sp->sp == 1);
+
+  ast_builder top = sp->stack[--sp->sp];
+
+  stackp_result res = astb_build (&top, sp->type_allocator);
+  ASSERT (res == SPR_DONE);
+
+  switch (top.type)
+    {
+    case SBBT_TYPE:
+      {
+        return (ast_result){
+          .type = top.type,
+          .t = top.tb.ret,
+        };
+      }
+    case SBBT_QUERY:
+      {
+        return (ast_result){
+          .type = top.type,
+          .q = top.qb.ret,
+        };
+      }
+    default:
+      {
+        ASSERT (0);
+        return (ast_result){ 0 };
+      }
+    }
 }
 
 void

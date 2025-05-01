@@ -112,7 +112,7 @@ lrealloc (lalloc *a, void *data, u32 bytes)
       return NULL;
     }
 
-  u32 *new_data = realloc ((u8 *)data - 1, bytes);
+  u32 *new_data = realloc ((u32 *)data - 1, bytes);
   if (new_data == NULL)
     {
       return NULL;
