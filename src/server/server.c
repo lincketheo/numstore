@@ -169,10 +169,12 @@ server_execute_connectors (server *s)
           con_execute (con);
 
           // Write Some
-          if (ready & POLLOUT && (ret = con_write (con)))
-            {
-              return ret;
-            }
+          /*
+              if (ready & POLLOUT && (ret = con_write (con)))
+                {
+                  return ret;
+                }
+        */
         }
     }
 

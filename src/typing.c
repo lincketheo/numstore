@@ -1,6 +1,7 @@
 #include "typing.h"
 #include "dev/errors.h"
 #include "dev/testing.h"
+#include "intf/logging.h"
 #include "intf/mm.h"
 #include "intf/stdlib.h"
 #include "intf/types.h"
@@ -45,6 +46,37 @@ DEFINE_DBG_ASSERT_I (struct_t, struct_t, s)
       type_assert (&s->types[i]);
     }
   ASSERT (strings_all_unique (s->keys, s->len));
+}
+
+DEFINE_DBG_ASSERT_I (union_t, union_t, u)
+{
+  ASSERT (u);
+  ASSERT (u->len > 0);
+  ASSERT (u->keys);
+  ASSERT (u->types);
+  for (u32 i = 0; i < u->len; ++i)
+    {
+      type_assert (&u->types[i]);
+    }
+  ASSERT (strings_all_unique (u->keys, u->len));
+}
+
+DEFINE_DBG_ASSERT_I (enum_t, enum_t, e)
+{
+  ASSERT (e);
+  ASSERT (e->len > 0);
+  ASSERT (e->keys);
+  for (u32 i = 0; i < e->len; ++i)
+    {
+      ASSERT (e->keys[i].len > 0);
+    }
+  ASSERT (strings_all_unique (e->keys, e->len));
+}
+
+DEFINE_DBG_ASSERT_I (varray_t, varray_t, v)
+{
+  ASSERT (v);
+  ASSERT (v->rank > 0);
 }
 
 DEFINE_DBG_ASSERT_I (type, type, t)
@@ -368,6 +400,131 @@ TEST (struct_t_bits_size)
   u64 exp = (sizeof (u32) + sizeof (u8) + sizeof (u16)) * 8 + 1;
   test_fail_if (struct_t_bits_size (&act, &st));
   test_assert_int_equal (exp, act);
+}
+
+//////////////////////////////////// LOG TYPE
+
+#include <stdio.h> // TODO - switch to log
+
+static inline void i_log_type_internal (const type *t);
+
+static inline void
+i_log_primitive (prim_t p)
+{
+  prim_t_assert (&p);
+  fprintf (stdout, "%s", prim_to_str (p));
+}
+
+static inline void
+i_log_struct (const struct_t *st)
+{
+  struct_t_assert (st);
+
+  fprintf (stdout, "struct { ");
+  fprintf (stdout, "%.*s ", st->keys[0].len, st->keys[0].data);
+  i_log_type_internal (&st->types[0]);
+
+  for (u32 i = 0; i < st->len; ++i)
+    {
+      fprintf (stdout, ",");
+      fprintf (stdout, "%.*s ", st->keys[i].len, st->keys[i].data);
+      i_log_type_internal (&st->types[i]);
+    }
+  fprintf (stdout, "}");
+}
+
+static inline void
+i_log_union (const union_t *un)
+{
+  union_t_assert (un);
+
+  fprintf (stdout, "union { ");
+  fprintf (stdout, "%.*s ", un->keys[0].len, un->keys[0].data);
+  i_log_type_internal (&un->types[0]);
+
+  for (u32 i = 0; i < un->len; ++i)
+    {
+      fprintf (stdout, ",");
+      fprintf (stdout, "%.*s ", un->keys[i].len, un->keys[i].data);
+      i_log_type_internal (&un->types[i]);
+    }
+  fprintf (stdout, "}");
+}
+
+static inline void
+i_log_enum (const enum_t *en)
+{
+  enum_t_assert (en);
+
+  fprintf (stdout, "enum { ");
+  fprintf (stdout, "%.*s ", en->keys[0].len, en->keys[0].data);
+
+  for (u32 i = 0; i < en->len; ++i)
+    {
+      fprintf (stdout, ",");
+      fprintf (stdout, "%.*s ", en->keys[i].len, en->keys[i].data);
+    }
+  fprintf (stdout, "}");
+}
+
+static inline void
+i_log_varray (const varray_t *va)
+{
+  varray_t_assert (va);
+
+  fprintf (stdout, "{ ");
+  for (u32 i = 0; i < va->rank; ++i)
+    {
+      fprintf (stdout, "[]");
+    }
+  i_log_type_internal (va->t);
+}
+
+static inline void
+i_log_sarray (const sarray_t *sa)
+{
+  sarray_t_assert (sa);
+
+  fprintf (stdout, "{ ");
+  for (u32 i = 0; i < sa->rank; ++i)
+    {
+      fprintf (stdout, "[%d]", sa->dims[i]);
+    }
+  i_log_type_internal (sa->t);
+}
+
+static inline void
+i_log_type_internal (const type *t)
+{
+  type_assert (t);
+  switch (t->type)
+    {
+    case T_STRUCT:
+      i_log_struct (&t->st);
+      break;
+    case T_UNION:
+      i_log_union (&t->un);
+      break;
+    case T_PRIM:
+      i_log_primitive (t->p);
+      break;
+    case T_VARRAY:
+      i_log_varray (&t->va);
+      break;
+    case T_SARRAY:
+      i_log_sarray (&t->sa);
+      break;
+    case T_ENUM:
+      i_log_enum (&t->en);
+      break;
+    }
+}
+
+void
+i_log_type (const type *t)
+{
+  i_log_type_internal (t);
+  fprintf (stdout, "\n");
 }
 
 //////////////////////////////// Strict Array
@@ -820,6 +977,8 @@ TEST (ser_size_sarray)
 
   test_assert_int_equal (exp, act);
 }
+
+//////////////////////////////////// Serialization
 
 err_t
 type_get_serial_size (u16 *dest, const type *t)

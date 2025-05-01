@@ -1,18 +1,24 @@
 #include "server/connector.h"
+#include "compiler/parser.h"
 #include "compiler/scanner.h"
 #include "compiler/token_printer.h"
+#include "dev/errors.h"
 #include "ds/cbuffer.h"
+#include "vm/vm.h"
 
 DEFINE_DBG_ASSERT_I (connector, connector, c)
 {
   ASSERT (c);
 }
 
-void
+err_t
 con_create (connector *dest, con_params params)
 {
   ASSERT (dest);
 
+  err_t ret = SUCCESS;
+
+  // Meta Information
   dest->cfd = (i_file){ .fd = -1 };
 
   // Create buffers (careful about these pointer locations)
@@ -20,8 +26,6 @@ con_create (connector *dest, con_params params)
       dest->_input, sizeof (dest->_input));
   dest->tokens = cbuffer_create (
       (u8 *)dest->_tokens, sizeof (dest->_tokens));
-  dest->output = cbuffer_create (
-      dest->_output, sizeof (dest->_output));
 
   // Create the scanner
   scanner_params sparams = {
@@ -31,16 +35,29 @@ con_create (connector *dest, con_params params)
   };
   scanner_create (&dest->scanner, sparams);
 
-  // Create the token printer
-  tokp_params tparams = {
-    .tokens_inputs = &dest->tokens,
-    .chars_output = &dest->output,
-    .strings_deallocator = params.scanner_string_allocator,
+  // Create the parser
+  parser_params pparams = {
+    .type_allocator = params.type_allocator,
+    .stack_allocator = params.stack_allocator,
+
+    .tokens_input = &dest->tokens,
+    .queries_output = &dest->queries,
   };
-  tokp_create (&dest->tokp, tparams);
+  if ((ret = parser_create (&dest->parser, pparams)))
+    {
+      return ret;
+    }
+
+  // Create the virtual machine
+  vm_params vparams = {
+    .queries_input = NULL,
+  };
+  vm_create (&dest->vm, vparams);
 
   connector_assert (dest);
   ASSERT (!con_is_open (dest));
+
+  return ret;
 }
 
 void
@@ -109,20 +126,6 @@ con_execute (connector *c)
   ASSERT (con_is_open (c));
 
   scanner_execute (&c->scanner);
-  tokp_execute (&c->tokp);
-}
-
-err_t
-con_write (connector *c)
-{
-  connector_assert (c);
-  ASSERT (con_is_open (c));
-
-  i32 written = cbuffer_read_some_to_file (&c->cfd, &c->output);
-  if (written < 0)
-    {
-      return (err_t)written;
-    }
-
-  return SUCCESS;
+  parser_execute (&c->parser);
+  vm_execute (&c->vm);
 }

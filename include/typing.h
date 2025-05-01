@@ -15,7 +15,7 @@
  * ENUM = KEY (, KEY)*
  */
 
-typedef struct type type;
+typedef struct type_s type;
 
 typedef enum
 {
@@ -96,7 +96,7 @@ typedef struct
   type *t; // Not an array
 } sarray_t;
 
-struct type
+struct type_s
 {
   union
   {
@@ -111,6 +111,7 @@ struct type
   type_t type;
 };
 
+void i_log_type (const type *t);
 err_t type_get_serial_size (u16 *dest, const type *t);
 err_t type_bits_size (u64 *dest, const type *t);
 void type_free_internals (type *t, lalloc *alloc);

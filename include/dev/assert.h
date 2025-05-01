@@ -5,6 +5,14 @@
 ////////////////////////////// Debug
 #if !defined(NDEBUG) && !defined(__clang_analyzer__)
 
+#define panic()                 \
+  do                            \
+    {                           \
+      *(volatile int *)0 = 1;   \
+      __builtin_unreachable (); \
+    }                           \
+  while (0)
+
 #define ASSERT(expr)                                          \
   do                                                          \
     {                                                         \
@@ -24,6 +32,8 @@
 
 ////////////////////////////// Release
 #else
+
+#define panic() typedef char PANIC_in_release_mode_is_not_allowed[-1]
 
 #define ASSERT(expr)
 

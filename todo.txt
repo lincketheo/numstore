@@ -1,3 +1,6 @@
+05/01/2025 
+  - Split up typing into different sections
+
 04/29/2025 
   - Server read in buffer and feed it to the scanner 
   - Scanner needs to create AST to execute commands 

@@ -1,8 +1,5 @@
 #pragma once
 
-/**
- * A cbuffer is a circular buffer.
- */
 #include "intf/io.h"
 #include "intf/types.h"
 
