@@ -1,6 +1,6 @@
 <script setup>
 import {ref} from "vue";
-import CommandsMain from "@/commands/CommandsMain.vue";
+import CommandsMain from "@/commands/GrammarRef.vue";
 
 const label = ref("Click to expand")
 const open = ref(false)

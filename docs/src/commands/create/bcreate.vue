@@ -1,9 +1,9 @@
 <script setup>
-import CommandDropdown from "@/commands/CommandDropdown.vue";
+import Dropdown from "@/commands/DropDown.vue";
 </script>
 
 <template>
-  <CommandDropdown>
+  <Dropdown>
     <template #title>
       bcreate
     </template>
@@ -40,5 +40,5 @@ create f [10][5][6] f32
     <br>
     2: Syntax Error
     <br>
-  </CommandDropdown>
+  </Dropdown>
 </template>

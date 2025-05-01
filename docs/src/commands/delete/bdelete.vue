@@ -1,12 +1,12 @@
 <script setup>
-import CommandDropdown from "@/commands/CommandDropdown.vue";
+import Dropdown from "@/commands/DropDown.vue";
 </script>
 
 <template>
-  <CommandDropdown>
+  <Dropdown>
     <template #title>
       bdelete
     </template>
     TODO
-  </CommandDropdown>
+  </Dropdown>
 </template>

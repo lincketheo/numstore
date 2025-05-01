@@ -1,12 +1,12 @@
 <script setup>
-import CommandDropdown from "@/commands/CommandDropdown.vue";
+import Dropdown from "@/commands/DropDown.vue";
 </script>
 
 <template>
-  <CommandDropdown>
+  <Dropdown>
     <template #title>
       binsert
     </template>
     TODO
-  </CommandDropdown>
+  </Dropdown>
 </template>

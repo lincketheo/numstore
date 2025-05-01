@@ -1,9 +1,9 @@
 <script setup>
-import CommandDropdown from "@/commands/CommandDropdown.vue";
+import Dropdown from "@/commands/DropDown.vue";
 </script>
 
 <template>
-  <CommandDropdown>
+  <Dropdown>
     <template #title>
       append
     </template>
@@ -73,26 +73,5 @@ append {
   ]
 }
 </code></pre>
-    <h4>Response:</h4>
-    <pre v-pre><code>
-{ "status" : "SUCCESS" }
-
-{ "status" : "&ltERROR STATUS CODE&gt", "message" : "&ltError MESSAGE&gt" }
-    </code></pre>
-    <br>
-    <h6>Error Status Codes:</h6>
-    <br>
-    ERR_SYNTAX: Syntax error in the create command
-    <br>
-    ERR_TRANSACTION: Something went wrong during the transaction
-    <br>
-    <br>
-    <h6>Examples</h6>
-    <pre v-pre><code>
-{ "status" : "SUCCESS" }
-{ "status" : "ERR_SYNTAX", "message" : "Invalid token 'c' in column 5" }
-{ "status" : "ERR_TRANSACTION", "message" : "Power outage error" }
-    </code></pre>
-    TODO
-  </CommandDropdown>
+  </Dropdown>
 </template>

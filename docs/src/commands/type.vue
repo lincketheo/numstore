@@ -1,6 +1,6 @@
 <script setup>
 
-import CommandDropdown from "@/commands/CommandDropdown.vue";
+import Dropdown from "@/commands/DropDown.vue";
 import Primitive from "@/commands/types/primitive.vue";
 import Struct from "@/commands/types/struct.vue";
 import Union from "@/commands/types/union.vue";
@@ -11,7 +11,7 @@ import Examples from "@/commands/types/examples.vue";
 </script>
 
 <template>
-  <CommandDropdown>
+  <Dropdown>
     <template #title>
       TYPE
     </template>
@@ -19,51 +19,51 @@ import Examples from "@/commands/types/examples.vue";
      <code>
        TYPE := PRIM | STRUCT | UNION | ENUM | VARRAY | SARRAY
      </code></pre>
-    <CommandDropdown>
+    <Dropdown>
       <template #title>
         PRIM: Primitive
       </template>
       <primitive/>
-    </CommandDropdown>
+    </Dropdown>
 
-    <CommandDropdown>
+    <Dropdown>
       <template #title>
         STRUCT: Struct
       </template>
       <struct/>
-    </CommandDropdown>
+    </Dropdown>
 
-    <CommandDropdown>
+    <Dropdown>
       <template #title>
         UNION: Union
       </template>
       <union/>
-    </CommandDropdown>
-    <CommandDropdown>
+    </Dropdown>
+    <Dropdown>
       <template #title>
         ENUM: Enum
       </template>
       <enum/>
-    </CommandDropdown>
-    <CommandDropdown>
+    </Dropdown>
+    <Dropdown>
       <template #title>
         VARRAY: Variable Length Array
       </template>
       <varray/>
-    </CommandDropdown>
-    <CommandDropdown>
+    </Dropdown>
+    <Dropdown>
       <template #title>
         SARRAY: Strict Array
       </template>
       <sarray/>
-    </CommandDropdown>
-    <CommandDropdown>
+    </Dropdown>
+    <Dropdown>
       <template #title>
         Examples
       </template>
       <examples/>
-    </CommandDropdown>
-  </CommandDropdown>
+    </Dropdown>
+  </Dropdown>
 
 </template>
 

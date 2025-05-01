@@ -1,6 +1,6 @@
 <script setup>
 
-import CommandDropdown from "@/commands/CommandDropdown.vue";
+import Dropdown from "@/commands/DropDown.vue";
 
 import Bappend from "@/commands/append/bappend.vue";
 import Append from "@/commands/append/append.vue";
@@ -17,6 +17,8 @@ import Take from "@/commands/take/take.vue";
 import Btake from "@/commands/take/btake.vue";
 import Create from "@/commands/create/create.vue";
 import Type from "@/commands/type.vue";
+import Commands from "@/commands/commands.vue";
+import Others from "@/commands/others.vue";
 </script>
 
 <template>
@@ -24,61 +26,11 @@ import Type from "@/commands/type.vue";
   <type/>
   <br>
   <h3>Available Operation Commands</h3>
-  <CommandDropdown>
-    <template #title>
-      Create
-    </template>
-    <create/>
-    <bcreate/>
-  </CommandDropdown>
+  <commands/>
+  <br>
+  <h3>Other</h3>
+  <others/>
 
-  <CommandDropdown>
-    <template #title>
-      Delete
-    </template>
-    <delete/>
-    <bdelete/>
-  </CommandDropdown>
-
-  <CommandDropdown>
-    <template #title>
-      Append
-    </template>
-    <append/>
-    <bappend/>
-  </CommandDropdown>
-
-  <CommandDropdown>
-    <template #title>
-      Insert
-    </template>
-    <insert/>
-    <binsert/>
-  </CommandDropdown>
-
-  <CommandDropdown>
-    <template #title>
-      Update
-    </template>
-    <update/>
-    <bupdate/>
-  </CommandDropdown>
-
-  <CommandDropdown>
-    <template #title>
-      Read
-    </template>
-    <read/>
-    <bread/>
-  </CommandDropdown>
-
-  <CommandDropdown>
-    <template #title>
-      Take
-    </template>
-    <take/>
-    <btake/>
-  </CommandDropdown>
 </template>
 
 <style scoped>

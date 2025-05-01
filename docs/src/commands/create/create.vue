@@ -1,9 +1,9 @@
 <script setup>
-import CommandDropdown from "@/commands/CommandDropdown.vue";
+import Dropdown from "@/commands/DropDown.vue";
 </script>
 
 <template>
-  <CommandDropdown>
+  <Dropdown>
     <template #title>
       create
     </template>
@@ -47,7 +47,7 @@ create f [10][5][6] f32
 { "status" : "ERR_SYNTAX", "message" : "Invalid token 'c' in column 5" }
 { "status" : "ERR_TRANSACTION", "message" : "Power outage error" }
     </code></pre>
-  </CommandDropdown>
+  </Dropdown>
 </template>
 
 <style scoped>
