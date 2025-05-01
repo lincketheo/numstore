@@ -1,6 +1,6 @@
 05/01/2025 
   - Split up typing into different sections
-  - Get basic parsing / building for all types in the create command 
+  x Get basic parsing / building for all types in the create command 
   - Build out AST for other query plans 
   - Write parsing logic for above
   - Get above working (debug session)

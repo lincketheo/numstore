@@ -1,3 +1,5 @@
+05/01/2025 
+  - Create parsing "works" for all complex types 
 04/30/2025 
   - Implements query builders and makes AST building more generic
 04/29/2025
