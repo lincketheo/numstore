@@ -64,7 +64,8 @@ main ()
   b_size n = 600;
   werr_t (rpt_read ((u8 *)_data, sizeof (int), &n, 3, &r));
 
-  for (int i = 0; i < 600; ++i)
+  fprintf (stdout, "Read: %llu\n", n);
+  for (b_size i = 0; i < n; ++i)
     {
       fprintf (stdout, "%d\n", _data[i]);
     }

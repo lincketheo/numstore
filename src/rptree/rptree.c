@@ -224,7 +224,7 @@ rpt_read_next (u8 *dest, b_size *bytes, rptree *r)
       if (*r->cur.dl.blen == r->lidx)
         {
           // No more pages left, return
-          if (r->cur.pg == 0)
+          if (*r->cur.dl.next == 0)
             {
               *bytes = read;
               return SUCCESS;
@@ -234,7 +234,8 @@ rpt_read_next (u8 *dest, b_size *bytes, rptree *r)
           werr_t (pgr_get_expect (
               &r->cur,
               PG_DATA_LIST,
-              r->cur.pg, r->pager));
+              *r->cur.dl.next,
+              r->pager));
           r->lidx = 0;
         }
 
