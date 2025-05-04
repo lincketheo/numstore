@@ -17,8 +17,7 @@ parser_create (parser *dest, parser_params params)
 {
   ASSERT (dest);
 
-  err_t ret = SUCCESS;
-
+  // Low hanging fruit
   dest->queries_output = params.queries_output;
   dest->tokens_input = params.tokens_input;
 
@@ -26,15 +25,14 @@ parser_create (parser *dest, parser_params params)
     .type_allocator = params.type_allocator,
     .stack_allocator = params.stack_allocator,
   };
-  if ((ret = stackp_create (&dest->sp, sparams)))
-    {
-      return ret;
-    }
+
+  werr_t (stackp_create (&dest->sp, sparams));
+
   stackp_begin (&dest->sp, SBBT_QUERY);
 
   parser_assert (dest);
 
-  return ret;
+  return SUCCESS;
 }
 
 void

@@ -38,7 +38,7 @@ stackp_result
 rb_build (query_builder *rb)
 {
   read_builder_assert_state (rb, RB_DONE);
-  rb->ret.rargs = (read_args){
+  rb->ret.rquery = (read_query){
     .vname = rb->rb.vname,
   };
   rb->ret.type = QT_READ;

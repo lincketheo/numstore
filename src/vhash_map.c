@@ -4,6 +4,7 @@
 #include "ds/strings.h"
 #include "intf/mm.h"
 #include "intf/stdlib.h"
+#include "query/queries/create.h"
 
 DEFINE_DBG_ASSERT_I (vhash_map, vhash_map, v)
 {
@@ -113,7 +114,7 @@ vhash_map_insert (vhash_map *h, const string key, vmeta value)
   vhash_map_assert (h);
   ASSERT (h);
 
-  u32 idx = fnv1a_hash (key);
+  u32 idx = fnv1a_hash (key) % h->len;
 
   return helem_insert (&h->elems[idx], key, value, h->node_allocator);
 }
@@ -142,11 +143,31 @@ helem_get (vmeta *dest, const helem *node, const string v)
 }
 
 err_t
-vhash_map_get (vmeta *dest, const vhash_map *h, const string vname)
+vhash_map_get (const vhash_map *h, vmeta *dest, const string vname)
 {
   ASSERT (h && h->elems);
 
-  u32 idx = fnv1a_hash (vname);
+  u32 idx = fnv1a_hash (vname) % h->len;
 
   return helem_get (dest, &h->elems[idx], vname);
+}
+
+err_t
+vhash_map_create_var (vhash_map *v, create_query cargs)
+{
+  vhash_map_assert (v);
+
+  err_t ret = SUCCESS;
+
+  vmeta meta = {
+    .type = cargs.type,
+    .pgn0 = 0, // TODO
+  };
+
+  if ((ret = vhash_map_insert (v, cargs.vname, meta)))
+    {
+      return ret;
+    }
+
+  return ret;
 }

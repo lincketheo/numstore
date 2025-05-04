@@ -1,6 +1,8 @@
 #include "compiler/scanner.h"
 #include "compiler/tokens.h"
 #include "dev/assert.h"
+#include "dev/errors.h"
+#include "intf/logging.h"
 #include "utils/macros.h"
 #include "utils/numbers.h"
 
@@ -24,29 +26,115 @@ DEFINE_DBG_ASSERT_I (scanner, scanner, s)
     }
 }
 
-static inline bool
+const char *
+scanner_state_to_str (scanner_state state)
+{
+  switch (state)
+    {
+    case SS_START:
+      {
+        return "SS_START";
+      }
+    case SS_IDENT:
+      {
+        return "SS_IDENT";
+      }
+    case SS_NUMBER:
+      {
+        return "SS_NUMBER";
+      }
+    case SS_STRING:
+      {
+        return "SS_STRING";
+      }
+    case SS_DECIMAL:
+      {
+        return "SS_DECIMAL";
+      }
+    case SS_ERROR_REWIND:
+      {
+        return "SS_ERROR_REWIND";
+      }
+    }
+  ASSERT (0);
+  return "";
+}
+
+/**
+ * Pushes a char to the end of the internal scanner string
+ */
+static inline err_t
+scanner_push_char_dcur (scanner *s, char next)
+{
+  scanner_assert (s);
+  i_log_trace ("Pushing char: %c\n", next);
+
+  // Check room
+  if (s->dcurlen == s->dcurcap)
+    {
+      i_log_trace ("Scanner doesn't have enough room. "
+                   "Resizing from: %d bytes to: %d bytes\n",
+                   s->dcurcap, 2 * s->dcurcap);
+
+      char *next = lrealloc (
+          s->string_allocator,
+          s->dcur,
+          2 * s->dcurcap * sizeof *next);
+
+      if (!next)
+        {
+          return ERR_NOMEM; // No memory - block
+        }
+
+      s->dcur = next;
+      s->dcurcap = 2 * s->dcurcap;
+    }
+
+  // Append string
+  s->dcur[s->dcurlen++] = next;
+
+  // Log output
+  i_log_trace ("New dcur string: %.*s. Capacity: %d Length: %d\n",
+               s->dcurlen, s->dcur, s->dcurcap, s->dcurlen);
+
+  return SUCCESS;
+}
+
+/**
+ * Initializes internal string
+ */
+static inline err_t
 scanner_alloc_init (scanner *s)
 {
   scanner_assert (s);
+  i_log_trace ("Allocating room for scanner. Current string: %s\n", s->dcur);
+
+  // Called on an empty string
   ASSERT (s->dcur == NULL);
 
   char *data = lmalloc (s->string_allocator, 10 * sizeof *data);
   if (!data)
     {
-      return false;
+      return ERR_NOMEM;
     }
 
   s->dcur = data;
   s->dcurcap = 10;
   s->dcurlen = 0;
 
-  return true;
+  return SUCCESS;
 }
 
+/**
+ * Resets, but does not free the string (let the downstream free it)
+ */
 static inline void
 scanner_buffer_reset (scanner *s)
 {
   scanner_assert (s);
+  i_log_trace ("Resetting scanner internal string: %s\n", s->dcur);
+
+  // Called on a non empty string
   ASSERT (s->dcur != NULL);
   ASSERT (s->dcurcap > 0);
 
@@ -55,8 +143,6 @@ scanner_buffer_reset (scanner *s)
   s->dcurlen = 0;
   s->dcurcap = 0;
 }
-
-#define MAX_STRING_SIZE 1000
 
 void
 scanner_create (scanner *dest, scanner_params params)
@@ -77,19 +163,27 @@ scanner_create (scanner *dest, scanner_params params)
   scanner_assert (dest);
 }
 
-// Advances forward one char
+/////////////////////////////////// UTILS
+
+/**
+ * Advances forward one char
+ * ASSERTS that it can actually do that
+ */
 static inline void
 scanner_advance_expect (scanner *s)
 {
   scanner_assert (s);
   u8 next;
-  ASCOPE (bool more =)
-  cbuffer_dequeue (&next, s->chars_input);
+  bool more = cbuffer_dequeue (&next, s->chars_input);
   ASSERT (more);
 }
 
-// Advances forward one char and copies it to internal string
-static inline bool
+/**
+ * Advances forward while also copying the
+ * result char into the internal string
+ * ASSERTS that it can actually do that
+ */
+static inline err_t
 scanner_cpy_advance_expect (scanner *s)
 {
   scanner_assert (s);
@@ -97,59 +191,18 @@ scanner_cpy_advance_expect (scanner *s)
 
   // Dequeue and copy
   u8 next;
-  ASCOPE (int more =)
-  cbuffer_dequeue (&next, s->chars_input);
+  bool more = cbuffer_dequeue (&next, s->chars_input);
   ASSERT (more);
 
-  // Check room
-  if (s->dcurlen == s->dcurcap)
-    {
-      char *next = lrealloc (s->string_allocator, s->dcur, 2 * s->dcurcap * sizeof *next);
-      if (!next)
-        {
-          return false; // No memory - block
-        }
-      s->dcur = next;
-      s->dcurcap = 2 * s->dcurcap;
-    }
+  werr_t (scanner_push_char_dcur (s, next));
 
-  s->dcur[s->dcurlen++] = next;
-
-  return true;
+  return SUCCESS;
 }
 
-// Advance forward one char if there is a char and can alloc data
-// returns true if advanced and copied false else
-static inline bool
-scanner_cpy_advance (scanner *s)
-{
-  scanner_assert (s);
-  ASSERT (s->dcur);
-
-  // Dequeue and copy
-  u8 next;
-  if (!cbuffer_dequeue (&next, s->chars_input))
-    {
-      return false;
-    }
-
-  // Check room
-  if (s->dcurlen == s->dcurcap)
-    {
-      char *dcur = lrealloc (s->string_allocator, s->dcur, 2 * s->dcurcap * sizeof *dcur);
-      if (!dcur)
-        {
-          return false; // No memory - block
-        }
-      s->dcur = dcur;
-      s->dcurcap = 2 * s->dcurcap;
-    }
-
-  s->dcur[s->dcurlen++] = next;
-
-  return true;
-}
-
+/**
+ * Peeks forward one char - returns
+ * true if success, false otherwise
+ */
 static inline bool
 scanner_peek (u8 *dest, scanner *s)
 {
@@ -179,15 +232,22 @@ consume_whitespace (scanner *s)
     }
 }
 
+/**
+ * Writes token to the output stream
+ */
 static inline void
 scanner_write_token_expect (scanner *s, token t)
 {
   scanner_assert (s);
   ASSERT (cbuffer_avail (s->tokens_output) >= sizeof (token));
 
-  ASCOPE (u32 ret =)
-  cbuffer_write (&t, sizeof t, 1, s->tokens_output);
+  // Write the token
+  u32 ret = cbuffer_write (&t, sizeof t, 1, s->tokens_output);
   ASSERT (ret == 1);
+
+  // Log output
+  i_log_debug ("Consuming token: %.*s to output stream:\n",
+               tt_tostr (t.type).len, tt_tostr (t.type).data);
 }
 
 static inline void
@@ -287,11 +347,16 @@ static void
 ss_transition (scanner *s, scanner_state state)
 {
   scanner_assert (s);
+
+  // Update state
   s->state = state;
+
+  // Block on output
   if (cbuffer_avail (s->tokens_output) < sizeof (token))
     {
       return;
     }
+
   switch (state)
     {
     case SS_START:
@@ -301,13 +366,21 @@ ss_transition (scanner *s, scanner_state state)
       }
     case SS_IDENT:
       {
-        // No room in allocator
-        if (!scanner_alloc_init (s))
+        // Initialize internal string
+        if (scanner_alloc_init (s))
           {
+            panic ();
             return;
           }
-        if (!scanner_cpy_advance (s))
+
+        /**
+         * We copy forward once so that we consume the first
+         * // char which can only be alpha - then internally,
+         * it's alpha numeric
+         */
+        if (scanner_cpy_advance_expect (s))
           {
+            panic ();
             return;
           }
         ss_ident (s);
@@ -315,11 +388,12 @@ ss_transition (scanner *s, scanner_state state)
       }
     case SS_STRING:
       {
-        if (!scanner_alloc_init (s))
+        if (scanner_alloc_init (s))
           {
+            panic ();
             return;
           }
-        scanner_advance_expect (s); // Skip over "
+        scanner_advance_expect (s); // Skip over the first "
         ss_string (s);
         break;
       }
@@ -327,11 +401,7 @@ ss_transition (scanner *s, scanner_state state)
       {
         if (!scanner_alloc_init (s))
           {
-            return;
-          }
-        // Advance once first
-        if (!scanner_cpy_advance (s))
-          {
+            panic ();
             return;
           }
         ss_number (s);
@@ -339,11 +409,13 @@ ss_transition (scanner *s, scanner_state state)
       }
     case SS_DECIMAL:
       {
+        // No allocation - we were previously in SS_NUMBER
         ss_decimal (s);
         break;
       }
     case SS_ERROR_REWIND:
       {
+        panic ();
         ss_error_rewind (s);
         break;
       }
@@ -528,7 +600,6 @@ ss_error_rewind (scanner *s)
   s->chars_input->isfull = false;
 }
 
-// Starts on the SECOND char of the sequence
 static void
 ss_number (scanner *s)
 {
@@ -541,7 +612,6 @@ ss_number (scanner *s)
     {
       if (!is_num (c))
         {
-
           if (c == '.')
             {
               if (!scanner_cpy_advance_expect (s))
@@ -602,6 +672,9 @@ ss_start (scanner *s)
       return;
     }
 
+  i_log_trace ("Current state: %s. Next char: %c\n",
+               scanner_state_to_str (s->state), next);
+
 #define single_tok_continue(ttype)         \
   scanner_write_token_t_expect (s, ttype); \
   scanner_advance_expect (s);              \
@@ -651,7 +724,6 @@ ss_start (scanner *s)
       }
     case '"':
       {
-
         ss_transition (s, SS_STRING);
         return;
       }
@@ -664,7 +736,6 @@ ss_start (scanner *s)
           }
         else if (is_num (next) || next == '+' || next == '-')
           {
-
             ss_transition (s, SS_NUMBER);
             return;
           }
@@ -688,32 +759,32 @@ scanner_execute (scanner *s)
     {
     case SS_START:
       {
-        ss_transition (s, SS_START);
+        ss_start (s);
         break;
       }
     case SS_IDENT:
       {
-        ss_transition (s, SS_IDENT);
+        ss_ident (s);
         break;
       }
     case SS_NUMBER:
       {
-        ss_transition (s, SS_NUMBER);
+        ss_number (s);
         break;
       }
     case SS_DECIMAL:
       {
-        ss_transition (s, SS_DECIMAL);
+        ss_decimal (s);
         break;
       }
     case SS_STRING:
       {
-        ss_transition (s, SS_STRING);
+        ss_string (s);
         break;
       }
     case SS_ERROR_REWIND:
       {
-        ss_transition (s, SS_ERROR_REWIND);
+        ss_error_rewind (s);
         break;
       }
     }
@@ -723,4 +794,5 @@ void
 scanner_release (scanner *s)
 {
   (void)s;
+  panic ();
 }

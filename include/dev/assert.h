@@ -8,6 +8,7 @@
 #define panic()                 \
   do                            \
     {                           \
+      i_log_error ("PANIC!\n"); \
       *(volatile int *)0 = 1;   \
       __builtin_unreachable (); \
     }                           \

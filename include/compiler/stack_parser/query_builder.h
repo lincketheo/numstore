@@ -9,6 +9,8 @@
 #include "compiler/stack_parser/queries/take_builder.h"
 #include "compiler/stack_parser/queries/update_builder.h"
 #include "query/query.h"
+#include "services/services.h"
+#include "services/var_retr.h"
 
 struct query_builder_s
 {

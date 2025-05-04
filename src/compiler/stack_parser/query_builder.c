@@ -1,5 +1,6 @@
 #include "compiler/stack_parser/query_builder.h"
 #include "compiler/stack_parser/common.h"
+#include "compiler/stack_parser/queries/append_builder.h"
 #include "compiler/stack_parser/queries/create_builder.h"
 #include "compiler/tokens.h"
 
@@ -26,6 +27,10 @@ qb_build (query_builder *qb)
     case QB_CREATE:
       {
         return cb_build (qb);
+      }
+    case QB_APPEND:
+      {
+        return ab_build (qb);
       }
     default:
       {
@@ -92,6 +97,10 @@ qb_accept_token (query_builder *qb, token t)
           case TT_CREATE:
             {
               return cb_create (qb);
+            }
+          case TT_APPEND:
+            {
+              return ab_create (qb);
             }
           default:
             {

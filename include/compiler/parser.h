@@ -2,6 +2,7 @@
 
 #include "compiler/stack_parser/stack_parser.h"
 #include "ds/cbuffer.h"
+#include "services/services.h"
 
 typedef struct
 {

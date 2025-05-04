@@ -5,6 +5,7 @@
 #include "utils/bounds.h"
 
 #include <errno.h>
+#include <stdlib.h>
 
 /////////////////////// Limited Allocator
 
@@ -33,15 +34,7 @@ lmalloc (lalloc *a, u32 bytes)
   ASSERT (bytes > 0);
 
   // check payload + header fits
-  if (!can_add_u32 (bytes, sizeof (u32)))
-    {
-      return NULL;
-    }
   bytes += sizeof (u32);
-  if (!can_add_u32 (a->used, bytes))
-    {
-      return NULL;
-    }
 
   // No space available
   u32 new_used = a->used + bytes;
@@ -70,11 +63,6 @@ lcalloc (lalloc *a, u32 n, u32 size)
   ASSERT (n > 0);
   ASSERT (size > 0);
 
-  if (!can_mul_u32 (n, size))
-    {
-      return NULL;
-    }
-
   void *ret = lmalloc (a, n * size);
   if (ret != NULL)
     {
@@ -97,16 +85,8 @@ lrealloc (lalloc *a, void *data, u32 bytes)
   ASSERT (old_bytes <= a->used);
   ASSERT (old_bytes > 0);
 
-  if (!can_add_u32 (bytes, sizeof (u32)))
-    {
-      return NULL;
-    }
   bytes += sizeof (u32);
-  ASSERT (can_sub_u32 (a->used, old_bytes)); // See prev assertion
-  if (!can_add_u32 (a->used - old_bytes, bytes))
-    {
-      return NULL;
-    }
+
   if (a->used - old_bytes + bytes > a->limit)
     {
       return NULL;
@@ -211,17 +191,8 @@ smalloc (salloc *a, u64 bytes)
   salloc_assert (a);
   ASSERT (bytes > 0);
 
-  if (!can_add_u64 (bytes, sizeof (u64)))
-    {
-      return NULL;
-    }
-
   u64 total = bytes + sizeof (u64);
 
-  if (!can_add_u64 (a->len, total))
-    {
-      return NULL;
-    }
   if (a->len + total > a->cap)
     {
       return NULL;
@@ -243,11 +214,6 @@ scalloc (salloc *a, u64 n, u64 size)
   ASSERT (n > 0);
   ASSERT (size > 0);
 
-  if (!can_mul_u64 (n, size))
-    {
-      return NULL;
-    }
-
   void *ret = smalloc (a, n * size);
   if (ret != NULL)
     {
@@ -266,7 +232,7 @@ spop (salloc *a)
   a->len -= sizeof (u64);
   u64 bytes = *((u64 *)&a->data[a->len]);
   ASSERT (bytes > 0);
-  ASSERT (can_sub_u64 (a->len, bytes));
+
   a->len -= bytes;
 
   salloc_assert (a);

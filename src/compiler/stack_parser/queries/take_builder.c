@@ -38,7 +38,7 @@ stackp_result
 tb_build (query_builder *tb)
 {
   take_builder_assert_state (tb, TB_DONE);
-  tb->ret.targs = (take_args){
+  tb->ret.tquery = (take_query){
     .vname = tb->tb.vname,
   };
   tb->ret.type = QT_TAKE;

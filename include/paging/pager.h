@@ -14,8 +14,8 @@ typedef struct
 typedef struct
 {
   i_file f;
-  u32 page_size;
-  u32 header_size;
+  p_size page_size;
+  p_size header_size;
   u32 memory_pager_len;
 
   lalloc *memory_pager_allocator;
@@ -34,7 +34,7 @@ err_t pgr_create (pager *dest, pgr_params params);
  *     - fpgr_get_expect
  *     - page_read_expect
  */
-err_t pgr_get_expect (page *dest, page_type type, u64 pgno, pager *p);
+err_t pgr_get_expect (page *dest, int type, pgno pgno, pager *p);
 
 /**
  * Returns
@@ -50,4 +50,4 @@ err_t pgr_new (page *dest, pager *p, page_type type);
  *  - Forwards errors from:
  *    - fpgr_commit
  */
-err_t pgr_commit (pager *p, u8 *data, u64 pgno);
+err_t pgr_commit (pager *p, u8 *data, pgno pgno);

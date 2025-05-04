@@ -42,11 +42,8 @@ fpgr_create (file_pager *dest, fpgr_params params)
   dest->f = params.f;
   dest->page_size = params.page_size;
 
-  err_t ret = fpgr_set_len (dest);
-  if (ret)
-    {
-      return ret;
-    }
+  werr_t (fpgr_set_len (dest));
+
   file_pager_assert (dest);
 
   return SUCCESS;
@@ -113,11 +110,7 @@ fpgr_new (file_pager *p, u64 *dest)
   ASSERT (dest);
 
   u64 newsize = p->header_size + (p->page_size) * (p->npages + 1);
-  err_t ret = i_truncate (&p->f, newsize);
-  if (ret)
-    {
-      return ret;
-    }
+  werr_t (i_truncate (&p->f, newsize));
 
   *dest = p->npages++;
 
@@ -278,16 +271,11 @@ fpgr_commit (file_pager *p, const u8 *src, u64 pgno)
   ASSERT (src);
   ASSERT (pgno < p->npages);
 
-  err_t ret = i_pwrite_all (
+  // TODO - Figure out when to call invalid_state over err_io
+  werr_t (i_pwrite_all (
       &p->f, src,
       p->page_size,
-      p->header_size + pgno * p->page_size);
-
-  // TODO - Figure out when to call invalid_state over err_io
-  if (ret)
-    {
-      return ERR_INVALID_STATE;
-    }
+      p->header_size + pgno * p->page_size));
 
   return SUCCESS;
 }

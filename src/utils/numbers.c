@@ -12,10 +12,7 @@ smlst_dbl_fctr (u32 cap, u32 len, u32 nbytes)
 {
   ASSERT (cap > 0);
 
-  ASSERT (can_add_u32 (len, nbytes));
   u32 total = len + nbytes;
-  ASSERT (can_add_u32 (total, cap - 1));
-  ASSERT (can_div_u32 (total + cap - 1, cap));
   u32 target = (total + cap - 1) / cap;
 
   if (target <= 1)
@@ -70,10 +67,6 @@ parse_i32_expect (i32 *dest, const string data)
       next = data.data[i];
       ASSERT (is_num (next));
       u32 _next = next - '0';
-      if (!can_mul_u32 (ret, 10) || !can_add_u32 (ret * 10, _next))
-        {
-          return ERR_ARITH;
-        }
       ret = ret * 10 + _next;
     }
 
@@ -147,11 +140,6 @@ parse_f32_expect (f32 *dest, const string src)
 
       if (!seen_dot)
         {
-          if (!can_mul_f32 (ret, 10.0f) || !can_add_f32 (ret * 10.f, _next))
-            {
-              return ERR_ARITH;
-            }
-
           ret = ret * 10.0f + (f32)_next;
         }
       else

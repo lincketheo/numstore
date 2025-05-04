@@ -1,6 +1,8 @@
 #include "paging/page.h"
 #include "dev/assert.h"
+#include "dev/errors.h"
 #include "intf/stdlib.h"
+#include "paging/types/data_list.h"
 #include "utils/bounds.h"
 
 ///////////////////////////// PAGE TYPES
@@ -10,110 +12,68 @@
 DEFINE_DBG_ASSERT_I (page, page, p)
 {
   ASSERT (p);
-  ASSERT (p->raw);
-  ASSERT (p->header);
-  ASSERT (p->len >= MIN_PAGE_SIZE);
 }
 
 static inline void
-page_set (page *p, page_interpret_params params)
+page_set_ptrs (page *p, u8 *raw, p_size rlen, page_type type, pgno pg)
 {
-  // All pages have a header in the first 8 bytes
-  u32 idx = 0;
-  p->raw = params.raw;
-  p->pgno = params.pgno;
-  p->len = params.page_size;
+  ASSERT (p);
+  ASSERT (raw);
 
-#define advance(vname, type)        \
-  do                                \
-    {                               \
-      vname = (type *)&p->raw[idx]; \
-      idx += sizeof *vname;         \
-    }                               \
-  while (0)
-
-  advance (p->header, u8);
-
-  switch (params.type)
+  switch (type)
     {
     case PG_DATA_LIST:
       {
-        advance (p->dl.next, i64);
-        advance (p->dl.data, u8);
+        p->dl = dl_set_ptrs (raw, rlen);
         break;
       }
-    case PG_INNER_NODE:
+    default:
       {
-        advance (p->in.nkeys, u16);
-        advance (p->in.leafs, u64);
-        ASSERT (can_mul_u16 (sizeof (u64), *p->in.nkeys));
-        ASSERT (can_sub_u32 (p->len, sizeof (u64) * *p->in.keys));
-        p->in.keys = (u64 *)&p->raw[p->len - (sizeof (u64) * *p->in.nkeys)];
-        break;
-      }
-    case PG_HASH_PAGE:
-      {
-        advance (p->hp.len, u32);
-        advance (p->hp.hashes, u64);
-        break;
-      }
-    case PG_HASH_LEAF:
-      {
-        advance (p->hl.next, u64);
-        advance (p->hl.nvalues, u16);
-        advance (p->hl.offsets, u16);
-        break;
+        panic ();
       }
     }
 
-#undef advance
+  p->type = type;
+  p->pg = pg;
 }
 
 err_t
-page_read_expect (page *dest, page_interpret_params params)
+page_read_expect (page *dest, int type, u8 *raw, p_size rlen, pgno pg)
 {
   ASSERT (dest);
 
-  page_set (dest, params);
-
-  if (!(*dest->header & params.type))
+  // Check that this page is
+  // the page type we want
+  ASSERT (rlen > 0);
+  u8 header = raw[0];
+  if (!(header & type))
     {
       return ERR_INVALID_STATE;
     }
+
+  page_set_ptrs (dest, raw, rlen, (page_type)header, pg);
 
   return SUCCESS;
 }
 
 void
-page_init (page *dest, page_interpret_params params)
+page_init (page *dest, page_type type, u8 *raw, p_size rlen, pgno pg)
 {
   ASSERT (dest);
-  ASSERT (params.raw);
 
-  i_memset (params.raw, 0, params.page_size);
-
-  page_set (dest, params);
-  *dest->header = (u8)params.type;
+  page_set_ptrs (dest, raw, rlen, type, pg);
 
   // Aditional Setup
-  switch (params.type)
+  switch (type)
     {
     case PG_DATA_LIST:
       {
+        dl_init_empty (&dest->dl);
         break;
       }
-    case PG_INNER_NODE:
+    default:
       {
-        break;
-      }
-    case PG_HASH_PAGE:
-      {
-        ASSERT (params.page_size > sizeof (u32));
-        *dest->hp.len = (params.page_size - sizeof (u32)) / sizeof (i64);
-        break;
-      }
-    case PG_HASH_LEAF:
-      {
+        panic ();
         break;
       }
     }

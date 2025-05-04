@@ -32,7 +32,8 @@ tokp_execute (token_printer *t)
     {
       const string cstr = tt_tostr (tok.type);
       ASSERT (cstr.len <= MAX_TOK_T_LEN);
-      i_log_token (tok);
+      i_log_info ("Got token: %.*s\n",
+                  tt_tostr (tok.type).len, tt_tostr (tok.type).data);
 
       // Cleanup
       switch (tok.type)

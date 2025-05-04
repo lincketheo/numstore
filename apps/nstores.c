@@ -3,8 +3,9 @@
 #include "ds/strings.h"
 #include "intf/logging.h"
 #include "intf/mm.h"
-#include "server.h"
 #include "server/server.h"
+#include "services/services.h"
+#include "vhash_map.h"
 
 #include <signal.h>
 #include <unistd.h>
@@ -23,12 +24,29 @@ main (void)
 {
   err_t ret = SUCCESS;
   server s;
-  lalloc cons_alloc;
-  lalloc_create (&cons_alloc, 100000);
+  lalloc alloc;
+  lalloc_create (&alloc, 100000);
+
+  // Create variable hash map
+  vhash_map vhm;
+  if ((ret = vhash_map_create (
+           &vhm, (vhm_params){
+                     .len = 1000,
+                     .map_allocator = &alloc,
+                     .node_allocator = &alloc,
+                     .type_allocator = &alloc,
+                 })))
+    {
+      return ret;
+    }
 
   server_params params = {
     .port = 12345,
-    .cons_alloc = &cons_alloc,
+    .alloc = &alloc,
+    .services = services_create (
+        (services_params){
+            .vhm = &vhm,
+        }),
   };
 
   if ((ret = server_create (&s, params)))

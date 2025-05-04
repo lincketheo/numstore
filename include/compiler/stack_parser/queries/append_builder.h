@@ -3,7 +3,9 @@
 #include "compiler/stack_parser/common.h"
 #include "compiler/tokens.h"
 #include "ds/strings.h"
+#include "services/var_retr.h"
 #include "typing.h"
+#include "variable.h"
 
 typedef struct query_builder_s query_builder;
 

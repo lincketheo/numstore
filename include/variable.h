@@ -7,12 +7,7 @@
 ////////////////////////////// A Single Variable
 typedef struct
 {
-  const string vname;
-  const type type;
-} vcreate;
-
-typedef struct
-{
   u64 pgn0;
-  const type type;
+  type type;
+  u64 vid;
 } vmeta;

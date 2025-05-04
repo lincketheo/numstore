@@ -8,13 +8,15 @@
 #include "intf/io.h"
 #include "intf/mm.h"
 #include "query/query.h"
+#include "services/services.h"
+#include "vhash_map.h"
 #include "vm/vm.h"
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <poll.h>
 
-#define CONNECTOR_TOK_DEBUG
+//#define CONNECTOR_TOK_DEBUG
 
 typedef struct
 {
@@ -46,6 +48,7 @@ typedef struct
   lalloc *scanner_string_allocator;
   lalloc *type_allocator;
   lalloc *stack_allocator;
+  services *services;
 } con_params;
 
 typedef struct

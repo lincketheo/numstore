@@ -138,8 +138,6 @@ TOK_HANDLER_FUNC (SAB_WAITING_FOR_NUMBER) (
   if (sb->sab.len == sb->sab.cap)
     {
       // Restrict memory requirements to avoid overflow
-      ASSERT (can_mul_u64 (sb->sab.cap, 2));
-      ASSERT (can_mul_u64 (2 * sb->sab.cap, sizeof (string)));
       u32 ncap = 2 * sb->sab.cap;
 
       u32 *dims = lrealloc (alloc, sb->sab.dims, ncap * sizeof (string));

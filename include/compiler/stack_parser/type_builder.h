@@ -65,5 +65,6 @@ stackp_result typeb_build (type_builder *tb, lalloc *alloc);
 sb_feed_t typeb_expect_next (const type_builder *tb, token t);
 
 // ACCEPT
-stackp_result typeb_accept_token (type_builder *tb, token t, lalloc *alloc);
+stackp_result typeb_accept_token (
+    type_builder *tb, token t, lalloc *alloc);
 stackp_result typeb_accept_type (type_builder *tb, type t);

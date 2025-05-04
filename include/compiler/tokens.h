@@ -87,4 +87,3 @@ typedef struct
 #define MAX_TOK_T_LEN 16
 
 string tt_tostr (token_t t);
-void i_log_token (token t);

@@ -14,7 +14,7 @@ struct i_file
 };
 
 ////////////////// Open / Close
-err_t i_open (i_file *dest, const string fname, int read, int write);
+err_t i_open (i_file *dest, const string fname, bool read, bool write);
 err_t i_close (i_file *fp);
 
 ////////////////// Positional Read / Write

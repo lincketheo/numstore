@@ -21,8 +21,8 @@ typedef struct page_s page;
  */
 typedef struct
 {
-  u32 *len;    // Length of the hash table
-  u64 *hashes; // Hashes pointing to header_size of linked list
+  p_size *len;  // Length of the hash table
+  pgno *hashes; // Hashes pointing to linked list
 } hash_page;
 
-err_t hp_get_hash (u64 *dest, page *p, const string string);
+err_t hp_get_hash (page *p, pgno *dest, const string string);

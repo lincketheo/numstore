@@ -4,7 +4,6 @@
 #include "intf/logging.h"
 #include "intf/mm.h"
 
-#include <asm-generic/errno-base.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -23,7 +22,7 @@ DEFINE_DBG_ASSERT_I (i_file, i_file, fp)
 
 ////////////////// Open / Close
 err_t
-i_open (i_file *dest, const string fname, int read, int write)
+i_open (i_file *dest, const string fname, bool read, bool write)
 {
   if (read && write)
     {

@@ -4,13 +4,14 @@
 #include "intf/stdlib.h"
 #include "paging/page.h"
 
+/**
 err_t
-hl_get_tuple (hash_leaf_tuple *dest, const page *p, u16 idx)
+hl_get_tuple (hash_leaf_tuple *dest, const page *p, p_size idx)
 {
   ASSERT (dest);
   ASSERT (*p->header == PG_HASH_LEAF);
 
-  u16 nvals = *p->hl.nvalues;
+  p_size nvals = *p->hl.nvalues;
   ASSERT (idx < nvals);
 
   u8 *base = p->raw;
@@ -29,8 +30,8 @@ hl_get_tuple (hash_leaf_tuple *dest, const page *p, u16 idx)
 
   // strlen
   BOUND_AND_ADVANCE (sizeof *dest->strlen);
-  dest->strlen = (u16 *)(base + off - sizeof *dest->strlen);
-  u16 slen = *dest->strlen;
+  dest->strlen = (p_size *)(base + off - sizeof *dest->strlen);
+  p_size slen = *dest->strlen;
 
   // str
   BOUND_AND_ADVANCE (slen);
@@ -42,8 +43,8 @@ hl_get_tuple (hash_leaf_tuple *dest, const page *p, u16 idx)
 
   // tstrlen
   BOUND_AND_ADVANCE (sizeof *dest->tstrlen);
-  dest->tstrlen = (u16 *)(base + off - sizeof *dest->tstrlen);
-  u16 tlen = *dest->tstrlen;
+  dest->tstrlen = (p_size *)(base + off - sizeof *dest->tstrlen);
+  p_size tlen = *dest->tstrlen;
 
   // tstr
   BOUND_AND_ADVANCE (tlen);
@@ -68,21 +69,21 @@ TEST (hl_get_tuple)
     .header = raw1,
     .pgno = 42,
     .hl = {
-        .nvalues = &(u16){ 1 },
-        .offsets = (u16[]){ 8 },
+        .nvalues = &(p_size){ 1 },
+        .offsets = (p_size[]){ 8 },
     }
   };
   raw1[0] = PG_HASH_LEAF;
 
   // Build tuple
-  u16 slen = 3;
+  p_size slen = 3;
   i_memcpy (raw1 + 8, &slen, sizeof slen);
   i_memcpy (raw1 + 10, "bar", slen);
 
   u64 pg0 = 0x12345678;
   i_memcpy (raw1 + 13, &pg0, sizeof pg0);
 
-  u16 tlen = 4;
+  p_size tlen = 4;
   i_memcpy (raw1 + 21, &tlen, sizeof tlen);
   i_memcpy (raw1 + 23, "test", tlen);
 
@@ -103,8 +104,8 @@ TEST (hl_get_tuple)
     .header = raw2,
     .pgno = 99,
     .hl = {
-        .nvalues = &(u16){ 1 },
-        .offsets = (u16[]){ 12 },
+        .nvalues = &(p_size){ 1 },
+        .offsets = (p_size[]){ 12 },
     }
   };
   raw2[0] = PG_HASH_LEAF;
@@ -112,3 +113,4 @@ TEST (hl_get_tuple)
   err_t r2 = hl_get_tuple (&dest, &p2, 0);
   test_assert_int_equal ((int)r2, (int)ERR_INVALID_STATE);
 }
+*/

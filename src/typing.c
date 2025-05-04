@@ -6,7 +6,14 @@
 #include "intf/stdlib.h"
 #include "intf/types.h"
 #include "utils/bounds.h"
+
 #include <stdlib.h>
+
+/**
+ * TODO:
+ *  1. Bounds and overflow checking for types bits size (MAX_TYPE_SIZE?)
+ *  2. Switch mallocs in tests for lmalloc
+ */
 
 //////////////////////////////// Asserts
 DEFINE_DBG_ASSERT_I (type, type, t);
@@ -345,10 +352,6 @@ struct_t_bits_size (u64 *dest, const struct_t *t)
           return err;
         }
 
-      if (!can_add_u64 (ret, tsize))
-        {
-          return ERR_ARITH;
-        }
       ret += tsize;
     }
 
@@ -545,10 +548,6 @@ sarray_t_bits_size (u64 *dest, const sarray_t *sa)
     {
       ASSERT (ret != 0);
 
-      if (!can_mul_u64 (ret, sa->dims[i]))
-        {
-          return ERR_ARITH;
-        }
       ret *= (u64)sa->dims[i];
     }
 
@@ -604,10 +603,6 @@ typedef struct
 static inline err_t
 ser_size_add (u16 *size, u16 inc)
 {
-  if (!can_add_u16 (*size, inc))
-    {
-      return ERR_ARITH;
-    }
   *size += inc;
   return SUCCESS;
 }
@@ -928,10 +923,7 @@ ser_size_sarray (u16 *size, const sarray_t *sa)
   // dimensions block
   {
     u16 dims_size = sizeof (*sa->dims) * sa->rank;
-    if (!can_mul_u16 (sizeof (*sa->dims), sa->rank))
-      {
-        return ERR_ARITH;
-      }
+
     if ((ret = ser_size_add (size, dims_size)))
       {
         return ret;
@@ -1633,10 +1625,7 @@ _type_serialize_sarray (type_serialize_params p, u16 *idx)
   // dimensions block
   {
     u16 dims_size = sa->rank * (u16)sizeof (*sa->dims);
-    if (!can_mul_u16 ((u16)sizeof (*sa->dims), sa->rank))
-      {
-        return ERR_ARITH;
-      }
+
     if ((ret = ser_write_bytes (
              p.dest, p.dlen, idx,
              sa->dims,
@@ -2090,10 +2079,6 @@ _type_deserialize_sarray (type_deserialize_params p, u16 *idx)
   if ((ret = ser_read_u16 (p.src, p.dlen, idx, &rank)))
     {
       goto failed;
-    }
-  if (!can_mul_u16 ((u16)sizeof *sa.dims, rank))
-    {
-      return ERR_ARITH;
     }
 
   // Allocate memory

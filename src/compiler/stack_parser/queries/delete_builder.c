@@ -38,7 +38,7 @@ stackp_result
 db_build (query_builder *db)
 {
   delete_builder_assert_state (db, DB_DONE);
-  db->ret.dargs = (delete_args){
+  db->ret.dquery = (delete_query){
     .vname = db->db.vname,
   };
   db->ret.type = QT_DELETE;

@@ -5,4 +5,4 @@
 typedef struct
 {
   string vname;
-} take_args;
+} take_query;

@@ -3,6 +3,10 @@
 #include "compiler/stack_parser/query_builder.h"
 #include "compiler/tokens.h"
 #include "dev/assert.h"
+#include "dev/errors.h"
+#include "intf/logging.h"
+#include "query/queries/append.h"
+#include "services/var_retr.h"
 
 ////////////////////////// DEV
 DEFINE_DBG_ASSERT_I (query_builder, append_builder, s)
@@ -23,7 +27,7 @@ append_builder_assert_state (query_builder *q, int ab_state)
 ////////////////////////// API
 
 stackp_result
-ab_append (query_builder *dest)
+ab_create (query_builder *dest)
 {
   ASSERT (dest);
   ASSERT (dest->state == QB_UNKNOWN);
@@ -39,9 +43,12 @@ stackp_result
 ab_build (query_builder *ab)
 {
   append_builder_assert_state (ab, AB_DONE);
-  ab->ret.aargs = (append_args){
-    .vname = ab->ab.vname,
+  /**
+  ab->ret.aquery = (append_query){
+    .var = ab->ab.variable,
   };
+  */
+  panic ();
   ab->ret.type = QT_APPEND;
   return SPR_DONE;
 }
@@ -58,7 +65,6 @@ HANDLER_FUNC (AB_WAITING_FOR_VNAME) (query_builder *ab, token t)
       return SPR_SYNTAX_ERROR;
     }
 
-  ab->ab.vname = t.str;
   ab->ab.state = AB_DONE;
 
   return SPR_DONE;

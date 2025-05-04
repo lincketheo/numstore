@@ -38,7 +38,7 @@ stackp_result
 cb_build (query_builder *cb)
 {
   create_builder_assert_state (cb, CB_DONE);
-  cb->ret.cargs = (create_args){
+  cb->ret.cquery = (create_query){
     .type = cb->cb.type,
     .vname = cb->cb.vname,
   };

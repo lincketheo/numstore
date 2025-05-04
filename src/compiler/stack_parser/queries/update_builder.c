@@ -38,7 +38,7 @@ stackp_result
 updb_build (query_builder *updb)
 {
   update_builder_assert_state (updb, UPDB_DONE);
-  updb->ret.uargs = (update_args){
+  updb->ret.uquery = (update_query){
     .vname = updb->ub.vname,
   };
   updb->ret.type = QT_TAKE;

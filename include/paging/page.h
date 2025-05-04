@@ -21,12 +21,8 @@ typedef enum
 ///////////// Generic Page type
 typedef struct page_s
 {
-  u8 *header;
-
-  u8 *raw;
-  u32 len;
-
-  u64 pgno;
+  page_type type;
+  pgno pg;
 
   union
   {
@@ -37,17 +33,9 @@ typedef struct page_s
   };
 } page;
 
-typedef struct
-{
-  int type;
-  u8 *raw;
-  u32 page_size;
-  u64 pgno;
-} page_interpret_params;
-
 /**
  * returns:
  *  ERR_INVALID_STATE if raw data is not the type you expect
  */
-err_t page_read_expect (page *dest, page_interpret_params params);
-void page_init (page *dest, page_interpret_params params);
+err_t page_read_expect (page *dest, int type, u8 *raw, p_size rlen, pgno pg);
+void page_init (page *dest, page_type type, u8 *raw, p_size rlen, pgno pg);

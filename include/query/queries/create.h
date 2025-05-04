@@ -7,4 +7,4 @@ typedef struct
 {
   string vname;
   type type;
-} create_args;
+} create_query;

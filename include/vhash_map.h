@@ -2,6 +2,7 @@
 
 #include "ds/strings.h"
 #include "intf/mm.h"
+#include "query/queries/create.h"
 #include "typing.h"
 #include "variable.h"
 
@@ -35,16 +36,18 @@ typedef struct
 } vhm_params;
 
 /**
+ * Creates a var retr (not to be confused with the CREATE api call)
  * Returns:
  *   - ERR_NOMEM if you don't have enough room to allocate elems
  */
 err_t vhash_map_create (vhash_map *dest, vhm_params params);
 
 /**
+ * Used for building variable retriever
  * Returns:
  *   - ERR_ALREADY_EXISTS if [key] exists
  *   - ERR_NOMEM if node_allocator can't create node
  *   - ERR_NOMEM if type_allocator can't create
  */
 err_t vhash_map_insert (vhash_map *h, const string key, vmeta value);
-err_t vhash_map_get (vmeta *dest, const vhash_map *h, const string key);
+err_t vhash_map_get (const vhash_map *v, vmeta *dest, const string key);

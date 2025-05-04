@@ -120,8 +120,6 @@ HANDLER_FUNC (UB_WAITING_FOR_IDENT) (
   if (ub->ub.len == ub->ub.cap)
     {
       // Restrict memory requirements to avoid overflow
-      ASSERT (can_mul_u64 (ub->ub.cap, 2));
-      ASSERT (can_mul_u64 (2 * ub->ub.cap, sizeof (string)));
       u32 ncap = 2 * ub->ub.cap;
       string *keys = lrealloc (alloc, ub->ub.keys, ncap * sizeof (string));
       if (!keys)

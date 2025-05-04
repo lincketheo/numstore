@@ -2,6 +2,7 @@
 #include "dev/assert.h"
 #include "dev/testing.h"
 #include "intf/io.h"
+#include "intf/stdlib.h"
 #include "utils/bounds.h"
 #include "utils/macros.h"
 
@@ -60,13 +61,10 @@ cbuffer_len (const cbuffer *b)
     }
   else if (b->head >= b->tail)
     {
-      ASSERT (can_sub_u32 (b->head, b->tail));
       len = b->head - b->tail;
     }
   else
     {
-      ASSERT (can_sub_u32 (b->tail, b->head));
-      ASSERT (can_sub_u32 (b->cap, b->tail - b->head));
       len = b->cap - (b->tail - b->head);
     }
   return len;

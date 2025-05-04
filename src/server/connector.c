@@ -4,6 +4,7 @@
 #include "compiler/token_printer.h"
 #include "dev/errors.h"
 #include "ds/cbuffer.h"
+#include "services/var_create.h"
 #include "vm/vm.h"
 
 DEFINE_DBG_ASSERT_I (connector, connector, c)
@@ -15,8 +16,6 @@ err_t
 con_create (connector *dest, con_params params)
 {
   ASSERT (dest);
-
-  err_t ret = SUCCESS;
 
   // Meta Information
   dest->cfd = (i_file){ .fd = -1 };
@@ -52,14 +51,12 @@ con_create (connector *dest, con_params params)
     .tokens_input = &dest->tokens,
     .queries_output = &dest->queries,
   };
-  if ((ret = parser_create (&dest->parser, pparams)))
-    {
-      return ret;
-    }
+  werr_t (parser_create (&dest->parser, pparams));
 
   // Create the virtual machine
   vm_params vparams = {
     .queries_input = &dest->queries,
+    .services = params.services,
   };
   vm_create (&dest->vm, vparams);
 #endif
@@ -67,7 +64,7 @@ con_create (connector *dest, con_params params)
   connector_assert (dest);
   ASSERT (!con_is_open (dest));
 
-  return ret;
+  return SUCCESS;
 }
 
 void
@@ -88,10 +85,10 @@ con_disconnect (connector *c)
   connector_assert (c);
   ASSERT (con_is_open (c));
 
-  err_t ret = i_close (&c->cfd);
+  werr_t (i_close (&c->cfd));
   c->cfd.fd = -1;
 
-  return ret;
+  return SUCCESS;
 }
 
 bool

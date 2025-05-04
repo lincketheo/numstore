@@ -7,56 +7,55 @@ DEFINE_DBG_ASSERT_I (inner_node, inner_node, i)
   ASSERT (i->nkeys);
   ASSERT (i->leafs);
   ASSERT (i->keys);
+  ASSERT (*i->nkeys > 0);
+  // TODO - upper bounds on nkeys
 }
 
-u64
-in_choose_leaf (const inner_node *node, u64 *before, u64 loc)
+pgno
+in_choose_leaf (const inner_node *node, b_size *left, b_size loc)
 {
   inner_node_assert (node);
-  ASSERT (before);
+  ASSERT (left);
 
-  u16 n = in_get_nkeys (node);
-  u16 i = 0;
+  u32 n = *node->nkeys;
+  const b_size *keys = node->keys;
+  const pgno *leafs = node->leafs;
 
-  for (; i < n; ++i)
+  b_size prev_key = 0;
+
+  for (u32 i = 0; i < n; ++i)
     {
-      if (loc < in_get_key (node, i))
+      /**
+       * keys[0]     = Last key
+       * keys[n - 1] = First key
+       * key[i]      = keys[n - 1 - i]
+       */
+      b_size key = keys[n - 1 - i];
+
+      /**
+       *                 [5]
+       * [0, 1, 2, 3, 4]    [5, 6, 7, 8, 9]
+       *
+       * For loc == key == 5, choose right
+       * So use < not <=
+       */
+      if (loc < key)
         {
-          break;
+          *left = prev_key;
+          return leafs[i];
         }
+
+      // advance prev_key for the next iteration
+      prev_key = key;
     }
 
-  if (i == 0)
-    {
-      *before = 0;
-    }
-  else
-    {
-      *before = in_get_key (node, i - 1);
-    }
-
-  return in_get_leaf (node, i);
-}
-
-u64
-in_get_nkeys (const inner_node *node)
-{
-  inner_node_assert (node);
-  return *node->nkeys;
-}
-
-u64
-in_get_key (const inner_node *node, u16 idx)
-{
-  inner_node_assert (node);
-  ASSERT (idx <= *node->nkeys);
-  return node->keys[*node->nkeys - idx - 1];
-}
-
-u64
-in_get_leaf (const inner_node *node, u16 idx)
-{
-  inner_node_assert (node);
-  ASSERT (idx <= (*node->nkeys + 1));
-  return node->leafs[idx];
+  /**
+   *                 [5]
+   * [0, 1, 2, 3, 4]    [5, 6, 7, 8, 9]
+   *
+   * For loc == 2, left = 0 (initial prev_key)
+   * For loc == 8, left = 5 (last prev_key)
+   */
+  *left = prev_key;
+  return leafs[n];
 }

@@ -19,14 +19,17 @@ server_create (server *dest, server_params params)
 {
   ASSERT (dest);
 
+  // Low hanging fruit
+  dest->services = params.services;
+
   // Allocate connectors
-  dest->cons = lmalloc (params.cons_alloc, 10 * sizeof *dest->cons);
+  dest->cons = lmalloc (params.alloc, 10 * sizeof *dest->cons);
   dest->ccap = 10;
   if (dest->cons == NULL)
     {
       return ERR_NOMEM;
     }
-  dest->cons_alloc = params.cons_alloc;
+  dest->alloc = params.alloc;
 
   // Connect to server socket
   int fd;
@@ -60,9 +63,10 @@ server_create (server *dest, server_params params)
   for (u32 i = 0; i < dest->ccap; ++i)
     {
       con_params cparams = {
-        .scanner_string_allocator = dest->cons_alloc,
-        .type_allocator = dest->cons_alloc,
-        .stack_allocator = dest->cons_alloc,
+        .scanner_string_allocator = dest->alloc,
+        .type_allocator = dest->alloc,
+        .stack_allocator = dest->alloc,
+        .services = &dest->services,
       };
       con_create (&dest->cons[i], cparams);
     }
@@ -229,5 +233,5 @@ server_close (server *s)
           con_disconnect (&s->cons[i]);
         }
     }
-  lfree (s->cons_alloc, s->cons);
+  lfree (s->alloc, s->cons);
 }

@@ -17,6 +17,8 @@ typedef enum
   SS_ERROR_REWIND,
 } scanner_state;
 
+const char *scanner_state_to_str (scanner_state);
+
 typedef struct
 {
   // Input and output buffers

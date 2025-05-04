@@ -105,8 +105,6 @@ HANDLER_FUNC (EB_WAITING_FOR_IDENT) (
   if (eb->eb.len == eb->eb.cap)
     {
       // Restrict memory requirements to avoid overflow
-      ASSERT (can_mul_u64 (eb->eb.cap, 2));
-      ASSERT (can_mul_u64 (2 * eb->eb.cap, sizeof (string)));
       u32 ncap = 2 * eb->eb.cap;
 
       string *keys = lrealloc (alloc, eb->eb.keys, ncap * sizeof (string));

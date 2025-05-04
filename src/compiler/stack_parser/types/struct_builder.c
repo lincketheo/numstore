@@ -119,9 +119,6 @@ HANDLER_FUNC (SB_WAITING_FOR_IDENT) (
   // Check for size adjustments
   if (sb->sb.len == sb->sb.cap)
     {
-      ASSERT (can_mul_u64 (sb->sb.cap, 2));
-      ASSERT (can_mul_u64 (2 * sb->sb.cap, sizeof (string)));
-
       u32 ncap = 2 * sb->sb.cap;
       string *keys = lrealloc (alloc, sb->sb.keys, ncap * sizeof *keys);
       if (!keys)

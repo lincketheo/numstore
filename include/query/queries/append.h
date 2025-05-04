@@ -1,8 +1,9 @@
 #pragma once
 
 #include "ds/strings.h"
+#include "variable.h"
 
 typedef struct
 {
-  string vname;
-} append_args;
+  vmeta var;
+} append_query;

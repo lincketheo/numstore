@@ -2,6 +2,7 @@
 
 #include "compiler/tokens.h"
 
+// What you feed to the stack_parser
 typedef enum
 {
   SBFT_TOKEN,

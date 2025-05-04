@@ -3,14 +3,22 @@
 #include "compiler/stack_parser/query_builder.h"
 #include "compiler/stack_parser/type_builder.h"
 #include "compiler/tokens.h"
+#include "services/services.h"
 #include "typing.h"
 
+/**
+ * These are "non terminals" (not exactly, but similar)
+ * All builders visible to ast_builder should have an entry
+ */
 typedef enum
 {
   SBBT_TYPE,
   SBBT_QUERY,
 } sb_build_type;
 
+/**
+ * Abstract thing that we can build on the stack
+ */
 typedef struct
 {
   sb_build_type type;
@@ -23,6 +31,9 @@ typedef struct
 
 } ast_builder;
 
+/**
+ * A result of calling build
+ */
 typedef struct
 {
   sb_build_type type;

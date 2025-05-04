@@ -12,6 +12,21 @@ typedef enum
   ERR_ARITH = -11,            // Integer overflow or div by 0
   ERR_NOT_LOADED = -12,       // Variable is not loaded into a cursor
   ERR_INVALID_ARGUMENT = -13,
+  ERR_EMPTY = -14,
 
   ERR_FALLBACK = -100000,
 } err_t;
+
+const char *err_t_to_str (err_t e);
+
+#define werr_t(expr)                                                    \
+  do                                                                    \
+    {                                                                   \
+      err_t ___ret = expr;                                              \
+      if (___ret)                                                       \
+        {                                                               \
+          i_log_warn ("%s failed: %s\n", #expr, err_t_to_str (___ret)); \
+          return ___ret;                                                \
+        }                                                               \
+    }                                                                   \
+  while (0)

@@ -39,7 +39,7 @@ stackp_result
 ib_build (query_builder *ib)
 {
   insert_builder_assert_state (ib, IB_DONE);
-  ib->ret.iargs = (insert_args){
+  ib->ret.iquery = (insert_query){
     .vname = ib->ib.vname,
   };
   ib->ret.type = QT_INSERT;

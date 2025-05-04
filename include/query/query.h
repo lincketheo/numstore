@@ -26,12 +26,12 @@ typedef struct
 
   union
   {
-    create_args cargs;
-    delete_args dargs;
-    append_args aargs;
-    insert_args iargs;
-    read_args rargs;
-    take_args targs;
-    update_args uargs;
+    create_query cquery;
+    delete_query dquery;
+    append_query aquery;
+    insert_query iquery;
+    read_query rquery;
+    take_query tquery;
+    update_query uquery;
   };
 } query;
