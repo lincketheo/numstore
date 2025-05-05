@@ -47,13 +47,13 @@ dl_set_ptrs (u8 *raw, p_size len)
   p_size head = 0;
 
   p_size header = head;
-  head += sizeof (ret.header);
+  head += sizeof (*ret.header);
 
   p_size next = head;
-  head += sizeof (ret.next);
+  head += sizeof (*ret.next);
 
   p_size blen = head;
-  head += sizeof (ret.blen);
+  head += sizeof (*ret.blen);
 
   p_size data = head;
 
@@ -151,7 +151,7 @@ dl_read (data_list *d, u8 *dest, p_size offset, p_size bytes)
 }
 
 p_size
-dl_read_out (data_list *d, u8 *dest, p_size offset)
+dl_read_out_from (data_list *d, u8 *dest, p_size offset)
 {
   data_list_assert (d);
   ASSERT (dl_is_valid (d));

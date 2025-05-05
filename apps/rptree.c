@@ -51,7 +51,7 @@ main ()
   werr_t (rpt_new (&r, &pg));
 
   // Seek to index 0
-  werr_t (rpt_seek (&r, sizeof (int), 0));
+  werr_t (rpt_seek (&r, 0));
 
   // Write to node
   werr_t (rpt_insert ((u8 *)data, sizeof (int), 1000, &r));

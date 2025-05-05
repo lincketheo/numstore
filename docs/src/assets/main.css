@@ -1,28 +1,28 @@
 :root {
-    /* Primary */
-    --primary: #1E88E5;
-    --on-primary: #FFFFFF;
-    --primary-container: #BBDEFB;
-    --on-primary-container: #0D47A1;
+    /* Primary: Techno Blue */
+    --color-primary: #0D47A1; /* Deep blue */
+    --color-on-primary: #E0F7FA; /* Pale cyan for contrast */
+    --color-primary-container: #1E88E5; /* Brighter blue accent */
+    --color-on-primary-container: #FFFFFF;
 
-    /* Secondary */
-    --secondary: #FFB300;
-    --on-secondary: #000000;
-    --secondary-container: #FFF8E1;
-    --on-secondary-container: #FF6F00;
+    /* Secondary: Silver / Metallic */
+    --color-secondary: #B0BEC5; /* Cool silver */
+    --color-on-secondary: #263238; /* Darker for contrast */
+    --color-secondary-container: #ECEFF1; /* Light silver background */
+    --color-on-secondary-container: #37474F; /* Steely gray */
 
     /* Background & Surface */
-    --background: #F5F5F5;
-    --on-background: #212121;
-    --surface: #FFFFFF;
-    --on-surface: #212121;
+    --color-background: #121212; /* Dark background for techno vibe */
+    --color-on-background: #E0E0E0; /* Light text on dark bg */
+    --color-surface: #1C1C1C; /* Slightly lighter than background */
+    --color-on-surface: #ECEFF1;
 
-    /* Error */
-    --error: #B00020;
-    --on-error: #FFFFFF;
+    /* Error: High-contrast Red */
+    --color-error: #CF6679;
+    --color-on-error: #000000;
 
     /* Outline & Dividers */
-    --outline: #BDBDBD;
+    --color-outline: #90A4AE; /* Mid-tone silver/gray */
 }
 
 body {
@@ -43,19 +43,29 @@ nav {
 }
 
 /* Style code blocks inside content */
+pre, code {
+    font-family: 'Fira Code', 'Courier New', monospace;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: var(--color-on-surface); /* Light cyan text */
+    background: var(--color-surface); /* Dark blue-gray background */
+}
+
 pre {
-    background-color: #f5f5f5;
-    padding: 0.75em;
-    border-radius: 4px;
+    padding: 1rem;
+    margin: 1rem 0;
+    border-radius: 6px;
     overflow-x: auto;
-    font-family: Menlo, Monaco, Consolas, 'Courier New', monospace;
-    margin: 1em 0;
-    white-space: pre-wrap;
+    box-shadow: 0 0 0 1px var(--color-primary) inset;
 }
 
 code {
-    font-family: Menlo, Monaco, Consolas, 'Courier New', monospace;
-    background-color: #f0f0f0;
     padding: 0.2em 0.4em;
-    border-radius: 3px;
+    border-radius: 4px;
+}
+
+/* Optional: inline code style */
+p code {
+    color: #81D4FA; /* Lighter blue */
+    background: #37474F;
 }

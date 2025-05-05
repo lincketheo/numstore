@@ -35,5 +35,11 @@ p_size dl_avail (data_list *d);
 void dl_init_empty (data_list *d);
 p_size dl_write (data_list *d, const u8 *src, p_size bytes);
 p_size dl_read (data_list *d, u8 *dest, p_size offset, p_size bytes);
-p_size dl_read_out (data_list *d, u8 *dest, p_size offset);
+
+/**
+ * Reads from [offset] to end of this page to dest
+ * Returns the number of bytes read
+ * Note that this alters data_list (subtracts from dlen)
+ */
+p_size dl_read_out_from (data_list *d, u8 *dest, p_size offset);
 void dl_set_next (data_list *d, pgno next);

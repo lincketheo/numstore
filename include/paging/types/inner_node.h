@@ -1,5 +1,6 @@
 #pragma once
 
+#include "dev/errors.h"
 #include "intf/types.h"
 
 /**
@@ -26,6 +27,10 @@
  */
 typedef struct
 {
+  u8 *raw;
+  p_size rlen;
+
+  pgh *header;
   p_size *nkeys; // Number of keys
   pgno *leafs;   // len(leafs) == nkeys + 1
   b_size *keys;  // The keys used for rope traversal
@@ -52,4 +57,10 @@ typedef struct
  * return p1
  * left = 5
  */
-pgno in_choose_leaf (const inner_node *node, b_size *left, b_size loc);
+p_size in_choose_lidx (const inner_node *node, b_size loc);
+void in_add_right (inner_node *node, p_size from, b_size add);
+inner_node in_set_initial_ptrs (u8 *raw, p_size len);
+void in_init_empty (inner_node *in);
+err_t in_read_and_set_ptrs (inner_node *dest, u8 *raw, p_size len);
+void in_init (inner_node *dest, b_size key, pgno left, pgno right);
+bool in_add_kv (inner_node *dest, b_size key, pgno right);
