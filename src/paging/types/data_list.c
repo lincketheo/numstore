@@ -3,33 +3,53 @@
 #include "intf/stdlib.h"
 #include "intf/types.h"
 #include "paging/page.h"
+#include <sys/types.h>
 
-DEFINE_DBG_ASSERT_I (data_list, data_list, d)
+#define DL_HEDR_OFFSET (0)
+#define DL_NEXT_OFFSET (DL_HEDR_OFFSET + sizeof (*((data_list *)0)->header))
+#define DL_BLEN_OFFSET (DL_NEXT_OFFSET + sizeof (*((data_list *)0)->next))
+#define DL_DATA_OFFSET (DL_NEXT_OFFSET + sizeof (*((data_list *)0)->blen))
+
+DEFINE_DBG_ASSERT_I (data_list, unchecked_data_list, d)
 {
   ASSERT (d);
-  ASSERT (d->header);
-  ASSERT (d->next);
-  ASSERT (d->blen);
-  ASSERT (d->data);
+  ASSERT_PTR_IS_IDX (d->raw, d->header, DL_HEDR_OFFSET);
+  ASSERT_PTR_IS_IDX (d->raw, d->next, DL_NEXT_OFFSET);
+  ASSERT_PTR_IS_IDX (d->raw, d->blen, DL_BLEN_OFFSET);
+  ASSERT_PTR_IS_IDX (d->raw, d->data, DL_DATA_OFFSET);
+  ASSERT (DL_DATA_OFFSET < d->rlen + 10); // Let's say at least 10 bytes - arbitrary
+}
 
-  // Minimum page size
-  ASSERT (d->raw < d->data);
-  ASSERT ((d->data - d->raw) < d->rlen);
+DEFINE_DBG_ASSERT_I (data_list, valid_data_list, d)
+{
+  ASSERT (dl_is_valid (d));
 }
 
 bool
-dl_is_valid (data_list *d)
+dl_is_valid (const data_list *d)
 {
-  ASSERT (d);
+  unchecked_data_list_assert (d);
 
+  /**
+   * Check valid header
+   */
   if (*d->header != (u8)PG_DATA_LIST)
     {
       return false;
     }
 
-  p_size used = d->data - d->raw;
-  p_size avail = d->rlen - used;
-  if (*d->blen > avail)
+  /**
+   * Check that blen is less than data avail
+   */
+  if (*d->blen > dl_data_size (d->rlen))
+    {
+      return false;
+    }
+
+  /**
+   * Page 0 is a magic page
+   */
+  if (*d->next == 0)
     {
       return false;
     }
@@ -44,52 +64,46 @@ dl_set_ptrs (u8 *raw, p_size len)
   ASSERT (len > 0);
 
   data_list ret;
-  p_size head = 0;
-
-  p_size header = head;
-  head += sizeof (*ret.header);
-
-  p_size next = head;
-  head += sizeof (*ret.next);
-
-  p_size blen = head;
-  head += sizeof (*ret.blen);
-
-  p_size data = head;
-
-  // Ensure enough space
-  ASSERT (head + 10 <= len);
 
   // Set pointers
   ret = (data_list){
     .raw = raw,
     .rlen = len,
-    .header = (pgh *)&raw[header],
-    .next = (pgno *)&raw[next],
-    .blen = (p_size *)&raw[blen],
-    .data = (u8 *)&raw[data],
+    .header = (pgh *)&raw[DL_HEDR_OFFSET],
+    .next = (pgno *)&raw[DL_NEXT_OFFSET],
+    .blen = (p_size *)&raw[DL_BLEN_OFFSET],
+    .data = (u8 *)&raw[DL_DATA_OFFSET],
   };
 
-  data_list_assert (&ret);
+  unchecked_data_list_assert (&ret);
 
   return ret;
 }
 
 p_size
-dl_avail (data_list *d)
+dl_data_size (p_size page_size)
 {
-  data_list_assert (d);
-  ASSERT (dl_is_valid (d));
-  return d->rlen - (d->data + *d->blen - d->raw);
+  ASSERT (page_size > DL_DATA_OFFSET);
+  return page_size - DL_DATA_OFFSET;
+}
+
+p_size
+dl_avail (const data_list *d)
+{
+  valid_data_list_assert (d);
+  p_size total_avail = dl_data_size (d->rlen);
+  ASSERT (total_avail > *d->blen); // because is_valid
+  return total_avail - *d->blen;
 }
 
 void
 dl_init_empty (data_list *d)
 {
-  data_list_assert (d);
+  unchecked_data_list_assert (d);
   *d->header = PG_DATA_LIST;
   *d->next = 0;
   *d->blen = 0;
+  valid_data_list_assert (d);
 }
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
@@ -97,8 +111,7 @@ dl_init_empty (data_list *d)
 p_size
 dl_write (data_list *d, const u8 *src, p_size bytes)
 {
-  data_list_assert (d);
-  ASSERT (dl_is_valid (d));
+  valid_data_list_assert (d);
   ASSERT (src);
   ASSERT (bytes > 0);
 
@@ -125,16 +138,17 @@ dl_write (data_list *d, const u8 *src, p_size bytes)
 }
 
 p_size
-dl_read (data_list *d, u8 *dest, p_size offset, p_size bytes)
+dl_read (const data_list *d, u8 *dest, p_size offset, p_size bytes)
 {
-  data_list_assert (d);
-  ASSERT (dl_is_valid (d));
+  valid_data_list_assert (d);
   ASSERT (bytes > 0);
 
   p_size dlen = *d->blen;
   u8 *base = d->data;
 
-  if (offset >= dlen)
+  ASSERT (offset <= dlen);
+
+  if (offset == dlen)
     {
       return 0;
     }
@@ -153,14 +167,16 @@ dl_read (data_list *d, u8 *dest, p_size offset, p_size bytes)
 p_size
 dl_read_out_from (data_list *d, u8 *dest, p_size offset)
 {
-  data_list_assert (d);
+  valid_data_list_assert (d);
   ASSERT (dl_is_valid (d));
   ASSERT (dest);
 
   p_size dlen = *d->blen;
   u8 *head = d->data;
 
-  if (offset >= dlen)
+  ASSERT (offset <= dlen);
+
+  if (offset == dlen)
     {
       return 0;
     }
@@ -177,10 +193,24 @@ dl_read_out_from (data_list *d, u8 *dest, p_size offset)
   return dlen;
 }
 
+pgno
+dl_get_next (const data_list *d)
+{
+  valid_data_list_assert (d);
+  ASSERT (dl_is_valid (d));
+  return *d->next;
+}
+
 void
 dl_set_next (data_list *d, pgno next)
 {
-  data_list_assert (d);
+  valid_data_list_assert (d);
   ASSERT (dl_is_valid (d));
   *d->next = next;
+}
+
+p_size
+dl_used (const data_list *d)
+{
+  return *d->blen;
 }

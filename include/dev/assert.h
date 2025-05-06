@@ -48,3 +48,13 @@
   __attribute__ ((unused)) static inline void name##_assert__ (const type *variable __attribute__ ((unused)))
 
 #endif
+
+#define ASSERT_PTR_IS_IDX(base, ptr, idx)     \
+  do                                          \
+    {                                         \
+      ASSERT (base);                          \
+      ASSERT (ptr);                           \
+      ASSERT ((u8 *)ptr >= (u8 *)base);       \
+      ASSERT ((u8 *)ptr - (u8 *)base == idx); \
+    }                                         \
+  while (0)

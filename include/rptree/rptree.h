@@ -4,20 +4,7 @@
 #include "intf/types.h"
 #include "paging/pager.h"
 #include "paging/types/hash_leaf.h"
-
-typedef struct
-{
-  page page;   // Page we traversed
-  p_size lidx; // Choice of the leaf we went with
-} rpt_stack_v;
-
-typedef struct
-{
-  b_size *keys; // len = klen
-  pgno *values; // len = klen + 1
-  p_size klen;
-  p_size kcap;
-} overflow;
+#include "rptree/seek.h"
 
 typedef struct
 {
@@ -26,11 +13,10 @@ typedef struct
    */
   struct
   {
-    bool is_open;
-    bool is_seeked;
-    page cur;
     b_size gidx; // The global byte I'm on
     b_size lidx; // The local byte (within the page I'm on)
+    page cur;
+    bool is_open;
   };
 
   /**
@@ -38,20 +24,8 @@ typedef struct
    */
   struct
   {
-    rpt_stack_v stack[20];
-    u32 sp;
-  };
-
-  /**
-   * Two slots for communicating to
-   * parent node. Slots store overflow keys
-   * and values and switch between reading then
-   * consuming
-   */
-  struct
-  {
-    overflow ofr;
-    overflow ofw;
+    rpt_seek_r seek;
+    bool is_seeked;
   };
 
   /**
@@ -63,12 +37,9 @@ typedef struct
     u8 *temp_mem;
     p_size tmlen;
     p_size tmcap;
+    lalloc *alloc;
   };
 
-  /**
-   * Allocates memory for temp_mem
-   */
-  lalloc *alloc;
   pager *pager;
 } rptree;
 
@@ -87,9 +58,9 @@ typedef struct
 err_t rpt_create (rptree *dest, rpt_params params);
 
 /**
- * Opens a new rptree and sets [p0]
+ * Opens a new rptree
  */
-err_t rpt_new (rptree *r, pgno *p0);
+err_t rpt_new (rptree *r);
 
 /**
  * Opens an existing rptree at [p0]

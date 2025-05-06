@@ -2,38 +2,78 @@
 #include "dev/assert.h"
 #include "dev/errors.h"
 #include "paging/page.h"
+#include "paging/types/data_list.h"
 
-DEFINE_DBG_ASSERT_I (inner_node, inner_node, i)
+#define IN_HEDR_OFFSET (0)
+#define IN_NKEY_OFFSET (IN_HEDR_OFFSET + sizeof (*((inner_node *)0)->header))
+#define IN_LEAF_OFFSET (IN_NKEY_OFFSET + sizeof (*((inner_node *)0)->nkeys))
+
+DEFINE_DBG_ASSERT_I (inner_node, unchecked_inner_node, i)
 {
   ASSERT (i);
-  ASSERT (i->nkeys);
-  ASSERT (i->leafs);
-  ASSERT (i->keys);
-  ASSERT (*i->nkeys > 0);
-  // TODO - upper bounds on nkeys
+  ASSERT_PTR_IS_IDX (i->raw, i->header, IN_HEDR_OFFSET);
+  ASSERT_PTR_IS_IDX (i->raw, i->nkeys, IN_NKEY_OFFSET);
+  ASSERT_PTR_IS_IDX (i->raw, i->leafs, IN_LEAF_OFFSET);
+
+  // Check that keys is pointing at the right spot
+  if (i->keys)
+    {
+      ASSERT ((u8 *)i->keys > (u8 *)i->raw);
+      p_size keys_start = (u8 *)i->keys - (u8 *)i->raw;
+      ASSERT (keys_start < i->rlen);
+    }
 }
 
-static inline p_size
-in_avail (inner_node *i)
+DEFINE_DBG_ASSERT_I (inner_node, valid_inner_node, i)
 {
+  ASSERT (in_is_valid (i));
+}
+
+bool
+in_is_valid (const inner_node *in)
+{
+  unchecked_inner_node_assert (in);
+
   /**
-   * TODO - I don't like this pointer logic
+   * Check that nkeys is less than max keys
    */
+  if (*in->nkeys > dl_data_size (in->rlen))
+    {
+      return false;
+    }
 
-  // yes, you are exceeding bounds
-  u8 *start_tail = (u8 *)&i->leafs[*i->nkeys + 1];
-  u8 *end_tail = (u8 *)i->keys;
+  /**
+   * Inner nodes must contain at least
+   * 1 key
+   */
+  if (*in->nkeys == 0)
+    {
+      return false;
+    }
 
-  // Because it's valid
-  ASSERT (start_tail <= end_tail);
+  if (in->keys == NULL)
+    {
+      return false;
+    }
 
-  return end_tail - start_tail;
+  /**
+   * The distance between keys and the
+   * end should be exactly nkeys
+   */
+  p_size keys_start = (u8 *)in->keys - (u8 *)in->raw;
+  ASSERT (keys_start < in->rlen); // From previous assert
+  if ((in->rlen - keys_start) != *in->nkeys / sizeof (b_size))
+    {
+      return false;
+    }
+
+  return true;
 }
 
 p_size
 in_choose_lidx (const inner_node *node, b_size loc)
 {
-  inner_node_assert (node);
+  valid_inner_node_assert (node);
 
   u32 n = *node->nkeys;
   const b_size *keys = node->keys;
@@ -73,7 +113,7 @@ in_choose_lidx (const inner_node *node, b_size loc)
 void
 in_add_right (inner_node *node, p_size from, b_size add)
 {
-  inner_node_assert (node);
+  valid_inner_node_assert (node);
   ASSERT (from <= *node->nkeys);
 
   for (u32 i = from; i < *node->nkeys; ++i)
@@ -88,32 +128,25 @@ in_set_initial_ptrs (u8 *raw, p_size len)
   ASSERT (raw);
   ASSERT (len > 10);
 
+  ASSERT (raw);
+  ASSERT (len > 0);
+
   inner_node ret;
-  p_size head = 0;
 
-  p_size header = head;
-  head += sizeof (*ret.header);
-
-  p_size nkeys = head;
-  head += sizeof (*ret.nkeys);
-
-  p_size leafs = head;
-  head += sizeof (*ret.leafs);
-
-  p_size keys = len;
-
-  ASSERT (len > leafs);
-
+  // Set pointers
   ret = (inner_node){
     .raw = raw,
     .rlen = len,
-    .header = (pgh *)&raw[header],
-    .nkeys = (p_size *)&raw[nkeys],
-    .leafs = (pgno *)&raw[leafs],
-    .keys = (b_size *)&raw[keys],
+    .header = (pgh *)&raw[IN_HEDR_OFFSET],
+    .nkeys = (p_size *)&raw[IN_NKEY_OFFSET],
+    .leafs = (pgno *)&raw[IN_LEAF_OFFSET],
+    .keys = NULL,
   };
 
-  // ret is in an INVALID STATE!
+  unchecked_inner_node_assert (&ret);
+
+  // We are in an INVALID state because we haven't read anything yet
+
   return ret;
 }
 
@@ -131,19 +164,31 @@ in_read_and_set_ptrs (inner_node *dest, u8 *raw, p_size len)
   ASSERT (dest);
   ASSERT (raw);
   ASSERT (len);
+
+  // First set pointers to initial positions
   *dest = in_set_initial_ptrs (raw, len);
 
-  p_size avail = in_avail (dest);
-  p_size nkeys = *dest->nkeys;
+  unchecked_inner_node_assert (dest);
 
-  if (nkeys * sizeof (*dest->keys) + (nkeys + 1) * sizeof (*dest->leafs) > avail)
+  // Then adjust keys
+  p_size nkeys = *dest->nkeys;
+  if (nkeys > in_max_nkeys (len))
+    {
+      return ERR_INVALID_STATE;
+    }
+  if (nkeys == 0)
+    {
+      return ERR_INVALID_STATE;
+    }
+  dest->keys = (b_size *)(&raw[len - nkeys]);
+
+  // One last validitiy check (in other things)
+  if (!in_is_valid (dest))
     {
       return ERR_INVALID_STATE;
     }
 
-  dest->keys -= nkeys;
-
-  inner_node_assert (dest);
+  valid_inner_node_assert (dest);
 
   return SUCCESS;
 }
@@ -151,40 +196,133 @@ in_read_and_set_ptrs (inner_node *dest, u8 *raw, p_size len)
 void
 in_init (inner_node *dest, b_size key, pgno left, pgno right)
 {
-  ASSERT (dest);
-  ASSERT (((u8 *)dest->keys - dest->raw) == dest->rlen);
-  ASSERT (*dest->nkeys == 0);
-  ASSERT (in_avail (dest) >= 2 * sizeof (*dest->leafs) + sizeof (*dest->keys));
-
+  unchecked_inner_node_assert (dest);
   dest->leafs[0] = left;
   dest->leafs[1] = right;
 
-  dest->keys -= 1;
-  *dest->keys = key;
+  dest->keys = (b_size *)(&dest->raw[dest->rlen - 1]);
+  dest->keys[0] = key;
   *dest->nkeys = 1;
+  valid_inner_node_assert (dest);
 }
 
 bool
 in_add_kv (inner_node *dest, b_size key, pgno right)
 {
-  inner_node_assert (dest);
+  valid_inner_node_assert (dest);
 
-  p_size avail = in_avail (dest);
-
-  if (avail < sizeof (key) + sizeof (right))
+  if (*dest->nkeys == in_max_nkeys (dest->rlen))
     {
       return false;
     }
 
   // Grow leafs to the right
-  dest->leafs[*dest->nkeys + 1] = right;
+  dest->leafs[(*dest->nkeys)++] = right;
 
   // Grow keys to the left
   dest->keys -= 1;
-  *dest->keys = key;
-
-  // Increment nkeys
-  (*dest->nkeys)++;
+  dest->keys[0] = key;
 
   return true;
+}
+
+p_size
+in_max_nkeys (p_size page_size)
+{
+  /**
+   * nbytes = sizeof(
+   * -------------
+   * LEAF0
+   * LEAF1
+   * ....
+   * KEY1
+   * KEY0
+   * -------------
+   * )
+   */
+
+  // header + nkeys
+  ASSERT (page_size > IN_LEAF_OFFSET);
+  p_size nbytes = page_size - IN_LEAF_OFFSET;
+
+  /**
+   * N * sizeof(key) + (N + 1) * sizeof(value) <= nbytes
+   * N * (sizeof(key) + sizeof(value)) + sizeof(value) <= nbytes
+   * N <= (nbytes - sizeof(value))/(sizeof(key) + sizeof(value))
+   */
+  ASSERT (nbytes > sizeof (pgno));
+
+  p_size ret = (nbytes - sizeof (pgno)) / (sizeof (pgno) + sizeof (p_size));
+
+  ASSERT (ret > 0);
+
+  return ret;
+}
+
+void
+in_clip_right (inner_node *in, p_size fromkey)
+{
+  valid_inner_node_assert (in);
+  ASSERT (fromkey <= *in->nkeys);
+
+  if (fromkey == *in->nkeys)
+    {
+      return;
+    }
+
+  p_size nclip = *in->nkeys - fromkey;
+  *in->nkeys -= nclip;
+  *in->keys += nclip;
+}
+
+p_size
+in_keys_avail (inner_node *in)
+{
+  valid_inner_node_assert (in);
+
+  p_size maxkeys = in_max_nkeys (in->rlen);
+
+  ASSERT (maxkeys >= *in->nkeys);
+
+  return maxkeys - *in->nkeys;
+}
+
+p_size
+in_get_nkeys (const inner_node *in)
+{
+  valid_inner_node_assert (in);
+
+  return *in->nkeys;
+}
+
+b_size
+in_get_key (inner_node *in, p_size idx)
+{
+  valid_inner_node_assert (in);
+
+  ASSERT (idx < *in->nkeys);
+
+  b_size key = in->keys[*in->nkeys - 1 - idx];
+
+  return key;
+}
+
+pgno
+in_get_leaf (inner_node *in, p_size idx)
+{
+  valid_inner_node_assert (in);
+
+  ASSERT (idx < *in->nkeys);
+
+  pgno leaf = in->leafs[idx];
+
+  return leaf;
+}
+
+pgno
+in_get_right_most_leaf (inner_node *in)
+{
+  valid_inner_node_assert (in);
+
+  return in->leafs[*in->nkeys];
 }

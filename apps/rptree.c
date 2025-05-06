@@ -39,37 +39,23 @@ main ()
   rptree r;
   rpt_create (&r, rparams);
 
-  int data[1000];
-  int _data[1000];
-  for (int i = 0; i < 1000; ++i)
+  int data[10000];
+  for (int i = 0; i < 10000; ++i)
     {
       data[i] = i;
     }
 
   // Create a new node
-  pgno pg;
-  werr_t (rpt_new (&r, &pg));
+  werr_t (rpt_new (&r));
 
   // Seek to index 0
   werr_t (rpt_seek (&r, 0));
 
   // Write to node
-  werr_t (rpt_insert ((u8 *)data, sizeof (int), 1000, &r));
+  werr_t (rpt_insert ((u8 *)data, sizeof (int), 10000, &r));
 
-  // Write to node
-  werr_t (rpt_insert ((u8 *)data, sizeof (int), 1000, &r));
+  // Close
   rpt_close (&r);
 
-  rpt_open (&r, pg);
-  b_size n = 600;
-  werr_t (rpt_read ((u8 *)_data, sizeof (int), &n, 3, &r));
-
-  fprintf (stdout, "Read: %llu\n", n);
-  for (b_size i = 0; i < n; ++i)
-    {
-      fprintf (stdout, "%d\n", _data[i]);
-    }
-
-  rpt_close (&r);
   return SUCCESS;
 }

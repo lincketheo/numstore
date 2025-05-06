@@ -7,15 +7,10 @@
 #include "paging/pager.h"
 #include "paging/types/data_list.h"
 #include "paging/types/inner_node.h"
-
-DEFINE_DBG_ASSERT_I (overflow, overflow, o)
-{
-  ASSERT (o);
-  ASSERT (o->keys);
-  ASSERT (o->values);
-  ASSERT (o->klen <= o->kcap);
-  ASSERT (o->kcap > 0);
-}
+#include "rptree/dliacin.h"
+#include "rptree/iniacin.h"
+#include "rptree/mem_inner_node.h"
+#include "rptree/seek.h"
 
 DEFINE_DBG_ASSERT_I (rptree, rptree, r)
 {
@@ -24,136 +19,83 @@ DEFINE_DBG_ASSERT_I (rptree, rptree, r)
     {
       ASSERT (!r->is_seeked);
     }
-  overflow_assert (&r->ofr);
-  overflow_assert (&r->ofr);
 }
 
 //////////////////////////////// LIFECYCLE
 
-static inline err_t
-overflow_alloc (overflow *dest, p_size kcap, lalloc *alloc)
+err_t
+rpt_create (rptree *r, rpt_params p)
 {
-  ASSERT (dest);
-  ASSERT (dest->keys == NULL);
-  ASSERT (dest->values == NULL);
+  /**
+   * Allocate resources.
+   *
+   * TODO - make this less memory hungry
+   */
+  u8 *temp_mem = lmalloc (p.alloc, p.page_size * sizeof *temp_mem);
 
-  b_size *keys = lmalloc (alloc, kcap * sizeof *dest->keys);
-  pgno *values = lmalloc (alloc, (kcap + 1) * sizeof *dest->values);
+  err_t seek = rpts_create (
+      &r->seek,
+      (rpts_params){
+          .alloc = p.alloc,
+          .scap = 10,
+      });
 
-  if (!keys || !values)
-    {
-      if (keys)
-        {
-          lfree (alloc, keys);
-        }
-      if (values)
-        {
-          lfree (alloc, values);
-        }
-      return ERR_NOMEM;
-    }
-
-  dest->keys = keys;
-  dest->values = values;
-  dest->kcap = kcap;
-  dest->klen = 0;
-
-  overflow_assert (dest);
-
-  return SUCCESS;
-}
-
-static inline void
-overflow_free (overflow *dest, lalloc *alloc)
-{
-  overflow_assert (dest);
-  ASSERT (dest);
-  lfree (alloc, dest->keys);
-  lfree (alloc, dest->values);
-}
-
-static inline err_t
-rpt_alloc (rptree *r, lalloc *alloc, p_size page_size)
-{
-  u8 *temp_mem = lmalloc (alloc, page_size * sizeof *temp_mem);
-  err_t ofr = overflow_alloc (&r->ofr, 10, alloc);
-  err_t ofw = overflow_alloc (&r->ofw, 10, alloc);
-
-  if (temp_mem == NULL || ofr || ofw)
+  if (temp_mem == NULL || seek)
     {
       goto failed;
     }
 
-  r->temp_mem = temp_mem;
-  r->tmlen = 0;
-  r->tmcap = page_size;
+  *r = (rptree){
+    .gidx = 0,          // meaningless if !is_open
+    .lidx = 0,          // ^^
+    .cur = (page){ 0 }, // ^^
+    .is_open = false,
+
+    // r->seek
+    .is_seeked = false,
+
+    .temp_mem = temp_mem,
+    .tmlen = 0,
+    .tmcap = p.page_size,
+    .alloc = p.alloc,
+
+    .pager = p.pager,
+  };
 
   return SUCCESS;
 
 failed:
   if (temp_mem)
     {
-      lfree (alloc, temp_mem);
+      lfree (p.alloc, temp_mem);
     }
-  if (!ofr)
+  if (seek == SUCCESS)
     {
-      overflow_free (&r->ofr, alloc);
-    }
-  if (!ofw)
-    {
-      overflow_free (&r->ofw, alloc);
+      rpts_free (&r->seek);
     }
 
   return ERR_NOMEM;
 }
 
 err_t
-rpt_create (rptree *dest, rpt_params params)
-{
-  ASSERT (dest);
-
-  // Allocate
-  if (rpt_alloc (dest, params.alloc, params.page_size))
-    {
-      return ERR_NOMEM;
-    }
-
-  *dest = (rptree){
-    // Current state
-    .is_open = false,
-    .is_seeked = false,
-
-    .sp = 0,
-
-    .alloc = params.alloc,
-    .pager = params.pager,
-  };
-
-  return SUCCESS;
-}
-
-err_t
-rpt_new (rptree *r, pgno *p0)
+rpt_new (rptree *r)
 {
   rptree_assert (r);
   ASSERT (!r->is_open);
-  ASSERT (p0);
 
-  page top;
-  werr_t (pgr_new (&top, r->pager, PG_DATA_LIST));
+  err_t ret;
 
-  return rpt_open (r, top.pg);
-}
+  /**
+   * Create a new page
+   */
+  if ((ret = pgr_new (&r->cur, r->pager, PG_DATA_LIST)))
+    {
+      return ret;
+    }
 
-static inline void
-rpt_push_page (rptree *r, page p, p_size lidx)
-{
-  rptree_assert (r);
-  ASSERT (r->sp < 20);
-  r->stack[r->sp++] = (rpt_stack_v){
-    .page = p,
-    .lidx = lidx,
-  };
+  r->is_open = true;
+
+  return SUCCESS;
 }
 
 err_t
@@ -162,19 +104,18 @@ rpt_open (rptree *r, pgno p0)
   rptree_assert (r);
   ASSERT (!r->is_open);
 
-  page top;
+  err_t ret;
 
   // Fetch the root page
-  werr_t (pgr_get_expect (
-      &top,
-      PG_INNER_NODE | PG_DATA_LIST,
-      p0, r->pager));
+  if ((ret = pgr_get_expect (
+           &r->cur,
+           PG_INNER_NODE | PG_DATA_LIST,
+           p0, r->pager)))
+    {
+      return ret;
+    }
 
   r->is_open = true;
-  ASSERT (!r->is_seeked);
-  ASSERT (r->sp == 0);
-
-  r->cur = top;
 
   return SUCCESS;
 }
@@ -186,13 +127,15 @@ rpt_close (rptree *r)
   ASSERT (r->is_open);
   r->is_open = false;
   r->is_seeked = false;
-  r->sp = 0;
+  rpts_reset (&r->seek);
 }
 
 static err_t
 rpt_seek_recursive (rptree *r, b_size byte)
 {
   rptree_assert (r);
+
+  err_t ret = SUCCESS;
 
   switch (r->cur.type)
     {
@@ -202,8 +145,13 @@ rpt_seek_recursive (rptree *r, b_size byte)
         p_size lidx = in_choose_lidx (&r->cur.in, byte);
 
         // Push it to the top of the stack
-        rpt_push_page (r, r->cur, lidx);
+        if ((ret = rpts_push_page (&r->seek, r->cur, lidx)))
+          {
+            // Not sure what to do yet on failure
+            panic ();
+          }
 
+        // Fetch key and value at that location
         pgno next = r->cur.in.leafs[lidx];
         b_size nleft = 0;
         if (lidx > 0)
@@ -217,10 +165,13 @@ rpt_seek_recursive (rptree *r, b_size byte)
         byte -= nleft;
 
         // Fetch the next page
-        werr_t (pgr_get_expect (
-            &r->cur,
-            PG_INNER_NODE | PG_DATA_LIST,
-            next, r->pager));
+        if ((ret = pgr_get_expect (
+                 &r->cur,
+                 PG_INNER_NODE | PG_DATA_LIST,
+                 next, r->pager)))
+          {
+            panic ();
+          }
 
         // Recursive call
         return rpt_seek_recursive (r, byte);
@@ -238,7 +189,12 @@ rpt_seek_recursive (rptree *r, b_size byte)
             r->lidx = byte;
           }
 
-        rpt_push_page (r, r->cur, r->lidx);
+        // Push it to the top of the stack
+        if ((ret = rpts_push_page (&r->seek, r->cur, r->lidx)))
+          {
+            // Not sure what to do yet on failure
+            panic ();
+          }
 
         r->gidx += r->lidx;
         r->is_seeked = true;
@@ -258,35 +214,11 @@ rpt_seek (rptree *r, b_size b)
   rptree_assert (r);
   ASSERT (r->is_open);
   ASSERT (!r->is_seeked);
+
+  /**
+   * TODO - this doesn't need to be recursive
+   */
   return rpt_seek_recursive (r, b);
-}
-
-static inline err_t
-overflow_push (overflow *ov, pgno pg, b_size key, lalloc *alloc)
-{
-  overflow_assert (ov);
-  if (ov->klen == ov->kcap)
-    {
-      b_size *keys = lrealloc (alloc, ov->keys, 2 * ov->kcap * sizeof *keys);
-      pgno *values = lrealloc (alloc, ov->values, (2 * ov->kcap + 1) * sizeof *values);
-      if (!keys || !values)
-        {
-          panic ();
-        }
-      ov->kcap *= 2;
-      ov->keys = keys;
-      ov->values = values;
-    }
-  ov->keys[ov->klen] = key;
-  ov->values[ov->klen++] = pg;
-  return SUCCESS;
-}
-
-static inline void
-overflow_push_last_page (overflow *ov, pgno pg)
-{
-  overflow_assert (ov);
-  ov->values[ov->klen] = pg;
 }
 
 err_t
@@ -298,6 +230,8 @@ rpt_insert (const u8 *src, t_size size, b_size n, rptree *r)
   rptree_assert (r);
   ASSERT (r->is_seeked);
 
+  err_t ret = SUCCESS;
+
   /**
    * Step 1
    * Traverse from the root down to current location and update
@@ -305,190 +239,83 @@ rpt_insert (const u8 *src, t_size size, b_size n, rptree *r)
    * with new bytes
    */
   b_size btotal = n * size;
-  ASSERT (r->sp > 0); // At least a data list node
-  for (u32 i = 0; i < r->sp - 1; ++i)
+  for (u32 i = 0; i < rpts_len (&r->seek); ++i)
     {
-      rpt_stack_v s = r->stack[i];
+      rpts_v s = rpts_get (&r->seek, i);
       in_add_right (&s.page.in, s.lidx, btotal);
     }
 
   /**
-   * Step 2
-   * Save the right half of the current bottom data list node to
-   * write at the end of everything
+   * Step 2 Create the first overflow buffer by writing out last
+   * data node
    */
-  ASSERT (r->cur.type == PG_DATA_LIST);
-  r->tmlen = dl_read_out_from (&r->cur.dl, r->temp_mem, r->lidx);
-  ASSERT (r->tmlen < r->tmcap); // lt because no node is ever page_size
-
-  /**
-   * Step 3
-   * Allocate room and create all bottom layer data nodes
-   * and link them up correctly
-   */
-  b_size written = 0;
-  page cur = r->cur;
-  while (written < btotal)
+  mem_inner_node out;
+  if ((ret = dliacin (
+           &out,
+           (dliacin_params){
+               .idx0 = r->lidx,
+               .pg0 = r->cur,
+               .pager = r->pager,
+               .alloc = r->alloc,
+               .src = src,
+               .size = size,
+               .n = n,
+           })))
     {
-      /**
-       * Step 1, check if the current node is full.
-       * If so, allocate a new node and link and swap to it
-       * Also push to the overflow buffer
-       */
-      if (dl_avail (&cur.dl) == 0)
-        {
-          // Allocate a new node
-          page next;
-          if (pgr_new (&next, r->pager, PG_DATA_LIST))
-            {
-              panic ();
-            }
-
-          // Link current node to it
-          *cur.dl.next = next.pg;
-
-          // Append this page and right key to overflow
-          if (overflow_push (&r->ofw, cur.pg, *cur.dl.blen, r->alloc))
-            {
-              panic ();
-            }
-
-          // Commit so that we can swap it
-          if (pgr_commit (r->pager, cur.dl.raw, cur.pg))
-            {
-              panic ();
-            }
-
-          // Swap it
-          cur = next;
-        }
-
-      /**
-       * Step 2
-       * Write as many elements to this node as possible
-       */
-      p_size next_write = btotal - written;
-      p_size just_wrote = dl_write (&cur.dl, src + written, next_write);
-
-      written += just_wrote;
+      return ret;
     }
 
   /**
-   * Step 3,
-   * What's left is inside tmp_mem. Try to write it, if there's more
-   * allocate a new page and write the rest.
-   * Garunteed to only need 1 more page because temp_mem used to fit
-   * on 1 page
-   */
-  written = dl_write (&cur.dl, r->temp_mem, r->tmlen);
-  if (written < r->tmlen)
-    {
-      // Allocate a new node
-      page next;
-      if (pgr_new (&next, r->pager, PG_DATA_LIST))
-        {
-          panic ();
-        }
-
-      // Link current node to it
-      *cur.dl.next = next.pg;
-
-      // Append this page and right key to overflow
-      if (overflow_push (&r->ofw, cur.pg, *cur.dl.blen, r->alloc))
-        {
-          panic ();
-        }
-
-      // Commit so that we can swap it
-      if (pgr_commit (r->pager, cur.dl.raw, cur.pg))
-        {
-          panic ();
-        }
-
-      // Swap it
-      cur = next;
-
-      p_size next_write = r->tmlen - written;
-      p_size just_wrote = dl_write (&cur.dl, r->temp_mem + written, next_write);
-      ASSERT (just_wrote == next_write);
-    }
-
-  /**
-   * Step 4.
-   * Append the last page to the overflow.
-   * If klen = 0, then that's ok, it means we didn't actually
-   * allocate any new nodes
-   */
-  overflow_push_last_page (&r->ofw, cur.pg);
-
-  /**
-   * Step 5.
-   * Commit the current page
-   */
-  if (pgr_commit (r->pager, cur.dl.raw, cur.pg))
-    {
-      panic ();
-    }
-
-  /**
-   * Step 6.
-   * Work up the page stack and feed overflow into higher level
+   * Next,
+   * Work up the page stack and feed mem_inner_node into higher level
    * inner nodes. If none exist, push new roots
    */
-  ASSERT (r->sp > 0);
-  int sp = r->sp - 1;
-  while (true)
+  ASSERT (rpts_len (&r->seek) > 0);
+  u32 sp = rpts_len (&r->seek) - 1; // Start at the top - work down
+
+  mem_inner_node in = out;
+  while (in.kvlen > 0)
     {
-      /**
-       * Step 1
-       * Swap ofw with ofr
-       */
-      overflow temp = r->ofr;
-      r->ofr = r->ofw;
-      r->ofw = temp;
+      page cur;    // The next page we want to update
+      p_size from; // The key index inside cur we want to append to
 
-      /**
-       * The last node had nothing to write.
-       * We're done!
-       */
-      if (r->ofr.klen == 0)
-        {
-          return SUCCESS;
-        }
-
-      // We need a new root
       if (sp == 0)
         {
-          /**
-           * Scoot stack up one to reserve room for
-           * a new root
-           */
-          ASSERT (r->sp < 20);
-          for (u32 i = r->sp++; i > 0; --i)
+          if (pgr_new (&cur, r->pager, PG_INNER_NODE))
             {
-              r->stack[i] = r->stack[i - 1];
+              return ret;
             }
 
-          /**
-           * Create a new root page with first entry
-           */
-          page root;
-          if (pgr_new (&root, r->pager, PG_INNER_NODE))
+          if (rpts_push_to_bottom (&r->seek, cur, 0))
             {
-              panic ();
+              return ret;
             }
-          in_init (&root.in, r->ofr.keys[0], r->ofr.values[0], r->ofr.values[1]);
+          from = 0; // Start from the beginning
+        }
+      else
+        {
+          rpts_v v = r->seek.stack[--sp];
+          cur = v.page;
+          from = v.lidx;
         }
 
-      /******
-       * PIN DOWN HERE
-       */
-
-      /**
-       * Then copy all keys until there's no space available
-       */
+      mem_inner_node out;
+      ret = iniacin (
+          &out, (iniacin_params){
+                    .input = in,
+                    .idx0 = from,
+                    .alloc = r->alloc,
+                    .pager = r->pager,
+                    .pg0 = cur,
+                });
+      if (ret)
+        {
+          return ret;
+        }
+      in = out;
     }
-  panic ();
+
+  return SUCCESS;
 }
 
 static err_t
