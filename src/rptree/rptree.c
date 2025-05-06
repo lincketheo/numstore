@@ -23,22 +23,10 @@ DEFINE_DBG_ASSERT_I (rptree, rptree, r)
 
 //////////////////////////////// LIFECYCLE
 
-err_t
-rpt_create (rptree *r, rpt_params p)
+rptree
+rpt_create (rpt_params p)
 {
-  /**
-   * Allocate resources.
-   *
-   * TODO - make this less memory hungry
-   */
-  u8 *temp_mem = lmalloc (p.alloc, p.page_size * sizeof *temp_mem);
-
-  if (temp_mem == NULL)
-    {
-      goto failed;
-    }
-
-  *r = (rptree){
+  rptree ret = {
     .gidx = 0,          // meaningless if !is_open
     .lidx = 0,          // ^^
     .cur = (page){ 0 }, // ^^
@@ -47,23 +35,14 @@ rpt_create (rptree *r, rpt_params p)
     // r->seek // Nothing
     .is_seeked = false,
 
-    .temp_mem = temp_mem,
-    .tmlen = 0,
-    .tmcap = p.page_size,
     .alloc = p.alloc,
 
     .pager = p.pager,
   };
 
-  return SUCCESS;
+  rptree_assert (&ret);
 
-failed:
-  if (temp_mem)
-    {
-      lfree (p.alloc, temp_mem);
-    }
-
-  return ERR_NOMEM;
+  return ret;
 }
 
 err_t

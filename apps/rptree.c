@@ -34,10 +34,8 @@ main ()
   rpt_params rparams = {
     .pager = &p,
     .alloc = &galloc,
-    .page_size = 2048,
   };
-  rptree r;
-  rpt_create (&r, rparams);
+  rptree r = rpt_create (rparams);
 
   int data[10000];
   for (int i = 0; i < 10000; ++i)

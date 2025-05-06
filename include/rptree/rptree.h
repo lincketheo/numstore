@@ -28,18 +28,7 @@ typedef struct
     bool is_seeked;
   };
 
-  /**
-   * A temporary buffer to store
-   * temporary data for r+tree ops
-   */
-  struct
-  {
-    u8 *temp_mem;
-    p_size tmlen;
-    p_size tmcap;
-    lalloc *alloc;
-  };
-
+  lalloc *alloc; // For now one global allocator
   pager *pager;
 } rptree;
 
@@ -47,7 +36,6 @@ typedef struct
 {
   pager *pager;
   lalloc *alloc;
-  p_size page_size;
 } rpt_params;
 
 //////////////////////////////// LIFECYCLE
@@ -55,7 +43,7 @@ typedef struct
  * Creates the body of the rptree - doesn't actually
  * read any data.
  */
-err_t rpt_create (rptree *dest, rpt_params params);
+rptree rpt_create (rpt_params params);
 
 /**
  * Opens a new rptree
