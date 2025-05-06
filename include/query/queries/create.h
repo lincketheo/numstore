@@ -1,7 +1,7 @@
 #pragma once
 
 #include "ds/strings.h"
-#include "typing.h"
+#include "type/types.h"
 
 typedef struct
 {

@@ -1,7 +1,7 @@
 #include "compiler/stack_parser/common.h"
 #include "compiler/stack_parser/type_builder.h"
 #include "compiler/tokens.h"
-#include "typing.h"
+#include "type/types.h"
 #include "utils/bounds.h"
 
 ////////////////////////// DEV
@@ -34,7 +34,7 @@ sarray_builder_assert_state (type_builder *tb, int sab_state)
 ////////////////////////// API
 
 stackp_result
-sab_create (type_builder *dest, lalloc *alloc, u32 dim)
+sab_create (type_builder *dest, lalloc *alloc)
 {
   ASSERT (dest);
 
@@ -45,8 +45,7 @@ sab_create (type_builder *dest, lalloc *alloc, u32 dim)
     }
   dest->sab.cap = 5;
   dest->sab.len = 0;
-  dest->sab.dims[dest->sab.len++] = dim;
-  dest->sab.state = SAB_WAITING_FOR_RIGHT;
+  dest->sab.state = SAB_WAITING_FOR_NUMBER;
   dest->state = TB_SARRAY;
 
   sarray_builder_assert (dest);

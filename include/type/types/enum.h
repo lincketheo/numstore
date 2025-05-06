@@ -3,8 +3,8 @@
 #include "ds/strings.h"
 #include "intf/mm.h"
 #include "intf/types.h"
-
-typedef struct type_s type;
+#include "utils/deserializer.h"
+#include "utils/serializer.h"
 
 typedef struct
 {
@@ -12,8 +12,18 @@ typedef struct
   string *keys;
 } enum_t;
 
-void enum_free (type *t, lalloc *alloc);
-err_t ser_size_enum (u16 *dest, const type *t);
-void i_log_enum (const type *t);
-err_t enum_t_deserialize (type *dest, lalloc *a, const u8 *src, u16 slen);
-err_t enum_t_serialize (u8 *t, u16 dlen, const type *src);
+bool enum_t_is_valid (const enum_t *t);
+
+int enum_t_snprintf (char *str, u32 size, const enum_t *st);
+
+u32 enum_t_byte_size (const enum_t *t);
+
+void enum_t_free_internals_forgiving (enum_t *t, lalloc *alloc);
+
+void enum_t_free_internals (enum_t *t, lalloc *alloc);
+
+u32 enum_t_get_serial_size (const enum_t *t);
+
+void enum_t_serialize (serializer *dest, const enum_t *src);
+
+err_t enum_t_deserialize (enum_t *dest, deserializer *src, lalloc *a);

@@ -1,7 +1,10 @@
 #pragma once
 
 #include "ds/strings.h"
+#include "intf/mm.h"
 #include "intf/types.h"
+#include "utils/deserializer.h"
+#include "utils/serializer.h"
 
 typedef struct type_s type;
 
@@ -11,3 +14,19 @@ typedef struct
   string *keys;
   type *types;
 } struct_t;
+
+bool struct_t_is_valid (const struct_t *t);
+
+int struct_t_snprintf (char *str, u32 size, const struct_t *st);
+
+u32 struct_t_byte_size (const struct_t *t);
+
+void struct_t_free_internals_forgiving (struct_t *t, lalloc *alloc);
+
+void struct_t_free_internals (struct_t *t, lalloc *alloc);
+
+u32 struct_t_get_serial_size (const struct_t *t);
+
+void struct_t_serialize (serializer *dest, const struct_t *src);
+
+err_t struct_t_deserialize (struct_t *dest, deserializer *src, lalloc *a);

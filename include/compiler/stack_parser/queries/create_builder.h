@@ -3,7 +3,7 @@
 #include "compiler/stack_parser/common.h"
 #include "compiler/tokens.h"
 #include "ds/strings.h"
-#include "typing.h"
+#include "type/types.h"
 
 typedef struct query_builder_s query_builder;
 

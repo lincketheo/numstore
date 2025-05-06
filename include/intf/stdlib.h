@@ -2,7 +2,8 @@
 
 #include "intf/types.h"
 
-#include <string.h>
+#include <stdio.h>
+#include <string.h> // snprintf
 
 // I just like this pattern just to know
 // which functions from the standard library I'm
@@ -15,3 +16,4 @@
 #define i_unsafe_strlen(cstr) strlen (cstr)
 #define i_memcmp(s1, s2, n) memcmp (s1, s2, n)
 #define i_memchr(buf, c, len) memchr (buf, c, len)
+#define i_snprintf(buf, len, ...) snprintf (buf, len, __VA_ARGS__)

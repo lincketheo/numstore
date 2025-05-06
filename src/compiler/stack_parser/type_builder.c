@@ -2,7 +2,6 @@
 #include "compiler/stack_parser/common.h"
 #include "compiler/stack_parser/types/sarray_builder.h"
 #include "compiler/stack_parser/types/union_builder.h"
-#include "compiler/stack_parser/types/varray_builder.h"
 #include "compiler/tokens.h"
 
 DEFINE_DBG_ASSERT_I (type_builder, type_builder, typeb)
@@ -43,30 +42,11 @@ typeb_accept_token (type_builder *tb, token t, lalloc *alloc)
             }
           case TT_LEFT_BRACKET:
             {
-              tb->state = TB_ARRAY_UNKNOWN;
-              return SPR_CONTINUE;
+              return sab_create (tb, alloc);
             }
           case TT_PRIM:
             {
               return prim_create (tb, t.prim);
-            }
-          default:
-            {
-              return SPR_SYNTAX_ERROR;
-            }
-          }
-      }
-    case TB_ARRAY_UNKNOWN:
-      {
-        switch (t.type)
-          {
-          case TT_RIGHT_BRACKET:
-            {
-              return vab_create (tb);
-            }
-          case TT_INTEGER:
-            {
-              return sab_create (tb, alloc, t.integer);
             }
           default:
             {
@@ -90,10 +70,6 @@ typeb_accept_token (type_builder *tb, token t, lalloc *alloc)
       {
         return sab_accept_token (tb, t, alloc);
       }
-    case TB_VARRAY:
-      {
-        return vab_accept_token (tb, t);
-      }
     default:
       {
         return SPR_SYNTAX_ERROR;
@@ -116,10 +92,6 @@ typeb_accept_type (type_builder *tb, type t)
     case TB_UNION:
       {
         return ub_accept_type (tb, t);
-      }
-    case TB_VARRAY:
-      {
-        return vab_accept_type (tb, t);
       }
     case TB_SARRAY:
       {
@@ -155,10 +127,6 @@ typeb_build (type_builder *tb, lalloc *alloc)
       {
         return SPR_DONE;
       }
-    case TB_VARRAY:
-      {
-        return vab_build (tb, alloc);
-      }
     case TB_SARRAY:
       {
         return sab_build (tb, alloc);
@@ -182,10 +150,6 @@ typeb_expect_next (const type_builder *tb, token t)
       {
         return SBFT_TOKEN;
       }
-    case TB_ARRAY_UNKNOWN:
-      {
-        return SBFT_TOKEN;
-      }
     case TB_STRUCT:
       {
         return TYPE_ON (tb->sb, SB_WAITING_FOR_TYPE);
@@ -197,10 +161,6 @@ typeb_expect_next (const type_builder *tb, token t)
     case TB_ENUM:
       {
         return SBFT_TOKEN;
-      }
-    case TB_VARRAY:
-      {
-        return vab_expect_next (tb, t);
       }
     case TB_SARRAY:
       {

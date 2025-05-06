@@ -297,9 +297,6 @@ static const prim_token prim_tokens[] = {
   { .data = "cu32", .len = 4, .type = CU32 },
   { .data = "cu64", .len = 4, .type = CU64 },
   { .data = "cu128", .len = 5, .type = CU128 },
-
-  { .data = "bool", .len = 4, .type = BOOL },
-  { .data = "bit", .len = 3, .type = BIT },
 };
 
 typedef struct

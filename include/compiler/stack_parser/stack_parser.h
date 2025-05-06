@@ -4,7 +4,7 @@
 #include "compiler/stack_parser/type_builder.h"
 #include "compiler/tokens.h"
 #include "services/services.h"
-#include "typing.h"
+#include "type/types.h"
 
 /**
  * These are "non terminals" (not exactly, but similar)

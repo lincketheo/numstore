@@ -25,7 +25,7 @@ typedef struct
 
 } sarray_builder;
 
-stackp_result sab_create (type_builder *dest, lalloc *alloc, u32 dim0);
+stackp_result sab_create (type_builder *dest, lalloc *alloc);
 stackp_result sab_build (type_builder *eb, lalloc *alloc);
 sb_feed_t sab_expect_next (const type_builder *tb, token t);
 

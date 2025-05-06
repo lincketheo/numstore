@@ -68,18 +68,6 @@ DEFINE_DBG_ASSERT_I (union_t, union_t, u)
   ASSERT (strings_all_unique (u->keys, u->len));
 }
 
-DEFINE_DBG_ASSERT_I (enum_t, enum_t, e)
-{
-  ASSERT (e);
-  ASSERT (e->len > 0);
-  ASSERT (e->keys);
-  for (u32 i = 0; i < e->len; ++i)
-    {
-      ASSERT (e->keys[i].len > 0);
-    }
-  ASSERT (strings_all_unique (e->keys, e->len));
-}
-
 DEFINE_DBG_ASSERT_I (varray_t, varray_t, v)
 {
   ASSERT (v);
@@ -139,19 +127,6 @@ _free_union (type *t, lalloc *alloc)
   lfree (alloc, t->un.types);
 }
 
-static inline void
-_free_enum (type *t, lalloc *alloc)
-{
-  type_assert (t);
-  ASSERT (&t->en);
-  for (u32 i = 0; i < t->en.len; ++i)
-    {
-      ASSERT (t->en.keys[i].data);
-      lfree (alloc, t->en.keys[i].data);
-    }
-  ASSERT (t->en.keys);
-  lfree (alloc, t->en.keys);
-}
 
 static inline void
 _free_sarray (type *t, lalloc *alloc)
@@ -214,124 +189,8 @@ type_free_internals (type *t, lalloc *alloc)
 }
 
 //////////////////////////////////////// BITS SIZE
-u64
-prim_bits_size (prim_t t)
-{
-  prim_t_assert (&t);
-  switch (t)
-    {
-    case BIT:
-      return 1;
 
-    case BOOL:
-    case U8:
-    case I8:
-      return 8;
 
-    case U16:
-    case I16:
-    case F16:
-    case CI16:
-    case CU16:
-      return 16;
-
-    case U32:
-    case I32:
-    case F32:
-    case CF32:
-    case CI32:
-    case CU32:
-      return 32;
-
-    case U64:
-    case I64:
-    case F64:
-    case CF64:
-    case CI64:
-    case CU64:
-      return 64;
-
-    case F128:
-    case CF128:
-    case CI128:
-    case CU128:
-      return 128;
-
-    case CF256:
-      return 256;
-    }
-
-  ASSERT (0);
-  return 0;
-}
-
-const char *
-prim_to_str (prim_t p)
-{
-  switch (p)
-    {
-    case U8:
-      return "U8";
-    case U16:
-      return "U16";
-    case U32:
-      return "U32";
-    case U64:
-      return "U64";
-
-    case I8:
-      return "I8";
-    case I16:
-      return "I16";
-    case I32:
-      return "I32";
-    case I64:
-      return "I64";
-
-    case F16:
-      return "F16";
-    case F32:
-      return "F32";
-    case F64:
-      return "F64";
-    case F128:
-      return "F128";
-
-    case CF32:
-      return "CF32";
-    case CF64:
-      return "CF64";
-    case CF128:
-      return "CF128";
-    case CF256:
-      return "CF256";
-
-    case CI16:
-      return "CI16";
-    case CI32:
-      return "CI32";
-    case CI64:
-      return "CI64";
-    case CI128:
-      return "CI128";
-
-    case CU16:
-      return "CU16";
-    case CU32:
-      return "CU32";
-    case CU64:
-      return "CU64";
-    case CU128:
-      return "CU128";
-
-    case BOOL:
-      return "BOOL";
-    case BIT:
-      return "BIT";
-    }
-  prim_t_assert (&p);
-  return "";
-}
 
 //////////////////////////////// Struct
 
@@ -359,51 +218,6 @@ struct_t_bits_size (u64 *dest, const struct_t *t)
   return SUCCESS;
 }
 
-TEST (struct_t_bits_size)
-{
-  struct_t st;
-  st.len = 4;
-  st.keys = (string[]){
-    {
-        .len = 3,
-        .data = "foo",
-    },
-    {
-        .len = 2,
-        .data = "fo",
-    },
-    {
-        .len = 4,
-        .data = "baro",
-    },
-    {
-        .len = 5,
-        .data = "bazbi",
-    },
-  };
-  st.types = (type[]){
-    {
-        .type = T_PRIM,
-        .p = U32,
-    },
-    {
-        .type = T_PRIM,
-        .p = BOOL,
-    },
-    {
-        .type = T_PRIM,
-        .p = U16,
-    },
-    {
-        .type = T_PRIM,
-        .p = BIT,
-    },
-  };
-  u64 act;
-  u64 exp = (sizeof (u32) + sizeof (u8) + sizeof (u16)) * 8 + 1;
-  test_fail_if (struct_t_bits_size (&act, &st));
-  test_assert_int_equal (exp, act);
-}
 
 //////////////////////////////////// LOG TYPE
 
@@ -799,68 +613,6 @@ TEST (ser_size_union)
   test_assert_int_equal (exp, act);
 }
 
-static inline err_t
-ser_size_enum (u16 *size, const enum_t *en)
-{
-  err_t ret;
-
-  // write number of entries
-  if ((ret = ser_size_add (size, sizeof (en->len))))
-    {
-      return ret;
-    }
-
-  for (u32 i = 0; i < en->len; ++i)
-    {
-      // key length
-      if ((ret = ser_size_add (size, sizeof (en->keys[i].len))))
-        {
-          return ret;
-        }
-
-      // key bytes
-      if ((ret = ser_size_add (size, en->keys[i].len)))
-        {
-          return ret;
-        }
-    }
-
-  return SUCCESS;
-}
-
-TEST (ser_size_enum)
-{
-  enum_t en;
-  en.len = 4;
-  en.keys = (string[]){
-    {
-        .len = 3,
-        .data = "foo",
-    },
-    {
-        .len = 2,
-        .data = "fo",
-    },
-    {
-        .len = 4,
-        .data = "baro",
-    },
-    {
-        .len = 5,
-        .data = "bazbi",
-    },
-  };
-
-  // Expected
-  u16 exp = 0;
-  exp += sizeof (u16);                     // Len
-  exp += 4 * sizeof (u16) + 3 + 2 + 4 + 5; // String keys
-
-  u16 act;
-  ser_size_enum (&act, &en);
-
-  test_assert_int_equal (exp, act);
-}
 
 static inline err_t
 ser_size_varray (u16 *size, const varray_t *va)
@@ -1453,32 +1205,7 @@ TEST (_type_serialize_union)
 static inline err_t
 _type_serialize_enum (type_serialize_params p, u16 *idx)
 {
-  err_t ret;
-  enum_t *en = &p.src->en;
 
-  // number of entries
-  if ((ret = ser_write_u16 (p.dest, p.dlen, idx, en->len)))
-    {
-      return ret;
-    }
-
-  for (u32 i = 0; i < en->len; ++i)
-    {
-      // key length + key bytes
-      if ((ret = ser_write_u16 (p.dest, p.dlen, idx, en->keys[i].len)))
-        {
-          return ret;
-        }
-      if ((ret = ser_write_bytes (
-               p.dest, p.dlen, idx,
-               en->keys[i].data,
-               en->keys[i].len)))
-        {
-          return ret;
-        }
-    }
-
-  return SUCCESS;
 }
 
 TEST (_type_serialize_enum)

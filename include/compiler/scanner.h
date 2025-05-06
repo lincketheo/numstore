@@ -3,7 +3,6 @@
 #include "dev/assert.h"
 #include "ds/cbuffer.h"
 #include "intf/mm.h"
-#include "typing.h"
 
 ////////////////////// SCANNER (chars -> tokens)
 

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "compiler/stack_parser/common.h"
-#include "typing.h"
+#include "type/types.h"
 
 typedef struct type_builder_s type_builder;
 

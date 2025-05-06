@@ -2,7 +2,7 @@
 #include "compiler/stack_parser/common.h"
 #include "compiler/stack_parser/type_builder.h"
 #include "compiler/tokens.h"
-#include "typing.h"
+#include "type/types.h"
 #include "utils/bounds.h"
 
 ////////////////////////// DEV

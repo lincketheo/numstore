@@ -3,7 +3,7 @@
 #include "ds/strings.h"
 #include "intf/mm.h"
 #include "query/queries/create.h"
-#include "typing.h"
+#include "type/types.h"
 #include "variable.h"
 
 typedef struct vnode_s

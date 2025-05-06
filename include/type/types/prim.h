@@ -1,25 +1,11 @@
 #pragma once
 
-/**
- * TYPE = PRIM | STRUCT | VARRAY | SARRAY | UNION | ENUM
- * STRUCT = KEY TYPE (, KEY TYPE)*
- * VARRAY = RANK TYPE
- * SARRAY = DIM (, DIM)* TYPE
- * UNION = KEY TYPE (, KEY TYPE)*
- * ENUM = KEY (, KEY)*
- */
+#include "dev/errors.h"
+#include "intf/mm.h"
+#include "utils/deserializer.h"
+#include "utils/serializer.h"
 
 typedef struct type_s type;
-
-typedef enum
-{
-  T_PRIM,
-  T_STRUCT,
-  T_UNION,
-  T_ENUM,
-  T_VARRAY,
-  T_SARRAY,
-} type_t;
 
 typedef enum
 {
@@ -52,9 +38,16 @@ typedef enum
   CU32 = 21,
   CU64 = 22,
   CU128 = 23,
-
-  BOOL = 24,
-  BIT = 25,
 } prim_t;
 
 const char *prim_to_str (prim_t p);
+
+bool prim_t_is_valid (const prim_t *t);
+
+int prim_t_snprintf (char *str, u32 size, const prim_t *p);
+
+u32 prim_t_byte_size (const prim_t *t);
+
+void prim_t_serialize (serializer *dest, const prim_t *src);
+
+err_t prim_t_deserialize (prim_t *dest, deserializer *src);

@@ -8,18 +8,27 @@
 #include "type/types/sarray.h"
 #include "type/types/struct.h"
 #include "type/types/union.h"
-#include "type/types/varray.h"
+#include "utils/deserializer.h"
 
 /**
- * TYPE = PRIM | STRUCT | VARRAY | SARRAY | UNION | ENUM
+ * TYPE = PRIM | STRUCT | SARRAY | UNION | ENUM
  * STRUCT = KEY TYPE (, KEY TYPE)*
- * VARRAY = RANK TYPE
  * SARRAY = DIM (, DIM)* TYPE
  * UNION = KEY TYPE (, KEY TYPE)*
  * ENUM = KEY (, KEY)*
  */
 
 typedef struct type_s type;
+
+typedef enum
+{
+  T_PRIM,
+  T_STRUCT,
+  T_UNION,
+  T_ENUM,
+  T_VARRAY,
+  T_SARRAY,
+} type_t;
 
 struct type_s
 {
@@ -29,23 +38,49 @@ struct type_s
     struct_t st;
     union_t un;
     enum_t en;
-    varray_t va;
     sarray_t sa;
   };
 
   type_t type;
 };
 
-// Logging
-void i_log_type (const type *t);
+/**
+ * Checks that this type is valid
+ */
+bool type_is_valid (const type *t);
 
-// Size in bits
-err_t type_bits_size (u64 *dest, const type *t);
+/**
+ * Cleanly print to string
+ */
+int type_snprintf (char *str, u32 size, type *t);
 
-// Free
-void type_free_internals (type t, lalloc *alloc);
+/**
+ * Get the size in bytes
+ */
+u32 type_byte_size (const type *t);
 
-// Serialization
-err_t type_get_serial_size (u16 *dest, const type *t);
-err_t type_serialize (u8 *dest, u16 dlen, const type *src);
-err_t type_deserialize (type *dest, lalloc *a, const u8 *src, u16 slen);
+/**
+ * Free stuff inside type, not type itself
+ */
+void type_free_internals_forgiving (type *t, lalloc *alloc);
+
+/**
+ * Free stuff inside type, not type itself
+ */
+void type_free_internals (type *t, lalloc *alloc);
+
+/**
+ * Get the size of the buffer needed to serialize this type
+ */
+u32 type_get_serial_size (const type *t);
+
+/**
+ * Serialize src into dest - assumes dest is long enough
+ * Call get_serial_size first
+ */
+void type_serialize (serializer *dest, const type *src);
+
+/**
+ * Deserialize src into dest, allocating on a
+ */
+err_t type_deserialize (type *dest, deserializer *src, lalloc *a);
