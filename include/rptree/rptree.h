@@ -24,7 +24,7 @@ typedef struct
    */
   struct
   {
-    rpt_seek_r seek;
+    seek_r seek;
     bool is_seeked;
   };
 

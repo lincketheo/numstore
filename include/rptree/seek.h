@@ -2,6 +2,8 @@
 
 #include "intf/mm.h"
 #include "paging/page.h"
+#include "paging/pager.h"
+#include "rptree/mem_inner_node.h"
 
 /**
  * The rptree contains a growing
@@ -19,33 +21,35 @@ typedef struct
 {
   page page;   // Page we traversed
   p_size lidx; // Choice of the leaf we went with
-} rpts_v;      // rpt stack value
+} seek_v;      // rpt stack value
 
 typedef struct
 {
-  rpts_v *stack;
-  b_size gidx;
-  p_size lidx;
-  u32 scap;
-  u32 sp;
-  lalloc *alloc;
-} rpt_seek_r; // rpt seek result
+  page result;   // Top most data list element
+  seek_v *stack; // A stack of inner nodes and choices
+  b_size gidx;   // global idx
+  p_size lidx;   // local idx (within top node)
+  u32 scap;      // Capacity of stack
+  u32 sp;        // Stack pointer (1 past top)
+} seek_r;        // A seek result
 
 typedef struct
 {
+  b_size whereto;
+  pager *pager;
   u32 scap;
   lalloc *alloc;
-} rpts_params;
+} seek_params;
 
-err_t rpts_create (rpt_seek_r *dest, rpts_params p);
-err_t rpts_push_page (rpt_seek_r *r, page p, p_size lidx);
-void rpts_reset (rpt_seek_r *r);
-void rpts_free (rpt_seek_r *r);
-u32 rpts_len (rpt_seek_r *r);
-rpts_v rpts_top (rpt_seek_r *r);
-rpts_v rpts_get (rpt_seek_r *r, u32 i);
-err_t rpts_push_to_bottom (rpt_seek_r *r, page p, p_size lidx);
+err_t seek (seek_r *r, seek_params params);
 
-/**
- * A seek operation
- */
+void seek_insert_prepare (seek_r *r, b_size total);
+
+typedef struct
+{
+  mem_inner_node input;
+  lalloc *alloc;
+  pager *pager;
+} spup_params;
+
+err_t seek_propagate_up (seek_r *r, spup_params params);
