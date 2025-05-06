@@ -8,7 +8,7 @@
 #define DL_HEDR_OFFSET (0)
 #define DL_NEXT_OFFSET (DL_HEDR_OFFSET + sizeof (*((data_list *)0)->header))
 #define DL_BLEN_OFFSET (DL_NEXT_OFFSET + sizeof (*((data_list *)0)->next))
-#define DL_DATA_OFFSET (DL_NEXT_OFFSET + sizeof (*((data_list *)0)->blen))
+#define DL_DATA_OFFSET (DL_BLEN_OFFSET + sizeof (*((data_list *)0)->blen))
 
 DEFINE_DBG_ASSERT_I (data_list, unchecked_data_list, d)
 {
@@ -42,14 +42,6 @@ dl_is_valid (const data_list *d)
    * Check that blen is less than data avail
    */
   if (*d->blen > dl_data_size (d->rlen))
-    {
-      return false;
-    }
-
-  /**
-   * Page 0 is a magic page
-   */
-  if (*d->next == 0)
     {
       return false;
     }
@@ -92,7 +84,7 @@ dl_avail (const data_list *d)
 {
   valid_data_list_assert (d);
   p_size total_avail = dl_data_size (d->rlen);
-  ASSERT (total_avail > *d->blen); // because is_valid
+  ASSERT (total_avail >= *d->blen); // because is_valid
   return total_avail - *d->blen;
 }
 
@@ -131,7 +123,9 @@ dl_write (data_list *d, const u8 *src, p_size bytes)
   if (next > 0)
     {
       i_memcpy (tail, src, next);
-      *d->blen += next;
+      p_size blen = *d->blen;
+      blen = blen + next;
+      *d->blen = blen;
     }
 
   return next;

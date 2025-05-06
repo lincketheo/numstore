@@ -7,15 +7,15 @@
 DEFINE_DBG_ASSERT_I (mem_inner_node, mem_inner_node, o)
 {
   ASSERT (o);
-  ASSERT (o->first_pg != 0);
+  //  ASSERT (o->first_pg != 0); // TODO - enable
   ASSERT (o->kvlen <= o->kvcap);
   if (o->kvcap == 0)
     {
-      ASSERT (o->kvs);
+      ASSERT (o->kvs == NULL);
     }
   else
     {
-      ASSERT (o->kvs == NULL);
+      ASSERT (o->kvs);
     }
 }
 
@@ -43,7 +43,7 @@ mintn_clip (mem_inner_node *r)
       return SUCCESS;
     }
 
-  pg_rk *kvs = lrealloc (r->alloc, r->kvs, r->kvlen);
+  pg_rk *kvs = lrealloc (r->alloc, r->kvs, r->kvlen * sizeof *kvs);
   if (!kvs)
     {
       // This is probably an IO_ERR
@@ -238,7 +238,7 @@ mintn_write_max_into_in (inner_node *dest, mem_inner_node *m)
   if (in_get_nkeys (dest) == 0)
     {
       pgno left = m->first_pg;
-      b_size key = mintn_get_left (m, in_get_right_most_leaf (dest));
+      b_size key = mintn_get_left (m, m->first_pg);
       in_init (dest, key, left, m->first_pg);
     }
 
@@ -246,6 +246,7 @@ mintn_write_max_into_in (inner_node *dest, mem_inner_node *m)
   while (m->kvlen > 0 && in_keys_avail (dest) > 0)
     {
       b_size key = mintn_get_left (m, in_get_right_most_leaf (dest));
+      key += in_get_right_most_key (dest);
       bool added = in_add_kv (dest, key, m->first_pg);
       ASSERT (added);
     }

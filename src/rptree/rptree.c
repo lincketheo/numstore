@@ -11,6 +11,7 @@
 #include "rptree/iniacin.h"
 #include "rptree/mem_inner_node.h"
 #include "rptree/seek.h"
+#include <bits/types/stack_t.h>
 
 DEFINE_DBG_ASSERT_I (rptree, rptree, r)
 {
@@ -102,14 +103,21 @@ err_t
 rpt_seek (rptree *r, b_size b)
 {
   rptree_assert (r);
-  return seek (
+  err_t ret = seek (
       &r->seek,
       (seek_params){
+          .starting_page = r->cur,
           .pager = r->pager,
           .alloc = r->alloc,
           .whereto = b,
           .scap = 10,
       });
+  if (ret)
+    {
+      return ret;
+    }
+  r->is_seeked = true;
+  return ret;
 }
 
 err_t
@@ -130,7 +138,17 @@ rpt_insert (const u8 *src, t_size size, b_size n, rptree *r)
    * with new bytes
    */
   b_size btotal = n * size;
-  seek_insert_prepare (&r->seek, btotal);
+  for (u32 i = 0; i < r->seek.sp; ++i)
+    {
+      page cur;
+      seek_v next = r->seek.stack[i];
+      if ((ret = pgr_get_expect (
+               &cur, PG_INNER_NODE, next.pg, r->pager)))
+        {
+          return ret;
+        }
+      in_add_right (&cur.in, next.lidx, btotal);
+    }
 
   /**
    * Step 2 Create the first overflow buffer by writing out last
@@ -152,18 +170,60 @@ rpt_insert (const u8 *src, t_size size, b_size n, rptree *r)
       return ret;
     }
 
-  if ((ret = seek_propagate_up (
-           &r->seek,
-           (spup_params){
-               .alloc = r->alloc,
-               .input = out,
-               .pager = r->pager,
-           })))
-    {
-      return ret;
-    }
+  int sp = r->seek.sp;
+  mem_inner_node input = out;
 
-  return SUCCESS;
+  if (input.kvlen > 0)
+    {
+      page cur;
+      p_size from;
+
+      if (sp == 0)
+        {
+          /**
+           * We are at the base of the stack and we
+           * need more room, create a new root node and push it
+           * onto the stack
+           */
+          if ((ret = pgr_new (&cur, r->pager, PG_INNER_NODE)))
+            {
+              return ret;
+            }
+          if ((ret = seek_r_push_to_bottom (&r->seek, cur, 0)))
+            {
+              return ret;
+            }
+          from = 0;
+        }
+      else
+        {
+          /**
+           * We are at an inner node, fetch that node
+           */
+          seek_v v = r->seek.stack[--sp];
+          if ((ret = pgr_get_expect (
+                   &cur,
+                   PG_INNER_NODE,
+                   v.pg, r->pager)))
+            {
+              return ret;
+            }
+          from = v.lidx;
+        }
+
+      if ((ret = iniacin (
+               &out, (iniacin_params){
+                         .input = input,
+                         .idx0 = from,
+                         .alloc = r->alloc,
+                         .pager = r->pager,
+                         .pg0 = cur,
+                     })))
+        {
+          return ret;
+        }
+    }
+  return ret;
 }
 
 static err_t

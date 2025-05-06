@@ -232,7 +232,10 @@ static err_t
 dliacin_s_complete (mem_inner_node *dest, dliacin_s *d)
 {
   dliacin_s_assert (d);
-  lfree (d->alloc, d->temp_buf);
+  if (d->temp_buf)
+    {
+      lfree (d->alloc, d->temp_buf);
+    }
 
   // TODO
   // Probably don't need to clip because I think

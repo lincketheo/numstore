@@ -37,7 +37,7 @@ in_is_valid (const inner_node *in)
   /**
    * Check that nkeys is less than max keys
    */
-  if (*in->nkeys > dl_data_size (in->rlen))
+  if (*in->nkeys > in_max_nkeys (in->rlen))
     {
       return false;
     }
@@ -62,7 +62,7 @@ in_is_valid (const inner_node *in)
    */
   p_size keys_start = (u8 *)in->keys - (u8 *)in->raw;
   ASSERT (keys_start < in->rlen); // From previous assert
-  if ((in->rlen - keys_start) != *in->nkeys / sizeof (b_size))
+  if ((in->rlen - keys_start) != *in->nkeys * sizeof *in->keys)
     {
       return false;
     }
@@ -200,7 +200,7 @@ in_init (inner_node *dest, b_size key, pgno left, pgno right)
   dest->leafs[0] = left;
   dest->leafs[1] = right;
 
-  dest->keys = (b_size *)(&dest->raw[dest->rlen - 1]);
+  dest->keys = (b_size *)(dest->raw + dest->rlen - sizeof *dest->keys);
   dest->keys[0] = key;
   *dest->nkeys = 1;
   valid_inner_node_assert (dest);
@@ -217,7 +217,7 @@ in_add_kv (inner_node *dest, b_size key, pgno right)
     }
 
   // Grow leafs to the right
-  dest->leafs[(*dest->nkeys)++] = right;
+  dest->leafs[++(*dest->nkeys)] = right;
 
   // Grow keys to the left
   dest->keys -= 1;
@@ -278,7 +278,7 @@ in_clip_right (inner_node *in, p_size fromkey)
 p_size
 in_keys_avail (inner_node *in)
 {
-  valid_inner_node_assert (in);
+  unchecked_inner_node_assert (in);
 
   p_size maxkeys = in_max_nkeys (in->rlen);
 
@@ -290,7 +290,7 @@ in_keys_avail (inner_node *in)
 p_size
 in_get_nkeys (const inner_node *in)
 {
-  valid_inner_node_assert (in);
+  unchecked_inner_node_assert (in);
 
   return *in->nkeys;
 }
@@ -325,4 +325,12 @@ in_get_right_most_leaf (inner_node *in)
   valid_inner_node_assert (in);
 
   return in->leafs[*in->nkeys];
+}
+
+b_size
+in_get_right_most_key (inner_node *in)
+{
+  valid_inner_node_assert (in);
+
+  return in->keys[0];
 }

@@ -6,44 +6,48 @@
 #include "rptree/mem_inner_node.h"
 
 /**
- * The rptree contains a growing
- * stack of pages and "chosen id's"
- * that it traverses on a seek. This
- * allows it easy access to it's seek
- * history. For example, when you run
- * append, you can traverse from the root
- * to the top to add a quantity to all
- * nodes on the right
- *
- * This is one stack element
+ * A stack entry contains an inner node page and
+ * the index of the child we chose to traverse
  */
 typedef struct
 {
-  page page;   // Page we traversed
+  pgno pg;     // The page number of the page we traversed
   p_size lidx; // Choice of the leaf we went with
 } seek_v;      // rpt stack value
 
+/**
+ * A "seek result" is the response to a seek call
+ * on a rpt tree.
+ *
+ * It contains:
+ * 1. A resulting Data List page
+ * 2. Where we are in the global database (gidx)
+ * 3. Where we are in the local page (lidx)
+ * 4. Stack (and length) of previous pages we visited to get here
+ */
 typedef struct
 {
-  page result;   // Top most data list element
-  seek_v *stack; // A stack of inner nodes and choices
-  b_size gidx;   // global idx
+  page result;   // The data list page that contains our seek byte
+  b_size gidx;   // global location
   p_size lidx;   // local idx (within top node)
-  u32 scap;      // Capacity of stack
-  u32 sp;        // Stack pointer (1 past top)
-} seek_r;        // A seek result
+  seek_v *stack; // A stack of previous inner nodes and choices
+  u32 sp;        // Length of the stack
+  u32 scap;      // Capacity of the stack
+  lalloc *alloc; // Allocator for growing the stack
+} seek_r;
+
+err_t seek_r_push_to_bottom (seek_r *r, page p, p_size lidx);
 
 typedef struct
 {
-  b_size whereto;
-  pager *pager;
-  u32 scap;
-  lalloc *alloc;
+  page starting_page; // Starting root page
+  b_size whereto;     // Which byte to seek to
+  u32 scap;           // Starting capacity to allocate for the stack
+  pager *pager;       // To find pages
+  lalloc *alloc;      // Allocator for stack
 } seek_params;
 
 err_t seek (seek_r *r, seek_params params);
-
-void seek_insert_prepare (seek_r *r, b_size total);
 
 typedef struct
 {

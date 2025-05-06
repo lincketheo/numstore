@@ -41,6 +41,11 @@ iniacin_s_save_right (iniacin_s *d, p_size idx0)
   iniacin_s_assert (d);
   ASSERT (idx0 <= in_get_nkeys (&d->pg0.in));
 
+  if (idx0 == in_get_nkeys (&d->pg0.in))
+    {
+      return SUCCESS;
+    }
+
   err_t ret = SUCCESS;
 
   // TODO - this can be optimized
