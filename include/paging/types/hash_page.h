@@ -21,8 +21,23 @@ typedef struct page_s page;
  */
 typedef struct
 {
-  p_size *len;  // Length of the hash table
+  u8 *raw;
+  p_size rlen;
+
+  pgh *header;
   pgno *hashes; // Hashes pointing to linked list
 } hash_page;
 
-err_t hp_get_hash (page *p, pgno *dest, const string string);
+bool hp_is_valid (const hash_page *d);
+
+void hp_init_empty (hash_page *hp);
+
+hash_page hp_set_ptrs (u8 *raw, p_size len);
+
+p_size hp_hash_len (p_size page_size);
+
+p_size hp_get_hash_pos (const hash_page *p, const string str);
+
+pgno hp_get_pgno (const hash_page *p, p_size pos);
+
+void hp_set_hash (hash_page *p, p_size pos, pgno pg);

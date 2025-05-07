@@ -194,7 +194,11 @@ scanner_cpy_advance_expect (scanner *s)
   bool more = cbuffer_dequeue (&next, s->chars_input);
   ASSERT (more);
 
-  werr_t (scanner_push_char_dcur (s, next));
+  err_t ret = scanner_push_char_dcur (s, next);
+  if (ret)
+    {
+      return ret;
+    }
 
   return SUCCESS;
 }

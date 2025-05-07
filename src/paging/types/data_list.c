@@ -13,11 +13,13 @@
 DEFINE_DBG_ASSERT_I (data_list, unchecked_data_list, d)
 {
   ASSERT (d);
+  ASSERT (d->raw);
+  ASSERT (d->rlen > 0);
   ASSERT_PTR_IS_IDX (d->raw, d->header, DL_HEDR_OFFSET);
   ASSERT_PTR_IS_IDX (d->raw, d->next, DL_NEXT_OFFSET);
   ASSERT_PTR_IS_IDX (d->raw, d->blen, DL_BLEN_OFFSET);
   ASSERT_PTR_IS_IDX (d->raw, d->data, DL_DATA_OFFSET);
-  ASSERT (DL_DATA_OFFSET < d->rlen + 10); // Let's say at least 10 bytes - arbitrary
+  ASSERT (DL_DATA_OFFSET + 10 < d->rlen); // Let's say at least 10 bytes - arbitrary
 }
 
 DEFINE_DBG_ASSERT_I (data_list, valid_data_list, d)

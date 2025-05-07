@@ -7,7 +7,7 @@
 #include "intf/stdlib.h"
 #include "intf/types.h"
 #include "paging/pager.h"
-#include "vhash_map.h"
+#include "variables/vmem_hashmap.h"
 
 //////////////// Global Config
 DEFINE_DBG_ASSERT_I (database, database, g)
@@ -153,13 +153,13 @@ db_open (database *db, dboargs args)
     }
 
   // Create the variable hash map
-  vhm_params vparams = {
+  vmhm_params vparams = {
     .len = db->page_size,
     .map_allocator = &db->alloc,
     .node_allocator = &db->alloc,
     .type_allocator = &db->alloc,
   };
-  if ((ret = vhash_map_create (&db->variables, vparams)))
+  if ((ret = vmhm_create (&db->variables, vparams)))
     {
       return ret;
     }

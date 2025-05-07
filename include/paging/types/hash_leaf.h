@@ -1,64 +1,68 @@
 #pragma once
 
 #include "dev/errors.h"
+#include "ds/strings.h"
+#include "intf/mm.h"
 #include "intf/types.h"
 
 typedef struct page_s page;
-
-/**
- * HASH LEAF TUPLE (inside hash leaf)
- * ============ DATA START
- * STRLEN
- * STR0
- * STR1
- * ...
- * STR(STRLEN - 1)
- * PGNO
- * TSTRLEN
- * TSTR0
- * TSTR1
- * ...
- * TSTR(TSTRLEN)
- * ============ DATA END
- */
-typedef struct
-{
-  p_size *strlen;  // The length of the variable name
-  char *str;       // The name of the variable
-  pgno *pg0;       // Page 0 of the variable
-  p_size *tstrlen; // The length of the type string
-  char *tstr;      // The type string
-} hash_leaf_tuple;
 
 /**
  * HASH LEAF
  * ============ PAGE START
  * HEADER
  * NEXT
- * NVALUES
- * OFFSET0
- * OFFSET1
+ * VLEN         (2 bytes)
+ * ISPRESENT    (0 / 1 - 1 byte)
+ * PG0          (pgno)
+ * VSTRLEN      (2 bytes)
+ * TSTRLEN
+ * VNAME
+ * VNAME
+ * VNAME
  * ...
- * OFFSET(NVALUES - 1)
- * 0
- * 0
+ * TSTR
+ * TSTR
  * ...
- * 0
- * 0
- * TPL2
- * TPL1
- * TPL0
+ * VLEN
+ * ....
  * ============ PAGE END
  */
 typedef struct
 {
-  pgno *next;      // Pointer to next hash map leaf - 0 if none
-  p_size *nvalues; // Number of values in this node
-  p_size *offsets; // Pointers to where each key value header_sizes
+  u8 *raw;
+  p_size rlen;
+
+  pgh *header;
+  pgno *next; // Pointer to next hash map leaf - 0 if none
+  u8 *data;   // Pointer to serialized variables
 } hash_leaf;
 
-/**
- * returns:
- *  ERR_INVALID_STATE
- */
-err_t hl_get_tuple (hash_leaf_tuple *dest, const page *hl, p_size idx);
+bool hl_is_valid (const hash_leaf *d);
+
+p_size hl_data_len (p_size page_size);
+
+void hl_init_empty (hash_leaf *hl);
+
+hash_leaf hl_set_ptrs (u8 *raw, p_size len);
+
+pgno hl_get_next (const hash_leaf *hl);
+
+#define HLRC_PFX_LEN (2 * sizeof (u16) + sizeof (u8) + sizeof (pgno))
+
+typedef struct
+{
+  enum
+  {
+    HLRCH_TOMBSTONE,
+    HLRCH_EOF,
+    HLRCH_PRESENT,
+    HLRCH_UNKNOWN,
+  } type;
+
+  pgno pg0;
+  u16 vstrlen;
+  u16 tstrlen;
+} hl_header;
+
+hl_header hlh_parse (u8[HLRC_PFX_LEN]);

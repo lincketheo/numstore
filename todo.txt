@@ -1,31 +1,35 @@
-05/01/2025 
-  - Split up typing into different sections
-  x Get basic parsing / building for all types in the create command 
-  - Build out AST for other query plans 
-  - Write parsing logic for above
-  - Get above working (debug session)
-  - Write tests for all the above and add docs
-  - Fix client logic
+Need:
+  Heavy Hitters:
+    - Variable Hash Map 
+    - Value parser for compiler
+    - VM / query Wrapper / cursor
+    - Finalize compiler / plug in with client
+      * Should be able to insert as much as you like
+          - Probably time to debug
+    - Read 
+    - Delete
+    - Memory Management 
+    - Rollback Journal and / or WAL
+    - Concurrency Management
+    - Platform agnostic stuff
 
-04/29/2025 
-  - Server read in buffer and feed it to the scanner 
-  - Scanner needs to create AST to execute commands 
-  - Got btree working in python, but translating to C will be hard 
-  - Clean database running while server is running
+  Medium Hitters:
+    - Update (just read with an output buffer)
+    - Take (just delete with an output buffer)
+    - Append (just insert with seek = -1)
+    - Server Management and connections
+    - Optimizations
+    - Binary mode for all existing queries
 
-04/26/2025 
-  - Get a self contained loop of using cursor and a variable
-  - No language interface
+  Minor:
+    - Compiling in release mode 
+    - Client improvements
+    - Seperating out library from 
+    - Client libraries for binary mode 
 
-04/24/2025 
-  - Cursor
-
-04/20/2025
-  - Start on the VM that consumes OP structs
-  - Write tests for pager / paging
-
-- Scanner / tokenizer 
-  - Logic on how much data is available
-  - strings / numbers that exceed cbuffer capacity
-  - Tests
-- Replace u64 with pgptr 
+Nice to have:
+  Heavy Hitters:
+    - Basic arithmetic expressions
+    - Expressions using results from read
+    - Custom user functions / mappings
+    - Casting 

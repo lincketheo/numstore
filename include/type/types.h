@@ -60,16 +60,6 @@ int type_snprintf (char *str, u32 size, type *t);
 u32 type_byte_size (const type *t);
 
 /**
- * Free stuff inside type, not type itself
- */
-void type_free_internals_forgiving (type *t, lalloc *alloc);
-
-/**
- * Free stuff inside type, not type itself
- */
-void type_free_internals (type *t, lalloc *alloc);
-
-/**
  * Get the size of the buffer needed to serialize this type
  */
 u32 type_get_serial_size (const type *t);
@@ -81,6 +71,26 @@ u32 type_get_serial_size (const type *t);
 void type_serialize (serializer *dest, const type *src);
 
 /**
- * Deserialize src into dest, allocating on a
+ * Keeps the entire type (in memory data structure)
+ * allocated on a single u8* buffer
  */
-err_t type_deserialize (type *dest, deserializer *src, lalloc *a);
+typedef struct
+{
+  type ret;
+  u8 *data;
+  u32 dlen;
+  lalloc *alloc;
+} alloced_type;
+
+/**
+ * Used by sub types
+ */
+err_t type_deserialize_recurse (
+    type *dest,
+    deserializer *src,
+    salloc *alloc);
+
+/**
+ * Used by user
+ */
+err_t type_deserialize (alloced_type *dest, deserializer *src);

@@ -105,6 +105,44 @@ lrealloc (lalloc *a, void *data, u32 bytes)
   return &new_data[1];
 }
 
+void *
+lalloc_xfer (lalloc *to, lalloc *from, void *data)
+{
+  lalloc_assert (to);
+  lalloc_assert (from);
+  ASSERT (data);
+
+  ASSERT (data);
+
+  /**
+   * Extract meta information
+   */
+  u32 *ptr = (u32 *)data;
+  u32 bytes = *(ptr - 1);
+  ASSERT (bytes > 0);
+  ASSERT (from->used >= bytes);
+
+  /**
+   * Block on [to] having space available
+   */
+  if (to->used + bytes > to->limit)
+    {
+      return NULL;
+    }
+
+  /**
+   * Subtract used amount from from
+   */
+  from->used -= bytes;
+
+  /**
+   * Add it to [to]
+   */
+  to->used += bytes;
+
+  return data;
+}
+
 void
 lfree (lalloc *a, void *data)
 {

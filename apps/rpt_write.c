@@ -14,7 +14,11 @@ main ()
 {
   // Open file
   i_file fp;
-  werr_t (i_open (&fp, unsafe_cstrfrom ("test.db"), true, true));
+  err_t ret = i_open (&fp, unsafe_cstrfrom ("test.db"), true, true);
+  if (ret)
+    {
+      return ret;
+    }
 
   lalloc galloc;
   lalloc_create (&galloc, 1000000);
@@ -28,7 +32,11 @@ main ()
     .memory_pager_allocator = &galloc,
   };
   pager p;
-  werr_t (pgr_create (&p, pparams));
+  ret = pgr_create (&p, pparams);
+  if (ret)
+    {
+      return ret;
+    }
 
   // Create the rptree
   rpt_params rparams = {
@@ -44,13 +52,25 @@ main ()
     }
 
   // Create a new node
-  werr_t (rpt_new (&r));
+  ret = rpt_new (&r);
+  if (ret)
+    {
+      return ret;
+    }
 
   // Seek to index 0
-  werr_t (rpt_seek (&r, 0));
+  ret = rpt_seek (&r, 0);
+  if (ret)
+    {
+      return ret;
+    }
 
   // Write to node
-  werr_t (rpt_insert ((u8 *)data, sizeof (int), 10000, &r));
+  ret = rpt_insert ((u8 *)data, sizeof (int), 10000, &r);
+  if (ret)
+    {
+      return ret;
+    }
 
   // Close
   rpt_close (&r);

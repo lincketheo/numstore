@@ -4,7 +4,7 @@
 #include "services/services.h"
 #include "services/var_create.h"
 #include "services/var_retr.h"
-#include "vhash_map.h"
+#include "variables/vmem_hashmap.h"
 
 typedef struct
 {

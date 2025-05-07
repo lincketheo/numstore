@@ -21,12 +21,8 @@ int struct_t_snprintf (char *str, u32 size, const struct_t *st);
 
 u32 struct_t_byte_size (const struct_t *t);
 
-void struct_t_free_internals_forgiving (struct_t *t, lalloc *alloc);
-
-void struct_t_free_internals (struct_t *t, lalloc *alloc);
-
 u32 struct_t_get_serial_size (const struct_t *t);
 
 void struct_t_serialize (serializer *dest, const struct_t *src);
 
-err_t struct_t_deserialize (struct_t *dest, deserializer *src, lalloc *a);
+err_t struct_t_deserialize (struct_t *dest, deserializer *src, salloc *a);

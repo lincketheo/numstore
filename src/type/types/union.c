@@ -199,6 +199,7 @@ union_t_byte_size (const union_t *t)
   return ret;
 }
 
+/**
 void
 union_t_free_internals_forgiving (union_t *t, lalloc *alloc)
 {
@@ -260,6 +261,7 @@ union_t_free_internals (union_t *t, lalloc *alloc)
 
   t->len = 0;
 }
+*/
 
 u32
 union_t_get_serial_size (const union_t *t)
@@ -317,7 +319,7 @@ union_t_serialize (serializer *dest, const union_t *src)
 }
 
 err_t
-union_t_deserialize (union_t *dest, deserializer *src, lalloc *a)
+union_t_deserialize (union_t *dest, deserializer *src, salloc *a)
 {
   ASSERT (dest);
 
@@ -335,8 +337,8 @@ union_t_deserialize (union_t *dest, deserializer *src, lalloc *a)
     }
 
   un.len = len;
-  un.keys = lmalloc (a, len * sizeof *un.keys);
-  un.types = lmalloc (a, len * sizeof *un.types);
+  un.keys = smalloc (a, len * sizeof *un.keys);
+  un.types = smalloc (a, len * sizeof *un.types);
 
   if (un.keys == NULL || un.types == NULL)
     {
@@ -355,7 +357,7 @@ union_t_deserialize (union_t *dest, deserializer *src, lalloc *a)
           goto failed;
         }
 
-      un.keys[i].data = lmalloc (a, len);
+      un.keys[i].data = smalloc (a, len);
       if (un.keys[i].data == NULL)
         {
           ret = ERR_NOMEM;
@@ -375,7 +377,7 @@ union_t_deserialize (union_t *dest, deserializer *src, lalloc *a)
       /**
        * (TYPE)
        */
-      if ((ret = type_deserialize (&un.types[i], src, a)))
+      if ((ret = type_deserialize_recurse (&un.types[i], src, a)))
         {
           goto failed;
         }
@@ -393,6 +395,6 @@ union_t_deserialize (union_t *dest, deserializer *src, lalloc *a)
   return SUCCESS;
 
 failed:
-  union_t_free_internals_forgiving (&un, a);
+  // union_t_free_internals_forgiving (&un, a);
   return ret;
 }

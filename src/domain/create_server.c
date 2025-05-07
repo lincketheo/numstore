@@ -15,9 +15,9 @@ create_default_server (server *dest)
   /**
    * Create variable hash map
    */
-  vhash_map vhm;
-  if ((ret = vhash_map_create (
-           &vhm, (vhm_params){
+  vmem_hashmap vhm;
+  if ((ret = vmhm_create (
+           &vhm, (vmhm_params){
                      .len = 1000,
                      .map_allocator = &alloc,
                      .node_allocator = &alloc,

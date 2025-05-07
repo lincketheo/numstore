@@ -9,7 +9,7 @@
 #include "intf/mm.h"
 #include "query/query.h"
 #include "services/services.h"
-#include "vhash_map.h"
+#include "variables/vmem_hashmap.h"
 #include "vm/vm.h"
 
 #include <arpa/inet.h>
@@ -20,25 +20,21 @@
 
 typedef struct
 {
-  i_file cfd;
-  struct sockaddr_in addr;
-  socklen_t addr_len;
-
-  cbuffer input;
-  cbuffer tokens;
-  cbuffer queries;
-
-  u8 _input[20];
-  token _tokens[10];
-  query _queries[10];
-
-  scanner scanner;
-
+  i_file cfd;              // File descriptor we are open on
+  struct sockaddr_in addr; // Address that is connected
+  socklen_t addr_len;      // Length of address - not sure if needed
+  cbuffer input;           // RCV Buffer
+  cbuffer tokens;          // Output from scanner
+  cbuffer queries;         // Output from parser
+  u8 _input[20];           // Backing for input
+  token _tokens[10];       // Backing for tokens
+  query _queries[10];      // Backing for queries
+  scanner scanner;         // Scanner to tokenize input commands
+  vm vm;                   // Virtual machine to execute queries
 #ifdef CONNECTOR_TOK_DEBUG
-  token_printer tokp;
+  token_printer tokp; // Prints tokens
 #else
   parser parser;
-  vm vm;
 #endif
 
 } connector;

@@ -11,6 +11,8 @@
 DEFINE_DBG_ASSERT_I (inner_node, unchecked_inner_node, i)
 {
   ASSERT (i);
+  ASSERT (i->raw);
+  ASSERT (i->rlen > 0);
   ASSERT_PTR_IS_IDX (i->raw, i->header, IN_HEDR_OFFSET);
   ASSERT_PTR_IS_IDX (i->raw, i->nkeys, IN_NKEY_OFFSET);
   ASSERT_PTR_IS_IDX (i->raw, i->leafs, IN_LEAF_OFFSET);

@@ -1,15 +1,15 @@
 #pragma once
 
-#include "vhash_map.h"
+#include "variables/vmem_hashmap.h"
 
 typedef struct
 {
-  const vhash_map *hm;
+  const vmem_hashmap *hm;
 } var_retr;
 
 typedef struct
 {
-  vhash_map *hm;
+  vmem_hashmap *hm;
 } vrtr_params;
 
 var_retr var_retr_create (vrtr_params params);

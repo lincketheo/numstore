@@ -1,6 +1,7 @@
 #include "type/types.h"
 #include "dev/assert.h"
 #include "dev/errors.h"
+#include "intf/mm.h"
 
 DEFINE_DBG_ASSERT_I (type, unchecked_type, t)
 {
@@ -121,6 +122,7 @@ type_byte_size (const type *t)
     }
 }
 
+/**
 void
 type_free_internals_forgiving (type *t, lalloc *alloc)
 {
@@ -198,6 +200,7 @@ type_free_internals (type *t, lalloc *alloc)
       }
     }
 }
+*/
 
 u32
 type_get_serial_size (const type *t)
@@ -284,36 +287,75 @@ type_serialize (serializer *dest, const type *src)
 }
 
 err_t
-type_deserialize (type *dest, deserializer *src, lalloc *a)
+type_deserialize (alloced_type *dest, deserializer *src)
 {
-  valid_type_assert (dest);
+  u32 dcap = 10;
 
-  switch (dest->type)
+  /**
+   * TODO - get rid of the while loop
+   */
+  u8 *data = lmalloc (dest->alloc, dcap);
+  if (!data)
     {
-    case T_PRIM:
-      {
-        return prim_t_deserialize (&dest->p, src);
-      }
-    case T_STRUCT:
-      {
-        return struct_t_deserialize (&dest->st, src, a);
-      }
-    case T_UNION:
-      {
-        return union_t_deserialize (&dest->un, src, a);
-      }
-    case T_ENUM:
-      {
-        return enum_t_deserialize (&dest->en, src, a);
-      }
-    case T_SARRAY:
-      {
-        return sarray_t_deserialize (&dest->sa, src, a);
-      }
-    default:
-      {
-        ASSERT (0);
-        return ERR_FALLBACK;
-      }
+      return ERR_NOMEM;
+    }
+
+  while (true)
+    {
+      salloc alloc;
+      salloc_create_from (&alloc, data, dcap);
+      err_t ret;
+
+      switch (dest->ret.type)
+        {
+        case T_PRIM:
+          {
+            ret = prim_t_deserialize (&dest->ret.p, src);
+            break;
+          }
+        case T_STRUCT:
+          {
+            ret = struct_t_deserialize (&dest->ret.st, src, &alloc);
+            break;
+          }
+        case T_UNION:
+          {
+            ret = union_t_deserialize (&dest->ret.un, src, &alloc);
+            break;
+          }
+        case T_ENUM:
+          {
+            ret = enum_t_deserialize (&dest->ret.en, src, &alloc);
+            break;
+          }
+        case T_SARRAY:
+          {
+            ret = sarray_t_deserialize (&dest->ret.sa, src, &alloc);
+            break;
+          }
+        default:
+          {
+            ASSERT (0);
+            return ERR_FALLBACK;
+          }
+
+          if (ret == SUCCESS)
+            {
+              // TODO - it would be nice to clip data, but
+              // we would need to remap all the pointers
+              dest->data = data;
+              dest->dlen = alloc.len;
+              return ret;
+            }
+
+          /**
+           * Increase the size and try again
+           */
+          u8 *data = lrealloc (dest->alloc, data, dcap);
+          if (!data)
+            {
+              return ERR_NOMEM;
+            }
+        }
     }
 }

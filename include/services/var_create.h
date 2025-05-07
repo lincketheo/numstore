@@ -1,16 +1,16 @@
 #pragma once
 
 #include "query/queries/create.h"
-#include "vhash_map.h"
+#include "variables/vmem_hashmap.h"
 
 typedef struct
 {
-  vhash_map *hm;
+  vmem_hashmap *hm;
 } var_create;
 
 typedef struct
 {
-  vhash_map *hm;
+  vmem_hashmap *hm;
 } vcreate_params;
 
 var_create var_create_create (vcreate_params params);

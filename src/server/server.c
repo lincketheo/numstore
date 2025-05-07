@@ -17,64 +17,74 @@ DEFINE_DBG_ASSERT_I (server, server, s)
 err_t
 server_create (server *dest, server_params params)
 {
+  /**
+   * TODO - resource cleanup on failure
+   */
+
   ASSERT (dest);
 
-  // Low hanging fruit
   dest->services = params.services;
 
-  // Allocate connectors
-  dest->cons = lmalloc (params.alloc, 10 * sizeof *dest->cons);
-  dest->ccap = 10;
-  if (dest->cons == NULL)
-    {
-      return ERR_NOMEM;
-    }
-  dest->alloc = params.alloc;
+  /**
+   * Create connections
+   */
+  {
+    dest->cons = lmalloc (params.alloc, 10 * sizeof *dest->cons);
+    dest->ccap = 10;
+    if (dest->cons == NULL)
+      {
+        return ERR_NOMEM;
+      }
+    dest->alloc = params.alloc;
 
-  // Connect to server socket
-  int fd;
-  struct sockaddr_in addr;
-  if ((fd = socket (AF_INET, SOCK_STREAM, 0)) == -1)
-    {
-      i_perror ("socket");
-      return ERR_IO;
-    }
-  addr.sin_family = AF_INET;
-  addr.sin_addr.s_addr = INADDR_ANY;
-  addr.sin_port = htons (params.port);
+    for (u32 i = 0; i < dest->ccap; ++i)
+      {
+        con_params cparams = {
+          .scanner_string_allocator = dest->alloc,
+          .type_allocator = dest->alloc,
+          .stack_allocator = dest->alloc,
+          .services = &dest->services,
+        };
+        con_create (&dest->cons[i], cparams);
+      }
+  }
 
-  // BIND
-  if (bind (fd, (struct sockaddr *)&addr, sizeof (addr)) < 0)
-    {
-      i_perror ("bind");
-      close (fd);
-      return ERR_IO;
-    }
+  /**
+   * Connect to socket
+   */
+  {
+    int fd;
+    struct sockaddr_in addr;
+    if ((fd = socket (AF_INET, SOCK_STREAM, 0)) == -1)
+      {
+        i_perror ("socket");
+        return ERR_IO;
+      }
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = INADDR_ANY;
+    addr.sin_port = htons (params.port);
 
-  // LISTEN
-  if (listen (fd, 3) < 0)
-    {
-      i_perror ("listen");
-      close (fd);
-      return ERR_IO;
-    }
+    // BIND
+    if (bind (fd, (struct sockaddr *)&addr, sizeof (addr)) < 0)
+      {
+        i_perror ("bind");
+        close (fd);
+        return ERR_IO;
+      }
 
-  // Create connectors
-  for (u32 i = 0; i < dest->ccap; ++i)
-    {
-      con_params cparams = {
-        .scanner_string_allocator = dest->alloc,
-        .type_allocator = dest->alloc,
-        .stack_allocator = dest->alloc,
-        .services = &dest->services,
-      };
-      con_create (&dest->cons[i], cparams);
-    }
+    // LISTEN
+    if (listen (fd, 3) < 0)
+      {
+        i_perror ("listen");
+        close (fd);
+        return ERR_IO;
+      }
 
-  dest->fd = (i_file){ .fd = fd };
-  server_assert (dest);
+    dest->fd = (i_file){ .fd = fd };
+    server_assert (dest);
 
-  i_log_info ("Server listening on port: %d\n", params.port);
+    i_log_info ("Server listening on port: %d\n", params.port);
+  }
 
   return SUCCESS;
 }

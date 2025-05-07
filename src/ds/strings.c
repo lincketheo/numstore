@@ -1,6 +1,8 @@
 #include "ds/strings.h"
 #include "dev/assert.h"
+#include "dev/errors.h"
 #include "dev/testing.h"
+#include "intf/mm.h"
 #include "intf/stdlib.h"
 
 DEFINE_DBG_ASSERT_I (string, string, s)

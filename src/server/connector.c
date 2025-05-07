@@ -51,7 +51,11 @@ con_create (connector *dest, con_params params)
     .tokens_input = &dest->tokens,
     .queries_output = &dest->queries,
   };
-  werr_t (parser_create (&dest->parser, pparams));
+  err_t ret = parser_create (&dest->parser, pparams);
+  if (ret)
+    {
+      return ret;
+    }
 
   // Create the virtual machine
   vm_params vparams = {
@@ -85,7 +89,11 @@ con_disconnect (connector *c)
   connector_assert (c);
   ASSERT (con_is_open (c));
 
-  werr_t (i_close (&c->cfd));
+  err_t ret = i_close (&c->cfd);
+  if (ret)
+    {
+      return ret;
+    }
   c->cfd.fd = -1;
 
   return SUCCESS;

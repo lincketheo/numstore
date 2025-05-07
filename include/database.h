@@ -7,14 +7,14 @@
 #include "intf/mm.h"
 #include "intf/types.h"
 #include "paging/pager.h"
-#include "vhash_map.h"
+#include "variables/vmem_hashmap.h"
 
 //////////////// Global Database
 typedef struct
 {
   pager pager;
   u32 page_size;
-  vhash_map variables;
+  vmem_hashmap variables;
 
   u32 header_size;
   u32 mpgr_len;

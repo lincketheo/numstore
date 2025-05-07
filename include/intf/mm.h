@@ -18,6 +18,7 @@ void *lmalloc (lalloc *a, u32 bytes);
 void *lcalloc (lalloc *a, u32 len, u32 size);
 void *lrealloc (lalloc *a, void *data, u32 bytes);
 void lfree (lalloc *a, void *data);
+void *lalloc_xfer (lalloc *to, lalloc *from, void *ptr);
 void lalloc_release (lalloc *l);
 
 // Scoped allocator (no call alloc and free once)

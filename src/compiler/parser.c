@@ -26,7 +26,11 @@ parser_create (parser *dest, parser_params params)
     .stack_allocator = params.stack_allocator,
   };
 
-  werr_t (stackp_create (&dest->sp, sparams));
+  err_t ret = stackp_create (&dest->sp, sparams);
+  if (ret)
+    {
+      return ret;
+    }
 
   stackp_begin (&dest->sp, SBBT_QUERY);
 

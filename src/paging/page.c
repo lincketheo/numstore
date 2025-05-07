@@ -3,6 +3,7 @@
 #include "dev/errors.h"
 #include "intf/stdlib.h"
 #include "paging/types/data_list.h"
+#include "paging/types/hash_page.h"
 #include "paging/types/inner_node.h"
 #include "utils/bounds.h"
 
@@ -40,7 +41,12 @@ page_read_expect (page *dest, int type, u8 *raw, p_size rlen, pgno pg)
     {
     case PG_DATA_LIST:
       {
-        dest->dl = dl_set_ptrs (raw, rlen);
+        data_list dl = dl_set_ptrs (raw, rlen);
+        if (!dl_is_valid (&dl))
+          {
+            return ERR_INVALID_STATE;
+          }
+        dest->dl = dl;
         break;
       }
     case PG_INNER_NODE:
@@ -49,6 +55,16 @@ page_read_expect (page *dest, int type, u8 *raw, p_size rlen, pgno pg)
           {
             return ret;
           }
+        break;
+      }
+    case PG_HASH_PAGE:
+      {
+        hash_page hp = hp_set_ptrs (raw, rlen);
+        if (!hp_is_valid (&hp))
+          {
+            return ERR_INVALID_STATE;
+          }
+        dest->hp = hp;
         break;
       }
     default:
@@ -80,6 +96,12 @@ page_init (page *dest, page_type type, u8 *raw, p_size rlen, pgno pg)
       {
         dest->in = in_set_initial_ptrs (raw, rlen);
         in_init_empty (&dest->in);
+        break;
+      }
+    case PG_HASH_PAGE:
+      {
+        dest->hp = hp_set_ptrs (raw, rlen);
+        hp_init_empty (&dest->hp);
         break;
       }
     default:

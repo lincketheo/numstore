@@ -15,7 +15,7 @@ typedef struct
   {
     b_size gidx; // The global byte I'm on
     b_size lidx; // The local byte (within the page I'm on)
-    page cur;
+    page cur;    // Current page we're on
     bool is_open;
   };
 
@@ -24,7 +24,7 @@ typedef struct
    */
   struct
   {
-    seek_r seek;
+    seek_r seek; // Result from a seek call
     bool is_seeked;
   };
 

@@ -2,7 +2,7 @@
 
 #include "services/var_create.h"
 #include "services/var_retr.h"
-#include "vhash_map.h"
+#include "variables/vmem_hashmap.h"
 
 /**
  * A one stop shop for
@@ -16,7 +16,7 @@ typedef struct
 
 typedef struct
 {
-  vhash_map *vhm;
+  vmem_hashmap *vhm;
 } services_params;
 
 services services_create (services_params params);

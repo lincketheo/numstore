@@ -131,8 +131,9 @@ enum_t_byte_size (const enum_t *t)
   return sizeof (u8);
 }
 
+/**
 void
-enum_t_free_internals_forgiving (enum_t *t, lalloc *alloc)
+enum_t_free_internals_forgiving (enum_t *t, salloc *alloc)
 {
   if (!t)
     {
@@ -159,7 +160,7 @@ enum_t_free_internals_forgiving (enum_t *t, lalloc *alloc)
 }
 
 void
-enum_t_free_internals (enum_t *t, lalloc *alloc)
+enum_t_free_internals (enum_t *t, salloc *alloc)
 {
   valid_enum_t_assert (t);
 
@@ -173,6 +174,7 @@ enum_t_free_internals (enum_t *t, lalloc *alloc)
   t->keys = NULL;
   t->len = 0;
 }
+*/
 
 u32
 enum_t_get_serial_size (const enum_t *t)
@@ -251,7 +253,7 @@ enum_t_serialize (serializer *dest, const enum_t *src)
 }
 
 err_t
-enum_t_deserialize (enum_t *dest, deserializer *src, lalloc *a)
+enum_t_deserialize (enum_t *dest, deserializer *src, salloc *a)
 {
   ASSERT (dest);
 
@@ -269,7 +271,7 @@ enum_t_deserialize (enum_t *dest, deserializer *src, lalloc *a)
     }
 
   en.len = len;
-  en.keys = lmalloc (a, len * sizeof *en.keys);
+  en.keys = smalloc (a, len * sizeof *en.keys);
 
   if (en.keys == NULL)
     {
@@ -288,7 +290,7 @@ enum_t_deserialize (enum_t *dest, deserializer *src, lalloc *a)
           goto failed;
         }
 
-      en.keys[i].data = lmalloc (a, len);
+      en.keys[i].data = smalloc (a, len);
       if (en.keys[i].data == NULL)
         {
           ret = ERR_NOMEM;
@@ -318,6 +320,6 @@ enum_t_deserialize (enum_t *dest, deserializer *src, lalloc *a)
   return SUCCESS;
 
 failed:
-  enum_t_free_internals_forgiving (&en, a);
+  // enum_t_free_internals_forgiving (&en, a);
   return ret;
 }

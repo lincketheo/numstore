@@ -6,7 +6,6 @@
 #include "intf/mm.h"
 #include "server/server.h"
 #include "services/services.h"
-#include "vhash_map.h"
 
 #include <signal.h>
 #include <unistd.h>

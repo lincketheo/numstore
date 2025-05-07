@@ -18,15 +18,3 @@ typedef enum
 } err_t;
 
 const char *err_t_to_str (err_t e);
-
-#define werr_t(expr)                                                    \
-  do                                                                    \
-    {                                                                   \
-      err_t ___ret = expr;                                              \
-      if (___ret)                                                       \
-        {                                                               \
-          i_log_warn ("%s failed: %s\n", #expr, err_t_to_str (___ret)); \
-          return ___ret;                                                \
-        }                                                               \
-    }                                                                   \
-  while (0)

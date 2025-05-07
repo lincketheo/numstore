@@ -246,11 +246,15 @@ rpt_read_next (u8 *dest, b_size *bytes, rptree *r)
             }
 
           // Fetch the next page
-          werr_t (pgr_get_expect (
+          err_t ret = pgr_get_expect (
               &r->cur,
               PG_DATA_LIST,
               *r->cur.dl.next,
-              r->pager));
+              r->pager);
+          if (ret)
+            {
+              return ret;
+            }
           r->lidx = 0;
         }
 
@@ -282,7 +286,11 @@ rpt_read (u8 *dest, t_size size, b_size *n, b_size nskip, rptree *r)
 
   if (nskip == 1)
     {
-      werr_t (rpt_read_next (dest, &toread, r));
+      err_t ret = rpt_read_next (dest, &toread, r);
+      if (ret)
+        {
+          return ret;
+        }
 
       /**
        * Next should either == 0 or 1 * size
@@ -304,7 +312,11 @@ rpt_read (u8 *dest, t_size size, b_size *n, b_size nskip, rptree *r)
   while (read < toread)
     {
       next = size;
-      werr_t (rpt_read_next (dest + read, &next, r));
+      err_t ret = rpt_read_next (dest + read, &next, r);
+      if (ret)
+        {
+          return ret;
+        }
       read += next;
 
       /**
@@ -326,7 +338,11 @@ rpt_read (u8 *dest, t_size size, b_size *n, b_size nskip, rptree *r)
 
       // Skip values
       next = size * (nskip - 1);
-      werr_t (rpt_read_next (NULL, &next, r));
+      ret = rpt_read_next (NULL, &next, r);
+      if (ret)
+        {
+          return ret;
+        }
 
       ASSERT (next <= size * (nskip - 1));
       if (next < size * (nskip - 1))
