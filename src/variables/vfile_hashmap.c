@@ -9,6 +9,7 @@
 #include "paging/pager.h"
 #include "paging/types/hash_leaf.h"
 #include "paging/types/hash_page.h"
+#include "variables/variable.h"
 #include "variables/vhash_fmt.h"
 
 DEFINE_DBG_ASSERT_I (vfile_hashmap, vfile_hashmap, v)
@@ -59,8 +60,11 @@ vfhm_create_hashmap (vfile_hashmap *h)
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
-err_t
-vfhm_get (const vfile_hashmap *h, vmeta *dest, const string key)
+static err_t
+vfhm_get_center_on_page (
+    page *leaf,
+    const vfile_hashmap *h,
+    const string key)
 {
   vfile_hashmap_assert (h);
 
@@ -101,6 +105,19 @@ vfhm_get (const vfile_hashmap *h, vmeta *dest, const string key)
     {
       return ret;
     }
+
+  *leaf = cur;
+  return SUCCESS;
+}
+
+static err_t
+vfhm_get_scroll_leafs (
+    vread_hash_fmt *result,
+    const vfile_hashmap *h,
+    page cur,
+    const string key)
+{
+  err_t ret;
 
   /**
    * Create the deserializer
@@ -146,13 +163,16 @@ vfhm_get (const vfile_hashmap *h, vmeta *dest, const string key)
                   {
                     i_log_debug ("Found variable: %.*s\n",
                                  vstr.len, vstr.data);
-                    dest->pgn0 = v.pg0;
-                    vrhfmt_free_and_reset (&v);
-                    return SUCCESS;
+
+                    *result = v;
+
+                    ret = SUCCESS;
+                    goto theend;
                   }
+
                 vrhfmt_free_and_reset (&v);
               }
-            break; // Skip it and move on
+            break;
           }
         default:
           {
@@ -164,16 +184,14 @@ vfhm_get (const vfile_hashmap *h, vmeta *dest, const string key)
                     // Deserializer handles EOF, not paging
                     // so this is corrupt because there should be
                     // more
-                    return ERR_INVALID_STATE;
+                    ret = ERR_INVALID_STATE;
+                    goto theend;
                   }
 
-                ret = pgr_get_expect (
-                    &cur,
-                    PG_HASH_LEAF,
-                    next, h->pager);
+                ret = pgr_get_expect (&cur, PG_HASH_LEAF, next, h->pager);
                 if (ret)
                   {
-                    return ret;
+                    goto theend;
                   }
 
                 pos = 0;
@@ -183,17 +201,55 @@ vfhm_get (const vfile_hashmap *h, vmeta *dest, const string key)
             ret = vrhfmt_read_in (cur.hl.data + pos, &nbytes, &v);
             if (ret)
               {
-                return ret;
+                goto theend;
               }
             pos += nbytes;
             ASSERT (nbytes > 0); // Avoid infinite loops
           }
         }
     }
+
+theend:
+  if (ret)
+    {
+      vrhfmt_free_and_reset_forgiving (&v);
+    }
+  return ret;
 }
 
 err_t
-vfhm_insert (vfile_hashmap *h, const string key, vmeta value)
+vfhm_get (const vfile_hashmap *h, vmeta *dest, const string key)
+{
+  page cur;
+  err_t ret = vfhm_get_center_on_page (&cur, h, key);
+  if (ret)
+    {
+      return ret;
+    }
+
+  vread_hash_fmt entry;
+  ret = vfhm_get_scroll_leafs (&entry, h, cur, key);
+  if (ret)
+    {
+      return ret;
+    }
+  ASSERT (entry.state == VHFMT_DONE);
+
+  var_hash_entry result = (var_hash_entry){
+    .vstr = entry.vstr,
+    .vlen = entry.vstrlen,
+    .tstr = entry.tstr,
+    .tlen = entry.tstrlen,
+    .pg0 = entry.pg0,
+  };
+
+  ret = vhe_to_vm (dest, &result, h->alloc);
+  vrhfmt_free_and_reset (&entry);
+  return ret;
+}
+
+static err_t
+vfhm_insert_center_on_page (page *hl, vfile_hashmap *h, const string key)
 {
   vfile_hashmap_assert (h);
 
@@ -254,6 +310,21 @@ vfhm_insert (vfile_hashmap *h, const string key, vmeta value)
         }
     }
 
+  *hl = leaf;
+
+  return SUCCESS;
+}
+
+static err_t
+vfhm_insert_scroll_to_eof (
+    page *dest_page,
+    p_size *dest_page_position,
+    vfile_hashmap *h,
+    const string key)
+{
+  err_t ret = SUCCESS;
+  page leaf = *dest_page;
+
   /**
    * Create a deserializer to scan the variables
    * first to find duplicates or the end (very similar
@@ -292,8 +363,8 @@ vfhm_insert (vfile_hashmap *h, const string key, vmeta value)
                   {
                     i_log_debug ("Found variable: %.*s\n",
                                  vstr.len, vstr.data);
-                    vrhfmt_free_and_reset (&v);
-                    return ERR_ALREADY_EXISTS;
+                    ret = ERR_ALREADY_EXISTS;
+                    goto theend;
                   }
                 vrhfmt_free_and_reset (&v);
               }
@@ -306,16 +377,14 @@ vfhm_insert (vfile_hashmap *h, const string key, vmeta value)
                 pgno next = hl_get_next (&leaf.hl);
                 if (next == 0)
                   {
-                    return ERR_INVALID_STATE;
+                    ret = ERR_INVALID_STATE;
+                    goto theend;
                   }
 
-                ret = pgr_get_expect (
-                    &leaf,
-                    PG_HASH_LEAF,
-                    next, h->pager);
+                ret = pgr_get_expect (&leaf, PG_HASH_LEAF, next, h->pager);
                 if (ret)
                   {
-                    return ret;
+                    goto theend;
                   }
 
                 pos = 0;
@@ -325,7 +394,7 @@ vfhm_insert (vfile_hashmap *h, const string key, vmeta value)
             ret = vrhfmt_read_in (leaf.hl.data + pos, &nbytes, &v);
             if (ret)
               {
-                return ret;
+                goto theend;
               }
             pos += nbytes;
             ASSERT (nbytes > 0); // Avoid infinite loops
@@ -337,14 +406,33 @@ vfhm_insert (vfile_hashmap *h, const string key, vmeta value)
   ASSERT (v.pos == 1);
   ASSERT (pos > 0);
 
-  pos -= 1; // Go back oer the previously read byte
+  pos -= 1; // We would have just read the eof byte
+  *dest_page_position = pos;
+  *dest_page = leaf;
 
-  // we're now aligned on the eof are we on the start or the end?
-  vwrite_hash_fmt vw = vwhfmt_create ((vwhfmt_params){
-      .vstr = key,
-      .tstr = (string){ .data = "TODO", .len = 4 },
-      .pg0 = value.pgn0,
-  });
+theend:
+  vrhfmt_free_and_reset_forgiving (&v);
+  return ret;
+}
+
+static err_t
+vfhm_insert_write_variable_here (
+    vfile_hashmap *h,
+    var_hash_entry entry,
+    page starting_page,
+    p_size starting_pos)
+{
+  err_t ret;
+
+  /**
+   * Create a deserializer to scan the variables
+   * first to find duplicates or the end (very similar
+   * to the get routine)
+   */
+  page leaf = starting_page;
+  p_size pos = starting_pos;
+  p_size dlen = hl_data_len (leaf.hl.rlen);
+  vwrite_hash_fmt vw = vwhfmt_create (entry);
 
   while (!vw.done)
     {
@@ -405,4 +493,42 @@ vfhm_insert (vfile_hashmap *h, const string key, vmeta value)
     }
 
   return SUCCESS;
+}
+
+err_t
+vfhm_insert (vfile_hashmap *h, const string key, vmeta value)
+{
+  page leaf;
+  err_t ret;
+  var_hash_entry entry;
+
+  ret = vm_to_vhe (&entry, key, value, h->alloc);
+  if (ret)
+    {
+      // Don't free it
+      return ret;
+    }
+
+  ret = vfhm_insert_center_on_page (&leaf, h, key);
+  if (ret)
+    {
+      goto theend;
+    }
+
+  p_size pos;
+  ret = vfhm_insert_scroll_to_eof (&leaf, &pos, h, key);
+  if (ret)
+    {
+      goto theend;
+    }
+
+  ret = vfhm_insert_write_variable_here (h, entry, leaf, pos);
+  if (ret)
+    {
+      goto theend;
+    }
+
+theend:
+  var_hash_entry_free (&entry, h->alloc);
+  return ret;
 }

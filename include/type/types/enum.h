@@ -18,8 +18,12 @@ int enum_t_snprintf (char *str, u32 size, const enum_t *st);
 
 u32 enum_t_byte_size (const enum_t *t);
 
+void enum_t_free_internals_forgiving (enum_t *t, lalloc *alloc);
+
+void enum_t_free_internals (enum_t *t, lalloc *alloc);
+
 u32 enum_t_get_serial_size (const enum_t *t);
 
 void enum_t_serialize (serializer *dest, const enum_t *src);
 
-err_t enum_t_deserialize (enum_t *dest, deserializer *src, salloc *a);
+err_t enum_t_deserialize (enum_t *dest, deserializer *src, lalloc *a);

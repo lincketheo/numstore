@@ -4,7 +4,11 @@
 #include "ds/strings.h"
 #include "type/types.h"
 
-////////////////////////////// A Single Variable
+/**
+ * Variable Models and transformations from
+ * 1 model to another
+ */
+
 typedef struct
 {
   pgno pgn0; // Root page number
@@ -13,7 +17,22 @@ typedef struct
 
 typedef struct
 {
-  string vstr; // The variable string
-  string tstr; // The type string (to be deserialized)
-  pgno pg0;    // The starting page
+  char *vstr;
+  u16 vlen;
+  u8 *tstr;
+  u16 tlen;
+  pgno pg0; // The starting page
 } var_hash_entry;
+
+err_t vm_to_vhe (
+    var_hash_entry *dest,
+    string vname,
+    vmeta src,
+    lalloc *tstr_allocator);
+
+void var_hash_entry_free (var_hash_entry *v, lalloc *tstr_allocator);
+
+err_t vhe_to_vm (
+    vmeta *dmeta,
+    const var_hash_entry *src,
+    lalloc *type_allocator);

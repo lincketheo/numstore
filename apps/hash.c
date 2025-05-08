@@ -65,12 +65,18 @@ main ()
     .type = { { 0 } },
     .pgn0 = 51,
   };
+
+  char _longstr[9000];
+  string longstr = {
+    .data = _longstr,
+    .len = 9000,
+  };
   ex_log (vfhm_get (&v, &meta_dest, unsafe_cstrfrom ("foobar")));
   ex_log (vfhm_insert (&v, unsafe_cstrfrom ("foobar"), m));
   ex_log (vfhm_get (&v, &meta_dest, unsafe_cstrfrom ("foobar")));
   ex_log (vfhm_insert (&v, unsafe_cstrfrom ("foobar"), m));
   ex_log (vfhm_insert (&v, unsafe_cstrfrom ("bizb"), m));
-  ex_log (vfhm_insert (&v, unsafe_cstrfrom ("barbzilns"), m));
+  ex_log (vfhm_insert (&v, longstr, m));
   ex_log (vfhm_insert (&v, unsafe_cstrfrom ("foobar"), m));
   ex_log (vfhm_insert (&v, unsafe_cstrfrom ("barbzilns"), m));
   ex_log (vfhm_insert (&v, unsafe_cstrfrom ("bizb"), m));

@@ -125,9 +125,8 @@ sarray_t_byte_size (const sarray_t *t)
   return ret * type_byte_size (t->t);
 }
 
-/**
 void
-sarray_t_free_internals_forgiving (sarray_t *t, salloc *alloc)
+sarray_t_free_internals_forgiving (sarray_t *t, lalloc *alloc)
 {
   if (!t)
     {
@@ -149,7 +148,7 @@ sarray_t_free_internals_forgiving (sarray_t *t, salloc *alloc)
 }
 
 void
-sarray_t_free_internals (sarray_t *t, salloc *alloc)
+sarray_t_free_internals (sarray_t *t, lalloc *alloc)
 {
   valid_sarray_t_assert (t);
   lfree (alloc, t->dims);
@@ -158,7 +157,6 @@ sarray_t_free_internals (sarray_t *t, salloc *alloc)
   t->dims = NULL;
   t->rank = 0;
 }
-*/
 
 u32
 sarray_t_get_serial_size (const sarray_t *t)
@@ -204,7 +202,7 @@ sarray_t_serialize (serializer *dest, const sarray_t *src)
 }
 
 err_t
-sarray_t_deserialize (sarray_t *dest, deserializer *src, salloc *a)
+sarray_t_deserialize (sarray_t *dest, deserializer *src, lalloc *a)
 {
   ASSERT (dest);
 
@@ -222,8 +220,8 @@ sarray_t_deserialize (sarray_t *dest, deserializer *src, salloc *a)
     }
 
   sa.rank = rank;
-  sa.dims = smalloc (a, rank * sizeof *sa.dims);
-  sa.t = smalloc (a, sizeof *sa.t);
+  sa.dims = lmalloc (a, rank * sizeof *sa.dims);
+  sa.t = lmalloc (a, sizeof *sa.t);
 
   if (sa.dims == NULL || sa.t == NULL)
     {
@@ -250,7 +248,7 @@ sarray_t_deserialize (sarray_t *dest, deserializer *src, salloc *a)
   /**
    * (TYPE)
    */
-  if ((ret = type_deserialize_recurse (sa.t, src, a)))
+  if ((ret = type_deserialize (sa.t, src, a)))
     {
       goto failed;
     }
@@ -267,6 +265,6 @@ sarray_t_deserialize (sarray_t *dest, deserializer *src, salloc *a)
   return SUCCESS;
 
 failed:
-  // sarray_t_free_internals_forgiving (&sa, a);
+  sarray_t_free_internals_forgiving (&sa, a);
   return ret;
 }

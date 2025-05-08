@@ -227,33 +227,8 @@ TEST (struct_t_byte_size)
   test_assert_int_equal (exp, act);
 }
 
-/**
 void
-struct_t_free_internals (struct_t *t, salloc *alloc)
-{
-  valid_struct_t_assert (t);
-
-  for (u32 i = 0; i < t->len; ++i)
-    {
-      lfree (alloc, t->keys[i].data);
-      t->keys[i].len = 0;
-      t->keys[i].data = NULL;
-
-      type_free_internals (&t->types[i], alloc);
-      t->types[i] = (type){ 0 };
-    }
-
-  lfree (alloc, t->keys);
-  t->keys = NULL;
-
-  lfree (alloc, t->types);
-  t->types = NULL;
-
-  t->len = 0;
-}
-
-void
-struct_t_free_internals_forgiving (struct_t *t, salloc *alloc)
+struct_t_free_internals_forgiving (struct_t *t, lalloc *alloc)
 {
   if (!t)
     {
@@ -289,7 +264,30 @@ struct_t_free_internals_forgiving (struct_t *t, salloc *alloc)
 
   t->len = 0;
 }
-*/
+
+void
+struct_t_free_internals (struct_t *t, lalloc *alloc)
+{
+  valid_struct_t_assert (t);
+
+  for (u32 i = 0; i < t->len; ++i)
+    {
+      lfree (alloc, t->keys[i].data);
+      t->keys[i].len = 0;
+      t->keys[i].data = NULL;
+
+      type_free_internals (&t->types[i], alloc);
+      t->types[i] = (type){ 0 };
+    }
+
+  lfree (alloc, t->keys);
+  t->keys = NULL;
+
+  lfree (alloc, t->types);
+  t->types = NULL;
+
+  t->len = 0;
+}
 
 u32
 struct_t_get_serial_size (const struct_t *t)
@@ -347,7 +345,7 @@ struct_t_serialize (serializer *dest, const struct_t *src)
 }
 
 err_t
-struct_t_deserialize (struct_t *dest, deserializer *src, salloc *a)
+struct_t_deserialize (struct_t *dest, deserializer *src, lalloc *a)
 {
   ASSERT (dest);
 
@@ -365,8 +363,8 @@ struct_t_deserialize (struct_t *dest, deserializer *src, salloc *a)
     }
 
   st.len = len;
-  st.keys = smalloc (a, len * sizeof *st.keys);
-  st.types = smalloc (a, len * sizeof *st.types);
+  st.keys = lmalloc (a, len * sizeof *st.keys);
+  st.types = lmalloc (a, len * sizeof *st.types);
 
   if (st.keys == NULL || st.types == NULL)
     {
@@ -385,7 +383,7 @@ struct_t_deserialize (struct_t *dest, deserializer *src, salloc *a)
           goto failed;
         }
 
-      st.keys[i].data = smalloc (a, len);
+      st.keys[i].data = lmalloc (a, len);
       if (st.keys[i].data == NULL)
         {
           ret = ERR_NOMEM;
@@ -405,7 +403,7 @@ struct_t_deserialize (struct_t *dest, deserializer *src, salloc *a)
       /**
        * (TYPE)
        */
-      if ((ret = type_deserialize_recurse (&st.types[i], src, a)))
+      if ((ret = type_deserialize (&st.types[i], src, a)))
         {
           goto failed;
         }
@@ -423,6 +421,6 @@ struct_t_deserialize (struct_t *dest, deserializer *src, salloc *a)
   return SUCCESS;
 
 failed:
-  // struct_t_free_internals_forgiving (&st, a);
+  struct_t_free_internals_forgiving (&st, a);
   return ret;
 }

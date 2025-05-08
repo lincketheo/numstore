@@ -67,7 +67,7 @@ vrhfmt_parse_header (vread_hash_fmt *v)
           return ERR_NOMEM;
         }
       v->vstr = (char *)v->raw;
-      v->tstr = (char *)v->raw + vstrlen;
+      v->tstr = v->raw + vstrlen;
     }
 
   return SUCCESS;
@@ -227,7 +227,7 @@ theend:
 }
 
 void
-vrhfmt_free_and_reset (vread_hash_fmt *v)
+vrhfmt_free_and_reset_forgiving (vread_hash_fmt *v)
 {
   if (v->raw)
     {
@@ -241,25 +241,41 @@ vrhfmt_free_and_reset (vread_hash_fmt *v)
   }
 }
 
+void
+vrhfmt_free_and_reset (vread_hash_fmt *v)
+{
+  ASSERT (v->raw);
+  lfree (v->alloc, v->raw);
+
+  {
+    lalloc *alloc = v->alloc;
+    i_memset (v, 0, sizeof *v);
+    v->alloc = alloc;
+  }
+}
+
 vwrite_hash_fmt
-vwhfmt_create (vwhfmt_params params)
+vwhfmt_create (var_hash_entry params)
 {
   vwrite_hash_fmt w = {
     .done = false,
     .hidx = 0,
+
+    .vstr = params.vstr,
+    .vstrlen = params.vlen,
+
+    .tstr = params.tstr,
+    .tstrlen = params.tlen,
+
     .vidx = 0,
     .tidx = 0,
-    .vstr = params.vstr,
-    .tstr = params.tstr,
   };
 
   u8 *p = w.type_and_header;
-  u16 vlen = (u16)params.vstr.len;
-  u16 tlen = (u16)params.tstr.len;
 
   p[0] = (u8)VHFMT_TYPE_PRESENT;
-  i_memcpy (p + 1, &vlen, sizeof vlen);
-  i_memcpy (p + 3, &tlen, sizeof tlen);
+  i_memcpy (p + 1, &w.vstrlen, sizeof w.vstrlen);
+  i_memcpy (p + 3, &w.tstrlen, sizeof w.tstrlen);
   p[5] = 0; // is_tombstone
   i_memcpy (p + 6, &params.pg0, sizeof params.pg0);
 
@@ -316,12 +332,12 @@ vwhfmt_write_out (u8 *dest, p_size *nbytes, vwrite_hash_fmt *src)
   /**
    * Write out vstr if type_and_header is done
    */
-  if (src->hidx == VHFMT_HDR_LEN + 1 && src->vidx < src->vstr.len)
+  if (src->hidx == VHFMT_HDR_LEN + 1 && src->vidx < src->vstrlen)
     {
-      next = MIN (src->vstr.len - src->vidx, towrite);
+      next = MIN (src->vstrlen - src->vidx, towrite);
       if (next > 0)
         {
-          i_memcpy (dest + written, src->vstr.data + src->vidx, next);
+          i_memcpy (dest + written, src->vstr + src->vidx, next);
           src->vidx += next;
           written += next;
           towrite -= next;
@@ -336,12 +352,12 @@ vwhfmt_write_out (u8 *dest, p_size *nbytes, vwrite_hash_fmt *src)
   /**
    * Write out tstr if vstr is done
    */
-  if (src->vidx == src->vstr.len && src->tidx < src->tstr.len)
+  if (src->vidx == src->vstrlen && src->tidx < src->tstrlen)
     {
-      next = MIN (src->tstr.len - src->tidx, towrite);
+      next = MIN (src->tstrlen - src->tidx, towrite);
       if (next > 0)
         {
-          memcpy (dest + written, src->tstr.data + src->tidx, next);
+          memcpy (dest + written, src->tstr + src->tidx, next);
           src->tidx += next;
           written += next;
           towrite -= next;
@@ -351,7 +367,7 @@ vwhfmt_write_out (u8 *dest, p_size *nbytes, vwrite_hash_fmt *src)
   /**
    * Write out the last EOF byte
    */
-  if (src->tidx == src->tstr.len && !src->done)
+  if (src->tidx == src->tstrlen && !src->done)
     {
       next = MIN (1, towrite);
       if (next > 0)

@@ -122,7 +122,6 @@ type_byte_size (const type *t)
     }
 }
 
-/**
 void
 type_free_internals_forgiving (type *t, lalloc *alloc)
 {
@@ -200,7 +199,6 @@ type_free_internals (type *t, lalloc *alloc)
       }
     }
 }
-*/
 
 u32
 type_get_serial_size (const type *t)
@@ -287,11 +285,13 @@ type_serialize (serializer *dest, const type *src)
 }
 
 err_t
-type_deserialize_recurse (
-    type *dest,
-    deserializer *src,
-    salloc *alloc)
+type_deserialize (type *dest, deserializer *src, lalloc *alloc)
 {
+  /**
+   * No need to free forgiving because functions
+   * are good citizens and do it
+   * Questionable behavior
+   */
   switch (dest->type)
     {
     case T_PRIM:
@@ -323,79 +323,5 @@ type_deserialize_recurse (
         ASSERT (0);
         return ERR_FALLBACK;
       }
-    }
-}
-
-err_t
-type_deserialize (alloced_type *dest, deserializer *src)
-{
-  u32 dcap = 10;
-
-  /**
-   * TODO - get rid of the while loop
-   */
-  u8 *data = lmalloc (dest->alloc, dcap);
-  if (!data)
-    {
-      return ERR_NOMEM;
-    }
-
-  while (true)
-    {
-      salloc alloc;
-      salloc_create_from (&alloc, data, dcap);
-      err_t ret;
-
-      switch (dest->ret.type)
-        {
-        case T_PRIM:
-          {
-            ret = prim_t_deserialize (&dest->ret.p, src);
-            break;
-          }
-        case T_STRUCT:
-          {
-            ret = struct_t_deserialize (&dest->ret.st, src, &alloc);
-            break;
-          }
-        case T_UNION:
-          {
-            ret = union_t_deserialize (&dest->ret.un, src, &alloc);
-            break;
-          }
-        case T_ENUM:
-          {
-            ret = enum_t_deserialize (&dest->ret.en, src, &alloc);
-            break;
-          }
-        case T_SARRAY:
-          {
-            ret = sarray_t_deserialize (&dest->ret.sa, src, &alloc);
-            break;
-          }
-        default:
-          {
-            ASSERT (0);
-            return ERR_FALLBACK;
-          }
-
-          if (ret == SUCCESS)
-            {
-              // TODO - it would be nice to clip data, but
-              // we would need to remap all the pointers
-              dest->data = data;
-              dest->dlen = alloc.len;
-              return ret;
-            }
-
-          /**
-           * Increase the size and try again
-           */
-          u8 *data = lrealloc (dest->alloc, data, dcap);
-          if (!data)
-            {
-              return ERR_NOMEM;
-            }
-        }
     }
 }
