@@ -41,7 +41,9 @@ void
 hp_init_empty (hash_page *hp)
 {
   unchecked_hash_page_assert (hp);
+  *hp->header = PG_HASH_PAGE;
   i_memset (hp->hashes, 0, hp_hash_len (hp->rlen) * sizeof *hp->hashes);
+  valid_hash_page_assert (hp);
 }
 
 hash_page

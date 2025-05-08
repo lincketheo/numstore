@@ -48,21 +48,4 @@ hash_leaf hl_set_ptrs (u8 *raw, p_size len);
 
 pgno hl_get_next (const hash_leaf *hl);
 
-#define HLRC_PFX_LEN (2 * sizeof (u16) + sizeof (u8) + sizeof (pgno))
-
-typedef struct
-{
-  enum
-  {
-    HLRCH_TOMBSTONE,
-    HLRCH_EOF,
-    HLRCH_PRESENT,
-    HLRCH_UNKNOWN,
-  } type;
-
-  pgno pg0;
-  u16 vstrlen;
-  u16 tstrlen;
-} hl_header;
-
-hl_header hlh_parse (u8[HLRC_PFX_LEN]);
+void hl_set_next (hash_leaf *hl, pgno next);

@@ -10,21 +10,23 @@ vrhfmt_create (lalloc *alloc)
   return (vread_hash_fmt){
     .pos = 0,
     .alloc = alloc,
+    .state = VHFMT_START,
   };
 }
 
 err_t
 vrhfmt_parse_header (vread_hash_fmt *v)
 {
-  ASSERT (v->pos == VHASH_HEADER_LEN);
+  ASSERT (v->pos == VHFMT_HDR_LEN + 1);
+  ASSERT (v->state == VHFMT_SCANNING);
 
-  u8 type;
   u16 vstrlen, tstrlen;
+  u8 is_tombstone;
   pgno pg0;
 
-  i_memcpy (&type, v->header + 0, sizeof type);
-  i_memcpy (&vstrlen, v->header + 1, sizeof vstrlen);
-  i_memcpy (&tstrlen, v->header + 3, sizeof tstrlen);
+  i_memcpy (&vstrlen, v->header + 0, sizeof vstrlen);
+  i_memcpy (&tstrlen, v->header + 2, sizeof tstrlen);
+  i_memcpy (&is_tombstone, v->header + 4, sizeof is_tombstone);
   i_memcpy (&pg0, v->header + 5, sizeof pg0);
 
   /**
@@ -38,41 +40,25 @@ vrhfmt_parse_header (vread_hash_fmt *v)
     v->alloc = alloc;
   }
 
-  switch (type)
+  /**
+   * Require strs > 0 and no magic pages
+   */
+  if (vstrlen == 0 || tstrlen == 0 || pg0 == 0)
     {
-    case (u8)VHFMT_EOF:
-      {
-        v->type = VHFMT_EOF;
-        return SUCCESS;
-      }
-    case (u8)VHFMT_TOMBSTONE:
-    case (u8)VHFMT_PRESENT:
-      {
-        /**
-         * Require strs > 0 and no magic pages
-         */
-        if (vstrlen == 0 || tstrlen == 0 || pg0 == 0)
-          {
-            return ERR_INVALID_STATE;
-          }
-
-        v->vstrlen = vstrlen;
-        v->tstrlen = tstrlen;
-        v->pg0 = pg0;
-        v->type = type;
-        break;
-      }
-    default:
-      {
-        v->type = VHFMT_UNKNOWN;
-        return ERR_INVALID_STATE;
-      }
+      v->state = VHFMT_CORRUPT;
+      return ERR_INVALID_STATE;
     }
+
+  v->state = VHFMT_SCANNING;
+  v->vstrlen = vstrlen;
+  v->tstrlen = tstrlen;
+  v->is_tombstone = is_tombstone;
+  v->pg0 = pg0;
 
   /**
    * Allocate strings
    */
-  if (v->type == VHFMT_PRESENT)
+  if (!v->is_tombstone)
     {
       v->raw = lmalloc (v->alloc, vstrlen + tstrlen);
       if (!v->raw)
@@ -90,20 +76,68 @@ vrhfmt_parse_header (vread_hash_fmt *v)
 err_t
 vrhfmt_read_in (const u8 *src, p_size *nbytes, vread_hash_fmt *dest)
 {
+  ASSERT (*nbytes > 0);
+
   err_t ret = SUCCESS;     // Return code
   p_size next;             // Next write block
   p_size read = 0;         // Total bytes read
   p_size toread = *nbytes; // Total bytes to read
 
-  if (dest->pos < VHASH_HEADER_LEN)
+  /**
+   * Read in the type byte
+   */
+  if (dest->pos == 0)
+    {
+      ASSERT (dest->state == VHFMT_START);
+
+      u8 type = src[dest->pos++];
+      read += 1;
+
+      switch (type)
+        {
+        case VHFMT_TYPE_PRESENT:
+          {
+            dest->is_tombstone = false;
+            dest->state = VHFMT_SCANNING;
+            break;
+          }
+        case VHFMT_TYPE_TOMBSTONE:
+          {
+            dest->is_tombstone = true;
+            dest->state = VHFMT_SCANNING;
+            break;
+          }
+        case VHFMT_TYPE_EOF:
+          {
+            dest->state = VHFMT_EOF;
+            ret = SUCCESS;
+            goto theend;
+          }
+        default:
+          {
+            dest->state = VHFMT_CORRUPT;
+            ret = ERR_INVALID_STATE;
+            goto theend;
+          }
+        }
+    }
+
+  ASSERT (dest->state == VHFMT_SCANNING);
+  ASSERT (dest->pos > 0);
+
+  /**
+   * 1 plus because header only includes the stuff after
+   * the type byte
+   */
+  if (dest->pos < 1 + VHFMT_HDR_LEN)
     {
       /**
        * Read maximum into header
        */
-      next = MIN (VHASH_HEADER_LEN - dest->pos, toread);
+      next = MIN (VHFMT_HDR_LEN + 1 - dest->pos, toread);
       if (next > 0)
         {
-          i_memcpy (dest->header + dest->pos, src + read, next);
+          i_memcpy (dest->header + dest->pos - 1, src + read, next);
           dest->pos += next;
 
           read += next;
@@ -113,7 +147,7 @@ vrhfmt_read_in (const u8 *src, p_size *nbytes, vread_hash_fmt *dest)
       /**
        * Header's done - parse it
        */
-      if (dest->pos == VHASH_HEADER_LEN)
+      if (dest->pos == VHFMT_HDR_LEN + 1)
         {
           ret = vrhfmt_parse_header (dest);
           if (ret)
@@ -124,6 +158,7 @@ vrhfmt_read_in (const u8 *src, p_size *nbytes, vread_hash_fmt *dest)
 
       /**
        * Otherwise we still have more to do
+       * on the header
        */
       else
         {
@@ -131,7 +166,8 @@ vrhfmt_read_in (const u8 *src, p_size *nbytes, vread_hash_fmt *dest)
         }
     }
 
-  ASSERT (dest->pos >= VHASH_HEADER_LEN);
+  ASSERT (dest->pos >= VHFMT_HDR_LEN + 1);
+  ASSERT (dest->state == VHFMT_SCANNING);
 
   /**
    * Read in vstr if it's not done yet
@@ -142,7 +178,10 @@ vrhfmt_read_in (const u8 *src, p_size *nbytes, vread_hash_fmt *dest)
       next = MIN (dest->vstrlen - dest->vidx, toread);
       if (next > 0)
         {
-          i_memcpy (dest->vstr + dest->vidx, src + read, next);
+          if (!dest->is_tombstone)
+            {
+              i_memcpy (dest->vstr + dest->vidx, src + read, next);
+            }
           dest->vidx += next;
           dest->pos += next;
 
@@ -164,7 +203,10 @@ vrhfmt_read_in (const u8 *src, p_size *nbytes, vread_hash_fmt *dest)
       next = MIN (dest->tstrlen - dest->tidx, toread);
       if (next > 0)
         {
-          i_memcpy (dest->tstr + dest->tidx, src + read, next);
+          if (!dest->is_tombstone)
+            {
+              i_memcpy (dest->tstr + dest->tidx, src + read, next);
+            }
           dest->tidx += next;
           dest->pos += next;
 
@@ -173,21 +215,15 @@ vrhfmt_read_in (const u8 *src, p_size *nbytes, vread_hash_fmt *dest)
         }
     }
 
+  if (dest->tidx == dest->tstrlen)
+    {
+      ASSERT (dest->pos == 1 + VHFMT_HDR_LEN + dest->tstrlen + dest->vstrlen);
+      dest->state = VHFMT_DONE;
+    }
+
 theend:
   *nbytes = read;
   return ret;
-}
-
-bool
-vrhfmt_done (vread_hash_fmt *v)
-{
-  if (v->pos < VHASH_HEADER_LEN)
-    {
-      return false;
-    }
-  u32 target = VHASH_HEADER_LEN + v->vstrlen + v->tstrlen;
-  ASSERT (v->pos <= target);
-  return v->pos == target;
 }
 
 void
@@ -209,41 +245,62 @@ vwrite_hash_fmt
 vwhfmt_create (vwhfmt_params params)
 {
   vwrite_hash_fmt w = {
-    .pos = 0,
+    .done = false,
+    .hidx = 0,
     .vidx = 0,
     .tidx = 0,
     .vstr = params.vstr,
     .tstr = params.tstr,
   };
 
-  u8 *p = w.header;
-  p[0] = (u8)VHFMT_PRESENT;
+  u8 *p = w.type_and_header;
   u16 vlen = (u16)params.vstr.len;
   u16 tlen = (u16)params.tstr.len;
-  memcpy (p + 1, &vlen, sizeof vlen);
-  memcpy (p + 3, &tlen, sizeof tlen);
-  memcpy (p + 5, &params.pg0, sizeof params.pg0);
+
+  p[0] = (u8)VHFMT_TYPE_PRESENT;
+  i_memcpy (p + 1, &vlen, sizeof vlen);
+  i_memcpy (p + 3, &tlen, sizeof tlen);
+  p[5] = 0; // is_tombstone
+  i_memcpy (p + 6, &params.pg0, sizeof params.pg0);
 
   return w;
 }
 
-void
+err_t
 vwhfmt_write_out (u8 *dest, p_size *nbytes, vwrite_hash_fmt *src)
 {
+  ASSERT (*nbytes > 0);
+
   p_size next;
   p_size towrite = *nbytes;
   p_size written = 0;
 
   /**
-   * Write out the header
+   * The puzzle piece -
+   * writer only writes to a previous
+   * eof type
    */
-  if (src->pos < VHASH_HEADER_LEN)
+  if (src->hidx == 0)
     {
-      next = MIN (VHASH_HEADER_LEN - src->pos, towrite);
+      if (dest[0] != VHFMT_TYPE_EOF)
+        {
+          return ERR_INVALID_STATE;
+        }
+    }
+
+  /**
+   * Write out the type_and_header
+   */
+  if (src->hidx < VHFMT_HDR_LEN + 1)
+    {
+      next = MIN (VHFMT_HDR_LEN + 1 - src->hidx, towrite);
       if (next > 0)
         {
-          i_memcpy (dest + written, src->header + src->pos, next);
-          src->pos += next;
+          i_memcpy (
+              dest + written,
+              src->type_and_header + src->hidx,
+              next);
+          src->hidx += next;
           written += next;
           towrite -= next;
         }
@@ -254,10 +311,12 @@ vwhfmt_write_out (u8 *dest, p_size *nbytes, vwrite_hash_fmt *src)
         }
     }
 
+  ASSERT (src->hidx <= VHFMT_HDR_LEN + 1);
+
   /**
-   * Write out vstr if header is done
+   * Write out vstr if type_and_header is done
    */
-  if (src->pos >= VHASH_HEADER_LEN && src->vidx < src->vstr.len)
+  if (src->hidx == VHFMT_HDR_LEN + 1 && src->vidx < src->vstr.len)
     {
       next = MIN (src->vstr.len - src->vidx, towrite);
       if (next > 0)
@@ -289,14 +348,25 @@ vwhfmt_write_out (u8 *dest, p_size *nbytes, vwrite_hash_fmt *src)
         }
     }
 
-theend:
-  *nbytes = written;
-}
+  /**
+   * Write out the last EOF byte
+   */
+  if (src->tidx == src->tstr.len && !src->done)
+    {
+      next = MIN (1, towrite);
+      if (next > 0)
+        {
+          u8 eof = VHFMT_TYPE_EOF;
+          i_memcpy (dest + written, &eof, 1);
+          written += next;
+          towrite -= next;
+          src->done = true;
+        }
+    }
 
-bool
-vwhfmt_done (vwrite_hash_fmt *src)
-{
-  return src->pos == VHASH_HEADER_LEN
-         && src->vidx == src->vstr.len
-         && src->tidx == src->tstr.len;
+theend:
+  ASSERT (written <= *nbytes);
+  ASSERT (towrite <= *nbytes);
+  *nbytes = written;
+  return SUCCESS;
 }

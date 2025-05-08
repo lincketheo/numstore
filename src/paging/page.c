@@ -3,6 +3,7 @@
 #include "dev/errors.h"
 #include "intf/stdlib.h"
 #include "paging/types/data_list.h"
+#include "paging/types/hash_leaf.h"
 #include "paging/types/hash_page.h"
 #include "paging/types/inner_node.h"
 #include "utils/bounds.h"
@@ -34,9 +35,6 @@ page_read_expect (page *dest, int type, u8 *raw, p_size rlen, pgno pg)
       return ERR_INVALID_STATE;
     }
 
-  dest->type = type;
-  dest->pg = pg;
-
   switch (type)
     {
     case PG_DATA_LIST:
@@ -67,11 +65,24 @@ page_read_expect (page *dest, int type, u8 *raw, p_size rlen, pgno pg)
         dest->hp = hp;
         break;
       }
+    case PG_HASH_LEAF:
+      {
+        hash_leaf hl = hl_set_ptrs (raw, rlen);
+        if (!hl_is_valid (&hl))
+          {
+            return ERR_INVALID_STATE;
+          }
+        dest->hl = hl;
+        break;
+      }
     default:
       {
         panic ();
       }
     }
+
+  dest->type = type;
+  dest->pg = pg;
 
   return SUCCESS;
 }
@@ -102,6 +113,12 @@ page_init (page *dest, page_type type, u8 *raw, p_size rlen, pgno pg)
       {
         dest->hp = hp_set_ptrs (raw, rlen);
         hp_init_empty (&dest->hp);
+        break;
+      }
+    case PG_HASH_LEAF:
+      {
+        dest->hl = hl_set_ptrs (raw, rlen);
+        hl_init_empty (&dest->hl);
         break;
       }
     default:

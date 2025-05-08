@@ -46,11 +46,13 @@ vfhm_create_hashmap (vfile_hashmap *h)
     {
       /**
        * Might be trying to create a database
-       * on an already existing file
+       * on an already existing file?
+       *
+       * I think this could be blocked by an ASSERT
+       * because we should have already checked that
        */
       return ERR_INVALID_STATE;
     }
-  ASSERT (hp.pg == 0);
 
   return SUCCESS;
 }
@@ -63,15 +65,14 @@ vfhm_get (const vfile_hashmap *h, vmeta *dest, const string key)
   vfile_hashmap_assert (h);
 
   err_t ret;   // Error code
-  page hp;     // First Hash page
-  page leaf;   // Leaf for traversing
-  p_size hpos; // Hash index
-  pgno lpg;    // Leaf page
+  page cur;    // Current page we're looking at
+  p_size hpos; // Hash index in the hash page
+  pgno lpg;    // Leaf page number
 
   /**
    * Fetch the first hash page
    */
-  ret = pgr_get_expect (&hp, PG_HASH_PAGE, 0, h->pager);
+  ret = pgr_get_expect (&cur, PG_HASH_PAGE, 0, h->pager);
   if (ret)
     {
       return ret;
@@ -80,18 +81,22 @@ vfhm_get (const vfile_hashmap *h, vmeta *dest, const string key)
   /**
    * Hash the key
    */
-  hpos = hp_get_hash_pos (&hp.hp, key);
-  lpg = hp_get_pgno (&hp.hp, hpos);
+  hpos = hp_get_hash_pos (&cur.hp, key);
+  lpg = hp_get_pgno (&cur.hp, hpos);
 
+  /**
+   * Hash's of 0 mean the hash position hasn't
+   * been indexed before (0 being a magic number)
+   */
   if (lpg == 0)
     {
       return ERR_DOESNT_EXIST;
     }
 
   /**
-   * Fetch the first page
+   * Fetch the first leaf page
    */
-  ret = pgr_get_expect (&leaf, PG_HASH_LEAF, lpg, h->pager);
+  ret = pgr_get_expect (&cur, PG_HASH_LEAF, lpg, h->pager);
   if (ret)
     {
       return ret;
@@ -101,8 +106,8 @@ vfhm_get (const vfile_hashmap *h, vmeta *dest, const string key)
    * Create the deserializer
    */
   vread_hash_fmt v = vrhfmt_create (h->alloc);
-  p_size pos = 0; // The position in the hash list
-  p_size dlen = hl_data_len (leaf.hl.rlen);
+  p_size pos = 0; // The byte position in the current hash list
+  p_size dlen = hl_data_len (cur.hl.rlen);
 
   /**
    * TODO - what if you have a cycle in the linked list?
@@ -112,51 +117,77 @@ vfhm_get (const vfile_hashmap *h, vmeta *dest, const string key)
     {
       ASSERT (pos <= dlen);
 
-      /**
-       * If we're at the end, grab a new page and reset
-       */
-      if (pos == dlen)
+      switch (v.state)
         {
-          pgno next = hl_get_next (&leaf.hl);
-          if (next == 0)
-            {
-              return ERR_DOESNT_EXIST;
-            }
-          ret = pgr_get_expect (
-              &leaf,
-              PG_HASH_LEAF,
-              next, h->pager);
-          if (ret)
-            {
-              return ret;
-            }
-          pos = 0;
-        }
 
-      p_size nbytes = dlen - pos;
-      ret = vrhfmt_read_in (leaf.hl.data + pos, &nbytes, &v);
-      if (ret)
-        {
-          return ret;
-        }
-      pos += nbytes;
+        case VHFMT_CORRUPT:
+          {
+            /**
+             * I don't think you can get here
+             * because putting it in an invalid
+             * state would be caught by our error handlers
+             */
+            ASSERT (0);
+            return ERR_INVALID_STATE;
+          }
+        case VHFMT_EOF:
+          {
+            return ERR_DOESNT_EXIST;
+          }
+        case VHFMT_DONE:
+          {
+            if (!v.is_tombstone)
+              {
+                string vstr = (string){
+                  .data = v.vstr,
+                  .len = v.vstrlen,
+                };
+                if (string_equal (vstr, key))
+                  {
+                    i_log_debug ("Found variable: %.*s\n",
+                                 vstr.len, vstr.data);
+                    dest->pgn0 = v.pg0;
+                    vrhfmt_free_and_reset (&v);
+                    return SUCCESS;
+                  }
+                vrhfmt_free_and_reset (&v);
+              }
+            break; // Skip it and move on
+          }
+        default:
+          {
+            if (pos == dlen)
+              {
+                pgno next = hl_get_next (&cur.hl);
+                if (next == 0)
+                  {
+                    // Deserializer handles EOF, not paging
+                    // so this is corrupt because there should be
+                    // more
+                    return ERR_INVALID_STATE;
+                  }
 
-      if (vrhfmt_done (&v))
-        {
-          string vstr = (string){
-            .data = v.vstr,
-            .len = v.vstrlen,
-          };
-          if (string_equal (vstr, key))
-            {
-              i_log_debug ("Found variable: %.*s\n",
-                           vstr.len, vstr.data);
-              dest->pgn0 = v.pg0;
-              vrhfmt_free_and_reset (&v);
-              return SUCCESS;
-            }
+                ret = pgr_get_expect (
+                    &cur,
+                    PG_HASH_LEAF,
+                    next, h->pager);
+                if (ret)
+                  {
+                    return ret;
+                  }
 
-          vrhfmt_free_and_reset (&v);
+                pos = 0;
+              }
+
+            p_size nbytes = dlen - pos;
+            ret = vrhfmt_read_in (cur.hl.data + pos, &nbytes, &v);
+            if (ret)
+              {
+                return ret;
+              }
+            pos += nbytes;
+            ASSERT (nbytes > 0); // Avoid infinite loops
+          }
         }
     }
 }
@@ -190,7 +221,7 @@ vfhm_insert (vfile_hashmap *h, const string key, vmeta value)
   if (lpg == 0)
     {
       /**
-       * Create the first page
+       * Create the first leaf page
        */
       ret = pgr_new (&leaf, h->pager, PG_HASH_LEAF);
       if (ret)
@@ -199,7 +230,7 @@ vfhm_insert (vfile_hashmap *h, const string key, vmeta value)
         }
 
       /**
-       * Save the starting node for the hash page
+       * Save the starting node of the hash page
        */
       hp_set_hash (&hp.hp, hpos, leaf.pg);
       ret = pgr_commit (h->pager, hp.hp.raw, hp.pg);
@@ -211,7 +242,7 @@ vfhm_insert (vfile_hashmap *h, const string key, vmeta value)
   else
     {
       /**
-       * Fetch the first page
+       * Otherwise fetch the first page
        */
       ret = pgr_get_expect (
           &leaf,
@@ -225,16 +256,97 @@ vfhm_insert (vfile_hashmap *h, const string key, vmeta value)
 
   /**
    * Create a deserializer to scan the variables
+   * first to find duplicates or the end (very similar
+   * to the get routine)
    */
   vread_hash_fmt v = vrhfmt_create (h->alloc);
-  p_size pos = 0; // The position in the hash list
+  p_size pos = 0; // The byte position in the hash list
   p_size dlen = hl_data_len (leaf.hl.rlen);
 
-  /**
-   * TODO - what if you have a cycle in the linked list?
-   * (it would be invalid)
-   */
-  while (true)
+  while (v.state != VHFMT_EOF)
+    {
+      ASSERT (pos <= dlen);
+
+      switch (v.state)
+        {
+
+        case VHFMT_CORRUPT:
+          {
+            ASSERT (0);
+            return ERR_INVALID_STATE;
+          }
+        case VHFMT_EOF:
+          {
+            ASSERT (0);
+            break;
+          }
+        case VHFMT_DONE:
+          {
+            if (!v.is_tombstone)
+              {
+                string vstr = (string){
+                  .data = v.vstr,
+                  .len = v.vstrlen,
+                };
+                if (string_equal (vstr, key))
+                  {
+                    i_log_debug ("Found variable: %.*s\n",
+                                 vstr.len, vstr.data);
+                    vrhfmt_free_and_reset (&v);
+                    return ERR_ALREADY_EXISTS;
+                  }
+                vrhfmt_free_and_reset (&v);
+              }
+            break;
+          }
+        default:
+          {
+            if (pos == dlen)
+              {
+                pgno next = hl_get_next (&leaf.hl);
+                if (next == 0)
+                  {
+                    return ERR_INVALID_STATE;
+                  }
+
+                ret = pgr_get_expect (
+                    &leaf,
+                    PG_HASH_LEAF,
+                    next, h->pager);
+                if (ret)
+                  {
+                    return ret;
+                  }
+
+                pos = 0;
+              }
+
+            p_size nbytes = dlen - pos;
+            ret = vrhfmt_read_in (leaf.hl.data + pos, &nbytes, &v);
+            if (ret)
+              {
+                return ret;
+              }
+            pos += nbytes;
+            ASSERT (nbytes > 0); // Avoid infinite loops
+          }
+        }
+    }
+
+  ASSERT (v.state == VHFMT_EOF);
+  ASSERT (v.pos == 1);
+  ASSERT (pos > 0);
+
+  pos -= 1; // Go back oer the previously read byte
+
+  // we're now aligned on the eof are we on the start or the end?
+  vwrite_hash_fmt vw = vwhfmt_create ((vwhfmt_params){
+      .vstr = key,
+      .tstr = (string){ .data = "TODO", .len = 4 },
+      .pg0 = value.pgn0,
+  });
+
+  while (!vw.done)
     {
       ASSERT (pos <= dlen);
 
@@ -246,104 +358,51 @@ vfhm_insert (vfile_hashmap *h, const string key, vmeta value)
           pgno next = hl_get_next (&leaf.hl);
           if (next == 0)
             {
-              goto insert_phase;
+              page nextp;
+              ret = pgr_new (&nextp, h->pager, PG_HASH_LEAF);
+              if (ret)
+                {
+                  return ret;
+                }
+              hl_set_next (&leaf.hl, nextp.pg);
+              ret = pgr_commit (h->pager, leaf.hl.raw, leaf.pg);
+              if (ret)
+                {
+                  return ret;
+                }
+              leaf = nextp;
+              pos = 0;
             }
-          ret = pgr_get_expect (
-              &leaf,
-              PG_HASH_LEAF,
-              next, h->pager);
-          if (ret)
+          else
             {
-              return ret;
+              ret = pgr_commit (h->pager, leaf.hl.data, leaf.pg);
+              if (ret)
+                {
+                  return ret;
+                }
+
+              ret = pgr_get_expect (
+                  &leaf,
+                  PG_HASH_LEAF,
+                  next, h->pager);
+
+              if (ret)
+                {
+                  return ret;
+                }
+
+              pos = 0;
             }
-          pos = 0;
         }
 
       p_size nbytes = dlen - pos;
-      ret = vrhfmt_read_in (leaf.hl.data + pos, &nbytes, &v);
+      ret = vwhfmt_write_out (leaf.hl.data + pos, &nbytes, &vw);
       if (ret)
         {
           return ret;
         }
       pos += nbytes;
-
-      if (vrhfmt_done (&v))
-        {
-          string vstr = (string){
-            .data = v.vstr,
-            .len = v.vstrlen,
-          };
-          if (string_equal (vstr, key))
-            {
-              i_log_debug ("Found variable: %.*s\n",
-                           vstr.len, vstr.data);
-              vrhfmt_free_and_reset (&v);
-              return ERR_ALREADY_EXISTS;
-            }
-
-          vrhfmt_free_and_reset (&v);
-        }
     }
 
-insert_phase:
-  {
-
-    // we're now aligned on the eof are we on the start or the end?
-    vwrite_hash_fmt vw = vwhfmt_create ((vwhfmt_params){
-        .vstr = key,
-        .tstr = (string){ .data = "TODO", .len = 4 },
-        .pg0 = value.pgn0,
-    });
-
-    while (true)
-      {
-        ASSERT (pos <= dlen);
-
-        /**
-         * If we're at the end, grab a new page and reset
-         */
-        if (pos == dlen)
-          {
-            pgno next = hl_get_next (&leaf.hl);
-            if (next == 0)
-              {
-                goto insert_phase;
-              }
-
-            /**
-             * Save this current page
-             */
-            ret = pgr_commit (h->pager, leaf.hl.data, leaf.pg);
-            if (ret)
-              {
-                return ret;
-              }
-
-            /**
-             * Get the next page
-             */
-            ret = pgr_get_expect (
-                &leaf,
-                PG_HASH_LEAF,
-                next, h->pager);
-
-            if (ret)
-              {
-                return ret;
-              }
-
-            pos = 0;
-          }
-
-        p_size nbytes = dlen - pos;
-        vwhfmt_write_out (leaf.hl.data + pos, &nbytes, &vw);
-        pos += nbytes;
-
-        if (vwhfmt_done (&vw))
-          {
-            return SUCCESS;
-          }
-      }
-  }
-  ASSERT (0);
+  return SUCCESS;
 }

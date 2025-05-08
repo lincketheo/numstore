@@ -7,6 +7,7 @@
 #include "paging/page.h"
 #include "paging/types/inner_node.h"
 #include "utils/hashing.h"
+#include "variables/vhash_fmt.h"
 
 #define HL_HEDR_OFFSET (0)
 #define HL_NEXT_OFFSET (HL_HEDR_OFFSET + sizeof (*((hash_leaf *)0)->header))
@@ -54,13 +55,17 @@ hl_data_len (p_size page_size)
 void
 hl_init_empty (hash_leaf *hl)
 {
+  /**
+   * Just an inconcistency to remember,
+   * any time you create a new hash leaf page
+   * it will set the first byte to EOF, even if it's
+   * a page down the line. This doesn't break anything,
+   * but it is slightly inconsistent
+   */
   unchecked_hash_leaf_assert (hl);
-  u8 eof_header[HLRC_PFX_LEN];
-  i_memset (hl->data, 0, hl_data_len (hl->rlen));
-  i_memset (eof_header, 0xFF, sizeof eof_header);
-
-  ASSERT (hl_data_len (hl->rlen) > sizeof (eof_header));
-  i_memcpy (hl->data, eof_header, sizeof eof_header);
+  *hl->header = PG_HASH_LEAF;
+  hl->data[0] = VHFMT_TYPE_EOF;
+  valid_hash_leaf_assert (hl);
 }
 
 hash_leaf
@@ -91,4 +96,11 @@ hl_get_next (const hash_leaf *hl)
 {
   valid_hash_leaf_assert (hl);
   return *hl->next;
+}
+
+void
+hl_set_next (hash_leaf *hl, pgno next)
+{
+  valid_hash_leaf_assert (hl);
+  *hl->next = next;
 }

@@ -4,13 +4,18 @@
 #include "intf/mm.h"
 #include "intf/types.h"
 
-#define VHASH_HEADER_LEN (5 + sizeof (pgno))
+#define VHFMT_HDR_LEN (5 + sizeof (pgno))
+#define VHFMT_TYPE_PRESENT 111
+#define VHFMT_TYPE_TOMBSTONE 232
+#define VHFMT_TYPE_EOF 152
 
 /**
- * ==================== Header
+ * ==================== Type
  * TYPE    [1 byte]
+ * ==================== Header
  * VSTRLEN [2 bytes]
  * VSTRLEN [2 bytes]
+ * IS_TOMB [1 byte]
  * PGO     [sizeof(pgno)]
  * ==================== Data
  * VSTR    [VSTRLEN bytes]
@@ -23,29 +28,38 @@ typedef struct
   u32 pos;
   lalloc *alloc; // Allocates [raw]
 
+  enum
+  {
+    VHFMT_START,
+    VHFMT_SCANNING,
+    VHFMT_CORRUPT,
+    VHFMT_DONE,
+    VHFMT_EOF,
+  } state;
+
   union
   {
-    u8 header[VHASH_HEADER_LEN];
+    u8 header[VHFMT_HDR_LEN];
 
     struct
     {
-      // From the header
+      /**
+       * Header
+       */
       u16 vstrlen;
       u16 tstrlen;
+      bool is_tombstone;
       pgno pg0;
-      enum
-      {
-        VHFMT_TOMBSTONE,
-        VHFMT_EOF,
-        VHFMT_PRESENT,
-        VHFMT_UNKNOWN,
-      } type;
 
-      // The data (points to raw)
+      /*
+       * data (points to raw)
+       */
       char *vstr;
       char *tstr;
 
-      // Where are we currently?
+      /*
+       * Where are we inside data currently?
+       */
       p_size vidx;
       p_size tidx;
 
@@ -55,15 +69,17 @@ typedef struct
 } vread_hash_fmt;
 
 vread_hash_fmt vrhfmt_create (lalloc *alloc);
+
 err_t vrhfmt_read_in (const u8 *src, p_size *nbytes, vread_hash_fmt *dest);
-bool vrhfmt_done (vread_hash_fmt *v);
+
 void vrhfmt_free_and_reset (vread_hash_fmt *v);
 
 typedef struct
 {
-  u32 pos;
+  bool done;
 
-  u8 header[VHASH_HEADER_LEN];
+  u8 type_and_header[VHFMT_HDR_LEN + 1];
+  u32 hidx;
 
   const string vstr;
   const string tstr;
@@ -80,5 +96,5 @@ typedef struct
 } vwhfmt_params;
 
 vwrite_hash_fmt vwhfmt_create (vwhfmt_params params);
-void vwhfmt_write_out (u8 *dest, p_size *nbytes, vwrite_hash_fmt *src);
-bool vwhfmt_done (vwrite_hash_fmt *v);
+
+err_t vwhfmt_write_out (u8 *dest, p_size *nbytes, vwrite_hash_fmt *src);
