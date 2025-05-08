@@ -34,10 +34,12 @@ var_create_create_var (var_create *v, create_query cargs)
     .type = cargs.type,
   };
 
+  /**
   if ((ret = vmhm_insert (v->hm, cargs.vname, mock)))
     {
       return ret;
     }
+  */
 
   i_log_info ("Create variable success. PGN0: %" PRIu64 "\n", mock.pgn0);
 

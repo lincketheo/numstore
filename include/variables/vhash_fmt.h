@@ -46,8 +46,8 @@ typedef struct
       char *tstr;
 
       // Where are we currently?
-      u16 vidx;
-      u16 tidx;
+      p_size vidx;
+      p_size tidx;
 
       u8 *raw; // len = vstrlen + tstrlen
     };
@@ -57,6 +57,7 @@ typedef struct
 vread_hash_fmt vrhfmt_create (lalloc *alloc);
 err_t vrhfmt_read_in (const u8 *src, p_size *nbytes, vread_hash_fmt *dest);
 bool vrhfmt_done (vread_hash_fmt *v);
+void vrhfmt_free_and_reset (vread_hash_fmt *v);
 
 typedef struct
 {
@@ -67,17 +68,17 @@ typedef struct
   const string vstr;
   const string tstr;
 
-  u16 vidx;
-  u16 tidx;
+  p_size vidx;
+  p_size tidx;
 } vwrite_hash_fmt;
 
 typedef struct
 {
-  string vstr;
-  string tstr;
+  const string vstr;
+  const string tstr;
   pgno pg0;
 } vwhfmt_params;
 
 vwrite_hash_fmt vwhfmt_create (vwhfmt_params params);
-err_t vwhfmt_write_out (u8 *dest, p_size *nbytes, vwrite_hash_fmt *src);
+void vwhfmt_write_out (u8 *dest, p_size *nbytes, vwrite_hash_fmt *src);
 bool vwhfmt_done (vwrite_hash_fmt *v);

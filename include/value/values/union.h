@@ -7,5 +7,5 @@ typedef struct value_s value;
 typedef struct
 {
   string key;
-  value *value;
+  value *value; // A single value
 } union_v;

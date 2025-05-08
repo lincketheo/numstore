@@ -9,6 +9,7 @@
 #include "paging/pager.h"
 #include "paging/types/hash_leaf.h"
 #include "paging/types/hash_page.h"
+#include "variables/vhash_fmt.h"
 
 DEFINE_DBG_ASSERT_I (vfile_hashmap, vfile_hashmap, v)
 {
@@ -40,6 +41,14 @@ vfhm_create_hashmap (vfile_hashmap *h)
   if ((ret = pgr_new (&hp, h->pager, PG_HASH_PAGE)))
     {
       return ret;
+    }
+  if (hp.pg != 0)
+    {
+      /**
+       * Might be trying to create a database
+       * on an already existing file
+       */
+      return ERR_INVALID_STATE;
     }
   ASSERT (hp.pg == 0);
 
@@ -88,14 +97,12 @@ vfhm_get (const vfile_hashmap *h, vmeta *dest, const string key)
       return ret;
     }
 
-  u8 _header[HLRC_PFX_LEN]; // A buffer to read in the header
-  p_size hidx = 0;          // Position in the current header
-  hl_header header = { 0 }; // The actual current header
-  string vstr = { 0 };      // The current variable string
-  string tstr = { 0 };      // The current type string
-  p_size pos = 0;           // position inside the current node
-  u32 vidx = 0;             // Variable id in the list
-  p_size dlen = hl_data_len (leaf.in.rlen);
+  /**
+   * Create the deserializer
+   */
+  vread_hash_fmt v = vrhfmt_create (h->alloc);
+  p_size pos = 0; // The position in the hash list
+  p_size dlen = hl_data_len (leaf.hl.rlen);
 
   /**
    * TODO - what if you have a cycle in the linked list?
@@ -113,26 +120,12 @@ vfhm_get (const vfile_hashmap *h, vmeta *dest, const string key)
           pgno next = hl_get_next (&leaf.hl);
           if (next == 0)
             {
-              /**
-               * This happens when the last header overlaps
-               * and we have an invalid next node
-               */
-              if (hidx < HLRC_PFX_LEN)
-                {
-                  return ERR_INVALID_STATE;
-                }
-
-              /**
-               * Otherwise, we expect to be at the EOF header
-               */
-              if (header.type != HLRCH_EOF)
-                {
-                  return ERR_INVALID_STATE;
-                }
-
               return ERR_DOESNT_EXIST;
             }
-          ret = pgr_get_expect (&leaf, PG_HASH_LEAF, next, h->pager);
+          ret = pgr_get_expect (
+              &leaf,
+              PG_HASH_LEAF,
+              next, h->pager);
           if (ret)
             {
               return ret;
@@ -140,134 +133,30 @@ vfhm_get (const vfile_hashmap *h, vmeta *dest, const string key)
           pos = 0;
         }
 
-      /**
-       * First, read into _header
-       */
-      if (hidx < HLRC_PFX_LEN)
+      p_size nbytes = dlen - pos;
+      ret = vrhfmt_read_in (leaf.hl.data + pos, &nbytes, &v);
+      if (ret)
         {
-          p_size next = MIN (HLRC_PFX_LEN - hidx, dlen - pos);
-          ASSERT (next > 0);
-
-          i_memcpy (_header + hidx, &leaf.hl.data[pos], next);
-          hidx += next;
-          pos += next;
-
-          /**
-           * Continue the loop, we aren't ready to move on
-           * Next loop will fetch a new page and (hopefully finish
-           * because a header should be less than dlen - although this
-           * logic doesn't assume that
-           */
-          if (hidx != HLRC_PFX_LEN)
-            {
-              continue;
-            }
-
-          /**
-           * Otherwise, parse header and move on
-           */
-          header = hlh_parse (_header);
-
-          switch (header.type)
-            {
-            case HLRCH_EOF:
-              {
-                return ERR_DOESNT_EXIST;
-              }
-            case HLRCH_PRESENT:
-              {
-                /**
-                 * Allocate room for the strings
-                 */
-                vstr.len = 0;
-                vstr.data = lmalloc (h->alloc, header.vstrlen);
-                if (vstr.data == NULL)
-                  {
-                    return ERR_NOMEM;
-                  }
-
-                tstr.len = 0;
-                tstr.data = lmalloc (h->alloc, header.tstrlen);
-                if (tstr.data == NULL)
-                  {
-                    lfree (h->alloc, vstr.data);
-                    return ERR_NOMEM;
-                  }
-                break;
-              }
-            case HLRCH_UNKNOWN:
-              {
-                return ERR_INVALID_STATE;
-              }
-            case HLRCH_TOMBSTONE:
-              {
-                /**
-                 * Set them to null - later logic will handle this
-                 */
-                vstr.len = 0;
-                tstr.len = 0;
-                vstr.data = NULL;
-                tstr.data = NULL;
-                break;
-              }
-            }
+          return ret;
         }
+      pos += nbytes;
 
-      ASSERT (hidx == HLRC_PFX_LEN);
-
-      /**
-       * Next, read into vstring
-       */
-      ASSERT (vstr.len <= header.vstrlen);
-      if (vstr.len < header.vstrlen)
+      if (vrhfmt_done (&v))
         {
-          p_size next = MIN (header.vstrlen - vstr.len, dlen - pos);
-          if (vstr.data && next > 0)
+          string vstr = (string){
+            .data = v.vstr,
+            .len = v.vstrlen,
+          };
+          if (string_equal (vstr, key))
             {
-              i_memcpy (vstr.data + vstr.len, &leaf.hl.data[pos], next);
-            }
-          vstr.len += next;
-          pos += next;
-        }
-
-      /**
-       * Next, read into tstring
-       */
-      ASSERT (tstr.len <= header.tstrlen);
-      if (tstr.len < header.tstrlen && vstr.len == header.vstrlen)
-        {
-          p_size next = MIN (header.tstrlen - tstr.len, dlen - pos);
-          if (tstr.data && next > 0)
-            {
-              i_memcpy (tstr.data + tstr.len, &leaf.hl.data[pos], next);
-            }
-          tstr.len += next;
-          pos += next;
-        }
-
-      if (tstr.len == header.tstrlen && vstr.len == header.vstrlen)
-        {
-          if (vstr.data && tstr.data && string_equal (vstr, key))
-            {
-              i_log_debug ("Found variable: %.*s at index: %d\n", vstr.len, vstr.data, vidx);
-              dest->pgn0 = header.pg0;
+              i_log_debug ("Found variable: %.*s\n",
+                           vstr.len, vstr.data);
+              dest->pgn0 = v.pg0;
+              vrhfmt_free_and_reset (&v);
               return SUCCESS;
             }
-          else
-            {
-              vidx += 1;
-              hidx = 0;
-              if (tstr.data)
-                {
-                  lfree (h->alloc, tstr.data);
-                  tstr = (string){ 0 };
-                }
-              if (vstr.data)
-                {
-                  lfree (h->alloc, vstr.data);
-                  vstr = (string){ 0 };
-                }
-            }
+
+          vrhfmt_free_and_reset (&v);
         }
     }
 }
@@ -324,27 +213,26 @@ vfhm_insert (vfile_hashmap *h, const string key, vmeta value)
       /**
        * Fetch the first page
        */
-      ret = pgr_get_expect (&leaf, PG_HASH_LEAF, lpg, h->pager);
+      ret = pgr_get_expect (
+          &leaf,
+          PG_HASH_LEAF,
+          lpg, h->pager);
       if (ret)
         {
           return ret;
         }
     }
 
-  u8 _header[HLRC_PFX_LEN]; // A buffer to read in the header
-  p_size hidx = 0;          // Position in the current header
-  hl_header header = { 0 }; // The actual current header
-  string vstr = { 0 };      // The current variable string
-  string tstr = { 0 };      // The current type string
-  p_size pos = 0;           // position inside the current node
-  u32 vidx = 0;             // Variable id in the list
-  p_size dlen = hl_data_len (leaf.in.rlen);
+  /**
+   * Create a deserializer to scan the variables
+   */
+  vread_hash_fmt v = vrhfmt_create (h->alloc);
+  p_size pos = 0; // The position in the hash list
+  p_size dlen = hl_data_len (leaf.hl.rlen);
 
   /**
    * TODO - what if you have a cycle in the linked list?
    * (it would be invalid)
-   *
-   * First - Find the EOF
    */
   while (true)
     {
@@ -358,36 +246,12 @@ vfhm_insert (vfile_hashmap *h, const string key, vmeta value)
           pgno next = hl_get_next (&leaf.hl);
           if (next == 0)
             {
-              /**
-               * This happens when the last header overlaps
-               * and we have an invalid next node
-               */
-              if (hidx < HLRC_PFX_LEN)
-                {
-                  return ERR_INVALID_STATE;
-                }
-
-              /**
-               * Otherwise, we expect to be at the EOF header
-               */
-              if (header.type != HLRCH_EOF)
-                {
-                  return ERR_INVALID_STATE;
-                }
-
-              /**
-               * Edge condition - fits perfectly
-               *
-               * TODO - swap out header
-               */
-              ret = pgr_new (&leaf, h->pager, PG_HASH_LEAF);
-              if (ret)
-                {
-                  return ret;
-                }
               goto insert_phase;
             }
-          ret = pgr_get_expect (&leaf, PG_HASH_LEAF, next, h->pager);
+          ret = pgr_get_expect (
+              &leaf,
+              PG_HASH_LEAF,
+              next, h->pager);
           if (ret)
             {
               return ret;
@@ -395,140 +259,91 @@ vfhm_insert (vfile_hashmap *h, const string key, vmeta value)
           pos = 0;
         }
 
-      /**
-       * First, read into _header
-       */
-      if (hidx < HLRC_PFX_LEN)
+      p_size nbytes = dlen - pos;
+      ret = vrhfmt_read_in (leaf.hl.data + pos, &nbytes, &v);
+      if (ret)
         {
-          p_size next = MIN (HLRC_PFX_LEN - hidx, dlen - pos);
-          ASSERT (next > 0);
-
-          i_memcpy (_header + hidx, &leaf.hl.data[pos], next);
-          hidx += next;
-          pos += next;
-
-          /**
-           * Continue the loop, we aren't ready to move on
-           * Next loop will fetch a new page and (hopefully finish
-           * because a header should be less than dlen - although this
-           * logic doesn't assume that
-           */
-          if (hidx != HLRC_PFX_LEN)
-            {
-              continue;
-            }
-
-          /**
-           * Otherwise, parse header and move on
-           */
-          header = hlh_parse (_header);
-
-          switch (header.type)
-            {
-            case HLRCH_EOF:
-              {
-                /**
-                 * TODO - swap out header
-                 */
-                goto insert_phase;
-              }
-            case HLRCH_PRESENT:
-              {
-                /**
-                 * Allocate room for the strings
-                 */
-                vstr.len = 0;
-                vstr.data = lmalloc (h->alloc, header.vstrlen);
-                if (vstr.data == NULL)
-                  {
-                    return ERR_NOMEM;
-                  }
-
-                tstr.len = 0;
-                tstr.data = lmalloc (h->alloc, header.tstrlen);
-                if (tstr.data == NULL)
-                  {
-                    lfree (h->alloc, vstr.data);
-                    return ERR_NOMEM;
-                  }
-                break;
-              }
-            case HLRCH_UNKNOWN:
-              {
-                return ERR_INVALID_STATE;
-              }
-            case HLRCH_TOMBSTONE:
-              {
-                /**
-                 * Set them to null - later logic will handle this
-                 */
-                vstr.len = 0;
-                tstr.len = 0;
-                vstr.data = NULL;
-                tstr.data = NULL;
-                break;
-              }
-            }
+          return ret;
         }
+      pos += nbytes;
 
-      ASSERT (hidx == HLRC_PFX_LEN);
-
-      /**
-       * Next, read into vstring
-       */
-      ASSERT (vstr.len <= header.vstrlen);
-      if (vstr.len < header.vstrlen)
+      if (vrhfmt_done (&v))
         {
-          p_size next = MIN (header.vstrlen - vstr.len, dlen - pos);
-          if (vstr.data && next > 0)
+          string vstr = (string){
+            .data = v.vstr,
+            .len = v.vstrlen,
+          };
+          if (string_equal (vstr, key))
             {
-              i_memcpy (vstr.data + vstr.len, &leaf.hl.data[pos], next);
-            }
-          vstr.len += next;
-          pos += next;
-        }
-
-      /**
-       * Next, read into tstring
-       */
-      ASSERT (tstr.len <= header.tstrlen);
-      if (tstr.len < header.tstrlen && vstr.len == header.vstrlen)
-        {
-          p_size next = MIN (header.tstrlen - tstr.len, dlen - pos);
-          if (tstr.data && next > 0)
-            {
-              i_memcpy (tstr.data + tstr.len, &leaf.hl.data[pos], next);
-            }
-          tstr.len += next;
-          pos += next;
-        }
-
-      if (tstr.len == header.tstrlen && vstr.len == header.vstrlen)
-        {
-          if (vstr.data && tstr.data && string_equal (vstr, key))
-            {
-              i_log_debug ("Found variable: %.*s at index: %d\n", vstr.len, vstr.data, vidx);
+              i_log_debug ("Found variable: %.*s\n",
+                           vstr.len, vstr.data);
+              vrhfmt_free_and_reset (&v);
               return ERR_ALREADY_EXISTS;
             }
-          else
-            {
-              vidx += 1;
-              hidx = 0;
-              if (tstr.data)
-                {
-                  lfree (h->alloc, tstr.data);
-                  tstr = (string){ 0 };
-                }
-              if (vstr.data)
-                {
-                  lfree (h->alloc, vstr.data);
-                  vstr = (string){ 0 };
-                }
-            }
+
+          vrhfmt_free_and_reset (&v);
         }
     }
 
 insert_phase:
+  {
 
-  return SUCCESS;
+    // we're now aligned on the eof are we on the start or the end?
+    vwrite_hash_fmt vw = vwhfmt_create ((vwhfmt_params){
+        .vstr = key,
+        .tstr = (string){ .data = "TODO", .len = 4 },
+        .pg0 = value.pgn0,
+    });
+
+    while (true)
+      {
+        ASSERT (pos <= dlen);
+
+        /**
+         * If we're at the end, grab a new page and reset
+         */
+        if (pos == dlen)
+          {
+            pgno next = hl_get_next (&leaf.hl);
+            if (next == 0)
+              {
+                goto insert_phase;
+              }
+
+            /**
+             * Save this current page
+             */
+            ret = pgr_commit (h->pager, leaf.hl.data, leaf.pg);
+            if (ret)
+              {
+                return ret;
+              }
+
+            /**
+             * Get the next page
+             */
+            ret = pgr_get_expect (
+                &leaf,
+                PG_HASH_LEAF,
+                next, h->pager);
+
+            if (ret)
+              {
+                return ret;
+              }
+
+            pos = 0;
+          }
+
+        p_size nbytes = dlen - pos;
+        vwhfmt_write_out (leaf.hl.data + pos, &nbytes, &vw);
+        pos += nbytes;
+
+        if (vwhfmt_done (&vw))
+          {
+            return SUCCESS;
+          }
+      }
+  }
+  ASSERT (0);
 }

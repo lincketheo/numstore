@@ -84,15 +84,6 @@ hl_cursor_header_execute (hl_cursor *c, hash_leaf *hl)
         return;
       }
 
-    u16 tstrlen = ((u16 *)c->header)[1];
-    u8 is_present = *(u8 *)c->header + 2 * sizeof (u16);
-    pgno pg0 = *(pgno *)c->header + 2 * sizeof (u16) + sizeof (u8);
-
-    ASSERT (c->pos < hl->rlen);
-    u8 *view = &hl->raw[c->pos];
-    u16 vidx = 0;
-    u16 vlen = MIN (hl->rlen - c->pos, vstrlen);
-
     /**
      * Set variables (overrides header)
      */
@@ -345,4 +336,3 @@ hl_cursor_scroll_new_page (hl_cursor *hc, hash_leaf *hl)
       }
     }
 }
-

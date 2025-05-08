@@ -1,14 +1,14 @@
 #pragma once
 
-#include "compiler/stack_parser/query_builder.h"
-#include "compiler/stack_parser/type_builder.h"
+#include "compiler/stack_parser/query_parser.h"
+#include "compiler/stack_parser/type_parser.h"
 #include "compiler/tokens.h"
 #include "services/services.h"
 #include "type/types.h"
 
 /**
  * These are "non terminals" (not exactly, but similar)
- * All builders visible to ast_builder should have an entry
+ * All parsers visible to ast_parser should have an entry
  */
 typedef enum
 {
@@ -25,11 +25,11 @@ typedef struct
 
   union
   {
-    type_builder tb;
-    query_builder qb;
+    type_parser tb;
+    query_parser qb;
   };
 
-} ast_builder;
+} ast_parser;
 
 /**
  * A result of calling build
@@ -47,7 +47,7 @@ typedef struct
 
 typedef struct
 {
-  ast_builder *stack;
+  ast_parser *stack;
   u32 sp;
   u32 cap;
 

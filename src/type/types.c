@@ -287,6 +287,46 @@ type_serialize (serializer *dest, const type *src)
 }
 
 err_t
+type_deserialize_recurse (
+    type *dest,
+    deserializer *src,
+    salloc *alloc)
+{
+  switch (dest->type)
+    {
+    case T_PRIM:
+      {
+        return prim_t_deserialize (&dest->p, src);
+      }
+    case T_STRUCT:
+      {
+        return struct_t_deserialize (&dest->st, src, alloc);
+        break;
+      }
+    case T_UNION:
+      {
+        return union_t_deserialize (&dest->un, src, alloc);
+        break;
+      }
+    case T_ENUM:
+      {
+        return enum_t_deserialize (&dest->en, src, alloc);
+        break;
+      }
+    case T_SARRAY:
+      {
+        return sarray_t_deserialize (&dest->sa, src, alloc);
+        break;
+      }
+    default:
+      {
+        ASSERT (0);
+        return ERR_FALLBACK;
+      }
+    }
+}
+
+err_t
 type_deserialize (alloced_type *dest, deserializer *src)
 {
   u32 dcap = 10;

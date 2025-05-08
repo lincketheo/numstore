@@ -18,6 +18,10 @@ typedef struct
 
 vfile_hashmap vfhm_create (vfhm_params params);
 
+/**
+ * Actually creates the first page hash map
+ * This is simply just a call to pgr_new
+ */
 err_t vfhm_create_hashmap (vfile_hashmap *h);
 
 err_t vfhm_insert (vfile_hashmap *h, const string key, vmeta value);

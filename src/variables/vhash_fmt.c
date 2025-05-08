@@ -127,7 +127,6 @@ vrhfmt_read_in (const u8 *src, p_size *nbytes, vread_hash_fmt *dest)
        */
       else
         {
-          ret = SUCCESS;
           goto theend;
         }
     }
@@ -149,6 +148,11 @@ vrhfmt_read_in (const u8 *src, p_size *nbytes, vread_hash_fmt *dest)
 
           read += next;
           toread -= next;
+        }
+
+      if (toread == 0)
+        {
+          goto theend;
         }
     }
 
@@ -186,6 +190,21 @@ vrhfmt_done (vread_hash_fmt *v)
   return v->pos == target;
 }
 
+void
+vrhfmt_free_and_reset (vread_hash_fmt *v)
+{
+  if (v->raw)
+    {
+      lfree (v->alloc, v->raw);
+    }
+
+  {
+    lalloc *alloc = v->alloc;
+    i_memset (v, 0, sizeof *v);
+    v->alloc = alloc;
+  }
+}
+
 vwrite_hash_fmt
 vwhfmt_create (vwhfmt_params params)
 {
@@ -198,7 +217,7 @@ vwhfmt_create (vwhfmt_params params)
   };
 
   u8 *p = w.header;
-  p[0] = (u8)VHFMT_PRESENT; // record type
+  p[0] = (u8)VHFMT_PRESENT;
   u16 vlen = (u16)params.vstr.len;
   u16 tlen = (u16)params.tstr.len;
   memcpy (p + 1, &vlen, sizeof vlen);
@@ -208,57 +227,70 @@ vwhfmt_create (vwhfmt_params params)
   return w;
 }
 
-err_t
+void
 vwhfmt_write_out (u8 *dest, p_size *nbytes, vwrite_hash_fmt *src)
 {
+  p_size next;
   p_size towrite = *nbytes;
   p_size written = 0;
 
-  // 1) Write header
+  /**
+   * Write out the header
+   */
   if (src->pos < VHASH_HEADER_LEN)
     {
-      p_size need = VHASH_HEADER_LEN - src->pos;
-      p_size take = MIN (need, towrite);
-      memcpy (dest + written, src->header + src->pos, take);
-      src->pos += take;
-      written += take;
-      towrite -= take;
+      next = MIN (VHASH_HEADER_LEN - src->pos, towrite);
+      if (next > 0)
+        {
+          i_memcpy (dest + written, src->header + src->pos, next);
+          src->pos += next;
+          written += next;
+          towrite -= next;
+        }
+
       if (towrite == 0)
         {
-          *nbytes = written;
-          return SUCCESS;
+          goto theend;
         }
     }
 
-  // 2) Write vstr
+  /**
+   * Write out vstr if header is done
+   */
   if (src->pos >= VHASH_HEADER_LEN && src->vidx < src->vstr.len)
     {
-      p_size need = src->vstr.len - src->vidx;
-      p_size take = MIN (need, towrite);
-      memcpy (dest + written, src->vstr.data + src->vidx, take);
-      src->vidx += take;
-      written += take;
-      towrite -= take;
+      next = MIN (src->vstr.len - src->vidx, towrite);
+      if (next > 0)
+        {
+          i_memcpy (dest + written, src->vstr.data + src->vidx, next);
+          src->vidx += next;
+          written += next;
+          towrite -= next;
+        }
+
       if (towrite == 0)
         {
-          *nbytes = written;
-          return SUCCESS;
+          goto theend;
         }
     }
 
-  // 3) Write tstr
+  /**
+   * Write out tstr if vstr is done
+   */
   if (src->vidx == src->vstr.len && src->tidx < src->tstr.len)
     {
-      p_size need = src->tstr.len - src->tidx;
-      p_size take = MIN (need, towrite);
-      memcpy (dest + written, src->tstr.data + src->tidx, take);
-      src->tidx += take;
-      written += take;
-      towrite -= take;
+      next = MIN (src->tstr.len - src->tidx, towrite);
+      if (next > 0)
+        {
+          memcpy (dest + written, src->tstr.data + src->tidx, next);
+          src->tidx += next;
+          written += next;
+          towrite -= next;
+        }
     }
 
+theend:
   *nbytes = written;
-  return SUCCESS;
 }
 
 bool

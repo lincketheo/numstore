@@ -40,6 +40,16 @@ typedef enum
   CU128 = 23,
 } prim_t;
 
+typedef enum
+{
+  LUB_U64,
+  LUB_I64,
+  LUB_F128,
+  LUB_CF256,
+  LUB_CI128,
+  LUB_CU128,
+} lub_prim_t;
+
 const char *prim_to_str (prim_t p);
 
 bool prim_t_is_valid (const prim_t *t);

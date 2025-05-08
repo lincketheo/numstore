@@ -62,10 +62,12 @@ err_t vmhm_create (vmem_hashmap *dest, vmhm_params params);
  *   - ERR_NOMEM if node_allocator can't create node
  *   - ERR_NOMEM if type_allocator can't create a copy of the type
  */
+/**
 err_t vmhm_insert (
     vmem_hashmap *h,
     alloced_string key,
     alloced_vmeta value);
+    */
 
 err_t vmhm_update_pg0 (
     vmem_hashmap *h,

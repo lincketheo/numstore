@@ -1,6 +1,7 @@
 #pragma once
 
 #include "compiler/tokens.h"
+#include "dev/errors.h"
 
 // What you feed to the stack_parser
 typedef enum
@@ -28,3 +29,5 @@ typedef enum
   SPR_DONE,
 
 } stackp_result;
+
+stackp_result stckp_res_map (err_t ret, stackp_result next);

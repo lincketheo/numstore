@@ -5,6 +5,7 @@
 #include "intf/mm.h"
 #include "intf/stdlib.h"
 #include "query/queries/create.h"
+#include "utils/hashing.h"
 #include "variables/variable.h"
 
 DEFINE_DBG_ASSERT_I (vmem_hashmap, vmem_hashmap, v)
@@ -38,6 +39,7 @@ vmhm_create (vmem_hashmap *dest, vmhm_params params)
   return SUCCESS;
 }
 
+/**
 vnode *
 vnode_alloc_create (
     vmem_hashmap *h,
@@ -46,19 +48,14 @@ vnode_alloc_create (
 {
   err_t ret;
 
-  /**
-   * Allocate new node
-   */
+
   vnode *new_node = lmalloc (h->node_allocator, sizeof *new_node);
   if (!new_node)
     {
       return NULL;
     }
 
-  /**
-   * Transfer ownership of
-   * this pointer
-   */
+
   char *new_string = lalloc_xfer (
       h->string_allocator,
       key.alloc,
@@ -105,18 +102,14 @@ vmhm_insert (
   // Root node
   helem *root = &h->elems[idx];
 
-  /**
-   * Create the new node
-   */
+
   vnode *new_node = vnode_alloc_create (key, value, h->string_allocator);
   if (new_node == NULL)
     {
       return ERR_NOMEM;
     }
 
-  /**
-   * Traverse the linked list to insert it
-   */
+
   {
     vnode *curr = root->head;
     vnode *prev = NULL;
@@ -155,9 +148,7 @@ vmhm_update_pg0 (vmem_hashmap *h, const string key, pgno pg0)
 
   vnode *new_node = NULL;
 
-  /**
-   * Create the new node
-   */
+
   {
     new_node = lmalloc (h->node_allocator, sizeof *new_node);
     if (!new_node)
@@ -185,9 +176,6 @@ vmhm_update_pg0 (vmem_hashmap *h, const string key, pgno pg0)
     i_memcpy (new_node, &_new_node, sizeof (_new_node));
   }
 
-  /**
-   * Traverse the linked list to insert it
-   */
   {
     vnode *curr = node->head;
     vnode *prev = NULL;
@@ -248,23 +236,26 @@ vmhm_get (const vmem_hashmap *h, vmeta *dest, const string vname)
 
   return helem_get (dest, &h->elems[idx], vname);
 }
+*/
 
+/**
 err_t
 vmhm_create_var (vmem_hashmap *v, create_query cargs)
 {
-  vmem_hashmap_assert (v);
+vmem_hashmap_assert (v);
 
-  err_t ret = SUCCESS;
+err_t ret = SUCCESS;
 
-  vmeta meta = {
-    .type = cargs.type,
-    .pgn0 = 0, // TODO
-  };
+vmeta meta = {
+  .type = cargs.type,
+  .pgn0 = 0, // TODO
+};
 
-  if ((ret = vmhm_insert (v, cargs.vname, meta)))
-    {
-      return ret;
-    }
+if ((ret = vmhm_insert (v, cargs.vname, meta)))
+  {
+    return ret;
+  }
 
-  return ret;
+return ret;
 }
+*/

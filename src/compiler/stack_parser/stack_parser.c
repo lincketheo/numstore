@@ -1,13 +1,11 @@
 #include "compiler/stack_parser/stack_parser.h"
 #include "compiler/stack_parser/common.h"
-#include "compiler/stack_parser/query_builder.h"
-#include "compiler/stack_parser/type_builder.h"
+#include "compiler/stack_parser/query_parser.h"
+#include "compiler/stack_parser/type_parser.h"
 #include "compiler/tokens.h"
 #include "dev/errors.h"
 #include "intf/mm.h"
 #include "utils/bounds.h"
-
-////////////////////// TYPE PARSER
 
 DEFINE_DBG_ASSERT_I (stack_parser, stack_parser, t)
 {
@@ -16,7 +14,7 @@ DEFINE_DBG_ASSERT_I (stack_parser, stack_parser, t)
   ASSERT (t->sp <= t->cap);
 }
 
-static inline ast_builder
+static inline ast_parser
 stackp_pop (stack_parser *sp)
 {
   stack_parser_assert (sp);
@@ -25,7 +23,7 @@ stackp_pop (stack_parser *sp)
 }
 
 static inline void
-stackp_push (ast_builder value, stack_parser *sp)
+stackp_push (ast_parser value, stack_parser *sp)
 {
   stack_parser_assert (sp);
   ASSERT (sp->sp < sp->cap);
@@ -38,7 +36,7 @@ stackp_create (stack_parser *dest, sp_params params)
   ASSERT (dest);
 
   // Allocate the stack - start with 3 layers
-  ast_builder *stack = lmalloc (
+  ast_parser *stack = lmalloc (
       params.stack_allocator,
       10 * sizeof *stack);
 
@@ -58,17 +56,17 @@ stackp_create (stack_parser *dest, sp_params params)
 }
 
 static inline sb_feed_t
-astb_expect_next (ast_builder *b, token t)
+astb_expect_next (ast_parser *b, token t)
 {
   switch (b->type)
     {
     case SBBT_TYPE:
       {
-        return typeb_expect_next (&b->tb, t);
+        return typep_expect_next (&b->tb, t);
       }
     case SBBT_QUERY:
       {
-        return qb_expect_next (&b->qb);
+        return qryp_expect_next (&b->qb);
       }
     default:
       {
@@ -79,17 +77,17 @@ astb_expect_next (ast_builder *b, token t)
 }
 
 static inline stackp_result
-astb_accept_token (ast_builder *b, token t, lalloc *alloc)
+astb_accept_token (ast_parser *b, token t)
 {
   switch (b->type)
     {
     case SBBT_TYPE:
       {
-        return typeb_accept_token (&b->tb, t, alloc);
+        return typep_accept_token (&b->tb, t);
       }
     case SBBT_QUERY:
       {
-        return qb_accept_token (&b->qb, t);
+        return qryp_accept_token (&b->qb, t);
       }
     default:
       {
@@ -100,17 +98,17 @@ astb_accept_token (ast_builder *b, token t, lalloc *alloc)
 }
 
 static inline stackp_result
-astb_accept_type (ast_builder *b, type t)
+astb_accept_type (ast_parser *b, type t)
 {
   switch (b->type)
     {
     case SBBT_TYPE:
       {
-        return typeb_accept_type (&b->tb, t);
+        return typep_accept_type (&b->tb, t);
       }
     case SBBT_QUERY:
       {
-        return qb_accept_type (&b->qb, t);
+        return qryp_accept_type (&b->qb, t);
       }
     default:
       {
@@ -121,17 +119,17 @@ astb_accept_type (ast_builder *b, type t)
 }
 
 static inline stackp_result
-astb_build (ast_builder *b, lalloc *alloc)
+astb_build (ast_parser *b)
 {
   switch (b->type)
     {
     case SBBT_TYPE:
       {
-        return typeb_build (&b->tb, alloc);
+        return typep_build (&b->tb);
       }
     case SBBT_QUERY:
       {
-        return qb_build (&b->qb);
+        return qryp_build (&b->qb);
       }
     default:
       {
@@ -147,14 +145,14 @@ stackp_feed_token (stack_parser *tp, token t)
   stack_parser_assert (tp);
   ASSERT (tp->sp > 0);
 
-  ast_builder *top = &tp->stack[tp->sp - 1];
+  ast_parser *top = &tp->stack[tp->sp - 1];
   sb_feed_t exp = astb_expect_next (top, t);
 
   if (exp == SBFT_TYPE)
     {
-      type_builder next;
+      type_parser next;
       next.state = TB_UNKNOWN;
-      stackp_push ((ast_builder){
+      stackp_push ((ast_parser){
                        .tb = next,
                        .type = SBBT_TYPE,
                    },
@@ -163,18 +161,18 @@ stackp_feed_token (stack_parser *tp, token t)
       ASSERT (astb_expect_next (top, t) == SBFT_TOKEN);
     }
 
-  stackp_result ret = astb_accept_token (top, t, tp->type_allocator);
+  stackp_result ret = astb_accept_token (top, t);
 
   // Otherwise, the acceptor is done
   // and can be reduced with the previous
-  // builders
+  // parsers
   //
   // sp == 1 means we're at the base
   while (tp->sp > 1 && ret == SPR_DONE)
     {
       // Pop the top off the stack
-      ast_builder top = stackp_pop (tp);
-      if ((ret = astb_build (&top, tp->type_allocator)) != SPR_DONE)
+      ast_parser top = stackp_pop (tp);
+      if ((ret = astb_build (&top)) != SPR_DONE)
         {
           return ret;
         }
@@ -197,8 +195,8 @@ stackp_begin (stack_parser *sp, sb_build_type type)
     case SBBT_TYPE:
       {
         stackp_push (
-            (ast_builder){
-                .tb = typeb_create (),
+            (ast_parser){
+                .tb = typep_create (sp->type_allocator),
                 .type = type,
             },
             sp);
@@ -206,8 +204,8 @@ stackp_begin (stack_parser *sp, sb_build_type type)
       }
     case SBBT_QUERY:
       {
-        stackp_push ((ast_builder){
-                         .qb = qb_create (),
+        stackp_push ((ast_parser){
+                         .qb = qryp_create (),
                          .type = type,
                      },
                      sp);
@@ -222,9 +220,9 @@ stackp_get (stack_parser *sp)
   stack_parser_assert (sp);
   ASSERT (sp->sp == 1);
 
-  ast_builder top = stackp_pop (sp);
+  ast_parser top = stackp_pop (sp);
 
-  stackp_result res = astb_build (&top, sp->type_allocator);
+  stackp_result res = astb_build (&top);
   ASSERT (res == SPR_DONE);
 
   switch (top.type)

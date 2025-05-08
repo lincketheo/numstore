@@ -51,6 +51,7 @@ typedef float f32;
 typedef double f64;
 typedef long double f128;
 
+typedef f16 cf32[2];
 typedef float _Complex cf64;
 typedef double _Complex cf128;
 typedef long double _Complex cf256;
