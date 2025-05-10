@@ -25,7 +25,8 @@ DEFINE_DBG_ASSERT_I (hash_leaf, unchecked_hash_leaf, d)
 
 DEFINE_DBG_ASSERT_I (hash_leaf, valid_hash_leaf, d)
 {
-  ASSERT (hl_validate (d, NULL) == SUCCESS);
+  error e = error_create (NULL);
+  ASSERT (hl_validate (d, &e) == SUCCESS);
 }
 
 err_t

@@ -28,28 +28,21 @@
 
 // Internal log function
 void i_log_internal (
-    const char *file,
-    int line,
-    const char *func,
     const char *prefix,
     const char *color,
     const char *fmt,
     ...)
-    __attribute__ ((format (printf, 6, 7)));
+    __attribute__ ((format (printf, 3, 4)));
 
 // Log macros
-#define i_log_trace(...) i_log_internal (__FILE__, __LINE__, __func__, "TRACE", BOLD_WHITE, __VA_ARGS__)
-#define i_log_debug(...) i_log_internal (__FILE__, __LINE__, __func__, "DEBUG", BLUE, __VA_ARGS__)
-#define i_log_info(...) i_log_internal (__FILE__, __LINE__, __func__, "INFO", GREEN, __VA_ARGS__)
-#define i_log_warn(...) i_log_internal (__FILE__, __LINE__, __func__, "WARN", YELLOW, __VA_ARGS__)
-#define i_log_error(...) i_log_internal (__FILE__, __LINE__, __func__, "ERROR", RED, __VA_ARGS__)
-#define i_log_assert(...) i_log_internal (__FILE__, __LINE__, __func__, "ASSERT", RED, __VA_ARGS__)
-#define i_log_failure(...) i_log_internal (__FILE__, __LINE__, __func__, "FAILURE", BOLD_RED, __VA_ARGS__)
-#define i_log_passed(...) i_log_internal (__FILE__, __LINE__, __func__, "PASSED", BOLD_GREEN, __VA_ARGS__)
-
-// perror-style logging
-#define i_perror(msg) \
-  i_log_internal (__FILE__, __LINE__, __func__, "ERROR", RED, "System error [%s]: %s\n", msg, strerror (errno))
+#define i_log_trace(...) i_log_internal ("TRACE", BOLD_WHITE, __VA_ARGS__)
+#define i_log_debug(...) i_log_internal ("DEBUG", BLUE, __VA_ARGS__)
+#define i_log_info(...) i_log_internal ("INFO", GREEN, __VA_ARGS__)
+#define i_log_warn(...) i_log_internal ("WARN", YELLOW, __VA_ARGS__)
+#define i_log_error(...) i_log_internal ("ERROR", RED, __VA_ARGS__)
+#define i_log_assert(...) i_log_internal ("ASSERT", RED, __VA_ARGS__)
+#define i_log_failure(...) i_log_internal ("FAILURE", BOLD_RED, __VA_ARGS__)
+#define i_log_passed(...) i_log_internal ("PASSED", BOLD_GREEN, __VA_ARGS__)
 
 #else
 

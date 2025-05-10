@@ -32,7 +32,8 @@ stp_create (type_parser *dest, lalloc *alloc)
   ASSERT (dest);
   ASSERT (dest->state == TB_UNKNOWN);
 
-  switch (stb_create (&dest->stp.builder, alloc, NULL))
+  error e = error_create (NULL);
+  switch (stb_create (&dest->stp.builder, alloc, &e))
     {
     case ERR_NOMEM:
       {
@@ -60,7 +61,8 @@ stp_build (type_parser *sb)
 {
   struct_parser_assert_state (sb, STP_DONE);
 
-  switch (stb_build (&sb->ret.st, &sb->stp.builder, NULL))
+  error e = error_create (NULL);
+  switch (stb_build (&sb->ret.st, &sb->stp.builder, &e))
     {
     case ERR_INVALID_ARGUMENT:
       {
@@ -108,7 +110,8 @@ HANDLER_FUNC (STP_WAITING_FOR_IDENT) (
       return SPR_SYNTAX_ERROR;
     }
 
-  switch (stb_accept_key (&sb->stp.builder, t.str, NULL))
+  error e = error_create (NULL);
+  switch (stb_accept_key (&sb->stp.builder, t.str, &e))
     {
     case ERR_INVALID_ARGUMENT:
       {
@@ -187,7 +190,8 @@ HANDLER_FUNC (STP_WAITING_FOR_TYPE) (type_parser *sb, type t)
 {
   struct_parser_assert_state (sb, STP_WAITING_FOR_TYPE);
 
-  switch (stb_accept_type (&sb->stp.builder, t, NULL))
+  error e = error_create (NULL);
+  switch (stb_accept_type (&sb->stp.builder, t, &e))
     {
     case ERR_NOMEM:
       {

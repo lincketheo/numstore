@@ -23,7 +23,7 @@ server_create_connectors (
     server_params p,
     error *e)
 {
-  lalloc_r cons = lmalloc (p.alloc, 10, 10, sizeof *s->cons);
+  lalloc_r cons = lcalloc (p.alloc, 10, 10, sizeof *s->cons);
   if (cons.stat != AR_SUCCESS)
     {
       return error_causef (
@@ -218,7 +218,7 @@ server_execute_connectors (server *s)
 
           if (ready & POLLOUT)
             {
-              ASSERT (con->want_read);
+              ASSERT (con->want_write);
               con_write (con);
             }
 

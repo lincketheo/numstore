@@ -3,6 +3,7 @@
 #include "compiler/stack_parser/type_parser.h"
 #include "compiler/tokens.h"
 #include "dev/assert.h"
+#include "errors/error.h"
 #include "type/types.h"
 #include "utils/bounds.h"
 
@@ -31,7 +32,8 @@ unp_create (type_parser *dest, lalloc *alloc)
   ASSERT (dest);
   ASSERT (dest->state == TB_UNKNOWN);
 
-  switch (unb_create (&dest->unp.builder, alloc, NULL))
+  error e = error_create (NULL);
+  switch (unb_create (&dest->unp.builder, alloc, &e))
     {
     case ERR_NOMEM:
       {
@@ -59,7 +61,8 @@ unp_build (type_parser *unp)
 {
   union_parser_assert_state (unp, UNP_DONE);
 
-  switch (unb_build (&unp->ret.un, &unp->unp.builder, NULL))
+  error e = error_create (NULL);
+  switch (unb_build (&unp->ret.un, &unp->unp.builder, &e))
     {
     case ERR_INVALID_ARGUMENT:
       {
@@ -108,7 +111,8 @@ HANDLER_FUNC (UNP_WAITING_FOR_IDENT) (
       return SPR_SYNTAX_ERROR;
     }
 
-  switch (unb_accept_key (&unp->unp.builder, t.str, NULL))
+  error e = error_create (NULL);
+  switch (unb_accept_key (&unp->unp.builder, t.str, &e))
     {
     case ERR_INVALID_ARGUMENT:
       {
@@ -191,7 +195,8 @@ HANDLER_FUNC (UNP_WAITING_FOR_TYPE) (type_parser *unp, type t)
 {
   union_parser_assert_state (unp, UNP_WAITING_FOR_TYPE);
 
-  switch (unb_accept_type (&unp->unp.builder, t, NULL))
+  error e = error_create (NULL);
+  switch (unb_accept_type (&unp->unp.builder, t, &e))
     {
     case ERR_NOMEM:
       {

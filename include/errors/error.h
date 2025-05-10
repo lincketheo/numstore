@@ -24,16 +24,14 @@ const char *err_t_to_str (err_t e);
 
 typedef struct
 {
-  bool is_error;
-
   err_t cause_code;
-  string cause_msg;
+  char cause_msg[256];
+  u32 cmlen;
 
-  string *evidence;
-  u32 elen;
-  u32 ecap;
-
-  lalloc *alloc;
+  string *evidence; // Only built if alloc is not null
+  u32 elen;         // Length of evidence
+  u32 ecap;         // Capacity of evidence
+  lalloc *alloc;    // Sweeps ERRNOMEM under the rug
 } error;
 
 #define err_t_wrap(expr, e)                                         \

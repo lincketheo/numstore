@@ -105,8 +105,14 @@ con_to_pollfd (const connector *src)
   ASSERT (con_is_open (src));
 
   struct pollfd ret = { src->cfd.fd, POLLERR, 0 };
-  ret.events |= POLLIN;
-  ret.events |= POLLOUT;
+  if (src->want_write)
+    {
+      ret.events |= POLLOUT;
+    }
+  if (src->want_read)
+    {
+      ret.events |= POLLIN;
+    }
 
   return ret;
 }

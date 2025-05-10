@@ -42,7 +42,8 @@ union_t_validate_shallow (const union_t *s, error *e)
 
 DEFINE_DBG_ASSERT_I (union_t, valid_union_t, s)
 {
-  ASSERT (union_t_validate_shallow (s, NULL) == SUCCESS);
+  error e = error_create (NULL);
+  ASSERT (union_t_validate_shallow (s, &e) == SUCCESS);
 }
 
 err_t

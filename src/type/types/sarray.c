@@ -9,7 +9,8 @@ DEFINE_DBG_ASSERT_I (sarray_t, unchecked_sarray_t, s)
   ASSERT (s);
   ASSERT (s->dims);
   ASSERT (s->t);
-  ASSERT (sarray_t_validate (s, NULL) == SUCCESS);
+  error e = error_create (NULL);
+  ASSERT (sarray_t_validate (s, &e) == SUCCESS);
 }
 
 err_t
@@ -34,7 +35,8 @@ sarray_t_validate_shallow (const sarray_t *t, error *e)
 
 DEFINE_DBG_ASSERT_I (sarray_t, valid_sarray_t, s)
 {
-  ASSERT (sarray_t_validate_shallow (s, NULL) == SUCCESS);
+  error e = error_create (NULL);
+  ASSERT (sarray_t_validate_shallow (s, &e) == SUCCESS);
 }
 
 err_t

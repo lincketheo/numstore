@@ -5,6 +5,7 @@
 #include "server/server.h"
 
 #include <signal.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 static volatile sig_atomic_t stop = 0;
@@ -29,6 +30,7 @@ main (void)
   while (!stop)
     {
       server_execute (&s);
+      sleep (2);
     }
 
   server_close (&s);

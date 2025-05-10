@@ -13,7 +13,8 @@ DEFINE_DBG_ASSERT_I (type, unchecked_type, t)
 
 DEFINE_DBG_ASSERT_I (type, valid_type, t)
 {
-  ASSERT (type_validate (t, NULL) == SUCCESS);
+  error e = error_create (NULL);
+  ASSERT (type_validate (t, &e) == SUCCESS);
 }
 
 err_t

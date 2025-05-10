@@ -69,12 +69,13 @@ TEST (fpgr_create)
   char _tmpl[] = "/tmp/fpgr_testXXXXXX";
   string tmpl = unsafe_cstrfrom (_tmpl);
   i_file fp;
-  test_fail_if (i_mkstemp (&fp, tmpl, NULL));
-  test_fail_if (i_unlink (tmpl, NULL));
+  error e = error_create (NULL);
+  test_fail_if (i_mkstemp (&fp, tmpl, &e));
+  test_fail_if (i_unlink (tmpl, &e));
   file_pager pager;
 
   // edge: file shorter than header
-  test_fail_if (i_truncate (&fp, 9, NULL));
+  test_fail_if (i_truncate (&fp, 9, &e));
   test_assert_int_equal (fpgr_create (
                              &pager,
                              (fpgr_params){
@@ -82,11 +83,11 @@ TEST (fpgr_create)
                                  .page_size = 2048,
                                  .header_size = 10,
                              },
-                             NULL),
+                             &e),
                          ERR_CORRUPT);
 
   // edge: file size = header + half a page
-  test_fail_if (i_truncate (&fp, 10 + 2048 / 2, NULL));
+  test_fail_if (i_truncate (&fp, 10 + 2048 / 2, &e));
   test_assert_int_equal (fpgr_create (
                              &pager,
                              (fpgr_params){
@@ -94,11 +95,11 @@ TEST (fpgr_create)
                                  .page_size = 2048,
                                  .header_size = 10,
                              },
-                             NULL),
+                             &e),
                          ERR_CORRUPT);
 
   // happy: file exactly header size, zero pages
-  test_fail_if (i_truncate (&fp, 10, NULL));
+  test_fail_if (i_truncate (&fp, 10, &e));
   test_assert_int_equal (fpgr_create (
                              &pager,
                              (fpgr_params){
@@ -106,14 +107,14 @@ TEST (fpgr_create)
                                  .page_size = 2048,
                                  .header_size = 10,
                              },
-                             NULL),
+                             &e),
                          SUCCESS);
   test_assert_int_equal (pager.header_size, 10);
   test_assert_int_equal (pager.page_size, 2048);
   test_assert_int_equal ((int)pager.npages, 0);
 
   // happy: file exactly header size, more pages
-  test_fail_if (i_truncate (&fp, 10 + 3 * 2048, NULL));
+  test_fail_if (i_truncate (&fp, 10 + 3 * 2048, &e));
   test_assert_int_equal (fpgr_create (
                              &pager,
                              (fpgr_params){
@@ -121,13 +122,13 @@ TEST (fpgr_create)
                                  .page_size = 2048,
                                  .header_size = 10,
                              },
-                             NULL),
+                             &e),
                          SUCCESS);
   test_assert_int_equal (pager.header_size, 10);
   test_assert_int_equal (pager.page_size, 2048);
   test_assert_int_equal ((int)pager.npages, 3);
 
-  test_fail_if (i_close (&fp, NULL));
+  test_fail_if (i_close (&fp, &e));
 }
 
 err_t
@@ -149,10 +150,11 @@ TEST (fpgr_new)
   char _tmpl[] = "/tmp/fpgr_testXXXXXX";
   string tmpl = unsafe_cstrfrom (_tmpl);
   i_file fp;
-  test_fail_if (i_mkstemp (&fp, tmpl, NULL));
-  test_fail_if (i_unlink (tmpl, NULL));
+  error e = error_create (NULL);
+  test_fail_if (i_mkstemp (&fp, tmpl, &e));
+  test_fail_if (i_unlink (tmpl, &e));
 
-  test_fail_if (i_truncate (&fp, 10, NULL));
+  test_fail_if (i_truncate (&fp, 10, &e));
 
   file_pager p;
   test_assert_int_equal (fpgr_create (
@@ -162,30 +164,30 @@ TEST (fpgr_new)
                                  .page_size = 2048,
                                  .header_size = 10,
                              },
-                             NULL),
+                             &e),
                          SUCCESS);
 
   u64 pgno;
 
-  test_fail_if (fpgr_new (&p, &pgno, NULL));
+  test_fail_if (fpgr_new (&p, &pgno, &e));
   test_assert_int_equal ((int)pgno, 0);
   test_assert_int_equal ((int)p.npages, 1);
-  test_assert_int_equal ((int)i_file_size (&fp, NULL),
+  test_assert_int_equal ((int)i_file_size (&fp, &e),
                          (int)(p.header_size + p.page_size * p.npages));
 
-  test_fail_if (fpgr_new (&p, &pgno, NULL));
+  test_fail_if (fpgr_new (&p, &pgno, &e));
   test_assert_int_equal ((int)pgno, 1);
   test_assert_int_equal ((int)p.npages, 2);
-  test_assert_int_equal ((int)i_file_size (&fp, NULL),
+  test_assert_int_equal ((int)i_file_size (&fp, &e),
                          (int)(p.header_size + p.page_size * p.npages));
 
-  test_fail_if (fpgr_new (&p, &pgno, NULL));
+  test_fail_if (fpgr_new (&p, &pgno, &e));
   test_assert_int_equal ((int)pgno, 2);
   test_assert_int_equal ((int)p.npages, 3);
-  test_assert_int_equal ((int)i_file_size (&fp, NULL),
+  test_assert_int_equal ((int)i_file_size (&fp, &e),
                          (int)(p.header_size + p.page_size * p.npages));
 
-  test_fail_if (i_close (&fp, NULL));
+  test_fail_if (i_close (&fp, &e));
 }
 
 err_t
@@ -221,10 +223,11 @@ TEST (fpgr_get_expect)
   char _tmpl[] = "/tmp/fpgr_testXXXXXX";
   string tmpl = unsafe_cstrfrom (_tmpl);
   i_file fp;
-  test_fail_if (i_mkstemp (&fp, tmpl, NULL));
-  test_fail_if (i_unlink (tmpl, NULL));
+  error e = error_create (NULL);
+  test_fail_if (i_mkstemp (&fp, tmpl, &e));
+  test_fail_if (i_unlink (tmpl, &e));
 
-  test_fail_if (i_truncate (&fp, 10, NULL));
+  test_fail_if (i_truncate (&fp, 10, &e));
 
   file_pager p;
   test_assert_int_equal (fpgr_create (
@@ -234,29 +237,29 @@ TEST (fpgr_get_expect)
                                  .page_size = 2048,
                                  .header_size = 10,
                              },
-                             NULL),
+                             &e),
                          SUCCESS);
 
   // happy path: new page, write, then read back
   u64 pgno;
-  test_fail_if (fpgr_new (&p, &pgno, NULL));
+  test_fail_if (fpgr_new (&p, &pgno, &e));
 
   u32 ps = p.page_size;
   for (u32 i = 0; i < ps; i++)
     {
       _page[i] = (u8)i;
     }
-  test_fail_if (fpgr_commit (&p, _page, pgno, NULL));
+  test_fail_if (fpgr_commit (&p, _page, pgno, &e));
 
   i_memset (_page, 0xFF, ps);
-  test_fail_if (fpgr_get_expect (&p, _page, pgno, NULL));
+  test_fail_if (fpgr_get_expect (&p, _page, pgno, &e));
 
   for (u32 i = 0; i < ps; i++)
     {
       test_assert_int_equal (_page[i], (u8)i);
     }
 
-  i_close (&fp, NULL);
+  i_close (&fp, &e);
 }
 
 err_t
@@ -273,10 +276,11 @@ TEST (fpgr_delete)
   char _tmpl[] = "/tmp/fpgr_testXXXXXX";
   string tmpl = unsafe_cstrfrom (_tmpl);
   i_file fp;
-  test_fail_if (i_mkstemp (&fp, tmpl, NULL));
-  test_fail_if (i_unlink (tmpl, NULL));
+  error e = error_create (NULL);
+  test_fail_if (i_mkstemp (&fp, tmpl, &e));
+  test_fail_if (i_unlink (tmpl, &e));
 
-  test_fail_if (i_truncate (&fp, 10, NULL));
+  test_fail_if (i_truncate (&fp, 10, &e));
 
   file_pager p;
   test_assert_int_equal (fpgr_create (
@@ -286,19 +290,19 @@ TEST (fpgr_delete)
                                  .page_size = 2048,
                                  .header_size = 10,
                              },
-                             NULL),
+                             &e),
                          SUCCESS);
 
   // allocate two pages
   u64 a, b;
-  test_fail_if (fpgr_new (&p, &a, NULL));
-  test_fail_if (fpgr_new (&p, &b, NULL));
+  test_fail_if (fpgr_new (&p, &a, &e));
+  test_fail_if (fpgr_new (&p, &b, &e));
 
   // delete valid and out‑of‑range page numbers
-  test_fail_if (fpgr_delete (&p, a, NULL));
-  test_fail_if (fpgr_delete (&p, b + 5, NULL));
+  test_fail_if (fpgr_delete (&p, a, &e));
+  test_fail_if (fpgr_delete (&p, b + 5, &e));
 
-  test_fail_if (i_close (&fp, NULL));
+  test_fail_if (i_close (&fp, &e));
 }
 
 err_t
@@ -325,10 +329,11 @@ TEST (fpgr_commit)
   char _tmpl[] = "/tmp/fpgr_testXXXXXX";
   string tmpl = unsafe_cstrfrom (_tmpl);
   i_file fp;
-  test_fail_if (i_mkstemp (&fp, tmpl, NULL));
-  test_fail_if (i_unlink (tmpl, NULL));
+  error e = error_create (NULL);
+  test_fail_if (i_mkstemp (&fp, tmpl, &e));
+  test_fail_if (i_unlink (tmpl, &e));
 
-  test_fail_if (i_truncate (&fp, 10, NULL));
+  test_fail_if (i_truncate (&fp, 10, &e));
 
   file_pager p;
   test_assert_int_equal (fpgr_create (
@@ -337,19 +342,19 @@ TEST (fpgr_commit)
                                  .f = fp,
                                  .page_size = 2048,
                                  .header_size = 10 },
-                             NULL),
+                             &e),
                          SUCCESS);
 
   // allocate one page
   u64 pgno;
-  test_fail_if (fpgr_new (&p, &pgno, NULL));
-  test_assert_int_equal ((int)i_file_size (&fp, NULL),
+  test_fail_if (fpgr_new (&p, &pgno, &e));
+  test_assert_int_equal ((int)i_file_size (&fp, &e),
                          (int)(p.header_size + p.page_size * p.npages));
 
   i_memset (_page, 0xAB, p.page_size);
 
   // happy: writing to new page
-  test_fail_if (fpgr_commit (&p, _page, pgno, NULL));
+  test_fail_if (fpgr_commit (&p, _page, pgno, &e));
 
-  test_fail_if (i_close (&fp, NULL));
+  test_fail_if (i_close (&fp, &e));
 }

@@ -8,13 +8,15 @@
 
 typedef struct
 {
-  char *buffer;
-  u32 blen;
+  char *buffer; // A buffer to send over the socket
+  u32 blen;     // length of buffer
 
-  const char *ip_addr;
-  const u16 port;
+  const char *ip_addr; // Ip address of server
+  const u16 port;      // port of server
 
-  client client;
+  client client; // On going client object
+
+  bool running;
 } repl;
 
 typedef struct
@@ -23,8 +25,8 @@ typedef struct
   const u16 port;
 } repl_params;
 
-void repl_create (repl *dest, repl_params params);
-
-err_t repl_read (repl *r, error *e);
+err_t repl_create (repl *dest, repl_params params, error *e);
 
 err_t repl_execute (repl *r, error *e);
+
+void repl_release (repl *r);

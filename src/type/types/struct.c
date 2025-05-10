@@ -38,7 +38,8 @@ struct_t_validate_shallow (const struct_t *s, error *e)
 
 DEFINE_DBG_ASSERT_I (struct_t, valid_struct_t, s)
 {
-  ASSERT (struct_t_validate_shallow (s, NULL) == SUCCESS);
+  error e = error_create (NULL);
+  ASSERT (struct_t_validate_shallow (s, &e) == SUCCESS);
 }
 
 err_t

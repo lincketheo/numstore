@@ -10,7 +10,8 @@ DEFINE_DBG_ASSERT_I (enum_t, unchecked_enum_t, e)
 
 DEFINE_DBG_ASSERT_I (enum_t, valid_enum_t, e)
 {
-  ASSERT (enum_t_validate (e, NULL) == SUCCESS);
+  error e_ = error_create (NULL);
+  ASSERT (enum_t_validate (e, &e_) == SUCCESS);
 }
 
 err_t
@@ -493,7 +494,7 @@ TEST (enum_t_deserialize_red_path)
   test_assert_int_equal (ret, ERR_TYPE_DESER);
   test_assert_int_equal (
       string_equal (
-          e.cause_msg,
+          (string){ .data = e.cause_msg, .len = e.cmlen },
           unsafe_cstrfrom ("Enum: Keys 0 and 1 are duplicates")),
       true);
 

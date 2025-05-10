@@ -6,7 +6,8 @@
 DEFINE_DBG_ASSERT_I (prim_t, prim_t, s)
 {
   ASSERT (s);
-  ASSERT (prim_t_validate (s, NULL) == SUCCESS);
+  error e = error_create (NULL);
+  ASSERT (prim_t_validate (s, &e) == SUCCESS);
 }
 
 err_t

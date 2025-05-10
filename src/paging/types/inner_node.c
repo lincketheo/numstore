@@ -28,7 +28,8 @@ DEFINE_DBG_ASSERT_I (inner_node, unchecked_inner_node, i)
 
 DEFINE_DBG_ASSERT_I (inner_node, valid_inner_node, i)
 {
-  ASSERT (in_validate (i, NULL) == SUCCESS);
+  error e = error_create (NULL);
+  ASSERT (in_validate (i, &e) == SUCCESS);
 }
 
 err_t

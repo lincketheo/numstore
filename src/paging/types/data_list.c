@@ -24,7 +24,8 @@ DEFINE_DBG_ASSERT_I (data_list, unchecked_data_list, d)
 
 DEFINE_DBG_ASSERT_I (data_list, valid_data_list, d)
 {
-  ASSERT (dl_validate (d, NULL) == SUCCESS);
+  error e = error_create (NULL);
+  ASSERT (dl_validate (d, &e) == SUCCESS);
 }
 
 err_t

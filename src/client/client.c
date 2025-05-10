@@ -5,8 +5,10 @@
 #include "intf/mm.h"
 
 #include <arpa/inet.h>
+#include <errno.h>
 #include <netinet/in.h>
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 
 DEFINE_DBG_ASSERT_I (client, client, c)
@@ -25,17 +27,18 @@ client_create (client *dest)
 }
 
 err_t
-client_connect (client *c, const char *ipaddr, u16 port)
+client_connect (client *c, const char *ipaddr, u16 port, error *e)
 {
   client_assert (c);
   ASSERT (ipaddr);
 
-  // Create the socket
   int sock = socket (AF_INET, SOCK_STREAM, 0);
   if (sock < 0)
     {
-      perror ("socket");
-      goto failed;
+      return error_causef (
+          e, ERR_IO,
+          "socket: %s",
+          strerror (errno));
     }
 
   // Create the ip address
@@ -44,28 +47,27 @@ client_connect (client *c, const char *ipaddr, u16 port)
   saddr.sin_port = htons (port);
   if (inet_pton (AF_INET, ipaddr, &saddr.sin_addr) <= 0)
     {
-      perror ("inet_pton");
-      goto failed;
+      close (sock);
+      return error_causef (
+          e, ERR_IO,
+          "inet_pton: %s",
+          strerror (errno));
     }
 
   // Connect
   if (connect (sock, (struct sockaddr *)&saddr, sizeof (saddr)) < 0)
     {
-      perror ("connect");
-      goto failed;
+      close (sock);
+      return error_causef (
+          e, ERR_IO,
+          "Connect (%s:%d): %s",
+          ipaddr, port, strerror (errno));
     }
 
   c->server_addr = saddr;
   c->sfd = (i_file){ .fd = sock };
 
   return SUCCESS;
-
-failed:
-  if (sock >= 0)
-    {
-      close (sock);
-    }
-  return ERR_IO;
 }
 
 void
@@ -107,7 +109,6 @@ client_recv_some (client *c, error *e)
       return err_t_from (e);
     }
 
-  // Print to stdout
   if (read > 0)
     {
       i_file out = { .fd = fileno (stdout) };

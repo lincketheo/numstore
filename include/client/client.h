@@ -8,8 +8,8 @@
 
 typedef struct
 {
-  i_file sfd;
-  struct sockaddr_in server_addr;
+  i_file sfd;                     // -1 if disconnected
+  struct sockaddr_in server_addr; // meaningless if disconnected
 
   cbuffer send;
   cbuffer recv;
@@ -18,14 +18,44 @@ typedef struct
   u8 _recv[10];
 } client;
 
+/**
+ * Creates a "Disconnected client" and initializes buffers.
+ * Careful about copying etc, the cbuffer points to this instance's
+ * _send / _recv buffers
+ */
 void client_create (client *dest);
 
-err_t client_connect (client *c, const char *ipaddr, u16 port);
+/**
+ * Connects. Client must be disconnected
+ * Makes a new connection with the ip address and port
+ */
+err_t client_connect (client *c, const char *ipaddr, u16 port, error *e);
 
+/**
+ * Disconnects. Client must be connected
+ */
 void client_disconnect (client *c);
 
+/**
+ * Attempts to write as much as possible in the send buffer
+ * (1 write system call)
+ */
 err_t client_send_some (client *c, error *e);
 
+/**
+ * Attempts to read as much as possible into the recv buffer
+ * (1 read system call)
+ */
 err_t client_recv_some (client *c, error *e);
 
-err_t client_execute_all (client *c, const string str, error *e);
+/**
+ * Writes the entire contents of string
+ * (many write system calls)
+ */
+err_t client_send_all (client *c, const string str, error *e);
+
+/**
+ * Writes the entire contents of string
+ * (many write system calls)
+ */
+err_t client_recv_all (client *c, string *dest, lalloc *alloc, error *e);

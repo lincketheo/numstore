@@ -19,7 +19,8 @@ DEFINE_DBG_ASSERT_I (hash_page, unchecked_hash_page, d)
 
 DEFINE_DBG_ASSERT_I (hash_page, valid_hash_page, d)
 {
-  ASSERT (hp_validate (d, NULL) == SUCCESS);
+  error e = error_create (NULL);
+  ASSERT (hp_validate (d, &e) == SUCCESS);
 }
 
 err_t

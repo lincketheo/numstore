@@ -4,6 +4,23 @@
 #include "intf/logging.h"
 #include "intf/mm.h"
 
+#include <signal.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+volatile sig_atomic_t quit = 0;
+
+void
+handle_signal (int sig)
+{
+  if (sig == SIGINT || sig == SIGTERM)
+    {
+      quit = 1;
+    }
+}
+
 int
 main ()
 {
@@ -12,14 +29,31 @@ main ()
     .port = 12345,
     .ip_addr = "127.0.0.1",
   };
-  repl_create (&r, params);
 
-  lalloc ealloc = lalloc_create (1000);
-  error e = error_create (&ealloc);
-
-  while (1)
+  error e = error_create (NULL);
+  if (repl_create (&r, params, &e))
     {
-      err_t_wrap (repl_read (&r, &e), &e);
-      err_t_wrap (repl_execute (&r, &e), &e);
+      error_log_consume (&e);
+      return -1;
     }
+
+  struct sigaction sa = { 0 };
+  sa.sa_handler = handle_signal;
+  sigemptyset (&sa.sa_mask);
+  sa.sa_flags = 0;
+
+  sigaction (SIGINT, &sa, NULL);
+  sigaction (SIGTERM, &sa, NULL);
+
+  while (r.running && !quit)
+    {
+      if (repl_execute (&r, &e))
+        {
+          error_log_consume (&e);
+        }
+    }
+
+  repl_release (&r);
+
+  return 0;
 }

@@ -32,7 +32,8 @@ enp_create (type_parser *dest, lalloc *alloc)
   ASSERT (dest);
   ASSERT (dest->state == TB_UNKNOWN);
 
-  switch (enb_create (&dest->enp.builder, alloc, NULL))
+  error e = error_create (NULL);
+  switch (enb_create (&dest->enp.builder, alloc, &e))
     {
     case ERR_NOMEM:
       {
@@ -59,7 +60,8 @@ enp_build (type_parser *eb)
 {
   enum_parser_assert_state (eb, ENP_DONE);
 
-  switch (enb_build (&eb->ret.en, &eb->enp.builder, NULL))
+  error e = error_create (NULL);
+  switch (enb_build (&eb->ret.en, &eb->enp.builder, &e))
     {
     case ERR_INVALID_TYPE:
       {
@@ -109,7 +111,8 @@ HANDLER_FUNC (ENP_WAITING_FOR_IDENT) (
       return SPR_SYNTAX_ERROR;
     }
 
-  switch (enb_accept_key (&eb->enp.builder, t.str, NULL))
+  error e = error_create (NULL);
+  switch (enb_accept_key (&eb->enp.builder, t.str, &e))
     {
     case ERR_INVALID_ARGUMENT:
       {

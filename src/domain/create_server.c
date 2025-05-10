@@ -1,4 +1,5 @@
 #include "domain/create_server.h"
+#include "errors/error.h"
 #include "intf/types.h"
 
 err_t
@@ -12,22 +13,16 @@ create_default_server (server *dest)
    */
   lalloc alloc = lalloc_create (100000);
 
-  /**
-   * Create variable hash map
-   */
-
-  /**
-   * Create the dang server
-   */
+  error e = error_create (NULL);
   if ((ret = server_create (
            dest,
            (server_params){
                .port = 12345,
                .alloc = &alloc },
-           NULL)))
+           &e)))
 
     {
-      i_log_warn ("Server create failed\n");
+      error_log_consume (&e);
       return ret;
     }
 

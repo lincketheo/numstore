@@ -9,3 +9,7 @@
 #define is_alpha_num(c) (is_alpha (c) || is_num (c))
 
 #define arrlen(a) (sizeof (a) / sizeof (*a))
+
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+
+#define MAX(a, b) ((a) > (b) ? (a) : (b))

@@ -31,7 +31,8 @@ sap_create (type_parser *dest, lalloc *alloc)
 {
   ASSERT (dest);
 
-  switch (sab_create (&dest->sap.builder, alloc, NULL))
+  error e = error_create (NULL);
+  switch (sab_create (&dest->sap.builder, alloc, &e))
     {
     case ERR_NOMEM:
       {
@@ -59,7 +60,8 @@ sap_build (type_parser *tb)
 {
   sarray_parser_assert_state (tb, SAP_DONE);
 
-  switch (sab_build (&tb->ret.sa, &tb->sap.builder, NULL))
+  error e = error_create (NULL);
+  switch (sab_build (&tb->ret.sa, &tb->sap.builder, &e))
     {
     case ERR_INVALID_ARGUMENT:
       {
@@ -124,7 +126,8 @@ TOK_HANDLER_FUNC (SAP_WAITING_FOR_NUMBER) (
       return SPR_SYNTAX_ERROR;
     }
 
-  switch (sab_accept_dim (&sb->sap.builder, (u32)t.integer, NULL))
+  error e = error_create (NULL);
+  switch (sab_accept_dim (&sb->sap.builder, (u32)t.integer, &e))
     {
     case ERR_NOMEM:
       {
@@ -212,7 +215,8 @@ TYPE_HANDLER_FUNC (SAP_WAITING_FOR_LEFT_OR_TYPE) (type_parser *sab, type t)
 {
   sarray_parser_assert_state (sab, SAP_WAITING_FOR_LEFT_OR_TYPE);
 
-  switch (sab_accept_type (&sab->sap.builder, t, NULL))
+  error e = error_create (NULL);
+  switch (sab_accept_type (&sab->sap.builder, t, &e))
     {
     case ERR_NOMEM:
       {
