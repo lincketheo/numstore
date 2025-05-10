@@ -1,10 +1,11 @@
 #pragma once
 
-#include "ds/strings.h"
-#include "intf/mm.h"
-#include "intf/types.h"
-#include "utils/deserializer.h"
-#include "utils/serializer.h"
+#include "ds/strings.h"         // string
+#include "errors/error.h"       // error
+#include "intf/mm.h"            // lalloc
+#include "intf/types.h"         // u32
+#include "utils/deserializer.h" // deserializer
+#include "utils/serializer.h"   // serializer
 
 typedef struct
 {
@@ -12,11 +13,11 @@ typedef struct
   string *keys;
 } enum_t;
 
-bool enum_t_is_valid (const enum_t *t);
+err_t enum_t_validate (const enum_t *t, error *e);
 
 int enum_t_snprintf (char *str, u32 size, const enum_t *st);
 
-u32 enum_t_byte_size (const enum_t *t);
+#define enum_t_byte_size(e) sizeof (u8)
 
 void enum_t_free_internals_forgiving (enum_t *t, lalloc *alloc);
 
@@ -26,4 +27,8 @@ u32 enum_t_get_serial_size (const enum_t *t);
 
 void enum_t_serialize (serializer *dest, const enum_t *src);
 
-err_t enum_t_deserialize (enum_t *dest, deserializer *src, lalloc *a);
+err_t enum_t_deserialize (
+    enum_t *dest,
+    deserializer *src,
+    lalloc *a,
+    error *e);

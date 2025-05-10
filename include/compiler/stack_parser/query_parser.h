@@ -8,10 +8,8 @@
 #include "compiler/stack_parser/queries/take.h"
 #include "compiler/stack_parser/queries/update.h"
 
-#include "compiler/stack_parser/common.h"
-#include "query/query.h"
-#include "services/services.h"
-#include "services/var_retr.h"
+#include "compiler/stack_parser/common.h" // stackp_result
+#include "query/query.h"                  // query
 
 struct query_parser_s
 {

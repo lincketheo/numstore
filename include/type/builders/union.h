@@ -16,7 +16,7 @@ typedef struct
   lalloc *alloc; // For growing keys array
 } union_builder;
 
-err_t unb_create (union_builder *dest, lalloc *alloc);
-err_t unb_accept_key (union_builder *eb, string key);
-err_t unb_accept_type (union_builder *eb, type t);
-err_t unb_build (union_t *dest, union_builder *eb);
+err_t unb_create (union_builder *dest, lalloc *alloc, error *e);
+err_t unb_accept_key (union_builder *eb, string key, error *e);
+err_t unb_accept_type (union_builder *eb, type t, error *e);
+err_t unb_build (union_t *dest, union_builder *eb, error *e);

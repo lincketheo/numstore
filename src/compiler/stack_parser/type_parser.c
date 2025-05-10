@@ -74,7 +74,7 @@ typep_accept_token (type_parser *tb, token t)
         return SPR_SYNTAX_ERROR;
       }
     }
-  ASSERT (0);
+  UNREACHABLE ();
   return 0;
 }
 
@@ -167,7 +167,7 @@ typep_expect_next (const type_parser *tb, token t)
       }
     default:
       {
-        ASSERT (0);
+        UNREACHABLE ();
       }
     }
   return 0;

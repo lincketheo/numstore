@@ -1,6 +1,7 @@
 #include "rptree/seek.h"
 #include "dev/assert.h"
-#include "dev/errors.h"
+#include "errors/error.h"
+#include "intf/mm.h"
 #include "paging/page.h"
 #include "paging/types/data_list.h"
 #include "paging/types/inner_node.h"
@@ -15,16 +16,18 @@ DEFINE_DBG_ASSERT_I (seek_r, seek_r, r)
 }
 
 static err_t
-seek_r_create (seek_r *dest, seek_params p)
+seek_r_create (seek_r *dest, seek_params p, error *e)
 {
   ASSERT (dest);
 
-  seek_v *stack = lmalloc (
-      p.alloc, p.scap * sizeof *stack);
-
-  if (!stack)
+  lalloc_r stack = lmalloc (p.alloc, p.scap, p.scap, sizeof *dest->stack);
+  if (stack.stat != AR_SUCCESS)
     {
-      return ERR_NOMEM;
+      return error_causef (
+          e, ERR_NOMEM,
+          "Not enough memory to allocate rptree stack of "
+          "size %d elements, %d bytes",
+          p.scap, p.scap * (u32)sizeof *dest->stack);
     }
 
   /**
@@ -33,7 +36,7 @@ seek_r_create (seek_r *dest, seek_params p)
   ASSERT (p.starting_page.type & (PG_INNER_NODE | PG_DATA_LIST));
 
   dest->result = p.starting_page;
-  dest->stack = stack;
+  dest->stack = stack.ret;
   dest->sp = 0;
   dest->scap = p.scap;
 
@@ -41,37 +44,33 @@ seek_r_create (seek_r *dest, seek_params p)
 }
 
 static inline err_t
-seek_r_make_room (seek_r *r, u32 newcap)
+seek_r_make_room (seek_r *r, u32 newcap, error *e)
 {
   seek_r_assert (r);
-  seek_v *stack = lrealloc (
-      r->alloc,
-      r->stack,
-      newcap * sizeof *stack);
 
-  if (!stack)
+  lalloc_r stack = lmalloc (r->alloc, newcap, newcap, sizeof *r->stack);
+  if (stack.stat != AR_SUCCESS)
     {
-      return ERR_NOMEM;
+      return error_causef (
+          e, ERR_NOMEM,
+          "Not enough memory to allocate rptree stack of "
+          "size %d elements, %d bytes",
+          newcap, newcap * (u32)sizeof *r->stack);
     }
 
-  r->stack = stack;
+  r->stack = stack.ret;
   r->scap = newcap;
   return SUCCESS;
 }
 
 static err_t
-seek_r_push_page (seek_r *r, page p, p_size lidx)
+seek_r_push_page (seek_r *r, page p, p_size lidx, error *e)
 {
   seek_r_assert (r);
 
   if (r->sp == r->scap)
     {
-      // Grow by 1 because stack should usually be small
-      err_t ret = seek_r_make_room (r, r->scap + 1);
-      if (ret)
-        {
-          return ret;
-        }
+      err_t_wrap (seek_r_make_room (r, r->scap + 1, e), e);
     }
 
   r->stack[r->sp++] = (seek_v){
@@ -83,18 +82,13 @@ seek_r_push_page (seek_r *r, page p, p_size lidx)
 }
 
 err_t
-seek_r_push_to_bottom (seek_r *r, page p, p_size lidx)
+seek_r_push_to_bottom (seek_r *r, page p, p_size lidx, error *e)
 {
   seek_r_assert (r);
 
   if (r->sp == r->scap)
     {
-      // Grow by 1 because stack should usually be small
-      err_t ret = seek_r_make_room (r, r->scap + 1);
-      if (ret)
-        {
-          return ret;
-        }
+      err_t_wrap (seek_r_make_room (r, r->scap + 1, e), e);
     }
 
   /**
@@ -116,13 +110,12 @@ seek_r_push_to_bottom (seek_r *r, page p, p_size lidx)
   return SUCCESS;
 }
 
-static err_t seek_recursive (seek_r *s, b_size byte, pager *pager);
+static err_t seek_recursive (seek_r *s, b_size byte, pager *pager, error *e);
 
 static inline err_t
-seek_recursive_inner_node (seek_r *s, b_size byte, pager *pager)
+seek_recursive_inner_node (seek_r *s, b_size byte, pager *pager, error *e)
 {
   seek_r_assert (s);
-  err_t ret;
 
   /**
    * First, pick the index of the leaf we want
@@ -133,10 +126,7 @@ seek_recursive_inner_node (seek_r *s, b_size byte, pager *pager)
   /**
    * Push it onto the top of the stack
    */
-  if ((ret = seek_r_push_page (s, s->result, lidx)))
-    {
-      return ret;
-    }
+  err_t_wrap (seek_r_push_page (s, s->result, lidx, e), e);
 
   /**
    * Fetch the key and value at that location
@@ -159,18 +149,17 @@ seek_recursive_inner_node (seek_r *s, b_size byte, pager *pager)
    * Fetch the next page, which can either be
    * an inner node or a data list
    */
-  if ((ret = pgr_get_expect (
-           &s->result,
-           PG_INNER_NODE | PG_DATA_LIST,
-           next, pager)))
-    {
-      return ret;
-    }
+  err_t_wrap (
+      pgr_get_expect (
+          &s->result,
+          PG_INNER_NODE | PG_DATA_LIST,
+          next, pager, e),
+      e);
 
-  return seek_recursive (s, byte, pager);
+  return seek_recursive (s, byte, pager, e);
 }
 
-static inline err_t
+static inline void
 seek_recursive_data_list (seek_r *s, b_size byte)
 {
   seek_r_assert (s);
@@ -192,49 +181,39 @@ seek_recursive_data_list (seek_r *s, b_size byte)
    * Update global idx
    */
   s->gidx += s->lidx;
-
-  return SUCCESS;
 }
 
 static err_t
-seek_recursive (seek_r *s, b_size byte, pager *pager)
+seek_recursive (seek_r *s, b_size byte, pager *pager, error *e)
 {
   switch (s->result.type)
     {
     case PG_INNER_NODE:
       {
-        return seek_recursive_inner_node (s, byte, pager);
+        return seek_recursive_inner_node (s, byte, pager, e);
       }
     case PG_DATA_LIST:
       {
-        return seek_recursive_data_list (s, byte);
+        seek_recursive_data_list (s, byte);
+        return SUCCESS;
       }
     default:
       {
         /**
          * pgr_get_expect protects us from this branch
          */
-        ASSERT (0);
-        return ERR_INVALID_STATE;
+        crash ();
       }
     }
 }
 
 err_t
-seek (seek_r *s, seek_params params)
+seek (seek_r *s, seek_params params, error *e)
 {
   ASSERT (s);
-  err_t ret = SUCCESS;
 
-  if ((ret = seek_r_create (s, params)))
-    {
-      return ret;
-    }
-
-  if ((ret = seek_recursive (s, params.whereto, params.pager)))
-    {
-      return ret;
-    }
+  err_t_wrap (seek_r_create (s, params, e), e);
+  err_t_wrap (seek_recursive (s, params.whereto, params.pager, e), e);
 
   return SUCCESS;
 }

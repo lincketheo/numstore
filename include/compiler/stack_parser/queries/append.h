@@ -1,12 +1,7 @@
 #pragma once
 
-#include "compiler/stack_parser/common.h"
-#include "compiler/tokens.h"
-#include "ds/strings.h"
-#include "query/builders/append.h"
-#include "services/var_retr.h"
-#include "type/types.h"
-#include "variables/variable.h"
+#include "compiler/stack_parser/common.h" // stackp_result
+#include "query/builders/append.h"        // append_builder
 
 typedef struct query_parser_s query_parser;
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "errors/error.h"
 #include "intf/types.h"
 
 /**
@@ -32,7 +33,7 @@ typedef struct
 /**
  * Checks that this data list is valid
  */
-bool dl_is_valid (const data_list *d);
+err_t dl_validate (const data_list *d, error *e);
 
 /**
  * Simply parses raw and sets pointers and returns

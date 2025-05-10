@@ -1,6 +1,6 @@
 #include "rptree/dliacin.h"
 #include "dev/assert.h"
-#include "dev/errors.h"
+#include "errors/error.h"
 #include "intf/mm.h"
 #include "paging/page.h"
 #include "paging/types/data_list.h"
@@ -45,7 +45,7 @@ DEFINE_DBG_ASSERT_I (dliacin_s, dliacin_s, d)
 }
 
 static inline err_t
-dliacin_s_save_right (dliacin_s *d, p_size idx0)
+dliacin_s_save_right (dliacin_s *d, p_size idx0, error *e)
 {
   dliacin_s_assert (d);
   ASSERT (d->temp_buf == NULL);
@@ -56,11 +56,17 @@ dliacin_s_save_right (dliacin_s *d, p_size idx0)
 
   if (right_len > 0)
     {
-      d->temp_buf = lmalloc (d->alloc, right_len);
-      if (d->temp_buf == NULL)
+      lalloc_r temp_buf = lmalloc (d->alloc, right_len, right_len, sizeof *d->temp_buf);
+      if (temp_buf.stat != AR_SUCCESS)
         {
-          return ERR_NOMEM;
+          return error_causef (
+              e, ERR_NOMEM,
+              "Not enough memory to allocate %" PRp_size " bytes for temp buf in rptree",
+              right_len * (p_size)sizeof *d->temp_buf);
         }
+
+      d->temp_buf = temp_buf.ret;
+
       p_size read = dl_read_out_from (&d->pg0.dl, d->temp_buf, idx0);
       ASSERT (read == right_len);
       d->tbl = read;
@@ -70,7 +76,7 @@ dliacin_s_save_right (dliacin_s *d, p_size idx0)
 }
 
 static err_t
-dliacin_s_create (dliacin_s *dest, dliacin_s_params p)
+dliacin_s_create (dliacin_s *dest, dliacin_s_params p, error *e)
 {
   ASSERT (dest);
   ASSERT (p.pg0.type == PG_DATA_LIST);
@@ -88,7 +94,7 @@ dliacin_s_create (dliacin_s *dest, dliacin_s_params p)
     .alloc = p.alloc,
   };
 
-  err_t ret = dliacin_s_save_right (dest, p.idx0);
+  err_t ret = dliacin_s_save_right (dest, p.idx0, e);
   if (ret)
     {
       return ret;
@@ -104,22 +110,18 @@ dliacin_s_alloc_then_write_once (
     dliacin_s *r,
     page *cur,
     p_size *next_write,
-    const u8 *src)
+    const u8 *src,
+    error *e)
 {
   dliacin_s_assert (r);
   ASSERT (cur);
   ASSERT (*next_write > 0);
 
-  err_t ret = SUCCESS;
-
   if (dl_avail (&cur->dl) == 0)
     {
       // Allocate a new node
       page next;
-      if ((ret = pgr_new (&next, r->pager, PG_DATA_LIST)))
-        {
-          goto failed;
-        }
+      err_t_wrap (pgr_new (&next, r->pager, PG_DATA_LIST, e), e);
 
       // Link current node to it
       dl_set_next (&cur->dl, next.pg);
@@ -128,16 +130,10 @@ dliacin_s_alloc_then_write_once (
        * Push previous node's capacity (left key) and this node's
        * page number (right page number)
        */
-      if ((ret = mintn_add_right (&r->out, dl_used (&cur->dl), next.pg)))
-        {
-          return ret;
-        }
+      err_t_wrap (mintn_add_right (&r->out, dl_used (&cur->dl), next.pg, e), e);
 
       // Commit so that we can swap it
-      if ((ret = pgr_commit (r->pager, cur->dl.raw, cur->pg)))
-        {
-          return ret;
-        }
+      err_t_wrap (pgr_commit (r->pager, cur->dl.raw, cur->pg, e), e);
 
       // Swap it
       *cur = next;
@@ -149,20 +145,15 @@ dliacin_s_alloc_then_write_once (
   *next_write = dl_write (&cur->dl, src, *next_write);
 
   return SUCCESS;
-
-failed:
-  return ret;
 }
 
 static err_t
-dliacin_s_consume (dliacin_s *r, const u8 *src, t_size size, b_size n)
+dliacin_s_consume (dliacin_s *r, const u8 *src, t_size size, b_size n, error *e)
 {
   dliacin_s_assert (r);
   ASSERT (src);
   ASSERT (size > 0);
   ASSERT (n);
-
-  err_t ret = SUCCESS; // Return code
 
   b_size btotal = n * size;               // Total bytes to write
   page cur = r->pg0;                      // Current working page
@@ -178,13 +169,10 @@ dliacin_s_consume (dliacin_s *r, const u8 *src, t_size size, b_size n)
     {
       p_size next_write = btotal - written;
 
-      ret = dliacin_s_alloc_then_write_once (
-          r, &cur, &next_write, src + written);
-
-      if (ret)
-        {
-          goto theend;
-        }
+      err_t_wrap (
+          dliacin_s_alloc_then_write_once (
+              r, &cur, &next_write, src + written, e),
+          e);
 
       ASSERT (next_write > 0); // to avoid infinite loops
 
@@ -201,13 +189,10 @@ dliacin_s_consume (dliacin_s *r, const u8 *src, t_size size, b_size n)
     {
       p_size next_write = btotal - written;
 
-      ret = dliacin_s_alloc_then_write_once (
-          r, &cur, &next_write, r->temp_buf + written);
-
-      if (ret)
-        {
-          goto theend;
-        }
+      err_t_wrap (
+          dliacin_s_alloc_then_write_once (
+              r, &cur, &next_write, r->temp_buf + written, e),
+          e);
 
       ASSERT (next_write > 0);
 
@@ -219,17 +204,13 @@ dliacin_s_consume (dliacin_s *r, const u8 *src, t_size size, b_size n)
    * Link and Commit the current page
    */
   dl_set_next (&cur.dl, last_link);
-  if ((ret = pgr_commit (r->pager, cur.dl.raw, cur.pg)))
-    {
-      goto theend;
-    }
+  err_t_wrap (pgr_commit (r->pager, cur.dl.raw, cur.pg, e), e);
 
-theend:
-  return ret;
+  return SUCCESS;
 }
 
 static err_t
-dliacin_s_complete (mem_inner_node *dest, dliacin_s *d)
+dliacin_s_complete (mem_inner_node *dest, dliacin_s *d, error *e)
 {
   dliacin_s_assert (d);
   if (d->temp_buf)
@@ -240,42 +221,33 @@ dliacin_s_complete (mem_inner_node *dest, dliacin_s *d)
   // TODO
   // Probably don't need to clip because I think
   // later on we append more
-  err_t ret = SUCCESS;
-  if ((ret = mintn_clip (&d->out)))
-    {
-      return ret;
-    }
+  err_t_wrap (mintn_clip (&d->out, e), e);
 
   *dest = d->out;
-  return ret;
+
+  return SUCCESS;
 }
 
 err_t
-dliacin (mem_inner_node *dest, dliacin_params p)
+dliacin (mem_inner_node *dest, dliacin_params p, error *e)
 {
   dliacin_s d;
   err_t ret = SUCCESS;
 
-  if ((ret = dliacin_s_create (
-           &d, (dliacin_s_params){
-                   .pg0 = p.pg0,
-                   .alloc = p.alloc,
-                   .pager = p.pager,
-                   .idx0 = p.idx0,
-               })))
-    {
-      return ret;
-    }
+  err_t_wrap (
+      dliacin_s_create (
+          &d, (dliacin_s_params){
+                  .pg0 = p.pg0,
+                  .alloc = p.alloc,
+                  .pager = p.pager,
+                  .idx0 = p.idx0,
+              },
+          e),
+      e);
 
-  if ((ret = dliacin_s_consume (&d, p.src, p.size, p.n)))
-    {
-      return ret;
-    }
+  err_t_wrap (dliacin_s_consume (&d, p.src, p.size, p.n, e), e);
 
-  if ((ret = dliacin_s_complete (dest, &d)))
-    {
-      return ret;
-    }
+  err_t_wrap (dliacin_s_complete (dest, &d, e), e);
 
   return ret;
 }

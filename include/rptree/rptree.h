@@ -38,22 +38,25 @@ typedef struct
   lalloc *alloc;
 } rpt_params;
 
-//////////////////////////////// LIFECYCLE
-/**
- * Creates the body of the rptree - doesn't actually
- * read any data.
- */
 rptree rpt_create (rpt_params params);
 
 /**
- * Opens a new rptree
+ * Creates a new rptree and returns the page number of
+ * the root node (which is a data list)
+ * Errors:
+ *   - From pgr_new:
+ *    - ERR_CORRUPT
+ *    - ERR_IO
  */
-err_t rpt_new (rptree *r);
+err_t rpt_new (pgno *dest, rptree *r, error *e);
 
 /**
- * Opens an existing rptree at [p0]
+ * Errors:
+ *   - From pgr_get_expect
+ *    - ERR_IO
+ *    - ERR_CORRUPT - Expects either an inner node or data list node
  */
-err_t rpt_open (rptree *r, pgno p0);
+err_t rpt_open (rptree *r, pgno p0, error *e);
 
 /**
  * Closes rptree [r]. r should be open
@@ -64,10 +67,16 @@ void rpt_close (rptree *r);
 /**
  * Seeks to byte b
  */
-err_t rpt_seek (rptree *r, b_size b);
+err_t rpt_seek (rptree *r, b_size b, error *e);
 
 /**
  * Reads data in chunks of size [size] into dest
  */
-err_t rpt_read (u8 *dest, t_size size, b_size *n, b_size nskip, rptree *r);
-err_t rpt_insert (const u8 *src, t_size size, b_size n, rptree *r);
+err_t rpt_read (u8 *dest, t_size size, b_size *n, b_size nskip, rptree *r, error *e);
+
+/**
+ * Errors:
+ *   - From pgr_get_expect
+ *      - ERR_CORRUPT - Expects inner nodes and data lists
+ */
+err_t rpt_insert (const u8 *src, t_size size, b_size n, rptree *r, error *e);

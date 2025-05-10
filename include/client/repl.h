@@ -1,9 +1,10 @@
 #pragma once
 
-#include "client/client.h"
-#include "dev/errors.h"
-#include "intf/mm.h"
-#include "intf/types.h"
+#include "client/client.h" // client
+#include "errors/error.h"  // error
+#include "intf/types.h"    // u32
+
+#include <netinet/in.h> // sockaddr_in
 
 typedef struct
 {
@@ -24,6 +25,6 @@ typedef struct
 
 void repl_create (repl *dest, repl_params params);
 
-err_t repl_read (repl *r);
+err_t repl_read (repl *r, error *e);
 
-err_t repl_execute (repl *r);
+err_t repl_execute (repl *r, error *e);

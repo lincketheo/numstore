@@ -35,7 +35,9 @@ typedef struct
  * Lifecycle
  */
 mem_inner_node mintn_create (mintn_params params);
-err_t mintn_clip (mem_inner_node *r);
+
+err_t mintn_clip (mem_inner_node *r, error *e);
+
 void mintn_free (mem_inner_node *r);
 
 /**
@@ -46,19 +48,19 @@ void mintn_free (mem_inner_node *r);
  *    1   2                  1   2   5
  * a    b    c  + (3, d) = a   b   c   d
  */
-err_t mintn_add_right (mem_inner_node *r, b_size key, pgno pg);
+err_t mintn_add_right (mem_inner_node *r, b_size key, pgno pg, error *e);
 
 /**
  *    1   2                  1   2   3
  * a    b    c  + (3, d) = a   b   c   d
  */
-err_t mintn_add_right_no_add (mem_inner_node *r, b_size key, pgno pg);
+err_t mintn_add_right_no_add (mem_inner_node *r, b_size key, pgno pg, error *e);
 
 /**
  *             2   3         1   2   4
  * (1, a) + b    c    d  = a   b   c   d
  */
-err_t mintn_add_left (mem_inner_node *r, pgno pg, b_size key);
+err_t mintn_add_left (mem_inner_node *r, pgno pg, b_size key, error *e);
 
 /**
  *    2   5   9         3   7

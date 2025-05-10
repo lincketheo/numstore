@@ -2,7 +2,6 @@
 #include "compiler/stack_parser/common.h"
 #include "compiler/stack_parser/stack_parser.h"
 #include "dev/assert.h"
-#include "dev/errors.h"
 #include "ds/cbuffer.h"
 
 DEFINE_DBG_ASSERT_I (parser, parser, p)
@@ -13,7 +12,7 @@ DEFINE_DBG_ASSERT_I (parser, parser, p)
 }
 
 err_t
-parser_create (parser *dest, parser_params params)
+parser_create (parser *dest, parser_params params, error *e)
 {
   ASSERT (dest);
 
@@ -22,15 +21,11 @@ parser_create (parser *dest, parser_params params)
   dest->tokens_input = params.tokens_input;
 
   sp_params sparams = {
-    .type_allocator = params.type_allocator,
-    .stack_allocator = params.stack_allocator,
+    .type_allocator = params.alloc,
+    .stack_allocator = params.alloc,
   };
 
-  err_t ret = stackp_create (&dest->sp, sparams);
-  if (ret)
-    {
-      return ret;
-    }
+  err_t_wrap (stackp_create (&dest->sp, sparams, e), e);
 
   stackp_begin (&dest->sp, SBBT_QUERY);
 
@@ -72,7 +67,7 @@ parser_execute (parser *p)
           {
             return;
           }
-        case SPR_MALLOC_ERROR:
+        case SPR_NOMEM:
         case SPR_SYNTAX_ERROR:
           panic ();
         }

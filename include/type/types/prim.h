@@ -1,9 +1,9 @@
 #pragma once
 
-#include "dev/errors.h"
-#include "intf/mm.h"
-#include "utils/deserializer.h"
-#include "utils/serializer.h"
+#include "errors/error.h"       // error
+#include "intf/types.h"         // u32
+#include "utils/deserializer.h" // deserializer
+#include "utils/serializer.h"   // serializer
 
 typedef struct type_s type;
 
@@ -52,7 +52,7 @@ typedef enum
 
 const char *prim_to_str (prim_t p);
 
-bool prim_t_is_valid (const prim_t *t);
+err_t prim_t_validate (const prim_t *t, error *e);
 
 int prim_t_snprintf (char *str, u32 size, const prim_t *p);
 
@@ -60,4 +60,4 @@ u32 prim_t_byte_size (const prim_t *t);
 
 void prim_t_serialize (serializer *dest, const prim_t *src);
 
-err_t prim_t_deserialize (prim_t *dest, deserializer *src);
+err_t prim_t_deserialize (prim_t *dest, deserializer *src, error *e);

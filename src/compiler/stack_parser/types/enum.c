@@ -2,7 +2,8 @@
 #include "compiler/stack_parser/common.h"
 #include "compiler/stack_parser/type_parser.h"
 #include "compiler/tokens.h"
-#include "dev/errors.h"
+#include "dev/assert.h"
+#include "errors/error.h"
 #include "type/builders/enum.h"
 #include "type/types.h"
 #include "utils/bounds.h"
@@ -31,11 +32,11 @@ enp_create (type_parser *dest, lalloc *alloc)
   ASSERT (dest);
   ASSERT (dest->state == TB_UNKNOWN);
 
-  switch (enb_create (&dest->enp.builder, alloc))
+  switch (enb_create (&dest->enp.builder, alloc, NULL))
     {
     case ERR_NOMEM:
       {
-        return SPR_MALLOC_ERROR;
+        return SPR_NOMEM;
       }
     case SUCCESS:
       {
@@ -48,8 +49,7 @@ enp_create (type_parser *dest, lalloc *alloc)
       }
     default:
       {
-        ASSERT (0);
-        return SPR_MALLOC_ERROR;
+        UNREACHABLE ();
       }
     }
 }
@@ -59,16 +59,15 @@ enp_build (type_parser *eb)
 {
   enum_parser_assert_state (eb, ENP_DONE);
 
-  switch (enb_build (&eb->ret.en, &eb->enp.builder))
+  switch (enb_build (&eb->ret.en, &eb->enp.builder, NULL))
     {
-    case ERR_INVALID_ARGUMENT:
+    case ERR_INVALID_TYPE:
       {
         return SPR_SYNTAX_ERROR;
       }
     case ERR_NOMEM:
-    case ERR_IO:
       {
-        return SPR_MALLOC_ERROR;
+        return SPR_NOMEM;
       }
     case SUCCESS:
       {
@@ -77,8 +76,7 @@ enp_build (type_parser *eb)
       }
     default:
       {
-        ASSERT (0);
-        return SPR_MALLOC_ERROR;
+        UNREACHABLE ();
       }
     }
 }
@@ -111,7 +109,7 @@ HANDLER_FUNC (ENP_WAITING_FOR_IDENT) (
       return SPR_SYNTAX_ERROR;
     }
 
-  switch (enb_accept_key (&eb->enp.builder, t.str))
+  switch (enb_accept_key (&eb->enp.builder, t.str, NULL))
     {
     case ERR_INVALID_ARGUMENT:
       {
@@ -119,7 +117,7 @@ HANDLER_FUNC (ENP_WAITING_FOR_IDENT) (
       }
     case ERR_NOMEM:
       {
-        return SPR_MALLOC_ERROR;
+        return SPR_NOMEM;
       }
     case SUCCESS:
       {
@@ -128,8 +126,7 @@ HANDLER_FUNC (ENP_WAITING_FOR_IDENT) (
       }
     default:
       {
-        ASSERT (0);
-        return SPR_MALLOC_ERROR;
+        UNREACHABLE ();
       }
     }
 }

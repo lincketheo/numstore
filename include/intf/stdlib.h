@@ -17,3 +17,4 @@
 #define i_memcmp(s1, s2, n) memcmp (s1, s2, n)
 #define i_memchr(buf, c, len) memchr (buf, c, len)
 #define i_snprintf(buf, len, ...) snprintf (buf, len, __VA_ARGS__)
+#define i_vsnprintf(buf, len, ...) vsnprintf (buf, len, __VA_ARGS__)

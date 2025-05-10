@@ -2,9 +2,11 @@
 #include "compiler/parser.h"
 #include "compiler/scanner.h"
 #include "compiler/token_printer.h"
-#include "dev/errors.h"
 #include "ds/cbuffer.h"
-#include "services/var_create.h"
+#include "errors/error.h"
+#include "intf/io.h"
+#include "intf/logging.h"
+#include "intf/mm.h"
 #include "vm/vm.h"
 
 DEFINE_DBG_ASSERT_I (connector, connector, c)
@@ -13,62 +15,52 @@ DEFINE_DBG_ASSERT_I (connector, connector, c)
 }
 
 err_t
-con_create (connector *dest, con_params params)
+con_create (connector *dest, con_params params, error *e)
 {
   ASSERT (dest);
 
-  // Meta Information
-  dest->cfd = (i_file){ .fd = -1 };
-
-  // Create buffers (careful about these pointer locations)
-  dest->input = cbuffer_create (
-      dest->_input, sizeof (dest->_input));
-  dest->tokens = cbuffer_create (
-      (u8 *)dest->_tokens, sizeof (dest->_tokens));
-  dest->queries = cbuffer_create (
-      (u8 *)dest->_queries, sizeof (dest->_queries));
-
-  // Create the scanner
   scanner_params sparams = {
     .chars_input = &dest->input,
     .tokens_output = &dest->tokens,
-    .string_allocator = params.scanner_string_allocator,
+    .string_allocator = params.alloc,
   };
-  scanner_create (&dest->scanner, sparams);
 
-#ifdef CONNECTOR_TOK_DEBUG
-  tokp_params tparams = {
-    .tokens_inputs = &dest->tokens,
-    .strings_deallocator = params.scanner_string_allocator,
-  };
-  tokp_create (&dest->tokp, tparams);
-#else
-  // Create the parser
   parser_params pparams = {
-    .type_allocator = params.type_allocator,
-    .stack_allocator = params.stack_allocator,
-
+    .alloc = params.alloc,
     .tokens_input = &dest->tokens,
     .queries_output = &dest->queries,
   };
-  err_t ret = parser_create (&dest->parser, pparams);
-  if (ret)
-    {
-      return ret;
-    }
+  parser p;
+  err_t_wrap (parser_create (&p, pparams, e), e);
 
-  // Create the virtual machine
   vm_params vparams = {
     .queries_input = &dest->queries,
-    .services = params.services,
   };
-  vm_create (&dest->vm, vparams);
-#endif
+
+  *dest = (connector){
+    .cfd = (i_file){ .fd = -1 },
+    .input = cbuffer_create_from (dest->_input),
+    .tokens = cbuffer_create_from (dest->_tokens),
+    .queries = cbuffer_create_from (dest->_queries),
+    .scanner = scanner_create (sparams),
+    .parser = p,
+    .vm = vm_create (vparams),
+
+    .want_read = true,
+    .want_write = false,
+    .want_close = false,
+  };
 
   connector_assert (dest);
   ASSERT (!con_is_open (dest));
 
   return SUCCESS;
+}
+
+void
+con_free (connector *c)
+{
+  connector_assert (c);
 }
 
 void
@@ -83,20 +75,20 @@ con_connect (connector *c, conc_params cparams)
   c->addr_len = cparams.caddrlen;
 }
 
-err_t
+void
 con_disconnect (connector *c)
 {
   connector_assert (c);
   ASSERT (con_is_open (c));
 
-  err_t ret = i_close (&c->cfd);
+  lalloc alloc = lalloc_create (1000); // TODO - think about this
+  error e = error_create (&alloc);
+  err_t ret = i_close (&c->cfd, &e);
   if (ret)
     {
-      return ret;
+      error_log_consume (&e);
     }
-  c->cfd.fd = -1;
-
-  return SUCCESS;
+  ASSERT (alloc.used == 0);
 }
 
 bool
@@ -119,19 +111,11 @@ con_to_pollfd (const connector *src)
   return ret;
 }
 
-err_t
+void
 con_read (connector *c)
 {
-  connector_assert (c);
-  ASSERT (con_is_open (c));
-
-  i32 read = cbuffer_write_some_from_file (&c->cfd, &c->input);
-  if (read < 0)
-    {
-      return (err_t)read;
-    }
-
-  return SUCCESS;
+  ASSERT (c);
+  panic ();
 }
 
 void
@@ -140,11 +124,22 @@ con_execute (connector *c)
   connector_assert (c);
   ASSERT (con_is_open (c));
 
-  scanner_execute (&c->scanner);
-#ifdef CONNECTOR_TOK_DEBUG
-  tokp_execute (&c->tokp);
-#else
+  lalloc ealloc = lalloc_create (1000);
+  error e = error_create (&ealloc);
+
+  if (scanner_execute (&c->scanner, &e))
+    {
+      error_log_consume (&e);
+      c->want_close = true;
+      return;
+    }
   parser_execute (&c->parser);
   vm_execute (&c->vm);
-#endif
+}
+
+void
+con_write (connector *c)
+{
+  ASSERT (c);
+  panic ();
 }

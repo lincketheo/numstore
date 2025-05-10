@@ -1,23 +1,17 @@
 #pragma once
 
-#include "ds/cbuffer.h"
-#include "services/services.h"
-#include "services/var_create.h"
-#include "services/var_retr.h"
-#include "variables/vmem_hashmap.h"
+#include "ds/cbuffer.h" // cbuffer
 
 typedef struct
 {
   cbuffer *queries_input;
-  services *services;
 } vm;
 
 typedef struct
 {
   cbuffer *queries_input;
-  services *services;
 } vm_params;
 
-void vm_create (vm *dest, vm_params args);
+vm vm_create (vm_params args);
 
 void vm_execute (vm *v);

@@ -81,6 +81,12 @@ typedef u64 b_size; // Bytes size to index into a contiguous rope bytes
 typedef u64 pgno;   // Page number
 typedef u8 pgh;     // Page header
 
+#define PRt_size PRIu32
+#define PRp_size PRIu32
+#define PRb_size PRId64
+#define PRpgno PRIu64
+#define PRpgh PRIu8
+
 #ifndef NULL
 #define NULL (void *)0
 #endif

@@ -1,7 +1,7 @@
 #include "type/builders/union.h"
 #include "dev/assert.h"
-#include "dev/errors.h"
 #include "ds/strings.h"
+#include "errors/error.h"
 #include "intf/mm.h"
 #include "type/types.h"
 
@@ -20,29 +20,40 @@ DEFINE_DBG_ASSERT_I (union_builder, union_builder, s)
 }
 
 err_t
-unb_create (union_builder *dest, lalloc *alloc)
+unb_create (union_builder *dest, lalloc *alloc, error *e)
 {
   ASSERT (dest);
 
-  string *keys = lmalloc (alloc, 10 * sizeof *keys);
-  if (!keys)
+  lalloc_r keys = lmalloc (
+      alloc, 10, 2,
+      sizeof *dest->keys);
+  if (keys.stat != AR_SUCCESS)
     {
-      return ERR_NOMEM;
-    }
-  type *types = lmalloc (alloc, 10 * sizeof *types);
-  if (!types)
-    {
-      lfree (alloc, keys);
-      return ERR_NOMEM;
+      return error_causef (
+          e, ERR_NOMEM,
+          "Union Builder: "
+          "Not enough memory to allocate keys buffer");
     }
 
-  dest->keys = keys;
+  lalloc_r types = lmalloc (
+      alloc,
+      keys.rlen, keys.rlen,
+      sizeof *dest->types);
+  if (types.stat != AR_SUCCESS)
+    {
+      return error_causef (
+          e, ERR_NOMEM,
+          "Union Builder: "
+          "Not enough memory to allocate types buffer");
+    }
+
+  dest->keys = keys.ret;
   dest->klen = 0;
-  dest->kcap = 10;
+  dest->kcap = keys.rlen;
 
-  dest->types = types;
+  dest->types = types.ret;
   dest->tlen = 0;
-  dest->tcap = 10;
+  dest->tcap = types.rlen;
 
   dest->alloc = alloc;
 
@@ -54,27 +65,39 @@ unb_create (union_builder *dest, lalloc *alloc)
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 static inline err_t
-unb_double_cap (union_builder *ub)
+unb_expand (union_builder *ub, error *e)
 {
   union_builder_assert (ub);
 
-  u32 cap = 2 * MAX (ub->kcap, ub->tcap);
-
-  string *keys = lrealloc (ub->alloc, ub->keys, cap * sizeof *keys);
-  if (!keys)
+  lalloc_r keys = lrealloc (
+      ub->alloc,
+      ub->keys,
+      2 * ub->kcap, ub->kcap + 1,
+      sizeof *ub->keys);
+  if (keys.stat != AR_SUCCESS)
     {
-      return ERR_NOMEM;
+      return error_causef (
+          e, ERR_NOMEM,
+          "Union Builder: "
+          "Failed to reallocate keys buffer");
     }
-  ub->kcap = cap;
-  ub->keys = keys;
+  ub->kcap = keys.rlen;
+  ub->keys = keys.ret;
 
-  type *types = lrealloc (ub->alloc, ub->types, cap * sizeof *types);
-  if (!types)
+  lalloc_r types = lrealloc (
+      ub->alloc,
+      ub->types,
+      ub->kcap, ub->kcap,
+      sizeof *ub->types);
+  if (types.stat != AR_SUCCESS)
     {
-      return ERR_NOMEM;
+      return error_causef (
+          e, ERR_NOMEM,
+          "Union Builder: "
+          "Failed to reallocate keys buffer");
     }
-  ub->tcap = cap;
-  ub->types = types;
+  ub->tcap = types.rlen;
+  ub->types = types.ret;
 
   return SUCCESS;
 }
@@ -93,24 +116,22 @@ unb_has_key_been_used (const union_builder *ub, const string key)
 }
 
 err_t
-unb_accept_key (union_builder *ub, string key)
+unb_accept_key (union_builder *ub, string key, error *e)
 {
   union_builder_assert (ub);
 
-  err_t ret = SUCCESS;
-
   if (unb_has_key_been_used (ub, key))
     {
-      return ERR_INVALID_ARGUMENT;
+      return error_causef (
+          e, ERR_INVALID_TYPE,
+          "Union Builder: "
+          "Key: %.*s has already been used",
+          key.len, key.data);
     }
 
   if (ub->klen == ub->kcap)
     {
-      ret = unb_double_cap (ub);
-      if (ret)
-        {
-          return ret;
-        }
+      err_t_wrap (unb_expand (ub, e), e);
     }
 
   ub->keys[ub->klen++] = key;
@@ -119,19 +140,13 @@ unb_accept_key (union_builder *ub, string key)
 }
 
 err_t
-unb_accept_type (union_builder *ub, type t)
+unb_accept_type (union_builder *ub, type t, error *e)
 {
   union_builder_assert (ub);
 
-  err_t ret = SUCCESS;
-
   if (ub->tlen == ub->tcap)
     {
-      ret = unb_double_cap (ub);
-      if (ret)
-        {
-          return ret;
-        }
+      err_t_wrap (unb_expand (ub, e), e);
     }
 
   ub->types[ub->tlen++] = t;
@@ -140,55 +155,79 @@ unb_accept_type (union_builder *ub, type t)
 }
 
 static inline err_t
-unb_clip (union_builder *ub)
+unb_clip (union_builder *ub, error *e)
 {
   union_builder_assert (ub);
 
   if (ub->klen != ub->kcap)
     {
-      string *keys = lrealloc (ub->alloc, ub->keys, ub->klen * sizeof *keys);
-      if (!keys)
+      lalloc_r keys = lrealloc (
+          ub->alloc,
+          ub->keys,
+          ub->klen, ub->klen,
+          sizeof *ub->keys);
+      if (keys.stat != AR_SUCCESS)
         {
-          return ERR_IO;
+          /*
+           * Edge condition realloc shrink fail, treat as nomem
+           */
+          return error_causef (
+              e, ERR_NOMEM,
+              "Union Builder: "
+              "Failed to shrink keys buffer");
         }
-      ub->kcap = ub->klen;
-      ub->keys = keys;
+
+      ub->kcap = keys.rlen;
+      ub->keys = keys.ret;
     }
 
   if (ub->tlen != ub->tcap)
     {
-      type *types = lrealloc (ub->alloc, ub->types, ub->tlen * sizeof *types);
-      if (!types)
+      lalloc_r types = lrealloc (
+          ub->alloc,
+          ub->types,
+          ub->tlen, ub->tlen,
+          sizeof *ub->types);
+      if (types.stat != AR_SUCCESS)
         {
-          return ERR_IO;
+          /*
+           * Edge condition realloc shrink fail, treat as nomem
+           */
+          return error_causef (
+              e, ERR_NOMEM,
+              "Union Builder: "
+              "Failed to shrink types buffer");
         }
-      ub->tcap = ub->tlen;
-      ub->types = types;
+
+      ub->tcap = types.rlen;
+      ub->types = types.ret;
     }
 
   return SUCCESS;
 }
 
 err_t
-unb_build (union_t *dest, union_builder *ub)
+unb_build (union_t *dest, union_builder *ub, error *e)
 {
   union_builder_assert (ub);
   ASSERT (dest);
 
   if (ub->tlen == 0)
     {
-      return ERR_INVALID_ARGUMENT;
+      return error_causef (
+          e, ERR_INVALID_TYPE,
+          "Union Builder: "
+          "Expecting at least one key");
     }
   if (ub->tlen != ub->klen)
     {
-      return ERR_INVALID_ARGUMENT;
+      return error_causef (
+          e, ERR_INVALID_TYPE,
+          "Union Builder: "
+          "Expects to have the same number of keys as values");
     }
 
-  err_t ret = unb_clip (ub);
-  if (ret)
-    {
-      return ret;
-    }
+  err_t_wrap (unb_clip (ub, e), e);
 
   dest->keys = ub->keys;
   dest->types = ub->types;

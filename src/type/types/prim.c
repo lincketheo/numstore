@@ -1,23 +1,28 @@
 #include "type/types/prim.h"
-#include "dev/assert.h"
-#include "dev/errors.h"
 #include "ds/strings.h"
 #include "intf/stdlib.h"
 #include "type/types.h"
-#include "utils/deserializer.h"
-#include "utils/serializer.h"
 
 DEFINE_DBG_ASSERT_I (prim_t, prim_t, s)
 {
   ASSERT (s);
-  ASSERT (prim_t_is_valid (s));
+  ASSERT (prim_t_validate (s, NULL) == SUCCESS);
 }
 
-bool
-prim_t_is_valid (const prim_t *t)
+err_t
+prim_t_validate (const prim_t *t, error *e)
 {
   ASSERT (t);
-  return *t <= CU128 && *t >= U8;
+  if (!(*t <= CU128 && *t >= U8))
+    {
+      return error_causef (
+          e, ERR_INVALID_TYPE,
+          "Prim: Invalid numerical prim value: %d. "
+          "Expect to be in range %d, %d",
+          *t, U8, CU128);
+    }
+
+  return SUCCESS;
 }
 
 const char *
@@ -80,7 +85,7 @@ prim_to_str (prim_t p)
     case CU128:
       return "CU128";
     }
-  ASSERT (0);
+  UNREACHABLE ();
   return "";
 }
 
@@ -162,7 +167,7 @@ prim_t_byte_size (const prim_t *t)
       return 32;
     }
 
-  ASSERT (0);
+  UNREACHABLE ();
   return 0;
 }
 
@@ -180,7 +185,7 @@ prim_t_serialize (serializer *dest, const prim_t *src)
 }
 
 err_t
-prim_t_deserialize (prim_t *dest, deserializer *src)
+prim_t_deserialize (prim_t *dest, deserializer *src, error *e)
 {
   ASSERT (dest);
 
@@ -188,15 +193,15 @@ prim_t_deserialize (prim_t *dest, deserializer *src)
   bool ret = dsrlizr_read_u8 (&p, src);
   if (!ret)
     {
-      return ERR_INVALID_STATE;
+      ret = error_causef (
+          e, ERR_TYPE_DESER,
+          "Prim Deserialize. Expected a length header");
     }
 
   prim_t _p = p;
 
-  if (!prim_t_is_valid (&_p))
-    {
-      return ERR_INVALID_STATE;
-    }
+  err_t_wrap (prim_t_validate (&_p, e), e);
+
   prim_t_assert (&_p);
 
   *dest = _p;

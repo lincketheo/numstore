@@ -13,7 +13,6 @@ typedef enum
   SS_STRING,
   SS_NUMBER,
   SS_DECIMAL,
-  SS_ERROR_REWIND,
 } scanner_state;
 
 const char *scanner_state_to_str (scanner_state);
@@ -42,8 +41,8 @@ typedef struct
   lalloc *string_allocator;
 } scanner_params;
 
-void scanner_create (scanner *dest, scanner_params params);
+scanner scanner_create (scanner_params params);
 
-void scanner_execute (scanner *s);
+err_t scanner_execute (scanner *s, error *e);
 
 void scanner_release (scanner *dest);

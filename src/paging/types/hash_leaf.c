@@ -1,6 +1,5 @@
 #include "paging/types/hash_leaf.h"
 #include "dev/assert.h"
-#include "dev/errors.h"
 #include "ds/strings.h"
 #include "intf/mm.h"
 #include "intf/stdlib.h"
@@ -21,16 +20,16 @@ DEFINE_DBG_ASSERT_I (hash_leaf, unchecked_hash_leaf, d)
   ASSERT_PTR_IS_IDX (d->raw, d->header, HL_HEDR_OFFSET);
   ASSERT_PTR_IS_IDX (d->raw, d->next, HL_NEXT_OFFSET);
   ASSERT_PTR_IS_IDX (d->raw, d->data, HL_DATA_OFFSET);
-  ASSERT (HL_DATA_OFFSET + 10 < d->rlen); // Let's say at least 10 bytes - arbitrary
+  ASSERT (HL_DATA_OFFSET + 10 < d->rlen);
 }
 
 DEFINE_DBG_ASSERT_I (hash_leaf, valid_hash_leaf, d)
 {
-  ASSERT (hl_is_valid (d));
+  ASSERT (hl_validate (d, NULL) == SUCCESS);
 }
 
-bool
-hl_is_valid (const hash_leaf *d)
+err_t
+hl_validate (const hash_leaf *d, error *e)
 {
   unchecked_hash_leaf_assert (d);
 
@@ -39,10 +38,13 @@ hl_is_valid (const hash_leaf *d)
    */
   if (*d->header != (u8)PG_HASH_LEAF)
     {
-      return false;
+      return error_causef (
+          e, ERR_CORRUPT,
+          "Hash Leaf: expected header: %" PRpgh " but got: %" PRpgh,
+          (pgh)PG_HASH_LEAF, *d->header);
     }
 
-  return true;
+  return SUCCESS;
 }
 
 p_size

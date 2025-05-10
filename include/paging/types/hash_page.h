@@ -1,7 +1,7 @@
 #pragma once
 
-#include "dev/errors.h"
 #include "ds/strings.h"
+#include "errors/error.h"
 #include "intf/types.h"
 
 typedef struct page_s page;
@@ -28,7 +28,7 @@ typedef struct
   pgno *hashes; // Hashes pointing to linked list
 } hash_page;
 
-bool hp_is_valid (const hash_page *d);
+err_t hp_validate (const hash_page *d, error *e);
 
 void hp_init_empty (hash_page *hp);
 

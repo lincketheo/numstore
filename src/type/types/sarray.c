@@ -1,51 +1,51 @@
 #include "type/types/sarray.h"
-#include "dev/assert.h"
-#include "dev/errors.h"
 #include "ds/strings.h"
+#include "errors/error.h"
 #include "intf/stdlib.h"
 #include "type/types.h"
-#include "utils/serializer.h"
 
 DEFINE_DBG_ASSERT_I (sarray_t, unchecked_sarray_t, s)
 {
   ASSERT (s);
   ASSERT (s->dims);
   ASSERT (s->t);
-  ASSERT (sarray_t_is_valid (s));
+  ASSERT (sarray_t_validate (s, NULL) == SUCCESS);
 }
 
-bool
-sarray_t_is_valid_shallow (const sarray_t *t)
+err_t
+sarray_t_validate_shallow (const sarray_t *t, error *e)
 {
   unchecked_sarray_t_assert (t);
   if (t->rank == 0)
     {
-      return false;
+      return error_causef (e, 1, "Strict Array rank must be > 0");
     }
   for (u32 i = 0; i < t->rank; ++i)
     {
       if (t->dims[i] == 0)
         {
-          return false;
+          return error_causef (
+              e, ERR_INVALID_TYPE,
+              "Strict Array: dim at %d is 0.", i);
         }
     }
-  return true;
+  return SUCCESS;
 }
 
 DEFINE_DBG_ASSERT_I (sarray_t, valid_sarray_t, s)
 {
-  ASSERT (sarray_t_is_valid_shallow (s));
+  ASSERT (sarray_t_validate_shallow (s, NULL) == SUCCESS);
 }
 
-bool
-sarray_t_is_valid (const sarray_t *t)
+err_t
+sarray_t_validate (const sarray_t *t, error *e)
 {
   unchecked_sarray_t_assert (t);
-  if (!sarray_t_is_valid_shallow (t))
-    {
-      return false;
-    }
-  return type_is_valid (t->t);
+
+  err_t_wrap (sarray_t_validate_shallow (t, e), e);
+  err_t_wrap (type_validate (t->t, e), e);
+
+  return SUCCESS;
 }
 
 int
@@ -202,7 +202,7 @@ sarray_t_serialize (serializer *dest, const sarray_t *src)
 }
 
 err_t
-sarray_t_deserialize (sarray_t *dest, deserializer *src, lalloc *a)
+sarray_t_deserialize (sarray_t *dest, deserializer *src, lalloc *a, error *e)
 {
   ASSERT (dest);
 
@@ -215,13 +215,41 @@ sarray_t_deserialize (sarray_t *dest, deserializer *src, lalloc *a)
   u16 rank = 0;
   if (!dsrlizr_read_u16 (&rank, src))
     {
-      ret = ERR_INVALID_STATE;
+      ret = error_causef (
+          e, ERR_TYPE_DESER,
+          "Strict Array Deserialize. Expected a rank header");
       goto failed;
     }
-
   sa.rank = rank;
-  sa.dims = lmalloc (a, rank * sizeof *sa.dims);
-  sa.t = lmalloc (a, sizeof *sa.t);
+
+  /**
+   * Allocate dimensions buffer
+   */
+  lalloc_r dims = lcalloc (a, rank, rank, sizeof *sa.dims);
+  if (dims.stat != AR_SUCCESS)
+    {
+      ret = error_causef (
+          e, ERR_NOMEM,
+          "Strict Array Deserialize: not enough "
+          "memory to allocate dimensions buffer for rank: %d",
+          rank);
+      goto failed;
+    }
+  sa.dims = dims.ret;
+
+  /**
+   * Allocate type
+   */
+  lalloc_r t = lcalloc (a, 1, 1, sizeof *sa.t);
+  if (dims.stat != AR_SUCCESS)
+    {
+      ret = error_causef (
+          e, ERR_NOMEM,
+          "Strict Array Deserialize: not enough "
+          "memory to allocate type");
+      goto failed;
+    }
+  sa.t = t.ret;
 
   if (sa.dims == NULL || sa.t == NULL)
     {
@@ -238,7 +266,10 @@ sarray_t_deserialize (sarray_t *dest, deserializer *src, lalloc *a)
        */
       if (!dsrlizr_read_u32 (&dim, src))
         {
-          ret = ERR_INVALID_STATE;
+          ret = error_causef (
+              e, ERR_TYPE_DESER,
+              "Strict Array Deserialize. Expected dimension at index %d",
+              i);
           goto failed;
         }
 
@@ -248,17 +279,13 @@ sarray_t_deserialize (sarray_t *dest, deserializer *src, lalloc *a)
   /**
    * (TYPE)
    */
-  if ((ret = type_deserialize (sa.t, src, a)))
+  if ((type_deserialize (sa.t, src, a, e), e))
     {
       goto failed;
     }
 
   unchecked_sarray_t_assert (&sa);
-  if (!sarray_t_is_valid_shallow (&sa))
-    {
-      ret = ERR_INVALID_STATE;
-      goto failed;
-    }
+  err_t_wrap (sarray_t_validate_shallow (&sa, e), e);
   valid_sarray_t_assert (&sa);
 
   *dest = sa;

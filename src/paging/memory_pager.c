@@ -1,6 +1,6 @@
 #include "paging/memory_pager.h"
-#include "dev/errors.h"
 #include "dev/testing.h"
+#include "errors/error.h"
 #include "intf/mm.h"
 #include "intf/stdlib.h"
 
@@ -51,39 +51,47 @@ DEFINE_DBG_ASSERT_I (memory_pager, memory_pager, p)
 }
 
 err_t
-mpgr_create (memory_pager *dest, mpgr_params params)
+mpgr_create (memory_pager *dest, mpgr_params params, error *e)
 {
   ASSERT (dest);
   ASSERT (params.len > 0);
 
-  memory_page *pages = lmalloc (
+  lalloc_r pages = lmalloc (
       params.alloc,
-      params.len * sizeof *pages);
+      params.len,
+      params.len,
+      sizeof *dest->pages);
 
-  if (pages == NULL)
+  if (pages.stat != AR_SUCCESS)
     {
-      return ERR_NOMEM;
+      return error_causef (
+          e, ERR_NOMEM,
+          "Memory pager: Not enough memory to allocate pages");
     }
 
-  u8 *page_block = lmalloc (
+  lalloc_r _page_block = lmalloc (
       params.alloc,
-      params.len * params.page_size);
+      params.len,
+      params.len,
+      params.page_size);
 
-  if (page_block == NULL)
+  if (_page_block.stat != AR_SUCCESS)
     {
-      // TODO - free here
-      return ERR_NOMEM;
+      return error_causef (
+          e, ERR_NOMEM,
+          "Memory pager: Not enough memory to allocate page block");
     }
+
+  dest->pages = pages.ret;
+  dest->len = params.len;
+  dest->idx = 0;
+  u8 *page_block = _page_block.ret;
 
   // Initialize the pages
   for (u32 i = 0; i < params.len; ++i)
     {
-      pages[i].data = page_block + i * params.page_size;
+      dest->pages[i].data = page_block + i * params.page_size;
     }
-
-  dest->pages = pages;
-  dest->len = params.len;
-  dest->idx = 0;
 
   memory_pager_assert (dest);
 
@@ -97,7 +105,6 @@ mpgr_new (memory_pager *p, u64 pgno)
 
   for (u32 i = 0; i < p->len; ++i)
     {
-
       memory_page *mp = &p->pages[p->idx];
       p->idx = (p->idx + 1) % p->len;
 
@@ -179,7 +186,7 @@ mpgr_evict (memory_pager *p, u64 pgno)
 
       p->idx = (p->idx + 1) % p->len;
     }
-  ASSERT (0);
+  UNREACHABLE ();
 }
 
 TEST (mpgr_evict)

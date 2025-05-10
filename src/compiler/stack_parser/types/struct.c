@@ -2,7 +2,7 @@
 #include "compiler/stack_parser/common.h"
 #include "compiler/stack_parser/type_parser.h"
 #include "compiler/tokens.h"
-#include "dev/errors.h"
+#include "dev/assert.h"
 #include "type/builders/struct.h"
 #include "type/types.h"
 #include "utils/bounds.h"
@@ -32,11 +32,11 @@ stp_create (type_parser *dest, lalloc *alloc)
   ASSERT (dest);
   ASSERT (dest->state == TB_UNKNOWN);
 
-  switch (stb_create (&dest->stp.builder, alloc))
+  switch (stb_create (&dest->stp.builder, alloc, NULL))
     {
     case ERR_NOMEM:
       {
-        return SPR_MALLOC_ERROR;
+        return SPR_NOMEM;
       }
     case SUCCESS:
       {
@@ -50,8 +50,7 @@ stp_create (type_parser *dest, lalloc *alloc)
       }
     default:
       {
-        ASSERT (0);
-        return SPR_MALLOC_ERROR;
+        UNREACHABLE ();
       }
     }
 }
@@ -61,15 +60,11 @@ stp_build (type_parser *sb)
 {
   struct_parser_assert_state (sb, STP_DONE);
 
-  switch (stb_build (&sb->ret.st, &sb->stp.builder))
+  switch (stb_build (&sb->ret.st, &sb->stp.builder, NULL))
     {
     case ERR_INVALID_ARGUMENT:
       {
         return SPR_SYNTAX_ERROR;
-      }
-    case ERR_IO:
-      {
-        return SPR_MALLOC_ERROR;
       }
     case SUCCESS:
       {
@@ -78,8 +73,7 @@ stp_build (type_parser *sb)
       }
     default:
       {
-        ASSERT (0);
-        return SPR_MALLOC_ERROR;
+        UNREACHABLE ();
       }
     }
 
@@ -114,7 +108,7 @@ HANDLER_FUNC (STP_WAITING_FOR_IDENT) (
       return SPR_SYNTAX_ERROR;
     }
 
-  switch (stb_accept_key (&sb->stp.builder, t.str))
+  switch (stb_accept_key (&sb->stp.builder, t.str, NULL))
     {
     case ERR_INVALID_ARGUMENT:
       {
@@ -122,7 +116,7 @@ HANDLER_FUNC (STP_WAITING_FOR_IDENT) (
       }
     case ERR_NOMEM:
       {
-        return SPR_MALLOC_ERROR;
+        return SPR_NOMEM;
       }
     case SUCCESS:
       {
@@ -131,8 +125,7 @@ HANDLER_FUNC (STP_WAITING_FOR_IDENT) (
       }
     default:
       {
-        ASSERT (0);
-        return SPR_MALLOC_ERROR;
+        UNREACHABLE ();
       }
     }
 }
@@ -194,11 +187,11 @@ HANDLER_FUNC (STP_WAITING_FOR_TYPE) (type_parser *sb, type t)
 {
   struct_parser_assert_state (sb, STP_WAITING_FOR_TYPE);
 
-  switch (stb_accept_type (&sb->stp.builder, t))
+  switch (stb_accept_type (&sb->stp.builder, t, NULL))
     {
     case ERR_NOMEM:
       {
-        return SPR_MALLOC_ERROR;
+        return SPR_NOMEM;
       }
     case SUCCESS:
       {
@@ -207,8 +200,7 @@ HANDLER_FUNC (STP_WAITING_FOR_TYPE) (type_parser *sb, type t)
       }
     default:
       {
-        ASSERT (0);
-        return SPR_MALLOC_ERROR;
+        UNREACHABLE ();
       }
     }
 }

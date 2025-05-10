@@ -19,37 +19,32 @@ typedef struct
 } fpgr_params;
 
 /**
- * Returns:
- *   - ERR_INVALID_STATE if it senses the file is in an
- *   invalid state
+ * Errors:
+ *    - ERR_IO - fstat failure
+ *    - ERR_CORRUPT - If the file is found in a bad spot on initial open
  */
-err_t fpgr_create (file_pager *dest, fpgr_params);
+err_t fpgr_create (file_pager *dest, fpgr_params p, error *e);
 
 /**
- * Allocates a new page and stores result in pgno_dest
- * Returns:
- *   - Forwards errors from i_truncate
+ * Errors:
+ *    - ERR_IO - ftruncate failure
  */
-err_t fpgr_new (file_pager *p, pgno *pgno_dest);
+err_t fpgr_new (file_pager *p, pgno *pgno_dest, error *e);
 
 /**
- * Commits data pointed to by src (assuming page_size) to page pgno
- * Returns:
- *  - Forwards errors from i_write_all
+ * Error:
+ *    - ERR_IO - pread fail
+ *    - ERR_CORRUPT - empty read - (page doesn't exist)
  */
-err_t fpgr_commit (file_pager *p, const u8 *src, pgno pgno);
+err_t fpgr_get_expect (file_pager *p, u8 *dest, pgno pgno, error *e);
 
 /**
- * Deletes page at pgno.
- * TODO - This doesn't do anything yet because I don't have a
- * good page deletion management
+ * Doesn't do anything yet
  */
-err_t fpgr_delete (file_pager *p, pgno pgno);
+err_t fpgr_delete (file_pager *p, pgno pgno, error *e);
 
 /**
- * Fetches page. Expect page to exist
- * Returns:
- *   - INVALID_STATE - page doesn't exist
- *   - ERR_IO - read fails
+ * Errors:
+ *    - ERR_IO - pwrite error on page write
  */
-err_t fpgr_get_expect (file_pager *p, u8 *dest, pgno pgno);
+err_t fpgr_commit (file_pager *p, const u8 *src, pgno pgno, error *e);

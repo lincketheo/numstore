@@ -3,7 +3,7 @@
 #include "compiler/stack_parser/query_parser.h"
 #include "compiler/stack_parser/type_parser.h"
 #include "compiler/tokens.h"
-#include "dev/errors.h"
+#include "errors/error.h"
 #include "intf/mm.h"
 #include "utils/bounds.h"
 
@@ -31,23 +31,26 @@ stackp_push (ast_parser value, stack_parser *sp)
 }
 
 err_t
-stackp_create (stack_parser *dest, sp_params params)
+stackp_create (stack_parser *dest, sp_params params, error *e)
 {
   ASSERT (dest);
 
   // Allocate the stack - start with 3 layers
-  ast_parser *stack = lmalloc (
+  lalloc_r stack = lmalloc (
       params.stack_allocator,
-      10 * sizeof *stack);
+      10, 3, sizeof *dest->stack);
 
-  if (!stack)
+  if (stack.stat != AR_SUCCESS)
     {
-      return ERR_NOMEM;
+      return error_causef (
+          e, ERR_NOMEM,
+          "Stack Parser: "
+          "Failed to allocate stack");
     }
 
-  dest->stack = stack;
+  dest->stack = stack.ret;
   dest->sp = 0;
-  dest->cap = 10;
+  dest->cap = stack.rlen;
 
   dest->type_allocator = params.type_allocator;
   dest->stack_allocator = params.stack_allocator;
@@ -70,8 +73,7 @@ astb_expect_next (ast_parser *b, token t)
       }
     default:
       {
-        ASSERT (0);
-        return 0;
+        UNREACHABLE ();
       }
     }
 }
@@ -91,8 +93,7 @@ astb_accept_token (ast_parser *b, token t)
       }
     default:
       {
-        ASSERT (0);
-        return 0;
+        UNREACHABLE ();
       }
     }
 }
@@ -112,8 +113,7 @@ astb_accept_type (ast_parser *b, type t)
       }
     default:
       {
-        ASSERT (0);
-        return 0;
+        UNREACHABLE ();
       }
     }
 }
@@ -133,8 +133,7 @@ astb_build (ast_parser *b)
       }
     default:
       {
-        ASSERT (0);
-        return 0;
+        UNREACHABLE ();
       }
     }
 }
@@ -243,8 +242,7 @@ stackp_get (stack_parser *sp)
       }
     default:
       {
-        ASSERT (0);
-        return (ast_result){ 0 };
+        UNREACHABLE ();
       }
     }
 }

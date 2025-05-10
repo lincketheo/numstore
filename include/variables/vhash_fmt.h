@@ -71,7 +71,11 @@ typedef struct
 
 vread_hash_fmt vrhfmt_create (lalloc *alloc);
 
-err_t vrhfmt_read_in (const u8 *src, p_size *nbytes, vread_hash_fmt *dest);
+err_t vrhfmt_read_in (
+    const u8 *src,
+    p_size *nbytes,
+    vread_hash_fmt *dest,
+    error *e);
 
 void vrhfmt_free_and_reset_forgiving (vread_hash_fmt *v);
 
@@ -96,4 +100,8 @@ typedef struct
 
 vwrite_hash_fmt vwhfmt_create (var_hash_entry params);
 
-err_t vwhfmt_write_out (u8 *dest, p_size *nbytes, vwrite_hash_fmt *src);
+err_t vwhfmt_write_out (
+    u8 *dest,
+    p_size *nbytes,
+    vwrite_hash_fmt *src,
+    error *e);

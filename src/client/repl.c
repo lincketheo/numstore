@@ -1,18 +1,11 @@
 #include "client/repl.h"
-#include "client/client.h"
-#include "dev/assert.h"
-#include "dev/errors.h"
-#include "intf/logging.h"
-#include "intf/mm.h"
-#include "intf/stdlib.h"
-#include "utils/bounds.h"
-#include "utils/macros.h"
-#include "utils/strings.h"
 
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include "intf/stdlib.h"   // i_memcpy
+#include "utils/macros.h"  // arrlen
+#include "utils/strings.h" // line_length
+
+#include <errno.h>  // strerror
+#include <stdlib.h> // free
 
 DEFINE_DBG_ASSERT_I (repl, repl, r)
 {
@@ -47,7 +40,7 @@ repl_create (repl *dest, repl_params params)
 }
 
 err_t
-repl_read (repl *r)
+repl_read (repl *r, error *e)
 {
   repl_assert (r);
 
@@ -60,12 +53,15 @@ repl_read (repl *r)
     {
       if (errno == ENOMEM)
         {
-          return ERR_NOMEM;
+          return error_causef (
+              e, ERR_NOMEM,
+              "getline: %s", strerror (errno));
         }
       else if (errno)
         {
-          perror ("getline");
-          return ERR_IO;
+          return error_causef (
+              e, ERR_IO,
+              "getline: %s", strerror (errno));
         }
       // EOF
       return SUCCESS;
@@ -122,7 +118,7 @@ repl_reserved_execute (repl *r)
 }
 
 err_t
-repl_execute (repl *r)
+repl_execute (repl *r, error *e)
 {
   repl_assert (r);
 
@@ -145,10 +141,7 @@ repl_execute (repl *r)
     {
       i_log_info ("Sending: %.*s\n", r->blen, r->buffer);
       const string send = (string){ .data = r->buffer, .len = r->blen };
-      if ((ret = client_execute_all (&r->client, send)))
-        {
-          return ret;
-        }
+      err_t_wrap (client_execute_all (&r->client, send, e), e);
     }
 
   // Recv

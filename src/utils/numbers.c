@@ -1,47 +1,13 @@
-#include "dev/assert.h"
-#include "dev/errors.h"
-#include "dev/testing.h"
-#include "ds/strings.h"
-#include "intf/stdlib.h"
-#include "intf/types.h"
-#include "utils/bounds.h"
-#include "utils/macros.h"
+#include "utils/numbers.h"
 
-u32
-smlst_dbl_fctr (u32 cap, u32 len, u32 nbytes)
+#include "dev/assert.h"   // ASSERT
+#include "dev/testing.h"  // TEST
+#include "intf/stdlib.h"  // i_unsafe_strlen
+#include "utils/macros.h" // is_num
+
+i32
+parse_i32_expect (const string data)
 {
-  ASSERT (cap > 0);
-
-  u32 total = len + nbytes;
-  u32 target = (total + cap - 1) / cap;
-
-  if (target <= 1)
-    {
-      return cap;
-    }
-
-  target--;
-  target |= target >> 1;
-  target |= target >> 2;
-  target |= target >> 4;
-  target |= target >> 8;
-  target |= target >> 16;
-  target++;
-
-  return cap * target;
-}
-
-TEST (smlst_dbl_fctr)
-{
-  test_assert_int_equal (smlst_dbl_fctr (64, 10, 20), 64);
-  test_assert_int_equal (smlst_dbl_fctr (32, 20, 10), 32);
-  test_assert_int_equal (smlst_dbl_fctr (64, 60, 10), 128);
-}
-
-err_t
-parse_i32_expect (i32 *dest, const string data)
-{
-  ASSERT (dest);
   ASSERT (data.len > 0);
 
   int negative = 0;
@@ -72,36 +38,38 @@ parse_i32_expect (i32 *dest, const string data)
 
   if (negative)
     {
-      *dest = -1 * (i32)ret;
+      return -1 * (i32)ret;
     }
   else
     {
-      *dest = (i32)ret;
+      return (i32)ret;
     }
-  return SUCCESS;
 }
 
 TEST (parse_i32_expect)
 {
   i32 out;
 
-  const string s1 = (string){ .data = "1234", .len = i_unsafe_strlen ("1234") };
-  test_assert_int_equal (parse_i32_expect (&out, s1), SUCCESS);
+  const string s1 = (string){
+    .data = "1234",
+    .len = i_unsafe_strlen ("1234"),
+  };
+  out = parse_i32_expect (s1);
   test_assert_int_equal (out, 1234);
 
-  const string s2 = (string){ .data = "-56", .len = i_unsafe_strlen ("-56") };
-  test_assert_int_equal (parse_i32_expect (&out, s2), SUCCESS);
+  const string s2 = (string){
+    .data = "-56",
+    .len = i_unsafe_strlen ("-56"),
+  };
+  out = parse_i32_expect (s2);
   test_assert_int_equal (out, -56);
 
   // TODO - handle int overflow
-  // const string s3 = (string){ .data = "9999999999", .len = i_unsafe_strlen ("9999999999") };
-  // test_assert_int_equal (parse_i32_expect (&out, s3), ERR_ARITH);
 }
 
-int
-parse_f32_expect (f32 *dest, const string src)
+f32
+parse_f32_expect (const string src)
 {
-  ASSERT (dest);
   ASSERT (src.len > 0);
 
   int negative = 0;
@@ -154,33 +122,43 @@ parse_f32_expect (f32 *dest, const string src)
 
   if (negative)
     {
-      *dest = -ret;
+      return -ret;
     }
   else
     {
-      *dest = ret;
+      return ret;
     }
-
-  return SUCCESS;
 }
 
 TEST (parse_f32_expect)
 {
   f32 out;
 
-  const string b1 = (string){ .data = "12.34", .len = i_unsafe_strlen ("12.34") };
-  test_assert_int_equal (parse_f32_expect (&out, b1), SUCCESS);
+  const string b1 = (string){
+    .data = "12.34",
+    .len = i_unsafe_strlen ("12.34"),
+  };
+  out = parse_f32_expect (b1);
   test_assert_equal ((int)(out * 100), 1234, "%d");
 
-  const string b2 = (string){ .data = "-0.5", .len = i_unsafe_strlen ("-0.5") };
-  test_assert_int_equal (parse_f32_expect (&out, b2), SUCCESS);
+  const string b2 = (string){
+    .data = "-0.5",
+    .len = i_unsafe_strlen ("-0.5"),
+  };
+  out = parse_f32_expect (b2);
   test_assert_equal ((int)(out * 10), -5, "%d");
 
-  const string b3 = (string){ .data = "100", .len = i_unsafe_strlen ("100") };
-  test_assert_int_equal (parse_f32_expect (&out, b3), SUCCESS);
+  const string b3 = (string){
+    .data = "100",
+    .len = i_unsafe_strlen ("100"),
+  };
+  out = parse_f32_expect (b3);
   test_assert_equal ((int)out, 100, "%d");
 
-  const string b4 = (string){ .data = "12.34", .len = i_unsafe_strlen ("12.34") };
-  test_assert_int_equal (parse_f32_expect (&out, b4), SUCCESS);
+  const string b4 = (string){
+    .data = "12.34",
+    .len = i_unsafe_strlen ("12.34"),
+  };
+  out = parse_f32_expect (b4);
   test_assert_equal ((int)(out * 1000), 12340, "%d");
 }

@@ -1,5 +1,5 @@
 #include "rptree/mem_inner_node.h"
-#include "dev/errors.h"
+#include "errors/error.h"
 #include "intf/mm.h"
 #include "intf/stdlib.h"
 #include "paging/types/inner_node.h"
@@ -34,7 +34,7 @@ mintn_create (mintn_params params)
 }
 
 err_t
-mintn_clip (mem_inner_node *r)
+mintn_clip (mem_inner_node *r, error *e)
 {
   mem_inner_node_assert (r);
 
@@ -43,13 +43,22 @@ mintn_clip (mem_inner_node *r)
       return SUCCESS;
     }
 
-  pg_rk *kvs = lrealloc (r->alloc, r->kvs, r->kvlen * sizeof *kvs);
-  if (!kvs)
+  lalloc_r kvs = lrealloc (r->alloc, r->kvs, r->kvlen, r->kvlen, sizeof *r->kvs);
+
+  ASSERT (kvs.stat != AR_AVAIL_BUT_USED);
+  ASSERT (kvs.stat != AR_NOMEM);
+
+  if (kvs.stat != AR_SUCCESS)
     {
-      // This is probably an IO_ERR
-      return ERR_NOMEM;
+      /*
+       * Edge condition realloc shrink fail, treat as nomem
+       */
+      return error_causef (
+          e, ERR_NOMEM,
+          "Failed to shrink in memory inner node buffer");
     }
-  r->kvs = kvs;
+
+  r->kvs = kvs.ret;
   r->kvcap = r->kvlen;
   return SUCCESS;
 }
@@ -72,45 +81,43 @@ mintn_free (mem_inner_node *r)
 }
 
 static inline err_t
-mintn_make_room (mem_inner_node *r, u32 cap)
+mintn_expand (mem_inner_node *r, error *e)
 {
   mem_inner_node_assert (r);
-  ASSERT (cap > 0);
+  ASSERT (r->kvlen == r->kvcap);
 
-  pg_rk *kvs = NULL;
+  lalloc_r kvs;
 
-  if (r->kvs == NULL)
+  if (r->kvcap == 0)
     {
-      kvs = lmalloc (r->alloc, cap * sizeof *kvs);
+      kvs = lmalloc (r->alloc, 10, 1, sizeof *r->kvs);
     }
   else
     {
-      kvs = lrealloc (r->alloc, r->kvs, cap * sizeof *kvs);
+      kvs = lrealloc (r->alloc, r->kvs, 2 * r->kvcap, r->kvcap + 1, sizeof *r->kvs);
     }
 
-  if (!kvs)
+  if (kvs.stat != AR_SUCCESS)
     {
-      return ERR_NOMEM;
+      return error_causef (
+          e, ERR_NOMEM,
+          "Not enough memory to expand in memory inner node buffer");
     }
 
-  r->kvcap = cap;
-  r->kvs = kvs;
+  r->kvcap = kvs.rlen;
+  r->kvs = kvs.ret;
 
   return SUCCESS;
 }
 
 err_t
-mintn_add_right (mem_inner_node *r, b_size key, pgno pg)
+mintn_add_right (mem_inner_node *r, b_size key, pgno pg, error *e)
 {
   mem_inner_node_assert (r);
 
   if (r->kvlen == r->kvcap)
     {
-      err_t ret = mintn_make_room (r, r->kvcap == 0 ? 10 : r->kvcap * 2);
-      if (ret)
-        {
-          return ret;
-        }
+      err_t_wrap (mintn_expand (r, e), e);
     }
 
   /*
@@ -132,17 +139,13 @@ mintn_add_right (mem_inner_node *r, b_size key, pgno pg)
 }
 
 err_t
-mintn_add_right_no_add (mem_inner_node *r, b_size key, pgno pg)
+mintn_add_right_no_add (mem_inner_node *r, b_size key, pgno pg, error *e)
 {
   mem_inner_node_assert (r);
 
   if (r->kvlen == r->kvcap)
     {
-      err_t ret = mintn_make_room (r, r->kvcap == 0 ? 10 : r->kvcap * 2);
-      if (ret)
-        {
-          return ret;
-        }
+      err_t_wrap (mintn_expand (r, e), e);
     }
 
   r->kvs[r->kvlen++] = (pg_rk){
@@ -154,17 +157,13 @@ mintn_add_right_no_add (mem_inner_node *r, b_size key, pgno pg)
 }
 
 err_t
-mintn_add_left (mem_inner_node *r, pgno pg, b_size key)
+mintn_add_left (mem_inner_node *r, pgno pg, b_size key, error *e)
 {
   mem_inner_node_assert (r);
 
   if (r->kvlen == r->kvcap)
     {
-      err_t ret = mintn_make_room (r, r->kvcap == 0 ? 10 : r->kvcap * 2);
-      if (ret)
-        {
-          return ret;
-        }
+      err_t_wrap (mintn_expand (r, e), e);
     }
 
   /**

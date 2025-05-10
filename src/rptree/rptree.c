@@ -1,6 +1,6 @@
 #include "rptree/rptree.h"
 #include "dev/assert.h"
-#include "dev/errors.h"
+#include "errors/error.h"
 #include "intf/mm.h"
 #include "intf/stdlib.h"
 #include "paging/page.h"
@@ -47,42 +47,32 @@ rpt_create (rpt_params p)
 }
 
 err_t
-rpt_new (rptree *r)
+rpt_new (pgno *dest, rptree *r, error *e)
 {
   rptree_assert (r);
   ASSERT (!r->is_open);
 
-  err_t ret;
+  err_t_wrap (pgr_new (&r->cur, r->pager, PG_DATA_LIST, e), e);
 
-  /**
-   * Create a new page
-   */
-  if ((ret = pgr_new (&r->cur, r->pager, PG_DATA_LIST)))
-    {
-      return ret;
-    }
-
+  *dest = r->cur.pg;
   r->is_open = true;
 
   return SUCCESS;
 }
 
 err_t
-rpt_open (rptree *r, pgno p0)
+rpt_open (rptree *r, pgno p0, error *e)
 {
   rptree_assert (r);
   ASSERT (!r->is_open);
 
-  err_t ret;
-
   // Fetch the root page
-  if ((ret = pgr_get_expect (
-           &r->cur,
-           PG_INNER_NODE | PG_DATA_LIST,
-           p0, r->pager)))
-    {
-      return ret;
-    }
+  err_t_wrap (
+      pgr_get_expect (
+          &r->cur,
+          PG_INNER_NODE | PG_DATA_LIST,
+          p0, r->pager, e),
+      e);
 
   r->is_open = true;
 
@@ -100,28 +90,30 @@ rpt_close (rptree *r)
 }
 
 err_t
-rpt_seek (rptree *r, b_size b)
+rpt_seek (rptree *r, b_size b, error *e)
 {
   rptree_assert (r);
-  err_t ret = seek (
-      &r->seek,
-      (seek_params){
-          .starting_page = r->cur,
-          .pager = r->pager,
-          .alloc = r->alloc,
-          .whereto = b,
-          .scap = 10,
-      });
-  if (ret)
-    {
-      return ret;
-    }
+
+  err_t_wrap (
+      seek (
+          &r->seek,
+          (seek_params){
+              .starting_page = r->cur,
+              .pager = r->pager,
+              .alloc = r->alloc,
+              .whereto = b,
+              .scap = 10,
+          },
+          e),
+      e);
+
   r->is_seeked = true;
-  return ret;
+
+  return SUCCESS;
 }
 
 err_t
-rpt_insert (const u8 *src, t_size size, b_size n, rptree *r)
+rpt_insert (const u8 *src, t_size size, b_size n, rptree *r, error *e)
 {
   ASSERT (src);
   ASSERT (size > 0);
@@ -142,11 +134,14 @@ rpt_insert (const u8 *src, t_size size, b_size n, rptree *r)
     {
       page cur;
       seek_v next = r->seek.stack[i];
-      if ((ret = pgr_get_expect (
-               &cur, PG_INNER_NODE, next.pg, r->pager)))
-        {
-          return ret;
-        }
+      err_t_wrap (
+          pgr_get_expect (
+              &cur, PG_INNER_NODE,
+              next.pg, r->pager, e),
+          e);
+      {
+        return ret;
+      }
       in_add_right (&cur.in, next.lidx, btotal);
     }
 
@@ -155,20 +150,20 @@ rpt_insert (const u8 *src, t_size size, b_size n, rptree *r)
    * data node
    */
   mem_inner_node out;
-  if ((ret = dliacin (
-           &out,
-           (dliacin_params){
-               .idx0 = r->lidx,
-               .pg0 = r->cur,
-               .pager = r->pager,
-               .alloc = r->alloc,
-               .src = src,
-               .size = size,
-               .n = n,
-           })))
-    {
-      return ret;
-    }
+  err_t_wrap (
+      dliacin (
+          &out,
+          (dliacin_params){
+              .idx0 = r->lidx,
+              .pg0 = r->cur,
+              .pager = r->pager,
+              .alloc = r->alloc,
+              .src = src,
+              .size = size,
+              .n = n,
+          },
+          e),
+      e);
 
   int sp = r->seek.sp;
   mem_inner_node input = out;
@@ -185,14 +180,10 @@ rpt_insert (const u8 *src, t_size size, b_size n, rptree *r)
            * need more room, create a new root node and push it
            * onto the stack
            */
-          if ((ret = pgr_new (&cur, r->pager, PG_INNER_NODE)))
-            {
-              return ret;
-            }
-          if ((ret = seek_r_push_to_bottom (&r->seek, cur, 0)))
-            {
-              return ret;
-            }
+          err_t_wrap (pgr_new (&cur, r->pager, PG_INNER_NODE, e), e);
+
+          err_t_wrap (seek_r_push_to_bottom (&r->seek, cur, 0, e), e);
+
           from = 0;
         }
       else
@@ -201,33 +192,33 @@ rpt_insert (const u8 *src, t_size size, b_size n, rptree *r)
            * We are at an inner node, fetch that node
            */
           seek_v v = r->seek.stack[--sp];
-          if ((ret = pgr_get_expect (
-                   &cur,
-                   PG_INNER_NODE,
-                   v.pg, r->pager)))
-            {
-              return ret;
-            }
+          err_t_wrap (
+              pgr_get_expect (
+                  &cur,
+                  PG_INNER_NODE,
+                  v.pg, r->pager, e),
+              e);
+
           from = v.lidx;
         }
 
-      if ((ret = iniacin (
-               &out, (iniacin_params){
-                         .input = input,
-                         .idx0 = from,
-                         .alloc = r->alloc,
-                         .pager = r->pager,
-                         .pg0 = cur,
-                     })))
-        {
-          return ret;
-        }
+      err_t_wrap (
+          iniacin (
+              &out, (iniacin_params){
+                        .input = input,
+                        .idx0 = from,
+                        .alloc = r->alloc,
+                        .pager = r->pager,
+                        .pg0 = cur,
+                    },
+              e),
+          e);
     }
   return ret;
 }
 
 static err_t
-rpt_read_next (u8 *dest, b_size *bytes, rptree *r)
+rpt_read_next (u8 *dest, b_size *bytes, rptree *r, error *e)
 {
   ASSERT (bytes);
   ASSERT (*bytes > 0);
@@ -246,15 +237,14 @@ rpt_read_next (u8 *dest, b_size *bytes, rptree *r)
             }
 
           // Fetch the next page
-          err_t ret = pgr_get_expect (
-              &r->cur,
-              PG_DATA_LIST,
-              *r->cur.dl.next,
-              r->pager);
-          if (ret)
-            {
-              return ret;
-            }
+          err_t_wrap (
+              pgr_get_expect (
+                  &r->cur,
+                  PG_DATA_LIST,
+                  *r->cur.dl.next,
+                  r->pager, e),
+              e);
+
           r->lidx = 0;
         }
 
@@ -273,7 +263,7 @@ rpt_read_next (u8 *dest, b_size *bytes, rptree *r)
 }
 
 err_t
-rpt_read (u8 *dest, t_size size, b_size *n, b_size nskip, rptree *r)
+rpt_read (u8 *dest, t_size size, b_size *n, b_size nskip, rptree *r, error *e)
 {
   ASSERT (dest);
   ASSERT (size > 0);
@@ -286,11 +276,7 @@ rpt_read (u8 *dest, t_size size, b_size *n, b_size nskip, rptree *r)
 
   if (nskip == 1)
     {
-      err_t ret = rpt_read_next (dest, &toread, r);
-      if (ret)
-        {
-          return ret;
-        }
+      err_t_wrap (rpt_read_next (dest, &toread, r, e), e);
 
       /**
        * Next should either == 0 or 1 * size
@@ -298,7 +284,11 @@ rpt_read (u8 *dest, t_size size, b_size *n, b_size nskip, rptree *r)
       ASSERT (toread <= size * *n);
       if (toread % size != 0)
         {
-          return ERR_INVALID_STATE;
+          return error_causef (
+              e, ERR_CORRUPT,
+              "Expecting data list to have data in multiples "
+              "of %" PRt_size " but read: %" PRb_size " bytes",
+              size, toread);
         }
 
       ASSERT (toread % size == 0);
@@ -312,11 +302,8 @@ rpt_read (u8 *dest, t_size size, b_size *n, b_size nskip, rptree *r)
   while (read < toread)
     {
       next = size;
-      err_t ret = rpt_read_next (dest + read, &next, r);
-      if (ret)
-        {
-          return ret;
-        }
+      err_t_wrap (rpt_read_next (dest + read, &next, r, e), e);
+
       read += next;
 
       /**
@@ -333,23 +320,25 @@ rpt_read (u8 *dest, t_size size, b_size *n, b_size nskip, rptree *r)
           // rpt is telling me it's at the end, but
           // it read a non multiple of size -
           // I think this logic might not belong here
-          return ERR_INVALID_STATE;
+          // TODO - better error message
+          return error_causef (
+              e, ERR_CORRUPT,
+              "Failed to read a multiple of %d bytes", size);
         }
 
       // Skip values
       next = size * (nskip - 1);
-      ret = rpt_read_next (NULL, &next, r);
-      if (ret)
-        {
-          return ret;
-        }
+      err_t_wrap (rpt_read_next (NULL, &next, r, e), e);
 
       ASSERT (next <= size * (nskip - 1));
       if (next < size * (nskip - 1))
         {
           if (next % size != 0)
             {
-              return ERR_INVALID_STATE;
+              // TODO - better error message
+              return error_causef (
+                  e, ERR_CORRUPT,
+                  "Failed to read a multiple of %d bytes", size);
             }
 
           // We reached the end

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "errors/error.h"
 #include "intf/mm.h"
 #include "intf/types.h"
 
@@ -31,7 +32,7 @@ typedef struct
  * Returns:
  *  - ERR_NOMEM from allocation
  */
-err_t mpgr_create (memory_pager *dest, mpgr_params params);
+err_t mpgr_create (memory_pager *dest, mpgr_params params, error *e);
 
 /**
  * Creates a new page

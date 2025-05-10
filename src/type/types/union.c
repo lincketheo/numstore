@@ -1,10 +1,6 @@
 #include "type/types/union.h"
-#include "dev/assert.h"
-#include "dev/errors.h"
-#include "ds/strings.h"
 #include "intf/stdlib.h"
 #include "type/types.h"
-#include "utils/serializer.h"
 
 DEFINE_DBG_ASSERT_I (union_t, unchecked_union_t, s)
 {
@@ -13,47 +9,52 @@ DEFINE_DBG_ASSERT_I (union_t, unchecked_union_t, s)
   ASSERT (s->types);
 }
 
-static bool
-union_t_is_valid_shallow (const union_t *s)
+static err_t
+union_t_validate_shallow (const union_t *s, error *e)
 {
   unchecked_union_t_assert (s);
+
   if (s->len == 0)
     {
-      return false;
+      return error_causef (e, 1, "Union key length must be > 0");
     }
 
   for (u32 i = 0; i < s->len; ++i)
     {
       if (s->keys[i].len == 0)
         {
-          return false;
+          return error_causef (
+              e, ERR_INVALID_TYPE,
+              "Union: length of key at index: %d is 0", i);
         }
       ASSERT (s->keys[i].data);
     }
+  u32 i, j;
+  if (!strings_all_unique_with_return (&i, &j, s->keys, s->len))
+    {
+      return error_causef (
+          e, ERR_INVALID_TYPE,
+          "Union: Keys %d and %d are duplicates", i, j);
+    }
 
-  return strings_all_unique (s->keys, s->len);
+  return SUCCESS;
 }
 
 DEFINE_DBG_ASSERT_I (union_t, valid_union_t, s)
 {
-  ASSERT (union_t_is_valid_shallow (s));
+  ASSERT (union_t_validate_shallow (s, NULL) == SUCCESS);
 }
 
-bool
-union_t_is_valid (const union_t *s)
+err_t
+union_t_validate (const union_t *t, error *e)
 {
-  if (!union_t_is_valid_shallow (s))
+  err_t_wrap (union_t_validate_shallow (t, e), e);
+
+  for (u32 i = 0; i < t->len; ++i)
     {
-      return false;
+      err_t_wrap (type_validate (&t->types[i], e), e);
     }
-  for (u32 i = 0; i < s->len; ++i)
-    {
-      if (!type_is_valid (&s->types[i]))
-        {
-          return false;
-        }
-    }
-  return true;
+  return SUCCESS;
 }
 
 int
@@ -317,7 +318,11 @@ union_t_serialize (serializer *dest, const union_t *src)
 }
 
 err_t
-union_t_deserialize (union_t *dest, deserializer *src, lalloc *a)
+union_t_deserialize (
+    union_t *dest,
+    deserializer *src,
+    lalloc *a,
+    error *e)
 {
   ASSERT (dest);
 
@@ -330,19 +335,42 @@ union_t_deserialize (union_t *dest, deserializer *src, lalloc *a)
   u16 len = 0;
   if (!dsrlizr_read_u16 (&len, src))
     {
-      ret = ERR_INVALID_STATE;
+      ret = error_causef (
+          e, ERR_TYPE_DESER,
+          "Union Deserialize. Expected a length header");
       goto failed;
     }
-
   un.len = len;
-  un.keys = lmalloc (a, len * sizeof *un.keys);
-  un.types = lmalloc (a, len * sizeof *un.types);
 
-  if (un.keys == NULL || un.types == NULL)
+  /**
+   * Allocate Keys buffer
+   */
+  lalloc_r keys = lcalloc (a, len, len, sizeof *un.keys);
+  if (keys.stat != AR_SUCCESS)
     {
-      ret = ERR_NOMEM;
+      ret = error_causef (
+          e, ERR_NOMEM,
+          "Union Deserialize: not enough "
+          "memory to allocate keys buffer for %d keys",
+          len);
       goto failed;
     }
+  un.keys = keys.ret;
+
+  /**
+   * Allocate Types buffer
+   */
+  lalloc_r types = lcalloc (a, len, len, sizeof *un.types);
+  if (keys.stat != AR_SUCCESS)
+    {
+      ret = error_causef (
+          e, ERR_NOMEM,
+          "Union Deserialize: not enough "
+          "memory to allocate type buffer for %d types",
+          len);
+      goto failed;
+    }
+  un.types = types.ret;
 
   for (u32 i = 0; i < len; ++i)
     {
@@ -351,16 +379,27 @@ union_t_deserialize (union_t *dest, deserializer *src, lalloc *a)
        */
       if (!dsrlizr_read_u16 (&len, src))
         {
-          ret = ERR_INVALID_STATE;
+          ret = error_causef (
+              e, ERR_TYPE_DESER,
+              "Union Deserialize. Expected a key length "
+              "header for key: %d",
+              i);
           goto failed;
         }
 
-      un.keys[i].data = lmalloc (a, len);
-      if (un.keys[i].data == NULL)
+      lalloc_r data = lmalloc (a, len, len, 1);
+
+      if (keys.stat != AR_SUCCESS)
         {
-          ret = ERR_NOMEM;
+          ret = error_causef (
+              e, ERR_NOMEM,
+              "Union Deserialize: not enough "
+              "memory to allocate key: %d of length: %d",
+              i, len);
           goto failed;
         }
+
+      un.keys[i].data = data.ret;
       un.keys[i].len = len;
 
       /**
@@ -368,25 +407,24 @@ union_t_deserialize (union_t *dest, deserializer *src, lalloc *a)
        */
       if (!dsrlizr_read ((u8 *)un.keys[i].data, len, src))
         {
-          ret = ERR_INVALID_STATE;
+          ret = error_causef (
+              e, ERR_TYPE_DESER,
+              "Union Deserialize. Expected %d bytes for key %d",
+              len, i);
           goto failed;
         }
 
       /**
        * (TYPE)
        */
-      if ((ret = type_deserialize (&un.types[i], src, a)))
+      if (type_deserialize (&un.types[i], src, a, e))
         {
           goto failed;
         }
     }
 
   unchecked_union_t_assert (&un);
-  if (!union_t_is_valid_shallow (&un))
-    {
-      ret = ERR_INVALID_STATE;
-      goto failed;
-    }
+  err_t_wrap (union_t_validate_shallow (&un, e), e);
   valid_union_t_assert (&un);
 
   *dest = un;

@@ -1,6 +1,7 @@
 #include "ds/cbuffer.h"
 #include "dev/assert.h"
 #include "dev/testing.h"
+#include "errors/error.h"
 #include "intf/io.h"
 #include "intf/stdlib.h"
 #include "utils/bounds.h"
@@ -502,7 +503,7 @@ TEST (cbuffer_cbuffer_copy)
 ///////////////////////// IO Read / Write
 
 i32
-cbuffer_write_some_from_file (i_file *src, cbuffer *b)
+cbuffer_write_some_from_file (i_file *src, cbuffer *b, error *e)
 {
   cbuffer_assert (b);
   ASSERT (src);
@@ -532,10 +533,10 @@ cbuffer_write_some_from_file (i_file *src, cbuffer *b)
           next = MIN (b->tail - b->head, btowrite - bwrite);
         }
 
-      i64 read = i_read_some (src, b->data + b->head, next);
+      i64 read = i_read_some (src, b->data + b->head, next, e);
       if (read < 0)
         {
-          return ERR_IO;
+          return err_t_from (e);
         }
 
       b->head = (b->head + read) % b->cap;
@@ -557,7 +558,7 @@ cbuffer_write_some_from_file (i_file *src, cbuffer *b)
 }
 
 i32
-cbuffer_read_some_to_file (i_file *dest, cbuffer *b)
+cbuffer_read_some_to_file (i_file *dest, cbuffer *b, error *e)
 {
   cbuffer_assert (b);
 
@@ -577,10 +578,10 @@ cbuffer_read_some_to_file (i_file *dest, cbuffer *b)
           next = MIN (b->cap - b->tail, btoread - bread);
         }
 
-      i64 written = i_write_some (dest, b->data + b->tail, next);
+      i64 written = i_write_some (dest, b->data + b->tail, next, e);
       if (written < 0)
         {
-          return ERR_IO;
+          return err_t_from (e);
         }
 
       b->tail = (b->tail + written) % b->cap;

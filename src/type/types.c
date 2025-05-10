@@ -1,7 +1,10 @@
 #include "type/types.h"
 #include "dev/assert.h"
-#include "dev/errors.h"
+#include "errors/error.h"
 #include "intf/mm.h"
+#include "type/types/enum.h"
+#include "type/types/prim.h"
+#include "type/types/union.h"
 
 DEFINE_DBG_ASSERT_I (type, unchecked_type, t)
 {
@@ -10,38 +13,38 @@ DEFINE_DBG_ASSERT_I (type, unchecked_type, t)
 
 DEFINE_DBG_ASSERT_I (type, valid_type, t)
 {
-  ASSERT (type_is_valid (t));
+  ASSERT (type_validate (t, NULL) == SUCCESS);
 }
 
-bool
-type_is_valid (const type *t)
+err_t
+type_validate (const type *t, error *e)
 {
   unchecked_type_assert (t);
   switch (t->type)
     {
     case T_PRIM:
       {
-        return prim_t_is_valid (&t->p);
+        return prim_t_validate (&t->p, e);
       }
     case T_STRUCT:
       {
-        return struct_t_is_valid (&t->st);
+        return struct_t_validate (&t->st, e);
       }
     case T_UNION:
       {
-        return union_t_is_valid (&t->un);
+        return union_t_validate (&t->un, e);
       }
     case T_ENUM:
       {
-        return enum_t_is_valid (&t->en);
+        return enum_t_validate (&t->en, e);
       }
     case T_SARRAY:
       {
-        return sarray_t_is_valid (&t->sa);
+        return sarray_t_validate (&t->sa, e);
       }
     default:
       {
-        ASSERT (0);
+        UNREACHABLE ();
         return -1;
       }
     }
@@ -76,7 +79,7 @@ type_snprintf (char *str, u32 size, type *t)
       }
     default:
       {
-        ASSERT (0);
+        UNREACHABLE ();
         return -1;
       }
     }
@@ -116,7 +119,7 @@ type_byte_size (const type *t)
 
     default:
       {
-        ASSERT (0);
+        UNREACHABLE ();
         return 0;
       }
     }
@@ -155,7 +158,7 @@ type_free_internals_forgiving (type *t, lalloc *alloc)
       }
     default:
       {
-        ASSERT (0);
+        UNREACHABLE ();
         break;
       }
     }
@@ -194,7 +197,7 @@ type_free_internals (type *t, lalloc *alloc)
       }
     default:
       {
-        ASSERT (0);
+        UNREACHABLE ();
         break;
       }
     }
@@ -234,7 +237,7 @@ type_get_serial_size (const type *t)
       }
     default:
       {
-        ASSERT (0);
+        UNREACHABLE ();
         return 0;
       }
     }
@@ -278,14 +281,14 @@ type_serialize (serializer *dest, const type *src)
       }
     default:
       {
-        ASSERT (0);
+        UNREACHABLE ();
         break;
       }
     }
 }
 
 err_t
-type_deserialize (type *dest, deserializer *src, lalloc *alloc)
+type_deserialize (type *dest, deserializer *src, lalloc *alloc, error *e)
 {
   /**
    * No need to free forgiving because functions
@@ -296,31 +299,27 @@ type_deserialize (type *dest, deserializer *src, lalloc *alloc)
     {
     case T_PRIM:
       {
-        return prim_t_deserialize (&dest->p, src);
+        return prim_t_deserialize (&dest->p, src, e);
       }
     case T_STRUCT:
       {
-        return struct_t_deserialize (&dest->st, src, alloc);
-        break;
+        return struct_t_deserialize (&dest->st, src, alloc, e);
       }
     case T_UNION:
       {
-        return union_t_deserialize (&dest->un, src, alloc);
-        break;
+        return union_t_deserialize (&dest->un, src, alloc, e);
       }
     case T_ENUM:
       {
-        return enum_t_deserialize (&dest->en, src, alloc);
-        break;
+        return enum_t_deserialize (&dest->en, src, alloc, e);
       }
     case T_SARRAY:
       {
-        return sarray_t_deserialize (&dest->sa, src, alloc);
-        break;
+        return sarray_t_deserialize (&dest->sa, src, alloc, e);
       }
     default:
       {
-        ASSERT (0);
+        UNREACHABLE ();
         return ERR_FALLBACK;
       }
     }

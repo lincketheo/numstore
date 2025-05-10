@@ -1,13 +1,9 @@
 #include "type/types/struct.h"
-#include "dev/assert.h"
-#include "dev/errors.h"
 #include "dev/testing.h"
 #include "ds/strings.h"
+#include "errors/error.h"
 #include "intf/stdlib.h"
-#include "intf/types.h"
 #include "type/types.h"
-#include "utils/deserializer.h"
-#include "utils/serializer.h"
 
 DEFINE_DBG_ASSERT_I (struct_t, unchecked_struct_t, s)
 {
@@ -16,21 +12,23 @@ DEFINE_DBG_ASSERT_I (struct_t, unchecked_struct_t, s)
   ASSERT (s->types);
 }
 
-static bool
-struct_t_is_valid_shallow (const struct_t *s)
+static err_t
+struct_t_validate_shallow (const struct_t *s, error *e)
 {
   unchecked_struct_t_assert (s);
 
   if (s->len == 0)
     {
-      return false;
+      return error_causef (e, 1, "Struct key length must be > 0");
     }
 
   for (u32 i = 0; i < s->len; ++i)
     {
       if (s->keys[i].len == 0)
         {
-          return false;
+          return error_causef (
+              e, ERR_INVALID_TYPE,
+              "Struct: length of key at index: %d is 0", i);
         }
       ASSERT (s->keys[i].data);
     }
@@ -40,22 +38,22 @@ struct_t_is_valid_shallow (const struct_t *s)
 
 DEFINE_DBG_ASSERT_I (struct_t, valid_struct_t, s)
 {
-  ASSERT (struct_t_is_valid_shallow (s));
+  ASSERT (struct_t_validate_shallow (s, NULL) == SUCCESS);
 }
 
-bool
-struct_t_is_valid (const struct_t *s)
+err_t
+struct_t_validate (const struct_t *s, error *e)
 {
-  if (!struct_t_is_valid_shallow (s))
-    {
-      return false;
-    }
+  err_t_wrap (struct_t_validate_shallow (s, e), e);
+  {
+    return false;
+  }
   for (u32 i = 0; i < s->len; ++i)
     {
-      if (!type_is_valid (&s->types[i]))
-        {
-          return false;
-        }
+      err_t_wrap (type_validate (&s->types[i], e), e);
+      {
+        return false;
+      }
     }
   return true;
 }
@@ -345,7 +343,11 @@ struct_t_serialize (serializer *dest, const struct_t *src)
 }
 
 err_t
-struct_t_deserialize (struct_t *dest, deserializer *src, lalloc *a)
+struct_t_deserialize (
+    struct_t *dest,
+    deserializer *src,
+    lalloc *a,
+    error *e)
 {
   ASSERT (dest);
 
@@ -358,19 +360,42 @@ struct_t_deserialize (struct_t *dest, deserializer *src, lalloc *a)
   u16 len = 0;
   if (!dsrlizr_read_u16 (&len, src))
     {
-      ret = ERR_INVALID_STATE;
+      ret = error_causef (
+          e, ERR_TYPE_DESER,
+          "Struct Deserialize. Expected a length header");
       goto failed;
     }
-
   st.len = len;
-  st.keys = lmalloc (a, len * sizeof *st.keys);
-  st.types = lmalloc (a, len * sizeof *st.types);
 
-  if (st.keys == NULL || st.types == NULL)
+  /**
+   * Allocate Keys buffer
+   */
+  lalloc_r keys = lcalloc (a, len, len, sizeof *st.keys);
+  if (keys.stat != AR_SUCCESS)
     {
-      ret = ERR_NOMEM;
+      ret = error_causef (
+          e, ERR_NOMEM,
+          "Struct Deserialize: not enough "
+          "memory to allocate keys buffer for %d keys",
+          len);
       goto failed;
     }
+  st.keys = keys.ret;
+
+  /**
+   * Allocate Types buffer
+   */
+  lalloc_r types = lcalloc (a, len, len, sizeof *st.types);
+  if (keys.stat != AR_SUCCESS)
+    {
+      ret = error_causef (
+          e, ERR_NOMEM,
+          "Struct Deserialize: not enough "
+          "memory to allocate type buffer for %d types",
+          len);
+      goto failed;
+    }
+  st.types = types.ret;
 
   for (u32 i = 0; i < len; ++i)
     {
@@ -379,16 +404,27 @@ struct_t_deserialize (struct_t *dest, deserializer *src, lalloc *a)
        */
       if (!dsrlizr_read_u16 (&len, src))
         {
-          ret = ERR_INVALID_STATE;
+          ret = error_causef (
+              e, ERR_TYPE_DESER,
+              "Struct Deserialize. Expected a key length "
+              "header for key: %d",
+              i);
           goto failed;
         }
 
-      st.keys[i].data = lmalloc (a, len);
-      if (st.keys[i].data == NULL)
+      lalloc_r data = lmalloc (a, len, len, 1);
+
+      if (keys.stat != AR_SUCCESS)
         {
-          ret = ERR_NOMEM;
+          ret = error_causef (
+              e, ERR_NOMEM,
+              "Struct Deserialize: not enough "
+              "memory to allocate key: %d of length: %d",
+              i, len);
           goto failed;
         }
+
+      st.keys[i].data = data.ret;
       st.keys[i].len = len;
 
       /**
@@ -396,25 +432,24 @@ struct_t_deserialize (struct_t *dest, deserializer *src, lalloc *a)
        */
       if (!dsrlizr_read ((u8 *)st.keys[i].data, len, src))
         {
-          ret = ERR_INVALID_STATE;
+          ret = error_causef (
+              e, ERR_TYPE_DESER,
+              "Struct Deserialize. Expected %d bytes for key %d",
+              len, i);
           goto failed;
         }
 
       /**
        * (TYPE)
        */
-      if ((ret = type_deserialize (&st.types[i], src, a)))
+      if (type_deserialize (&st.types[i], src, a, e))
         {
           goto failed;
         }
     }
 
   unchecked_struct_t_assert (&st);
-  if (!struct_t_is_valid_shallow (&st))
-    {
-      ret = ERR_INVALID_STATE;
-      goto failed;
-    }
+  err_t_wrap (struct_t_validate_shallow (&st, e), e);
   valid_struct_t_assert (&st);
 
   *dest = st;

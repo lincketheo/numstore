@@ -1,48 +1,43 @@
 #pragma once
 
-/**
-#include "cursor/btree_cursor.h"
-#include "ds/cbuffer.h"
-#include "intf/mm.h"
-#include "query/queries/create.h"
-#include "typing.h"
-#include "variable.h"
-#include "vhash_map.h"
+#include "intf/mm.h"                 // lalloc
+#include "query/queries/create.h"    // create_query
+#include "rptree/rptree.h"           // rptree
+#include "variables/vfile_hashmap.h" // vfile_hashmap
 
 typedef struct
 {
-  btree_cursor btc;
+  rptree r;
+  vfile_hashmap hm;
+
+  vmeta meta;
+  bool is_meta_loaded;
 } cursor;
 
 typedef struct
 {
-  btc_params nparams;
-  lalloc *vtype_allocator;
+  pager *pager;
+  lalloc *alloc;
 } crsr_params;
-*/
+
+cursor crsr_create (crsr_params params);
 
 /**
- * Returns:
- *   - Forwards errors from:
- *     - btc_create
+ * Errors
+ *   - ERR_CORRUPT - if the first page is already present
+ *   - ERR_IO - truncate failure
+ *   - ERR_IO - pwrite failure
  */
-// err_t crsr_create (cursor *dest, crsr_params params);
+err_t crsr_create_hash_table (cursor *c, error *e);
 
 /**
- * Returns:
- *   - Forwards errors from:
- *     - vhash_map_get
- *     - vhash_map_insert
- *     - btc_goto_new_page
+ * Errors:
+ *  - ERR_NOMEM -
  */
-// err_t crsr_create_var (cursor *c, const create_query query);
+err_t crsr_create_var (cursor *c, const create_query query, error *e);
 
-/**
- * Returns:
- *   - Forwards errors from:
- *     - vhash_map_get
- *     - vhash_map_insert
- *     - btc_goto_new_page
- */
-// err_t crsr_load_var (cursor *c, vmeta *dest, const string vname);
-// err_t crsr_unload_var (cursor *c);
+err_t crsr_create_and_load_var (cursor *c, const create_query query, error *e);
+
+err_t crsr_load_var (cursor *c, const string vname, error *e);
+
+void crsr_unload_var (cursor *c);

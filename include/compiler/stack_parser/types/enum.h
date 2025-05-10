@@ -1,10 +1,10 @@
 #pragma once
 
-#include "compiler/stack_parser/common.h"
-#include "compiler/tokens.h"
-#include "ds/strings.h"
-#include "intf/mm.h"
-#include "type/builders/enum.h"
+#include "compiler/stack_parser/common.h" // stackp_result
+#include "compiler/tokens.h"              // token
+#include "intf/mm.h"                      // lalloc
+
+#include "type/builders/enum.h" // enum_builder
 
 typedef struct type_parser_s type_parser;
 

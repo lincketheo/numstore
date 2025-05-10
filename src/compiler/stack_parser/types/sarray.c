@@ -2,7 +2,7 @@
 #include "compiler/stack_parser/common.h"
 #include "compiler/stack_parser/type_parser.h"
 #include "compiler/tokens.h"
-#include "dev/errors.h"
+#include "dev/assert.h"
 #include "type/types.h"
 #include "utils/bounds.h"
 
@@ -31,11 +31,11 @@ sap_create (type_parser *dest, lalloc *alloc)
 {
   ASSERT (dest);
 
-  switch (sab_create (&dest->sap.builder, alloc))
+  switch (sab_create (&dest->sap.builder, alloc, NULL))
     {
     case ERR_NOMEM:
       {
-        return SPR_MALLOC_ERROR;
+        return SPR_NOMEM;
       }
     case SUCCESS:
       {
@@ -49,8 +49,7 @@ sap_create (type_parser *dest, lalloc *alloc)
       }
     default:
       {
-        ASSERT (0);
-        return SPR_MALLOC_ERROR;
+        UNREACHABLE ();
       }
     }
 }
@@ -60,15 +59,11 @@ sap_build (type_parser *tb)
 {
   sarray_parser_assert_state (tb, SAP_DONE);
 
-  switch (sab_build (&tb->ret.sa, &tb->sap.builder))
+  switch (sab_build (&tb->ret.sa, &tb->sap.builder, NULL))
     {
     case ERR_INVALID_ARGUMENT:
       {
         return SPR_SYNTAX_ERROR;
-      }
-    case ERR_IO:
-      {
-        return SPR_MALLOC_ERROR;
       }
     case SUCCESS:
       {
@@ -77,8 +72,7 @@ sap_build (type_parser *tb)
       }
     default:
       {
-        ASSERT (0);
-        return SPR_MALLOC_ERROR;
+        UNREACHABLE ();
       }
     }
 }
@@ -130,11 +124,11 @@ TOK_HANDLER_FUNC (SAP_WAITING_FOR_NUMBER) (
       return SPR_SYNTAX_ERROR;
     }
 
-  switch (sab_accept_dim (&sb->sap.builder, (u32)t.integer))
+  switch (sab_accept_dim (&sb->sap.builder, (u32)t.integer, NULL))
     {
     case ERR_NOMEM:
       {
-        return SPR_MALLOC_ERROR;
+        return SPR_NOMEM;
       }
     case SUCCESS:
       {
@@ -147,8 +141,7 @@ TOK_HANDLER_FUNC (SAP_WAITING_FOR_NUMBER) (
       }
     default:
       {
-        ASSERT (0);
-        return SPR_MALLOC_ERROR;
+        UNREACHABLE ();
       }
     }
 }
@@ -219,11 +212,11 @@ TYPE_HANDLER_FUNC (SAP_WAITING_FOR_LEFT_OR_TYPE) (type_parser *sab, type t)
 {
   sarray_parser_assert_state (sab, SAP_WAITING_FOR_LEFT_OR_TYPE);
 
-  switch (sab_accept_type (&sab->sap.builder, t))
+  switch (sab_accept_type (&sab->sap.builder, t, NULL))
     {
     case ERR_NOMEM:
       {
-        return SPR_MALLOC_ERROR;
+        return SPR_NOMEM;
       }
     case SUCCESS:
       {
@@ -232,8 +225,7 @@ TYPE_HANDLER_FUNC (SAP_WAITING_FOR_LEFT_OR_TYPE) (type_parser *sab, type t)
       }
     default:
       {
-        ASSERT (0);
-        return SPR_MALLOC_ERROR;
+        UNREACHABLE ();
       }
     }
 }

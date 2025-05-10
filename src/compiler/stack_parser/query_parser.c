@@ -115,7 +115,7 @@ qryp_accept_token (query_parser *qb, token t)
         return SPR_SYNTAX_ERROR;
       }
     }
-  ASSERT (0);
+  UNREACHABLE ();
   return 0;
 }
 

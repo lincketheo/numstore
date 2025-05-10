@@ -2,9 +2,9 @@
 
 #include "compiler/stack_parser/query_parser.h"
 #include "compiler/stack_parser/type_parser.h"
-#include "compiler/tokens.h"
-#include "services/services.h"
-#include "type/types.h"
+
+#include "compiler/tokens.h" // token
+#include "type/types.h"      // u32
 
 /**
  * These are "non terminals" (not exactly, but similar)
@@ -51,8 +51,8 @@ typedef struct
   u32 sp;
   u32 cap;
 
-  lalloc *type_allocator;  // for allocating return types onto
-  lalloc *stack_allocator; // for allocating the internal stack
+  lalloc *type_allocator;  // For allocating types onto
+  lalloc *stack_allocator; // For growing the stack
 } stack_parser;
 
 typedef struct
@@ -65,7 +65,7 @@ typedef struct
  * Returns:
  *   - ERR_NOMEM if there's not enough memory to create the stack
  */
-err_t stackp_create (stack_parser *dest, sp_params params);
+err_t stackp_create (stack_parser *dest, sp_params params, error *e);
 
 stackp_result stackp_feed_token (stack_parser *sp, token t);
 

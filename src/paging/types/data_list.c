@@ -1,9 +1,9 @@
 #include "paging/types/data_list.h"
 #include "dev/assert.h"
+#include "errors/error.h"
 #include "intf/stdlib.h"
 #include "intf/types.h"
 #include "paging/page.h"
-#include <sys/types.h>
 
 #define DL_HEDR_OFFSET (0)
 #define DL_NEXT_OFFSET (DL_HEDR_OFFSET + sizeof (*((data_list *)0)->header))
@@ -24,11 +24,11 @@ DEFINE_DBG_ASSERT_I (data_list, unchecked_data_list, d)
 
 DEFINE_DBG_ASSERT_I (data_list, valid_data_list, d)
 {
-  ASSERT (dl_is_valid (d));
+  ASSERT (dl_validate (d, NULL) == SUCCESS);
 }
 
-bool
-dl_is_valid (const data_list *d)
+err_t
+dl_validate (const data_list *d, error *e)
 {
   unchecked_data_list_assert (d);
 
@@ -37,7 +37,10 @@ dl_is_valid (const data_list *d)
    */
   if (*d->header != (u8)PG_DATA_LIST)
     {
-      return false;
+      return error_causef (
+          e, ERR_CORRUPT,
+          "Data List: expected header: %" PRpgh " but got: %" PRpgh,
+          (pgh)PG_DATA_LIST, *d->header);
     }
 
   /**
@@ -45,10 +48,14 @@ dl_is_valid (const data_list *d)
    */
   if (*d->blen > dl_data_size (d->rlen))
     {
-      return false;
+      return error_causef (
+          e, ERR_CORRUPT,
+          "Data List: blen (%" PRp_size ") is more than"
+          "maximum blen (%" PRp_size ") for page size: %" PRp_size,
+          *d->blen, dl_data_size (d->rlen), d->rlen);
     }
 
-  return true;
+  return SUCCESS;
 }
 
 data_list
@@ -164,7 +171,6 @@ p_size
 dl_read_out_from (data_list *d, u8 *dest, p_size offset)
 {
   valid_data_list_assert (d);
-  ASSERT (dl_is_valid (d));
   ASSERT (dest);
 
   p_size dlen = *d->blen;
@@ -193,7 +199,6 @@ pgno
 dl_get_next (const data_list *d)
 {
   valid_data_list_assert (d);
-  ASSERT (dl_is_valid (d));
   return *d->next;
 }
 
@@ -201,7 +206,6 @@ void
 dl_set_next (data_list *d, pgno next)
 {
   valid_data_list_assert (d);
-  ASSERT (dl_is_valid (d));
   *d->next = next;
 }
 

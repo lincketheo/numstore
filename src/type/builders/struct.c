@@ -1,7 +1,7 @@
 #include "type/builders/struct.h"
 #include "dev/assert.h"
-#include "dev/errors.h"
 #include "ds/strings.h"
+#include "errors/error.h"
 #include "intf/mm.h"
 #include "type/types.h"
 
@@ -20,29 +20,40 @@ DEFINE_DBG_ASSERT_I (struct_builder, struct_builder, s)
 }
 
 err_t
-stb_create (struct_builder *dest, lalloc *alloc)
+stb_create (struct_builder *dest, lalloc *alloc, error *e)
 {
   ASSERT (dest);
 
-  string *keys = lmalloc (alloc, 10 * sizeof *keys);
-  if (!keys)
+  lalloc_r keys = lmalloc (
+      alloc, 10, 2,
+      sizeof *dest->keys);
+  if (keys.stat != AR_SUCCESS)
     {
-      return ERR_NOMEM;
-    }
-  type *types = lmalloc (alloc, 10 * sizeof *types);
-  if (!types)
-    {
-      lfree (alloc, keys);
-      return ERR_NOMEM;
+      return error_causef (
+          e, ERR_NOMEM,
+          "Struct Builder: "
+          "Not enough memory to allocate keys buffer");
     }
 
-  dest->keys = keys;
+  lalloc_r types = lmalloc (
+      alloc,
+      keys.rlen, keys.rlen,
+      sizeof *dest->types);
+  if (types.stat != AR_SUCCESS)
+    {
+      return error_causef (
+          e, ERR_NOMEM,
+          "Struct Builder: "
+          "Not enough memory to allocate types buffer");
+    }
+
+  dest->keys = keys.ret;
   dest->klen = 0;
-  dest->kcap = 10;
+  dest->kcap = keys.rlen;
 
-  dest->types = types;
+  dest->types = types.ret;
   dest->tlen = 0;
-  dest->tcap = 10;
+  dest->tcap = types.rlen;
 
   dest->alloc = alloc;
 
@@ -54,27 +65,39 @@ stb_create (struct_builder *dest, lalloc *alloc)
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 static inline err_t
-stb_double_cap (struct_builder *sb)
+stb_expand (struct_builder *sb, error *e)
 {
   struct_builder_assert (sb);
 
-  u32 cap = 2 * MAX (sb->kcap, sb->tcap);
-
-  string *keys = lrealloc (sb->alloc, sb->keys, cap * sizeof *keys);
-  if (!keys)
+  lalloc_r keys = lrealloc (
+      sb->alloc,
+      sb->keys,
+      2 * sb->kcap, sb->kcap + 1,
+      sizeof *sb->keys);
+  if (keys.stat != AR_SUCCESS)
     {
-      return ERR_NOMEM;
+      return error_causef (
+          e, ERR_NOMEM,
+          "Struct Builder: "
+          "Failed to reallocate keys buffer");
     }
-  sb->kcap = cap;
-  sb->keys = keys;
+  sb->kcap = keys.rlen;
+  sb->keys = keys.ret;
 
-  type *types = lrealloc (sb->alloc, sb->types, cap * sizeof *types);
-  if (!types)
+  lalloc_r types = lrealloc (
+      sb->alloc,
+      sb->types,
+      sb->kcap, sb->kcap,
+      sizeof *sb->types);
+  if (types.stat != AR_SUCCESS)
     {
-      return ERR_NOMEM;
+      return error_causef (
+          e, ERR_NOMEM,
+          "Struct Builder: "
+          "Failed to reallocate keys buffer");
     }
-  sb->tcap = cap;
-  sb->types = types;
+  sb->tcap = types.rlen;
+  sb->types = types.ret;
 
   return SUCCESS;
 }
@@ -93,24 +116,22 @@ stb_has_key_been_used (const struct_builder *sb, const string key)
 }
 
 err_t
-stb_accept_key (struct_builder *sb, string key)
+stb_accept_key (struct_builder *sb, string key, error *e)
 {
   struct_builder_assert (sb);
 
-  err_t ret = SUCCESS;
-
   if (stb_has_key_been_used (sb, key))
     {
-      return ERR_INVALID_ARGUMENT;
+      return error_causef (
+          e, ERR_INVALID_TYPE,
+          "Struct Builder: "
+          "Key: %.*s has already been used",
+          key.len, key.data);
     }
 
   if (sb->klen == sb->kcap)
     {
-      ret = stb_double_cap (sb);
-      if (ret)
-        {
-          return ret;
-        }
+      err_t_wrap (stb_expand (sb, e), e);
     }
 
   sb->keys[sb->klen++] = key;
@@ -119,19 +140,13 @@ stb_accept_key (struct_builder *sb, string key)
 }
 
 err_t
-stb_accept_type (struct_builder *sb, type t)
+stb_accept_type (struct_builder *sb, type t, error *e)
 {
   struct_builder_assert (sb);
 
-  err_t ret = SUCCESS;
-
   if (sb->tlen == sb->tcap)
     {
-      ret = stb_double_cap (sb);
-      if (ret)
-        {
-          return ret;
-        }
+      err_t_wrap (stb_expand (sb, e), e);
     }
 
   sb->types[sb->tlen++] = t;
@@ -140,55 +155,79 @@ stb_accept_type (struct_builder *sb, type t)
 }
 
 static inline err_t
-stb_clip (struct_builder *sb)
+stb_clip (struct_builder *sb, error *e)
 {
   struct_builder_assert (sb);
 
   if (sb->klen != sb->kcap)
     {
-      string *keys = lrealloc (sb->alloc, sb->keys, sb->klen * sizeof *keys);
-      if (!keys)
+      lalloc_r keys = lrealloc (
+          sb->alloc,
+          sb->keys,
+          sb->klen, sb->klen,
+          sizeof *sb->keys);
+      if (keys.stat != AR_SUCCESS)
         {
-          return ERR_IO;
+          /*
+           * Edge condition realloc shrink fail, treat as nomem
+           */
+          return error_causef (
+              e, ERR_NOMEM,
+              "Struct Builder: "
+              "Failed to shrink keys buffer");
         }
-      sb->kcap = sb->klen;
-      sb->keys = keys;
+
+      sb->kcap = keys.rlen;
+      sb->keys = keys.ret;
     }
 
   if (sb->tlen != sb->tcap)
     {
-      type *types = lrealloc (sb->alloc, sb->types, sb->tlen * sizeof *types);
-      if (!types)
+      lalloc_r types = lrealloc (
+          sb->alloc,
+          sb->types,
+          sb->tlen, sb->tlen,
+          sizeof *sb->types);
+      if (types.stat != AR_SUCCESS)
         {
-          return ERR_IO;
+          /*
+           * Edge condition realloc shrink fail, treat as nomem
+           */
+          return error_causef (
+              e, ERR_NOMEM,
+              "Struct Builder: "
+              "Failed to shrink types buffer");
         }
-      sb->tcap = sb->tlen;
-      sb->types = types;
+
+      sb->tcap = types.rlen;
+      sb->types = types.ret;
     }
 
   return SUCCESS;
 }
 
 err_t
-stb_build (struct_t *dest, struct_builder *sb)
+stb_build (struct_t *dest, struct_builder *sb, error *e)
 {
   struct_builder_assert (sb);
   ASSERT (dest);
 
   if (sb->tlen == 0)
     {
-      return ERR_INVALID_ARGUMENT;
+      return error_causef (
+          e, ERR_INVALID_TYPE,
+          "Struct Builder: "
+          "Expecting at least one key");
     }
   if (sb->tlen != sb->klen)
     {
-      return ERR_INVALID_ARGUMENT;
+      return error_causef (
+          e, ERR_INVALID_TYPE,
+          "Struct Builder: "
+          "Expects to have the same number of keys as values");
     }
 
-  err_t ret = stb_clip (sb);
-  if (ret)
-    {
-      return ret;
-    }
+  err_t_wrap (stb_clip (sb, e), e);
 
   dest->keys = sb->keys;
   dest->types = sb->types;

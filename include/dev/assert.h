@@ -2,6 +2,22 @@
 
 #include "intf/logging.h"
 
+#define crash()                 \
+  do                            \
+    {                           \
+      *(volatile int *)0 = 1;   \
+      __builtin_unreachable (); \
+    }                           \
+  while (0)
+
+#define UNREACHABLE() \
+  do                  \
+    {                 \
+      ASSERT (0);     \
+      crash ();       \
+    }                 \
+  while (0)
+
 ////////////////////////////// Debug
 #if !defined(NDEBUG) && !defined(__clang_analyzer__)
 
@@ -9,8 +25,7 @@
   do                            \
     {                           \
       i_log_error ("PANIC!\n"); \
-      *(volatile int *)0 = 1;   \
-      __builtin_unreachable (); \
+      crash ();                 \
     }                           \
   while (0)
 

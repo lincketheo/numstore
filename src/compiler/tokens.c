@@ -119,6 +119,6 @@ tt_tostr (token_t t)
     case TT_COMMA:
       return (string){ .data = "TT_COMMA", .len = 8 };
     }
-  ASSERT (0);
+  UNREACHABLE ();
   return (string){ .data = NULL, .len = 0 };
 }

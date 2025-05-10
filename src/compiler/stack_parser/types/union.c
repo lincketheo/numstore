@@ -2,6 +2,7 @@
 #include "compiler/stack_parser/common.h"
 #include "compiler/stack_parser/type_parser.h"
 #include "compiler/tokens.h"
+#include "dev/assert.h"
 #include "type/types.h"
 #include "utils/bounds.h"
 
@@ -30,11 +31,11 @@ unp_create (type_parser *dest, lalloc *alloc)
   ASSERT (dest);
   ASSERT (dest->state == TB_UNKNOWN);
 
-  switch (unb_create (&dest->unp.builder, alloc))
+  switch (unb_create (&dest->unp.builder, alloc, NULL))
     {
     case ERR_NOMEM:
       {
-        return SPR_MALLOC_ERROR;
+        return SPR_NOMEM;
       }
     case SUCCESS:
       {
@@ -48,8 +49,7 @@ unp_create (type_parser *dest, lalloc *alloc)
       }
     default:
       {
-        ASSERT (0);
-        return SPR_MALLOC_ERROR;
+        UNREACHABLE ();
       }
     }
 }
@@ -59,15 +59,11 @@ unp_build (type_parser *unp)
 {
   union_parser_assert_state (unp, UNP_DONE);
 
-  switch (unb_build (&unp->ret.un, &unp->unp.builder))
+  switch (unb_build (&unp->ret.un, &unp->unp.builder, NULL))
     {
     case ERR_INVALID_ARGUMENT:
       {
         return SPR_SYNTAX_ERROR;
-      }
-    case ERR_IO:
-      {
-        return SPR_MALLOC_ERROR;
       }
     case SUCCESS:
       {
@@ -76,8 +72,7 @@ unp_build (type_parser *unp)
       }
     default:
       {
-        ASSERT (0);
-        return SPR_MALLOC_ERROR;
+        UNREACHABLE ();
       }
     }
 
@@ -113,7 +108,7 @@ HANDLER_FUNC (UNP_WAITING_FOR_IDENT) (
       return SPR_SYNTAX_ERROR;
     }
 
-  switch (unb_accept_key (&unp->unp.builder, t.str))
+  switch (unb_accept_key (&unp->unp.builder, t.str, NULL))
     {
     case ERR_INVALID_ARGUMENT:
       {
@@ -121,7 +116,7 @@ HANDLER_FUNC (UNP_WAITING_FOR_IDENT) (
       }
     case ERR_NOMEM:
       {
-        return SPR_MALLOC_ERROR;
+        return SPR_NOMEM;
       }
     case SUCCESS:
       {
@@ -130,8 +125,7 @@ HANDLER_FUNC (UNP_WAITING_FOR_IDENT) (
       }
     default:
       {
-        ASSERT (0);
-        return SPR_MALLOC_ERROR;
+        UNREACHABLE ();
       }
     }
 
@@ -197,11 +191,11 @@ HANDLER_FUNC (UNP_WAITING_FOR_TYPE) (type_parser *unp, type t)
 {
   union_parser_assert_state (unp, UNP_WAITING_FOR_TYPE);
 
-  switch (unb_accept_type (&unp->unp.builder, t))
+  switch (unb_accept_type (&unp->unp.builder, t, NULL))
     {
     case ERR_NOMEM:
       {
-        return SPR_MALLOC_ERROR;
+        return SPR_NOMEM;
       }
     case SUCCESS:
       {
@@ -210,8 +204,7 @@ HANDLER_FUNC (UNP_WAITING_FOR_TYPE) (type_parser *unp, type t)
       }
     default:
       {
-        ASSERT (0);
-        return SPR_MALLOC_ERROR;
+        UNREACHABLE ();
       }
     }
 

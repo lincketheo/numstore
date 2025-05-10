@@ -27,4 +27,4 @@ typedef struct
   // TODO - fill factor - what percent to fill when overflow
 } iniacin_params;
 
-err_t iniacin (mem_inner_node *dest, iniacin_params params);
+err_t iniacin (mem_inner_node *dest, iniacin_params params, error *e);

@@ -8,8 +8,6 @@
 #include "intf/io.h"
 #include "intf/mm.h"
 #include "query/query.h"
-#include "services/services.h"
-#include "variables/vmem_hashmap.h"
 #include "vm/vm.h"
 
 #include <arpa/inet.h>
@@ -30,22 +28,31 @@ typedef struct
   token _tokens[10];       // Backing for tokens
   query _queries[10];      // Backing for queries
   scanner scanner;         // Scanner to tokenize input commands
+  parser parser;           // Parses tokens from the scanner
   vm vm;                   // Virtual machine to execute queries
-#ifdef CONNECTOR_TOK_DEBUG
-  token_printer tokp; // Prints tokens
-#else
-  parser parser;
-#endif
 
+  /**
+   * Signals back to the server
+   */
+  bool want_read;
+  bool want_write;
+  bool want_close;
 } connector;
 
 typedef struct
 {
-  lalloc *scanner_string_allocator;
-  lalloc *type_allocator;
-  lalloc *stack_allocator;
-  services *services;
+  lalloc *alloc;
 } con_params;
+
+// Lifetime
+/**
+ * Returns:
+ *   - ERR_NOMEM if the stack allocator doesn't have
+ *     enough room
+ */
+err_t con_create (connector *dest, con_params params, error *e);
+
+void con_free (connector *c);
 
 typedef struct
 {
@@ -54,20 +61,16 @@ typedef struct
   socklen_t caddrlen;
 } conc_params;
 
-// Lifetime
-/**
- * Returns:
- *   - ERR_NOMEM if the stack allocator doesn't have
- *     enough room
- */
-err_t con_create (connector *dest, con_params);
-void con_connect (connector *c, conc_params);
-err_t con_disconnect (connector *c);
+void con_connect (connector *c, conc_params p);
 
-// Utils
+void con_disconnect (connector *c);
+
 bool con_is_open (const connector *c);
+
 struct pollfd con_to_pollfd (const connector *src);
 
-// Read Write Execute
-err_t con_read (connector *c);
+void con_read (connector *c);
+
 void con_execute (connector *c);
+
+void con_write (connector *c);

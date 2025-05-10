@@ -1,5 +1,6 @@
 #include "paging/types/hash_page.h"
 #include "dev/assert.h"
+#include "errors/error.h"
 #include "intf/stdlib.h"
 #include "paging/page.h"
 #include "utils/hashing.h"
@@ -18,11 +19,11 @@ DEFINE_DBG_ASSERT_I (hash_page, unchecked_hash_page, d)
 
 DEFINE_DBG_ASSERT_I (hash_page, valid_hash_page, d)
 {
-  ASSERT (hp_is_valid (d));
+  ASSERT (hp_validate (d, NULL) == SUCCESS);
 }
 
-bool
-hp_is_valid (const hash_page *d)
+err_t
+hp_validate (const hash_page *d, error *e)
 {
   unchecked_hash_page_assert (d);
 
@@ -31,10 +32,13 @@ hp_is_valid (const hash_page *d)
    */
   if (*d->header != (u8)PG_HASH_PAGE)
     {
-      return false;
+      return error_causef (
+          e, ERR_CORRUPT,
+          "Hash Page: expected header: %" PRpgh " but got: %" PRpgh,
+          (pgh)PG_HASH_PAGE, *d->header);
     }
 
-  return true;
+  return SUCCESS;
 }
 
 void

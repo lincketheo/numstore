@@ -1,7 +1,7 @@
 #include "type/builders/sarray.h"
 #include "dev/assert.h"
-#include "dev/errors.h"
 #include "ds/strings.h"
+#include "errors/error.h"
 #include "intf/mm.h"
 #include "intf/stdlib.h"
 #include "type/types.h"
@@ -17,20 +17,24 @@ DEFINE_DBG_ASSERT_I (sarray_builder, sarray_builder, s)
 }
 
 err_t
-sab_create (sarray_builder *dest, lalloc *alloc)
+sab_create (sarray_builder *dest, lalloc *alloc, error *e)
 {
   ASSERT (dest);
 
-  u32 *dims = lmalloc (alloc, 10 * sizeof *dims);
-  if (!dims)
+  lalloc_r dims = lmalloc (alloc, 10, 2, sizeof *dest->dims);
+
+  if (dims.stat != AR_SUCCESS)
     {
-      return ERR_NOMEM;
+      return error_causef (
+          e, ERR_NOMEM,
+          "Strict Array Builder: Failed to allocate "
+          "memory for dimension buffer");
     }
 
   dest->type = NULL;
-  dest->dims = dims;
+  dest->dims = dims.ret;
   dest->len = 0;
-  dest->cap = 10;
+  dest->cap = dims.rlen;
   dest->alloc = alloc;
 
   sarray_builder_assert (dest);
@@ -41,42 +45,46 @@ sab_create (sarray_builder *dest, lalloc *alloc)
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 static inline err_t
-sab_double_cap (sarray_builder *sab)
+sab_double_cap (sarray_builder *sab, error *e)
 {
   sarray_builder_assert (sab);
 
-  u32 cap = 2 * sab->cap;
+  lalloc_r dims = lrealloc (
+      sab->alloc,
+      sab->dims,
+      2 * sab->cap,
+      sab->cap + 1,
+      sizeof *sab->dims);
 
-  u32 *dims = lrealloc (sab->alloc, sab->dims, cap * sizeof *dims);
-  if (!dims)
+  if (dims.stat != AR_SUCCESS)
     {
-      return ERR_NOMEM;
+      return error_causef (
+          e, ERR_NOMEM,
+          "Strict Array Builder: Failed to reallocate dimension buffer");
     }
-  sab->cap = cap;
-  sab->dims = dims;
+
+  sab->cap = dims.rlen;
+  sab->dims = dims.ret;
 
   return SUCCESS;
 }
 
 err_t
-sab_accept_dim (sarray_builder *sab, u32 dim)
+sab_accept_dim (sarray_builder *sab, u32 dim, error *e)
 {
   sarray_builder_assert (sab);
 
-  err_t ret = SUCCESS;
-
   if (dim == 0)
     {
-      return ERR_INVALID_ARGUMENT;
+      return error_causef (
+          e, ERR_INVALID_TYPE,
+          "Strict Array Builder: "
+          "Expecting dimensions to be greater than 0");
     }
 
   if (sab->len == sab->cap)
     {
-      ret = sab_double_cap (sab);
-      if (ret)
-        {
-          return ret;
-        }
+      err_t_wrap (sab_double_cap (sab, e), e);
     }
 
   sab->dims[sab->len++] = dim;
@@ -85,64 +93,86 @@ sab_accept_dim (sarray_builder *sab, u32 dim)
 }
 
 err_t
-sab_accept_type (sarray_builder *sab, type t)
+sab_accept_type (sarray_builder *sab, type t, error *e)
 {
   sarray_builder_assert (sab);
 
   if (sab->type)
     {
-      return ERR_INVALID_ARGUMENT;
+      return error_causef (
+          e, ERR_INVALID_TYPE,
+          "Strict Array Builder: "
+          "Got multiple types");
     }
 
-  type *type = lmalloc (sab->alloc, sizeof *type);
-  if (!type)
+  lalloc_r type = lmalloc (sab->alloc, 1, 1, sizeof *sab->type);
+  if (type.stat != AR_SUCCESS)
     {
-      return ERR_NOMEM;
+      return error_causef (
+          e, ERR_NOMEM,
+          "Strict Array Builder: "
+          "Not enough memory to allocate new type");
     }
-  i_memcpy (type, &t, sizeof *type);
+  i_memcpy (type.ret, &t, sizeof *sab->type);
 
-  sab->type = type;
+  sab->type = type.ret;
 
   return SUCCESS;
 }
 
 static inline err_t
-sab_clip (sarray_builder *sab)
+sab_clip (sarray_builder *sab, error *e)
 {
   sarray_builder_assert (sab);
 
   if (sab->len != sab->cap)
     {
-      u32 *dims = lrealloc (sab->alloc, sab->dims, sab->len * sizeof *dims);
-      if (!dims)
+      lalloc_r dims = lrealloc (
+          sab->alloc,
+          sab->dims,
+          sab->len,
+          sab->len,
+          sizeof *sab->dims);
+
+      if (dims.stat != AR_SUCCESS)
         {
-          return ERR_IO;
+          /*
+           * Edge condition realloc shrink fail, treat as nomem
+           */
+          return error_causef (
+              e, ERR_NOMEM,
+              "Strict Array: Failed to shrink dims buffer");
         }
+
+      ASSERT (dims.stat == AR_SUCCESS);
+
+      sab->dims = dims.ret;
+      sab->cap = dims.rlen;
     }
 
   return SUCCESS;
 }
 
 err_t
-sab_build (sarray_t *dest, sarray_builder *sab)
+sab_build (sarray_t *dest, sarray_builder *sab, error *e)
 {
   sarray_builder_assert (sab);
   ASSERT (dest);
 
   if (!sab->type)
     {
-      return ERR_INVALID_ARGUMENT;
+      return error_causef (
+          e, ERR_INVALID_TYPE,
+          "Strict Array Builder: Can't build without a type");
     }
   if (sab->len == 0)
     {
-      return ERR_INVALID_ARGUMENT;
+      return error_causef (
+          e, ERR_INVALID_TYPE,
+          "Strict Array Builder: Expect at least 1 dimension");
     }
 
-  err_t ret = sab_clip (sab);
-  if (ret)
-    {
-      return ret;
-    }
+  err_t_wrap (sab_clip (sab, e), e);
 
   dest->rank = sab->len;
   dest->dims = sab->dims;

@@ -1,14 +1,15 @@
 #pragma once
 
-#include "dev/errors.h"
-#include "intf/mm.h"
+#include "errors/error.h"       // error
+#include "intf/mm.h"            // lalloc
+#include "utils/deserializer.h" //  deserializer
+#include "utils/serializer.h"   //  serializer
 
-#include "type/types/enum.h"
-#include "type/types/prim.h"
-#include "type/types/sarray.h"
-#include "type/types/struct.h"
-#include "type/types/union.h"
-#include "utils/deserializer.h"
+#include "type/types/enum.h"   // enum_t
+#include "type/types/prim.h"   // prim_t
+#include "type/types/sarray.h" // sarray_t
+#include "type/types/struct.h" // struct_t
+#include "type/types/union.h"  // union_t
 
 /**
  * TYPE = PRIM | STRUCT | SARRAY | UNION | ENUM
@@ -47,7 +48,7 @@ struct type_s
 /**
  * Checks that this type is valid
  */
-bool type_is_valid (const type *t);
+err_t type_validate (const type *t, error *e);
 
 /**
  * Cleanly print to string
@@ -83,4 +84,4 @@ void type_serialize (serializer *dest, const type *src);
 /**
  * Used by user
  */
-err_t type_deserialize (type *dest, deserializer *src, lalloc *alloc);
+err_t type_deserialize (type *dest, deserializer *src, lalloc *alloc, error *e);

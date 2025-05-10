@@ -36,7 +36,11 @@ typedef struct
   lalloc *alloc; // Allocator for growing the stack
 } seek_r;
 
-err_t seek_r_push_to_bottom (seek_r *r, page p, p_size lidx);
+/**
+ * Errors:
+ *  - ERR_NOMEM - not enough memory to grow the stack
+ */
+err_t seek_r_push_to_bottom (seek_r *r, page p, p_size lidx, error *e);
 
 typedef struct
 {
@@ -47,13 +51,11 @@ typedef struct
   lalloc *alloc;      // Allocator for stack
 } seek_params;
 
-err_t seek (seek_r *r, seek_params params);
-
-typedef struct
-{
-  mem_inner_node input;
-  lalloc *alloc;
-  pager *pager;
-} spup_params;
-
-err_t seek_propagate_up (seek_r *r, spup_params params);
+/**
+ * Errors:
+ *   - ERR_NOMEM - not enough memory to create or grow the stack
+ *   - From pgr_get_expect:
+ *      - ERR_CORRUPT - We're only interested in data lists and inner nodes
+ *      - ERR_IO
+ */
+err_t seek (seek_r *r, seek_params params, error *e);

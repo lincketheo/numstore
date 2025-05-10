@@ -1,4 +1,5 @@
 #include "domain/create_server.h"
+#include "intf/types.h"
 
 err_t
 create_default_server (server *dest)
@@ -9,24 +10,11 @@ create_default_server (server *dest)
    * For now, just create a
    * really big global allocator
    */
-  lalloc alloc;
-  lalloc_create (&alloc, 100000);
+  lalloc alloc = lalloc_create (100000);
 
   /**
    * Create variable hash map
    */
-  vmem_hashmap vhm;
-  if ((ret = vmhm_create (
-           &vhm, (vmhm_params){
-                     .len = 1000,
-                     .map_allocator = &alloc,
-                     .node_allocator = &alloc,
-                     .type_allocator = &alloc,
-                 })))
-    {
-      i_log_warn ("VHash Map Create Failed\n");
-      return ret;
-    }
 
   /**
    * Create the dang server
@@ -35,12 +23,9 @@ create_default_server (server *dest)
            dest,
            (server_params){
                .port = 12345,
-               .alloc = &alloc,
-               .services = services_create (
-                   (services_params){
-                       .vhm = &vhm,
-                   }),
-           })))
+               .alloc = &alloc },
+           NULL)))
+
     {
       i_log_warn ("Server create failed\n");
       return ret;

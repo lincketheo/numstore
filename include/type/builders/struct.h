@@ -17,7 +17,7 @@ typedef struct
   lalloc *alloc; // For growing types and keys arrays
 } struct_builder;
 
-err_t stb_create (struct_builder *dest, lalloc *alloc);
-err_t stb_accept_key (struct_builder *eb, string key);
-err_t stb_accept_type (struct_builder *eb, type t);
-err_t stb_build (struct_t *dest, struct_builder *eb);
+err_t stb_create (struct_builder *dest, lalloc *alloc, error *e);
+err_t stb_accept_key (struct_builder *eb, string key, error *e);
+err_t stb_accept_type (struct_builder *eb, type t, error *e);
+err_t stb_build (struct_t *dest, struct_builder *eb, error *e);

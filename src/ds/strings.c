@@ -1,9 +1,7 @@
-#include "ds/strings.h"
-#include "dev/assert.h"
-#include "dev/errors.h"
-#include "dev/testing.h"
-#include "intf/mm.h"
-#include "intf/stdlib.h"
+#include "ds/strings.h"  // string
+#include "dev/assert.h"  // DEFINE_DBG_ASSERT_I
+#include "dev/testing.h" // TEST
+#include "intf/stdlib.h" // i_memcmp
 
 DEFINE_DBG_ASSERT_I (string, string, s)
 {
@@ -25,6 +23,34 @@ unsafe_cstrfrom (char *cstr)
     .data = cstr,
     .len = i_unsafe_strlen (cstr)
   };
+}
+
+int
+strings_all_unique_with_return (
+    u32 *_i, u32 *_j, const string *strs, u32 count)
+{
+  ASSERT (_i);
+  ASSERT (_j);
+  ASSERT (strs);
+  ASSERT (count > 0);
+
+  for (u32 i = 0; i < count; ++i)
+    {
+      for (u32 j = i + 1; j < count; ++j)
+        {
+          if (strs[i].len != strs[j].len)
+            {
+              continue;
+            }
+          if (i_memcmp (strs[i].data, strs[j].data, strs[i].len) == 0)
+            {
+              *_i = i;
+              *_j = j;
+              return 0;
+            }
+        }
+    }
+  return 1;
 }
 
 int

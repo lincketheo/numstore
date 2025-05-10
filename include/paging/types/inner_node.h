@@ -1,6 +1,6 @@
 #pragma once
 
-#include "dev/errors.h"
+#include "errors/error.h"
 #include "intf/types.h"
 
 /**
@@ -39,7 +39,7 @@ typedef struct
 /**
  * Checks that this is a valid node
  */
-bool in_is_valid (const inner_node *in);
+err_t in_validate (const inner_node *in, error *e);
 
 /**
  *   1  5   10
@@ -81,7 +81,7 @@ void in_init_empty (inner_node *in);
  *
  * On Success, After calling this, in_is_valid would be true
  */
-err_t in_read_and_set_ptrs (inner_node *dest, u8 *raw, p_size len);
+err_t in_read_and_set_ptrs (inner_node *dest, u8 *raw, p_size len, error *e);
 
 /**
  * Sets klen = 1 and pushes left / right to leafs and key to keys

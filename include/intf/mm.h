@@ -1,7 +1,7 @@
 #pragma once
 
 #include "dev/assert.h"
-#include "dev/errors.h"
+#include "dev/testing.h"
 #include "intf/types.h"
 
 /////////////////////// Limited allocator
@@ -13,24 +13,35 @@ typedef struct
   u32 limit;
 } lalloc;
 
-void lalloc_create (lalloc *dest, u32 limit);
-void *lmalloc (lalloc *a, u32 bytes);
-void *lcalloc (lalloc *a, u32 len, u32 size);
-void *lrealloc (lalloc *a, void *data, u32 bytes);
-void lfree (lalloc *a, void *data);
-void *lalloc_xfer (lalloc *to, lalloc *from, void *ptr);
-void lalloc_release (lalloc *l);
+typedef enum
+{
+  AR_AVAIL_BUT_USED, // (limit - used) < min < limit
+  AR_NOMEM,          // limit < min
+  AR_SUCCESS,        // min < (limit - used)
+} lalloc_c;
 
-// Scoped allocator (no call alloc and free once)
 typedef struct
 {
-  u8 *data;
-  u64 len;
-  u64 cap;
-} salloc;
+  lalloc_c stat;
+  void *ret; // The result - NULL if not AR_SUCCESS
+  u32 rlen;  // Length of ret - 0 if not AR_SUCCESS
+} lalloc_r;
 
-void salloc_create_from (salloc *dest, u8 *data, u64 cap);
-err_t salloc_create (salloc *dest, u64 cap);
-void *smalloc (salloc *a, u64 bytes);
-void *scalloc (salloc *a, u64 len, u64 size);
-void spop (salloc *a);
+lalloc lalloc_create (u32 limit);
+
+lalloc_r lmalloc (lalloc *a, u32 req, u32 min, u32 size);
+
+lalloc_r lcalloc (lalloc *a, u32 req, u32 min, u32 size);
+
+lalloc_r lrealloc (lalloc *a, void *data, u32 req, u32 min, u32 size);
+
+void lfree (lalloc *a, void *data);
+
+#ifndef NTEST
+/**
+ * For tests and debugging, I just want an easy wrapper
+ * that has the same behavior as malloc
+ */
+void *lmalloc_test (lalloc *a, u32 n, u32 size);
+void *lcalloc_test (lalloc *a, u32 n, u32 size);
+#endif

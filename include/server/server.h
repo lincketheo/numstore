@@ -1,12 +1,10 @@
 #pragma once
 
-#include "intf/io.h"
-#include "intf/mm.h"
-#include "server/connector.h"
-#include "services/services.h"
-#include "variables/vmem_hashmap.h"
+#include "intf/io.h"          // i_file
+#include "intf/mm.h"          // lalloc
+#include "server/connector.h" // connector
 
-#include <poll.h>
+#include <poll.h> // struct pollfd
 
 typedef struct
 {
@@ -15,27 +13,27 @@ typedef struct
   u32 ccap;                  // Capacity of connections
   struct pollfd pollfds[20]; // Poll list for connections
   u32 pfdlen;                // Length of pollfds
-  services services;         // Available services
   lalloc *alloc;             // Allocator for everything so far
 } server;
 
 typedef struct
 {
-  u16 port;          // What port to open server on
-  lalloc *alloc;     // Global allocator
-  services services; // Available services
+  u16 port;      // What port to open server on
+  lalloc *alloc; // Global allocator
 } server_params;
 
 /**
  * Creates a server. Retruns:
  *   - ERR_NOMEM
+ *   - ERR_IO - socket, bind or listen call fails
+ *   - ERR_IO - bind call fails
  */
-err_t server_create (server *dest, server_params params);
+err_t server_create (server *dest, server_params params, error *e);
 
 /**
  * Runs through one server execution cycle
  */
-err_t server_execute (server *s);
+void server_execute (server *s);
 
 /**
  * Free's resources

@@ -1,5 +1,5 @@
-#include "dev/errors.h"
 #include "ds/strings.h"
+#include "errors/error.h"
 #include "intf/io.h"
 #include "intf/logging.h"
 #include "intf/mm.h"
@@ -22,29 +22,15 @@ DEFINE_DBG_ASSERT_I (i_file, i_file, fp)
 
 ////////////////// Open / Close
 err_t
-i_open (i_file *dest, const string fname, bool read, bool write)
+i_open_rw (i_file *dest, const string fname, error *e)
 {
-  if (read && write)
-    {
-      dest->fd = open (fname.data, O_RDWR | O_CREAT, 0644);
-    }
-  else if (read)
-    {
-      dest->fd = open (fname.data, O_RDONLY | O_CREAT, 0644);
-    }
-  else if (write)
-    {
-      dest->fd = open (fname.data, O_WRONLY | O_CREAT, 0644);
-    }
-  else
-    {
-      ASSERT (0);
-    }
+  int fd = open (fname.data, O_RDWR | O_CREAT, 0644);
 
-  if (dest->fd == -1)
+  if (fd == -1)
     {
-      perror ("open");
-      return ERR_IO;
+      error_causef (e, ERR_IO, "open_rw %.*s: %s",
+                    fname.len, fname.data, strerror (errno));
+      return err_t_from (e);
     }
 
   i_file_assert (dest);
@@ -53,22 +39,23 @@ i_open (i_file *dest, const string fname, bool read, bool write)
 }
 
 err_t
-i_close (i_file *fp)
+i_close (i_file *fp, error *e)
 {
   ASSERT (fp);
   i_file_assert (fp);
   int ret = close (fp->fd);
   if (ret)
     {
-      perror ("close");
-      return ERR_IO;
+      error_causef (e, ERR_IO, "close: %s", strerror (errno));
+      error_trailf_dbg (e, "fd: %d", fp->fd);
+      return err_t_from (e);
     }
   return SUCCESS;
 }
 
 ////////////////// Positional Read / Write
 i64
-i_pread_some (i_file *fp, void *dest, u64 n, u64 offset)
+i_pread_some (i_file *fp, void *dest, u64 n, u64 offset, error *e)
 {
   i_file_assert (fp);
   ASSERT (dest);
@@ -78,15 +65,16 @@ i_pread_some (i_file *fp, void *dest, u64 n, u64 offset)
 
   if (ret < 0 && errno != EINTR)
     {
-      perror ("pread");
-      return ERR_IO;
+      error_causef (e, ERR_IO, "pread: %s", strerror (errno));
+      error_trailf_dbg (e, "fd: %d n: %" PRIu64 " offset: %" PRIu64 ".", fp->fd, n, offset);
+      return err_t_from (e);
     }
 
   return (i64)ret;
 }
 
 i64
-i_pread_all (i_file *fp, void *dest, u64 n, u64 offset)
+i_pread_all (i_file *fp, void *dest, u64 n, u64 offset, error *e)
 {
   i_file_assert (fp);
   ASSERT (dest);
@@ -114,8 +102,11 @@ i_pread_all (i_file *fp, void *dest, u64 n, u64 offset)
       // Error
       if (_nread < 0 && errno != EINTR)
         {
-          perror ("pread");
-          return ERR_IO;
+          error_causef (e, ERR_IO, "pread: %s", strerror (errno));
+          error_trailf_dbg (
+              e, "fd: %d n: %" PRIu64 " offset: %" PRIu64 " return: %lu.",
+              fp->fd, n - nread, offset, _nread);
+          return err_t_from (e);
         }
 
       nread += (i64)_nread;
@@ -127,7 +118,7 @@ i_pread_all (i_file *fp, void *dest, u64 n, u64 offset)
 }
 
 i64
-i_pwrite_some (i_file *fp, const void *src, u64 n, u64 offset)
+i_pwrite_some (i_file *fp, const void *src, u64 n, u64 offset, error *e)
 {
   i_file_assert (fp);
   ASSERT (src);
@@ -136,14 +127,15 @@ i_pwrite_some (i_file *fp, const void *src, u64 n, u64 offset)
   ssize_t ret = pwrite (fp->fd, src, n, (size_t)offset);
   if (ret < 0 && errno != EINTR)
     {
-      perror ("pread");
-      return ERR_IO;
+      error_causef (e, ERR_IO, "pread: %s", strerror (errno));
+      error_trailf_dbg (e, "n: %" PRIu64 " offset: %" PRIu64, n, offset);
+      return err_t_from (e);
     }
   return (i64)ret;
 }
 
 err_t
-i_pwrite_all (i_file *fp, const void *src, u64 n, u64 offset)
+i_pwrite_all (i_file *fp, const void *src, u64 n, u64 offset, error *e)
 {
   i_file_assert (fp);
   ASSERT (src);
@@ -165,8 +157,10 @@ i_pwrite_all (i_file *fp, const void *src, u64 n, u64 offset)
       // Error
       if (_nwrite < 0 && errno != EINTR)
         {
-          perror ("pwrite");
-          return ERR_IO;
+          error_causef (e, ERR_IO, "pwrite: %s", strerror (errno));
+          error_trailf_dbg (
+              e, "n: %" PRIu64 " offset: %" PRIu64, n, offset);
+          return err_t_from (e);
         }
 
       nwrite += _nwrite;
@@ -179,7 +173,7 @@ i_pwrite_all (i_file *fp, const void *src, u64 n, u64 offset)
 
 ////////////////// Stream Read / Write
 i64
-i_read_some (i_file *fp, void *dest, u64 nbytes)
+i_read_some (i_file *fp, void *dest, u64 nbytes, error *e)
 {
   i_file_assert (fp);
   ASSERT (dest);
@@ -188,14 +182,15 @@ i_read_some (i_file *fp, void *dest, u64 nbytes)
   ssize_t ret = read (fp->fd, dest, nbytes);
   if (ret < 0 && errno != EINTR)
     {
-      perror ("pread");
-      return ERR_IO;
+      error_causef (e, ERR_IO, "read: %s", strerror (errno));
+      error_trailf_dbg (e, "nbytes: %" PRIu64, nbytes);
+      return err_t_from (e);
     }
   return (i64)ret;
 }
 
 i64
-i_read_all (i_file *fp, void *dest, u64 nbytes)
+i_read_all (i_file *fp, void *dest, u64 nbytes, error *e)
 {
   i_file_assert (fp);
   ASSERT (dest);
@@ -222,8 +217,9 @@ i_read_all (i_file *fp, void *dest, u64 nbytes)
       // Error
       if (_nread < 0 && errno != EINTR)
         {
-          perror ("read");
-          return ERR_IO;
+          error_causef (e, ERR_IO, "read: %s", strerror (errno));
+          error_trailf_dbg (e, "nbytes: %" PRIu64 " return: %lu", nbytes, _nread);
+          return err_t_from (e);
         }
 
       nread += (i64)_nread;
@@ -235,7 +231,7 @@ i_read_all (i_file *fp, void *dest, u64 nbytes)
 }
 
 i64
-i_write_some (i_file *fp, const void *src, u64 nbytes)
+i_write_some (i_file *fp, const void *src, u64 nbytes, error *e)
 {
   i_file_assert (fp);
   ASSERT (src);
@@ -244,14 +240,15 @@ i_write_some (i_file *fp, const void *src, u64 nbytes)
   ssize_t ret = write (fp->fd, src, nbytes);
   if (ret < 0 && errno != EINTR)
     {
-      perror ("pread");
-      return ERR_IO;
+      error_causef (e, ERR_IO, "write: %s", strerror (errno));
+      error_trailf_dbg (e, "nbytes: %" PRIu64 " return: %lu", nbytes, ret);
+      return err_t_from (e);
     }
   return (i64)ret;
 }
 
 err_t
-i_write_all (i_file *fp, const void *src, u64 nbytes)
+i_write_all (i_file *fp, const void *src, u64 nbytes, error *e)
 {
   i_file_assert (fp);
   ASSERT (src);
@@ -273,8 +270,9 @@ i_write_all (i_file *fp, const void *src, u64 nbytes)
       // Error
       if (_nwrite < 0 && errno != EINTR)
         {
-          perror ("write");
-          return ERR_IO;
+          error_causef (e, ERR_IO, "write: %s", strerror (errno));
+          error_trailf_dbg (e, "nbytes: %" PRIu64 " return: %lu", nbytes, _nwrite);
+          return err_t_from (e);
         }
 
       nwrite += _nwrite;
@@ -287,51 +285,52 @@ i_write_all (i_file *fp, const void *src, u64 nbytes)
 
 ////////////////// Others
 err_t
-i_truncate (i_file *fp, u64 bytes)
+i_truncate (i_file *fp, u64 bytes, error *e)
 {
   if (ftruncate (fp->fd, bytes) == -1)
     {
-      perror ("ftruncate");
-      return ERR_IO;
+      error_causef (e, ERR_IO, "truncate: %s", strerror (errno));
+      error_trailf_dbg (e, "bytes: %" PRIu64, bytes);
+      return err_t_from (e);
     }
 
   return 0;
 }
 
 i64
-i_file_size (i_file *fp)
+i_file_size (i_file *fp, error *e)
 {
   struct stat st;
   if (fstat (fp->fd, &st) == -1)
     {
-      perror ("fstat");
-      return ERR_IO;
+      error_causef (e, ERR_IO, "fstat: %s", strerror (errno));
+      return err_t_from (e);
     }
   return (off_t)st.st_size;
 }
 
 err_t
-i_remove_quiet (const string fname)
+i_remove_quiet (const string fname, error *e)
 {
   int ret = remove (fname.data);
 
   if (ret && errno != ENOENT)
     {
-      perror ("remove");
-      return ERR_IO;
+      error_causef (e, ERR_IO, "truncate: %s", strerror (errno));
+      return err_t_from (e);
     }
 
   return SUCCESS;
 }
 
 err_t
-i_mkstemp (i_file *dest, string tmpl)
+i_mkstemp (i_file *dest, string tmpl, error *e)
 {
   int fd = mkstemp (tmpl.data);
   if (fd == -1)
     {
-      perror ("mkstemp");
-      return ERR_IO;
+      error_causef (e, ERR_IO, "mkstemp: %s", strerror (errno));
+      return err_t_from (e);
     }
 
   dest->fd = fd;
@@ -339,24 +338,24 @@ i_mkstemp (i_file *dest, string tmpl)
 }
 
 err_t
-i_unlink (const string name)
+i_unlink (const string name, error *e)
 {
   if (unlink (name.data))
     {
-      perror ("unlink");
-      return ERR_IO;
+      error_causef (e, ERR_IO, "unlink: %s", strerror (errno));
+      return err_t_from (e);
     }
   return SUCCESS;
 }
 
 ////////////////// Wrappers
 err_t
-i_access_rw (const string fname)
+i_access_rw (const string fname, error *e)
 {
   if (access (fname.data, F_OK | W_OK | R_OK))
     {
-      perror ("access");
-      return ERR_IO;
+      error_causef (e, ERR_IO, "access: %s", strerror (errno));
+      return err_t_from (e);
     }
   return SUCCESS;
 }

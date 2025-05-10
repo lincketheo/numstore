@@ -1,5 +1,5 @@
 #include "paging/pager.h"
-#include "dev/errors.h"
+#include "errors/error.h"
 #include "paging/file_pager.h"
 #include "paging/memory_pager.h"
 #include "paging/page.h"
@@ -12,7 +12,7 @@ DEFINE_DBG_ASSERT_I (pager, pager, p)
 }
 
 err_t
-pgr_create (pager *dest, pgr_params params)
+pgr_create (pager *dest, pgr_params params, error *e)
 {
 
   mpgr_params mparams = (mpgr_params){
@@ -29,16 +29,8 @@ pgr_create (pager *dest, pgr_params params)
   memory_pager mpgr;
   file_pager fpgr;
 
-  err_t ret;
-
-  if ((ret = mpgr_create (&mpgr, mparams)))
-    {
-      return ret;
-    }
-  if ((ret = fpgr_create (&fpgr, fparams)))
-    {
-      return ret;
-    }
+  err_t_wrap (mpgr_create (&mpgr, mparams, e), e);
+  err_t_wrap (fpgr_create (&fpgr, fparams, e), e);
 
   dest->mpager = mpgr;
   dest->fpager = fpgr;
@@ -50,7 +42,7 @@ pgr_create (pager *dest, pgr_params params)
 }
 
 static inline err_t
-pgr_evict (pager *p)
+pgr_evict (pager *p, error *e)
 {
   // Find the next evictable target
   pgno evict = mpgr_get_evictable (&p->mpager);
@@ -59,11 +51,7 @@ pgr_evict (pager *p)
   u8 *evict_page = mpgr_get (&p->mpager, evict);
   ASSERT (evict_page);
 
-  err_t ret;
-  if ((ret = pgr_commit (p, evict_page, evict)))
-    {
-      return ret;
-    }
+  err_t_wrap (pgr_commit (p, evict_page, evict, e), e);
 
   // Then evict that page
   mpgr_evict (&p->mpager, evict);
@@ -71,23 +59,17 @@ pgr_evict (pager *p)
 }
 
 err_t
-pgr_get_expect (page *dest, int type, pgno pgno, pager *p)
+pgr_get_expect (page *dest, int type, pgno pgno, pager *p, error *e)
 {
   pager_assert (p);
   u8 *raw = mpgr_get (&p->mpager, pgno);
-  err_t ret;
 
   // Cache miss
   if (raw == NULL)
     {
-      // Check if we need to evict a page
       if (mpgr_is_full (&p->mpager))
         {
-          // Evict a page
-          if ((ret = pgr_evict (p)))
-            {
-              return ret;
-            }
+          err_t_wrap (pgr_evict (p, e), e);
         }
       ASSERT (!mpgr_is_full (&p->mpager));
 
@@ -96,38 +78,28 @@ pgr_get_expect (page *dest, int type, pgno pgno, pager *p)
       ASSERT (raw); // Should be present
 
       // And read it into the actual page
-      if ((ret = fpgr_get_expect (&p->fpager, raw, pgno)))
-        {
-          return ret;
-        }
+      err_t_wrap (fpgr_get_expect (&p->fpager, raw, pgno, e), e);
     }
 
-  return page_read_expect (dest, type, raw, p->page_size, pgno);
+  return page_read_expect (dest, type, raw, p->page_size, pgno, e);
 }
 
 err_t
-pgr_new (page *dest, pager *p, page_type type)
+pgr_new (page *dest, pager *p, page_type type, error *e)
 {
   ASSERT (dest);
   pager_assert (p);
-  err_t ret;
 
   // Create new page in file system
   pgno pgno = 0;
-  if ((ret = fpgr_new (&p->fpager, &pgno)))
-    {
-      return ret;
-    }
+  err_t_wrap (fpgr_new (&p->fpager, &pgno, e), e);
 
   // Create room in memory to hold it
   u8 *raw = mpgr_new (&p->mpager, pgno);
   if (raw == NULL)
     {
       // Evict a page if no room
-      if ((ret = pgr_evict (p)))
-        {
-          return ret;
-        }
+      err_t_wrap (pgr_evict (p, e), e);
 
       // Try again
       raw = mpgr_new (&p->mpager, pgno);
@@ -135,10 +107,7 @@ pgr_new (page *dest, pager *p, page_type type)
     }
 
   // And read it into the actual page
-  if ((ret = fpgr_get_expect (&p->fpager, raw, pgno)))
-    {
-      return ret;
-    }
+  err_t_wrap (fpgr_get_expect (&p->fpager, raw, pgno, e), e);
 
   page_init (dest, type, raw, p->page_size, pgno);
 
@@ -146,15 +115,11 @@ pgr_new (page *dest, pager *p, page_type type)
 }
 
 err_t
-pgr_commit (pager *p, u8 *data, pgno pgno)
+pgr_commit (pager *p, u8 *data, pgno pgno, error *e)
 {
   pager_assert (p);
-  err_t ret;
 
-  if ((ret = fpgr_commit (&p->fpager, data, pgno)))
-    {
-      return ret;
-    }
+  err_t_wrap (fpgr_commit (&p->fpager, data, pgno, e), e);
 
   return SUCCESS;
 }

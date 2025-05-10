@@ -1,6 +1,7 @@
 #include "variables/variable.h"
 #include "dev/assert.h"
-#include "dev/errors.h"
+#include "errors/error.h"
+#include "intf/mm.h"
 #include "type/types.h"
 #include "utils/deserializer.h"
 #include "utils/serializer.h"
@@ -20,7 +21,8 @@ vm_to_vhe (
     var_hash_entry *dest,
     string vname,
     vmeta src,
-    lalloc *tstr_allocator)
+    lalloc *tstr_allocator,
+    error *e)
 {
   ASSERT (dest);
   ASSERT (vname.len > 0);
@@ -36,17 +38,23 @@ vm_to_vhe (
   /**
    * Allocate tstr
    */
-  u8 *tstr = lmalloc (tstr_allocator, tlen);
-  if (!tstr)
+
+  lalloc_r tstr = lmalloc (tstr_allocator, tlen, tlen, 1);
+  if (tstr.stat != AR_SUCCESS)
     {
-      return ERR_NOMEM;
+      return error_causef (
+          e, ERR_NOMEM,
+          "Failed to allocate memory for "
+          "type string of length: %d bytes",
+          tlen);
     }
-  serializer s = srlizr_create (tstr, tlen);
+
+  serializer s = srlizr_create (tstr.ret, tlen);
   type_serialize (&s, &src.type);
 
   dest->vstr = vname.data;
   dest->vlen = vname.len;
-  dest->tstr = tstr;
+  dest->tstr = tstr.ret;
   dest->tlen = tlen;
   dest->pg0 = src.pgn0;
 
@@ -65,18 +73,15 @@ err_t
 vhe_to_vm (
     vmeta *dmeta,
     const var_hash_entry *src,
-    lalloc *type_allocator)
+    lalloc *type_allocator,
+    error *e)
 {
   ASSERT (dmeta);
   var_hash_entry_assert (src);
 
   type t;
   deserializer d = dsrlizr_create (src->tstr, src->tlen);
-  err_t ret = type_deserialize (&t, &d, type_allocator);
-  if (ret)
-    {
-      return ret;
-    }
+  err_t_wrap (type_deserialize (&t, &d, type_allocator, e), e);
 
   dmeta->pgn0 = src->pg0;
   dmeta->type = t;

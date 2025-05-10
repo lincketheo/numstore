@@ -3,9 +3,7 @@
 #include "compiler/stack_parser/query_parser.h"
 #include "compiler/tokens.h"
 #include "dev/assert.h"
-#include "dev/errors.h"
 #include "intf/logging.h"
-#include "services/var_retr.h"
 
 ////////////////////////// DEV
 DEFINE_DBG_ASSERT_I (query_parser, append_parser, s)

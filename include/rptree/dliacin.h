@@ -1,6 +1,6 @@
 #pragma once
 
-#include "dev/errors.h"
+#include "errors/error.h"
 #include "intf/mm.h"
 #include "paging/pager.h"
 #include "rptree/mem_inner_node.h"
@@ -48,4 +48,4 @@ typedef struct
   // TODO - fill factor - what percent to fill when overflow
 } dliacin_params;
 
-err_t dliacin (mem_inner_node *dest, dliacin_params params);
+err_t dliacin (mem_inner_node *dest, dliacin_params params, error *e);

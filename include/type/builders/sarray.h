@@ -14,7 +14,7 @@ typedef struct
   lalloc *alloc;
 } sarray_builder;
 
-err_t sab_create (sarray_builder *dest, lalloc *alloc);
-err_t sab_accept_dim (sarray_builder *eb, u32 dim);
-err_t sab_accept_type (sarray_builder *eb, type type);
-err_t sab_build (sarray_t *dest, sarray_builder *eb);
+err_t sab_create (sarray_builder *dest, lalloc *alloc, error *e);
+err_t sab_accept_dim (sarray_builder *eb, u32 dim, error *e);
+err_t sab_accept_type (sarray_builder *eb, type type, error *e);
+err_t sab_build (sarray_t *dest, sarray_builder *eb, error *e);

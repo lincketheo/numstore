@@ -1,6 +1,6 @@
 #include "paging/types/inner_node.h"
 #include "dev/assert.h"
-#include "dev/errors.h"
+#include "errors/error.h"
 #include "paging/page.h"
 #include "paging/types/data_list.h"
 
@@ -28,20 +28,32 @@ DEFINE_DBG_ASSERT_I (inner_node, unchecked_inner_node, i)
 
 DEFINE_DBG_ASSERT_I (inner_node, valid_inner_node, i)
 {
-  ASSERT (in_is_valid (i));
+  ASSERT (in_validate (i, NULL) == SUCCESS);
 }
 
-bool
-in_is_valid (const inner_node *in)
+err_t
+in_validate (const inner_node *in, error *e)
 {
   unchecked_inner_node_assert (in);
+
+  if (*in->header != (pgh)PG_INNER_NODE)
+    {
+      return error_causef (
+          e, ERR_CORRUPT,
+          "Inner Node: expected header: %" PRpgh " but got: %" PRpgh,
+          (pgh)PG_INNER_NODE, *in->header);
+    }
 
   /**
    * Check that nkeys is less than max keys
    */
   if (*in->nkeys > in_max_nkeys (in->rlen))
     {
-      return false;
+      return error_causef (
+          e, ERR_CORRUPT,
+          "Inner Node: nkeys (%" PRp_size ") is more than "
+          "maximum nkeys (%" PRp_size ") for page size: %" PRp_size,
+          *in->nkeys, in_max_nkeys (in->rlen), in->rlen);
     }
 
   /**
@@ -50,12 +62,16 @@ in_is_valid (const inner_node *in)
    */
   if (*in->nkeys == 0)
     {
-      return false;
+      return error_causef (
+          e, ERR_CORRUPT,
+          "Inner Node: nkeys cannot be 0");
     }
 
   if (in->keys == NULL)
     {
-      return false;
+      return error_causef (
+          e, ERR_CORRUPT,
+          "Inner Node: nkeys > 0, but there are no keys");
     }
 
   /**
@@ -66,10 +82,12 @@ in_is_valid (const inner_node *in)
   ASSERT (keys_start < in->rlen); // From previous assert
   if ((in->rlen - keys_start) != *in->nkeys * sizeof *in->keys)
     {
-      return false;
+      return error_causef (
+          e, ERR_CORRUPT,
+          "Inner Node: nkeys and actual keys mismatch");
     }
 
-  return true;
+  return SUCCESS;
 }
 
 p_size
@@ -161,7 +179,7 @@ in_init_empty (inner_node *in)
 }
 
 err_t
-in_read_and_set_ptrs (inner_node *dest, u8 *raw, p_size len)
+in_read_and_set_ptrs (inner_node *dest, u8 *raw, p_size len, error *e)
 {
   ASSERT (dest);
   ASSERT (raw);
@@ -176,19 +194,16 @@ in_read_and_set_ptrs (inner_node *dest, u8 *raw, p_size len)
   p_size nkeys = *dest->nkeys;
   if (nkeys > in_max_nkeys (len))
     {
-      return ERR_INVALID_STATE;
+      return error_causef (
+          e, ERR_CORRUPT,
+          "Inner Node: nkeys (%u) is more than "
+          "maximum nkeys (%u) for page size: %u",
+          nkeys, in_max_nkeys (len), len);
     }
-  if (nkeys == 0)
-    {
-      return ERR_INVALID_STATE;
-    }
+
   dest->keys = (b_size *)(&raw[len - nkeys]);
 
-  // One last validitiy check (in other things)
-  if (!in_is_valid (dest))
-    {
-      return ERR_INVALID_STATE;
-    }
+  err_t_wrap (in_validate (dest, e), e);
 
   valid_inner_node_assert (dest);
 

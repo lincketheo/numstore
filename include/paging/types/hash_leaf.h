@@ -1,8 +1,6 @@
 #pragma once
 
-#include "dev/errors.h"
-#include "ds/strings.h"
-#include "intf/mm.h"
+#include "errors/error.h"
 #include "intf/types.h"
 
 typedef struct page_s page;
@@ -38,7 +36,7 @@ typedef struct
   u8 *data;   // Pointer to serialized variables
 } hash_leaf;
 
-bool hl_is_valid (const hash_leaf *d);
+err_t hl_validate (const hash_leaf *d, error *e);
 
 p_size hl_data_len (p_size page_size);
 

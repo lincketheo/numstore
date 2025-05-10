@@ -1,5 +1,6 @@
 #include "variables/vhash_fmt.h"
-#include "dev/errors.h"
+#include "errors/error.h"
+#include "intf/mm.h"
 #include "intf/stdlib.h"
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
@@ -14,8 +15,8 @@ vrhfmt_create (lalloc *alloc)
   };
 }
 
-err_t
-vrhfmt_parse_header (vread_hash_fmt *v)
+static err_t
+vrhfmt_parse_header (vread_hash_fmt *v, error *e)
 {
   ASSERT (v->pos == VHFMT_HDR_LEN + 1);
   ASSERT (v->state == VHFMT_SCANNING);
@@ -46,7 +47,11 @@ vrhfmt_parse_header (vread_hash_fmt *v)
   if (vstrlen == 0 || tstrlen == 0 || pg0 == 0)
     {
       v->state = VHFMT_CORRUPT;
-      return ERR_INVALID_STATE;
+      return error_causef (
+          e, ERR_CORRUPT,
+          "Encountered invalid hash leaf "
+          "header with vstrlen == %d, tstrlen == %d, pg0 == %" PRpgno,
+          vstrlen, tstrlen, pg0);
     }
 
   v->state = VHFMT_SCANNING;
@@ -60,12 +65,22 @@ vrhfmt_parse_header (vread_hash_fmt *v)
    */
   if (!v->is_tombstone)
     {
-      v->raw = lmalloc (v->alloc, vstrlen + tstrlen);
-      if (!v->raw)
+      lalloc_r raw = lmalloc (
+          v->alloc,
+          vstrlen + tstrlen,
+          vstrlen + tstrlen, 1);
+
+      if (raw.stat != AR_SUCCESS)
         {
-          lfree (v->alloc, v->raw);
-          return ERR_NOMEM;
+          return error_causef (
+              e, ERR_NOMEM,
+              "Not enough memory to allocate %d bytes for "
+              "variable + type string for variable "
+              "hash entry with vstrlen = %d and tstrlen = %d",
+              vstrlen + tstrlen, vstrlen, tstrlen);
         }
+
+      v->raw = raw.ret;
       v->vstr = (char *)v->raw;
       v->tstr = v->raw + vstrlen;
     }
@@ -74,7 +89,11 @@ vrhfmt_parse_header (vread_hash_fmt *v)
 }
 
 err_t
-vrhfmt_read_in (const u8 *src, p_size *nbytes, vread_hash_fmt *dest)
+vrhfmt_read_in (
+    const u8 *src,
+    p_size *nbytes,
+    vread_hash_fmt *dest,
+    error *e)
 {
   ASSERT (*nbytes > 0);
 
@@ -116,7 +135,9 @@ vrhfmt_read_in (const u8 *src, p_size *nbytes, vread_hash_fmt *dest)
         default:
           {
             dest->state = VHFMT_CORRUPT;
-            ret = ERR_INVALID_STATE;
+            ret = error_causef (
+                e, ERR_CORRUPT,
+                "Unexpected hash leaf variable header: %d", type);
             goto theend;
           }
         }
@@ -149,11 +170,7 @@ vrhfmt_read_in (const u8 *src, p_size *nbytes, vread_hash_fmt *dest)
        */
       if (dest->pos == VHFMT_HDR_LEN + 1)
         {
-          ret = vrhfmt_parse_header (dest);
-          if (ret)
-            {
-              goto theend;
-            }
+          err_t_wrap (vrhfmt_parse_header (dest, e), e);
         }
 
       /**
@@ -283,7 +300,11 @@ vwhfmt_create (var_hash_entry params)
 }
 
 err_t
-vwhfmt_write_out (u8 *dest, p_size *nbytes, vwrite_hash_fmt *src)
+vwhfmt_write_out (
+    u8 *dest,
+    p_size *nbytes,
+    vwrite_hash_fmt *src,
+    error *e)
 {
   ASSERT (*nbytes > 0);
 
@@ -300,7 +321,11 @@ vwhfmt_write_out (u8 *dest, p_size *nbytes, vwrite_hash_fmt *src)
     {
       if (dest[0] != VHFMT_TYPE_EOF)
         {
-          return ERR_INVALID_STATE;
+          return error_causef (
+              e, ERR_CORRUPT,
+              "Expected header VHFMT_TYPE_EOF (%d) "
+              "to start next variable, but got: %d",
+              VHFMT_TYPE_EOF, dest[0]);
         }
     }
 
