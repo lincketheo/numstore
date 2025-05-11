@@ -9,10 +9,5 @@ typedef struct
 } string;
 
 string unsafe_cstrfrom (char *cstr);
-
-int strings_all_unique_with_return (
-    u32 *_i, u32 *_j,
-    const string *strs,
-    u32 count);
 int strings_all_unique (const string *strs, u32 count);
 bool string_equal (const string s1, const string s2);

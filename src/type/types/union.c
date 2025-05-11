@@ -1,4 +1,6 @@
 #include "type/types/union.h"
+#include "ds/strings.h"
+#include "errors/error.h"
 #include "intf/stdlib.h"
 #include "type/types.h"
 
@@ -16,7 +18,10 @@ union_t_validate_shallow (const union_t *s, error *e)
 
   if (s->len == 0)
     {
-      return error_causef (e, 1, "Union key length must be > 0");
+      return error_causef (
+          e, ERR_INVALID_TYPE,
+          "Union: "
+          "key length must be > 0");
     }
 
   for (u32 i = 0; i < s->len; ++i)
@@ -25,16 +30,18 @@ union_t_validate_shallow (const union_t *s, error *e)
         {
           return error_causef (
               e, ERR_INVALID_TYPE,
-              "Union: length of key at index: %d is 0", i);
+              "Union: "
+              "length of key at index: %d is 0",
+              i);
         }
       ASSERT (s->keys[i].data);
     }
-  u32 i, j;
-  if (!strings_all_unique_with_return (&i, &j, s->keys, s->len))
+  if (!strings_all_unique (s->keys, s->len))
     {
       return error_causef (
           e, ERR_INVALID_TYPE,
-          "Union: Keys %d and %d are duplicates", i, j);
+          "Union: "
+          "duplicate keys");
     }
 
   return SUCCESS;

@@ -34,12 +34,12 @@ enum_t_validate (const enum_t *en, error *e)
       ASSERT (en->keys[i].data);
     }
 
-  u32 i, j;
-  if (!strings_all_unique_with_return (&i, &j, en->keys, en->len))
+  if (!strings_all_unique (en->keys, en->len))
     {
       return error_causef (
           e, ERR_INVALID_TYPE,
-          "Enum: Keys %d and %d are duplicates", i, j);
+          "Enum: "
+          "Duplicate keys");
     }
 
   return SUCCESS;
