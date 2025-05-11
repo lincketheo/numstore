@@ -30,7 +30,7 @@ srlizr_write (serializer *dest, const u8 *src, u32 len)
       return false;
     }
   i_memcpy (dest->data + dest->dlen, src, len);
-  dest->dlen += dest->dcap;
+  dest->dlen += len;
 
   serializer_assert (dest);
 

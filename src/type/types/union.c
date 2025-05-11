@@ -29,12 +29,12 @@ union_t_validate_shallow (const union_t *s, error *e)
         }
       ASSERT (s->keys[i].data);
     }
-  u32 i, j;
-  if (!strings_all_unique_with_return (&i, &j, s->keys, s->len))
+  if (strings_all_unique (s->keys, s->len))
     {
       return error_causef (
           e, ERR_INVALID_TYPE,
-          "Union: Keys %d and %d are duplicates", i, j);
+          "Union: "
+          "Keys are not all unique");
     }
 
   return SUCCESS;

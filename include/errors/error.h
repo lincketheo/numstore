@@ -68,10 +68,6 @@ err_t error_change_causef (
 
 void error_log_consume (error *e);
 
-#ifndef NTEST
-void error_reset (error *e);
-#endif
-
 #ifndef NDEBUG
 #define error_trailf_dbg(e, ...) error_trailf (e, "DEBUG " __VA_ARGS__)
 #else

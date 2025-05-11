@@ -29,7 +29,10 @@ dsrlizr_read (u8 *dest, u32 dlen, deserializer *src)
     {
       return false;
     }
-  i_memcpy (dest, src->data + src->head, dlen);
+  if (dest != NULL)
+    {
+      i_memcpy (dest, src->data + src->head, dlen);
+    }
   src->head += dlen;
 
   deserializer_assert (src);

@@ -26,34 +26,6 @@ unsafe_cstrfrom (char *cstr)
 }
 
 int
-strings_all_unique_with_return (
-    u32 *_i, u32 *_j, const string *strs, u32 count)
-{
-  ASSERT (_i);
-  ASSERT (_j);
-  ASSERT (strs);
-  ASSERT (count > 0);
-
-  for (u32 i = 0; i < count; ++i)
-    {
-      for (u32 j = i + 1; j < count; ++j)
-        {
-          if (strs[i].len != strs[j].len)
-            {
-              continue;
-            }
-          if (i_memcmp (strs[i].data, strs[j].data, strs[i].len) == 0)
-            {
-              *_i = i;
-              *_j = j;
-              return 0;
-            }
-        }
-    }
-  return 1;
-}
-
-int
 strings_all_unique (const string *strs, u32 count)
 {
   for (u32 i = 0; i < count; ++i)

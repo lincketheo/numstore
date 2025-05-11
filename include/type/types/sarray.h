@@ -11,6 +11,10 @@ typedef struct type_s type;
 typedef struct
 {
   u16 rank;
+
+  /**
+   * 2 allocs:
+   */
   u32 *dims;
   type *t; // Not an array
 } sarray_t;

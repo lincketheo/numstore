@@ -10,7 +10,12 @@
 typedef struct
 {
   u16 len;
-  string *keys;
+
+  /**
+   * 2 allocs:
+   */
+  string *keys; // Points into [data]
+  char *data;   // Backing data for keys
 } enum_t;
 
 err_t enum_t_validate (const enum_t *t, error *e);
@@ -27,8 +32,4 @@ u32 enum_t_get_serial_size (const enum_t *t);
 
 void enum_t_serialize (serializer *dest, const enum_t *src);
 
-err_t enum_t_deserialize (
-    enum_t *dest,
-    deserializer *src,
-    lalloc *a,
-    error *e);
+err_t enum_t_deserialize (enum_t *dest, deserializer *src, lalloc *a, error *e);

@@ -33,7 +33,15 @@ struct_t_validate_shallow (const struct_t *s, error *e)
       ASSERT (s->keys[i].data);
     }
 
-  return strings_all_unique (s->keys, s->len);
+  if (!strings_all_unique (s->keys, s->len))
+    {
+      return error_causef (
+          e, ERR_INVALID_TYPE,
+          "Struct: "
+          "contains duplicate keys");
+    }
+
+  return SUCCESS;
 }
 
 DEFINE_DBG_ASSERT_I (struct_t, valid_struct_t, s)
@@ -312,6 +320,10 @@ struct_t_get_serial_size (const struct_t *t)
 void
 struct_t_serialize (serializer *dest, const struct_t *src)
 {
+  /**
+   * Program correctness: You have enough room in the serializer
+   * to serialize an enum before serializing it
+   */
   valid_struct_t_assert (src);
   bool ret;
 
@@ -323,24 +335,57 @@ struct_t_serialize (serializer *dest, const struct_t *src)
 
   for (u32 i = 0; i < src->len; ++i)
     {
-      /**
-       * (KLEN
-       */
       string next = src->keys[i];
       ret = srlizr_write_u16 (dest, next.len);
       ASSERT (ret);
 
-      /**
-       * KEY)
-       */
       ret = srlizr_write (dest, (u8 *)next.data, next.len);
       ASSERT (ret);
 
-      /**
-       * (TYPE)
-       */
       type_serialize (dest, &src->types[i]);
     }
+}
+
+TEST (enum_t_serialize)
+{
+  struct_t st;
+  st.len = 5;
+  st.keys = (string[]){
+    { .len = },
+    {
+
+    },
+    {
+
+    },
+    {
+
+    }
+  };
+};
+u8 act[200]; // Sloppy sizing
+u8 exp[] = { 0, 0,
+             0, 0, 'f', 'o', 'o',
+             0, 0, 'f', 'o',
+             0, 0, 'b', 'a', 'r', 'o',
+             0, 0, 'b', 'a', 'z', 'b', 'i' };
+u16 len = 4;
+u16 l0 = 3;
+u16 l2 = 2;
+u16 l3 = 4;
+u16 l4 = 5;
+i_memcpy (&exp[0], &len, sizeof (u16));
+i_memcpy (&exp[2], &l0, sizeof (u16));
+i_memcpy (&exp[7], &l2, sizeof (u16));
+i_memcpy (&exp[11], &l3, sizeof (u16));
+i_memcpy (&exp[17], &l4, sizeof (u16));
+
+// Expected
+serializer s = srlizr_create (act, 200);
+enum_t_serialize (&s, &en);
+
+test_assert_int_equal (s.dlen, sizeof (exp));
+test_assert_int_equal (i_memcmp (act, exp, sizeof (exp)), 0);
 }
 
 err_t

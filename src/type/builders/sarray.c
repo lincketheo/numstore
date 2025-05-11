@@ -180,3 +180,18 @@ sab_build (sarray_t *dest, sarray_builder *sab, error *e)
 
   return SUCCESS;
 }
+
+TEST (sarray_builder_green_path)
+{
+  lalloc alloc = lalloc_create (1000);
+  sarray_builder sab;
+  error e = error_create (NULL);
+
+  type subtype = {
+    .type = T_PRIM,
+    .p = U32,
+  };
+
+  test_fail_if (sab_create (&sab, &alloc, &e));
+  test_fail_if (sab_accept_dim ());
+}

@@ -14,6 +14,8 @@ typedef struct
   u16 len;
   string *keys;
   type *types;
+
+  u8 *data;
 } struct_t;
 
 err_t struct_t_validate (const struct_t *t, error *e);

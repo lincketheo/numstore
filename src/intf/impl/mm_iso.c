@@ -22,8 +22,11 @@ DEFINE_DBG_ASSERT_I (lalloc, lalloc, l)
 typedef struct
 {
   u32 total;
-  u32 elem_size;
-  max_align_t _align;
+  union
+  {
+    u32 elem_size;
+    max_align_t _align;
+  };
   unsigned char data[];
 } lalloc_block;
 
@@ -213,7 +216,7 @@ lfree (lalloc *a, void *data)
 {
   ASSERT (data);
   lalloc_block *blk = blk_from_data (data);
-  ASSERT (a->used > blk->total);
+  ASSERT (a->used >= blk->total);
   a->used -= blk->total;
   free (blk);
 }

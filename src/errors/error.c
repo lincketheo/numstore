@@ -89,12 +89,21 @@ error_make_room (error *e)
 {
   error_assert (e);
 
-  lalloc_r evidence = lrealloc (
-      e->alloc,
-      e->evidence,
-      e->ecap * 1.25,
-      (e->ecap + 1),
-      sizeof *e->evidence);
+  lalloc_r evidence;
+
+  if (e->ecap == 0)
+    {
+      evidence = lmalloc (
+          e->alloc,
+          2, 1, sizeof *e->evidence);
+    }
+  else
+    {
+      evidence = lrealloc (
+          e->alloc,
+          e->evidence,
+          e->ecap * 1.25, (e->ecap + 1), sizeof *e->evidence);
+    }
 
   switch (evidence.stat)
     {
