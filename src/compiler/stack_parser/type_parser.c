@@ -1,6 +1,8 @@
 #include "compiler/stack_parser/type_parser.h"
-#include "compiler/stack_parser/common.h"
-#include "compiler/tokens.h"
+
+#include "compiler/stack_parser/common.h" // stackp_result
+#include "compiler/tokens.h"              // token
+#include "dev/assert.h"                   // DEFINE_DBG_ASSERT_I
 
 DEFINE_DBG_ASSERT_I (type_parser, type_parser, typep)
 {

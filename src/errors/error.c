@@ -213,28 +213,3 @@ error_log_consume (error *e)
 
   e->cause_code = SUCCESS;
 }
-
-#ifndef NTEST
-void
-error_reset (error *e)
-{
-  error_assert (e);
-  ASSERT (e->cause_code != SUCCESS);
-
-  e->cmlen = 0;
-
-  for (u32 i = 0; i < e->elen; ++i)
-    {
-      lfree (e->alloc, e->evidence[i].data);
-      e->evidence[i].data = NULL;
-      e->evidence[i].len = 0;
-    }
-  e->elen = 0;
-  if (e->ecap > 0)
-    {
-      lfree (e->alloc, e->evidence);
-      e->ecap = 0;
-      e->evidence = NULL;
-    }
-}
-#endif

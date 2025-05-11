@@ -1,12 +1,17 @@
 #pragma once
 
-#include "dev/assert.h"
-#include "dev/testing.h"
 #include "intf/types.h"
 
 /////////////////////// Limited allocator
-
-// Limited Allocator
+/**
+ * Wrapper on top of a generic allocator, but has limits to
+ * how much memory you can allocate.
+ *
+ * Returns three cases:
+ * 1. I have enough memory
+ * 2. I would never have enough memory
+ * 3. I have enough memory but it's being used, come back later
+ */
 typedef struct
 {
   u32 used;
@@ -22,9 +27,9 @@ typedef enum
 
 typedef struct
 {
-  lalloc_c stat;
-  void *ret; // The result - NULL if not AR_SUCCESS
-  u32 rlen;  // Length of ret - 0 if not AR_SUCCESS
+  lalloc_c stat; // Return code
+  void *ret;     // The result - NULL if not AR_SUCCESS
+  u32 rlen;      // Length of ret - 0 if not AR_SUCCESS
 } lalloc_r;
 
 lalloc lalloc_create (u32 limit);
@@ -36,12 +41,3 @@ lalloc_r lcalloc (lalloc *a, u32 req, u32 min, u32 size);
 lalloc_r lrealloc (lalloc *a, void *data, u32 req, u32 min, u32 size);
 
 void lfree (lalloc *a, void *data);
-
-#ifndef NTEST
-/**
- * For tests and debugging, I just want an easy wrapper
- * that has the same behavior as malloc
- */
-void *lmalloc_test (lalloc *a, u32 n, u32 size);
-void *lcalloc_test (lalloc *a, u32 n, u32 size);
-#endif

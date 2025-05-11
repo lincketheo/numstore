@@ -1,8 +1,9 @@
 #include "type/types/sarray.h"
-#include "ds/strings.h"
-#include "errors/error.h"
-#include "intf/stdlib.h"
-#include "type/types.h"
+
+#include "dev/assert.h"   // DEFINE_DBG_ASSERT_I
+#include "errors/error.h" // error
+#include "intf/stdlib.h"  // i_snprintf
+#include "type/types.h"   // u32
 
 DEFINE_DBG_ASSERT_I (sarray_t, unchecked_sarray_t, s)
 {

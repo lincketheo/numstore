@@ -33,7 +33,15 @@ struct_t_validate_shallow (const struct_t *s, error *e)
       ASSERT (s->keys[i].data);
     }
 
-  return strings_all_unique (s->keys, s->len);
+  if (!strings_all_unique (s->keys, s->len))
+    {
+      return error_causef (
+          e, ERR_INVALID_TYPE,
+          "Struct: "
+          "contains duplicate keys");
+    }
+
+  return SUCCESS;
 }
 
 DEFINE_DBG_ASSERT_I (struct_t, valid_struct_t, s)

@@ -1,7 +1,8 @@
 #include "type/types/prim.h"
-#include "ds/strings.h"
-#include "intf/stdlib.h"
-#include "type/types.h"
+
+#include "dev/assert.h"  // DEFINE_DBG_ASSERT_I
+#include "intf/stdlib.h" // i_snprintf
+#include "type/types.h"  // u32-u64
 
 DEFINE_DBG_ASSERT_I (prim_t, prim_t, s)
 {

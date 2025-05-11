@@ -1,5 +1,7 @@
 #include "compiler/tokens.h"
 
+#include "dev/assert.h" // UNREACHABLE
+
 void
 i_log_token (token t)
 {
