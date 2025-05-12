@@ -1,7 +1,7 @@
 #include "paging/types/hash_leaf.h"
 #include "dev/assert.h"
 #include "ds/strings.h"
-#include "intf/mm.h"
+#include "mm/lalloc.h"
 #include "intf/stdlib.h"
 #include "paging/page.h"
 #include "paging/types/inner_node.h"

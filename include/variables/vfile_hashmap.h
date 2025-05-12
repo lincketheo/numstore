@@ -1,6 +1,6 @@
 #pragma once
 
-#include "intf/mm.h"
+#include "mm/lalloc.h"
 #include "paging/pager.h"
 #include "variables/variable.h"
 

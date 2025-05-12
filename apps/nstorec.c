@@ -2,7 +2,7 @@
 #include "client/repl.h"
 #include "errors/error.h"
 #include "intf/logging.h"
-#include "intf/mm.h"
+#include "mm/lalloc.h"
 
 #include <signal.h>
 #include <stdbool.h>

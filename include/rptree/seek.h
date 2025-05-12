@@ -1,6 +1,6 @@
 #pragma once
 
-#include "intf/mm.h"
+#include "mm/lalloc.h"
 #include "paging/page.h"
 #include "paging/pager.h"
 #include "rptree/mem_inner_node.h"

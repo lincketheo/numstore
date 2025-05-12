@@ -1,8 +1,8 @@
 #pragma once
 
 #include "errors/error.h"       // error
-#include "intf/mm.h"            // lalloc
 #include "intf/types.h"         // u32
+#include "mm/lalloc.h"          // lalloc
 #include "utils/deserializer.h" // deserializer
 #include "utils/serializer.h"   // serializer
 
@@ -20,10 +20,6 @@ err_t sarray_t_validate (const sarray_t *t, error *e);
 int sarray_t_snprintf (char *str, u32 size, const sarray_t *p);
 
 u32 sarray_t_byte_size (const sarray_t *t);
-
-void sarray_t_free_internals_forgiving (sarray_t *t, lalloc *alloc);
-
-void sarray_t_free_internals (sarray_t *t, lalloc *alloc);
 
 u32 sarray_t_get_serial_size (const sarray_t *t);
 

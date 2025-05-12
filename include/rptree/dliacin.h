@@ -1,7 +1,7 @@
 #pragma once
 
 #include "errors/error.h"
-#include "intf/mm.h"
+#include "mm/lalloc.h"
 #include "paging/pager.h"
 #include "rptree/mem_inner_node.h"
 

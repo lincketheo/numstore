@@ -1,7 +1,7 @@
 #pragma once
 
 #include "ds/strings.h"
-#include "intf/mm.h"
+#include "mm/lalloc.h"
 #include "intf/types.h"
 #include "variables/variable.h"
 

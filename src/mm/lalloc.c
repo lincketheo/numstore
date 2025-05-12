@@ -1,7 +1,7 @@
+#include "mm/lalloc.h"
 #include "dev/testing.h"
 #include "errors/error.h"
 #include "intf/logging.h"
-#include "intf/mm.h"
 #include "intf/stdlib.h"
 #include "utils/bounds.h"
 

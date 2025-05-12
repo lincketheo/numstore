@@ -2,7 +2,7 @@
 
 #include "compiler/stack_parser/common.h"
 #include "compiler/tokens.h"
-#include "intf/mm.h"
+#include "mm/lalloc.h"
 #include "intf/types.h"
 #include "type/builders/sarray.h"
 

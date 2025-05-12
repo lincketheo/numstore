@@ -1,6 +1,6 @@
 #pragma once
 
-#include "intf/mm.h"
+#include "mm/lalloc.h"
 #include "paging/types/inner_node.h"
 
 typedef struct

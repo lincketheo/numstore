@@ -1,7 +1,7 @@
 #include "server/server.h"
 #include "errors/error.h"
 #include "intf/logging.h"
-#include "intf/mm.h"
+#include "mm/lalloc.h"
 #include "intf/stdlib.h"
 #include "server/connector.h"
 #include "utils/bounds.h"

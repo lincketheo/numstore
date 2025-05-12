@@ -1,6 +1,6 @@
 #pragma once
 
-#include "intf/mm.h"
+#include "mm/lalloc.h"
 #include "intf/types.h"
 #include "type/types.h"
 #include "type/types/sarray.h"

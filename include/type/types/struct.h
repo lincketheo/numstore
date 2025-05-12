@@ -2,8 +2,8 @@
 
 #include "ds/strings.h"         // string
 #include "errors/error.h"       // error
-#include "intf/mm.h"            // lalloc
 #include "intf/types.h"         // u32
+#include "mm/lalloc.h"          // lalloc
 #include "utils/deserializer.h" // deserializer
 #include "utils/serializer.h"   // serializer
 
@@ -21,10 +21,6 @@ err_t struct_t_validate (const struct_t *t, error *e);
 int struct_t_snprintf (char *str, u32 size, const struct_t *st);
 
 u32 struct_t_byte_size (const struct_t *t);
-
-void struct_t_free_internals_forgiving (struct_t *t, lalloc *alloc);
-
-void struct_t_free_internals (struct_t *t, lalloc *alloc);
 
 u32 struct_t_get_serial_size (const struct_t *t);
 

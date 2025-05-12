@@ -1,7 +1,7 @@
 #pragma once
 
 #include "errors/error.h"       // error
-#include "intf/mm.h"            // lalloc
+#include "mm/lalloc.h"          // lalloc
 #include "utils/deserializer.h" //  deserializer
 #include "utils/serializer.h"   //  serializer
 
@@ -23,12 +23,12 @@ typedef struct type_s type;
 
 typedef enum
 {
-  T_PRIM,
-  T_STRUCT,
-  T_UNION,
-  T_ENUM,
-  T_VARRAY,
-  T_SARRAY,
+  T_PRIM = 0,
+  T_STRUCT = 1,
+  T_UNION = 2,
+  T_ENUM = 3,
+  T_VARRAY = 4,
+  T_SARRAY = 5,
 } type_t;
 
 struct type_s
@@ -59,16 +59,6 @@ int type_snprintf (char *str, u32 size, type *t);
  * Get the size in bytes
  */
 u32 type_byte_size (const type *t);
-
-/**
- * Frees internals of a possibly invalid type
- */
-void type_free_internals_forgiving (type *t, lalloc *alloc);
-
-/**
- * Frees internals of a valid type
- */
-void type_free_internals (type *t, lalloc *alloc);
 
 /**
  * Get the size of the buffer needed to serialize this type

@@ -2,7 +2,7 @@
 #include "dev/assert.h"
 #include "ds/strings.h"
 #include "errors/error.h"
-#include "intf/mm.h"
+#include "mm/lalloc.h"
 #include "type/types.h"
 
 DEFINE_DBG_ASSERT_I (enum_builder, enum_builder, s)

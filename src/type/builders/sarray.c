@@ -2,7 +2,7 @@
 #include "dev/assert.h"
 #include "ds/strings.h"
 #include "errors/error.h"
-#include "intf/mm.h"
+#include "mm/lalloc.h"
 #include "intf/stdlib.h"
 #include "type/types.h"
 

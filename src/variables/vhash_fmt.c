@@ -1,6 +1,6 @@
 #include "variables/vhash_fmt.h"
 #include "errors/error.h"
-#include "intf/mm.h"
+#include "mm/lalloc.h"
 #include "intf/stdlib.h"
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))

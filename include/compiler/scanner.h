@@ -2,7 +2,7 @@
 
 #include "dev/assert.h"
 #include "ds/cbuffer.h"
-#include "intf/mm.h"
+#include "mm/lalloc.h"
 
 ////////////////////// SCANNER (chars -> tokens)
 

@@ -2,8 +2,8 @@
 
 #include "ds/strings.h"         // string
 #include "errors/error.h"       // error
-#include "intf/mm.h"            // lalloc
 #include "intf/types.h"         // u32
+#include "mm/lalloc.h"          // lalloc
 #include "utils/deserializer.h" // deserializer
 #include "utils/serializer.h"   // serializer
 
@@ -21,10 +21,6 @@ err_t union_t_validate (const union_t *t, error *e);
 int union_t_snprintf (char *str, u32 size, const union_t *p);
 
 u32 union_t_byte_size (const union_t *t);
-
-void union_t_free_internals_forgiving (union_t *t, lalloc *alloc);
-
-void union_t_free_internals (union_t *t, lalloc *alloc);
 
 u32 union_t_get_serial_size (const union_t *t);
 

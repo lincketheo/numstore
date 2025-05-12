@@ -1,8 +1,8 @@
 #pragma once
 
 #include "ds/strings.h"
-#include "intf/mm.h"
 #include "intf/types.h"
+#include "mm/lalloc.h"
 
 typedef enum
 {

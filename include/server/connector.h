@@ -6,7 +6,7 @@
 #include "compiler/tokens.h"
 #include "ds/cbuffer.h"
 #include "intf/io.h"
-#include "intf/mm.h"
+#include "mm/lalloc.h"
 #include "query/query.h"
 #include "vm/vm.h"
 

@@ -1,7 +1,7 @@
 #include "rptree/rptree.h"
 #include "dev/assert.h"
 #include "errors/error.h"
-#include "intf/mm.h"
+#include "mm/lalloc.h"
 #include "intf/stdlib.h"
 #include "paging/page.h"
 #include "paging/pager.h"

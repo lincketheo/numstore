@@ -1,6 +1,5 @@
 #include "type/types/union.h"
-
-#include "dev/assert.h"
+#include "dev/testing.h"
 #include "ds/strings.h"
 #include "errors/error.h"
 #include "intf/stdlib.h"
@@ -13,6 +12,24 @@ DEFINE_DBG_ASSERT_I (union_t, unchecked_union_t, s)
   ASSERT (s->types);
 }
 
+static inline err_t
+union_t_nomem (const char *msg, error *e)
+{
+  return error_causef (e, ERR_NOMEM, "Union: %s", msg);
+}
+
+static inline err_t
+union_t_type_err (const char *msg, error *e)
+{
+  return error_causef (e, ERR_INVALID_TYPE, "Union: %s", msg);
+}
+
+static inline err_t
+union_t_type_deser (const char *msg, error *e)
+{
+  return error_causef (e, ERR_TYPE_DESER, "Union: %s", msg);
+}
+
 static err_t
 union_t_validate_shallow (const union_t *s, error *e)
 {
@@ -20,30 +37,21 @@ union_t_validate_shallow (const union_t *s, error *e)
 
   if (s->len == 0)
     {
-      return error_causef (
-          e, ERR_INVALID_TYPE,
-          "Union: "
-          "key length must be > 0");
+      return union_t_type_err ("Keys length must be > 0", e);
     }
 
   for (u32 i = 0; i < s->len; ++i)
     {
       if (s->keys[i].len == 0)
         {
-          return error_causef (
-              e, ERR_INVALID_TYPE,
-              "Union: "
-              "length of key at index: %d is 0",
-              i);
+          return union_t_type_err ("Key length must be > 0", e);
         }
       ASSERT (s->keys[i].data);
     }
+
   if (!strings_all_unique (s->keys, s->len))
     {
-      return error_causef (
-          e, ERR_INVALID_TYPE,
-          "Union: "
-          "duplicate keys");
+      return union_t_type_err ("Duplicate keys", e);
     }
 
   return SUCCESS;
@@ -56,28 +64,33 @@ DEFINE_DBG_ASSERT_I (union_t, valid_union_t, s)
 }
 
 err_t
-union_t_validate (const union_t *t, error *e)
+union_t_validate (const union_t *s, error *e)
 {
-  err_t_wrap (union_t_validate_shallow (t, e), e);
-
-  for (u32 i = 0; i < t->len; ++i)
+  err_t_wrap (union_t_validate_shallow (s, e), e);
+  {
+    return false;
+  }
+  for (u32 i = 0; i < s->len; ++i)
     {
-      err_t_wrap (type_validate (&t->types[i], e), e);
+      err_t_wrap (type_validate (&s->types[i], e), e);
+      {
+        return false;
+      }
     }
-  return SUCCESS;
+  return true;
 }
 
 int
-union_t_snprintf (char *str, u32 size, const union_t *p)
+union_t_snprintf (char *str, u32 size, const union_t *st)
 {
-  valid_union_t_assert (p);
+  valid_union_t_assert (st);
 
   char *out = str;
   u32 avail = size;
   int len = 0;
   int n;
 
-  n = i_snprintf (out, avail, "union { ");
+  n = snprintf (out, avail, "union { ");
   if (n < 0)
     {
       return n;
@@ -96,10 +109,10 @@ union_t_snprintf (char *str, u32 size, const union_t *p)
         }
     }
 
-  for (u16 i = 0; i < p->len; ++i)
+  for (u32 i = 0; i < st->len; ++i)
     {
-      string key = p->keys[i];
-      n = snprintf (out, avail, "%.*s", key.len, key.data);
+      string key = st->keys[i];
+      n = snprintf (out, avail, "%.*s ", key.len, key.data);
       if (n < 0)
         {
           return n;
@@ -118,7 +131,7 @@ union_t_snprintf (char *str, u32 size, const union_t *p)
             }
         }
 
-      n = snprintf (out, avail, " ");
+      n = type_snprintf (out, avail, &st->types[i]);
       if (n < 0)
         {
           return n;
@@ -137,26 +150,7 @@ union_t_snprintf (char *str, u32 size, const union_t *p)
             }
         }
 
-      n = type_snprintf (out, avail, &p->types[i]);
-      if (n < 0)
-        {
-          return n;
-        }
-      len += n;
-      if (out)
-        {
-          out += n;
-          if ((u32)n < avail)
-            {
-              avail -= n;
-            }
-          else
-            {
-              avail = 0;
-            }
-        }
-
-      if ((u16)(i + 1) < p->len)
+      if (i + 1 < st->len)
         {
           n = snprintf (out, avail, ", ");
           if (n < 0)
@@ -179,7 +173,7 @@ union_t_snprintf (char *str, u32 size, const union_t *p)
         }
     }
 
-  n = i_snprintf (out, avail, " }");
+  n = snprintf (out, avail, " }");
   if (n < 0)
     {
       return n;
@@ -189,6 +183,57 @@ union_t_snprintf (char *str, u32 size, const union_t *p)
   return len;
 }
 
+TEST (union_t_snprintf)
+{
+  union_t st;
+  st.len = 4;
+  st.keys = (string[]){
+    {
+        .len = 3,
+        .data = "foo",
+    },
+    {
+        .len = 2,
+        .data = "fo",
+    },
+    {
+        .len = 4,
+        .data = "baro",
+    },
+    {
+        .len = 5,
+        .data = "bazbi",
+    },
+  };
+  st.types = (type[]){
+    {
+        .type = T_PRIM,
+        .p = U32,
+    },
+    {
+        .type = T_PRIM,
+        .p = U8,
+    },
+    {
+        .type = T_PRIM,
+        .p = U16,
+    },
+    {
+        .type = T_PRIM,
+        .p = CF128,
+    },
+  };
+
+  char buffer[200];
+  const char *expected = "union { foo U32, fo U8, baro U16, bazbi CF128 }";
+  u32 len = i_unsafe_strlen (expected);
+
+  int i = union_t_snprintf (buffer, 200, &st);
+
+  test_assert_int_equal (i, len);
+  test_assert_int_equal (i_strncmp (expected, buffer, len), 0);
+}
+
 u32
 union_t_byte_size (const union_t *t)
 {
@@ -196,80 +241,61 @@ union_t_byte_size (const union_t *t)
   u32 ret = 0;
 
   /**
-   * Get the maximum size
+   * Each type is layed out contiguously
    */
   for (u32 i = 0; i < t->len; ++i)
     {
-      u32 next = type_byte_size (&t->types[i]);
-      if (next > ret)
-        {
-          ret = next;
-        }
+      ret += type_byte_size (&t->types[i]);
     }
 
   return ret;
 }
 
-void
-union_t_free_internals_forgiving (union_t *t, lalloc *alloc)
+TEST (union_t_byte_size)
 {
-  if (!t)
+  union_t st;
+  st.len = 4;
+  st.keys = (string[]){
     {
-      return;
-    }
-
-  if (t->keys)
+        .len = 3,
+        .data = "foo",
+    },
     {
-      for (u32 i = 0; i < t->len; ++i)
-        {
-          if (t->keys[i].data)
-            {
-              lfree (alloc, t->keys[i].data);
-            }
-
-          t->keys[i].len = 0;
-          t->keys[i].data = NULL;
-        }
-      lfree (alloc, t->keys);
-      t->keys = NULL;
-    }
-
-  if (t->types)
+        .len = 2,
+        .data = "fo",
+    },
     {
-      for (u32 i = 0; i < t->len; ++i)
-        {
-          type_free_internals_forgiving (&t->types[i], alloc);
-          t->types[i] = (type){ 0 };
-        }
-      lfree (alloc, t->types);
-      t->types = NULL;
-    }
-
-  t->len = 0;
-}
-
-void
-union_t_free_internals (union_t *t, lalloc *alloc)
-{
-  valid_union_t_assert (t);
-
-  for (u32 i = 0; i < t->len; ++i)
+        .len = 4,
+        .data = "baro",
+    },
     {
-      lfree (alloc, t->keys[i].data);
-      t->keys[i].len = 0;
-      t->keys[i].data = NULL;
+        .len = 5,
+        .data = "bazbi",
+    },
+  };
+  st.types = (type[]){
+    {
+        .type = T_PRIM,
+        .p = U32,
+    },
+    {
+        .type = T_PRIM,
+        .p = U8,
+    },
+    {
+        .type = T_PRIM,
+        .p = U16,
+    },
+    {
+        .type = T_PRIM,
+        .p = CF128,
+    },
+  };
 
-      type_free_internals (&t->types[i], alloc);
-      t->types[i] = (type){ 0 };
-    }
+  u64 act = union_t_byte_size (&st);
+  u64 exp = (sizeof (u32) + sizeof (u8) + sizeof (u16) + sizeof (cf128));
 
-  lfree (alloc, t->keys);
-  t->keys = NULL;
-
-  lfree (alloc, t->types);
-  t->types = NULL;
-
-  t->len = 0;
+  test_assert_int_equal (exp, act);
 }
 
 u32
@@ -286,11 +312,58 @@ union_t_get_serial_size (const union_t *t)
 
   for (u32 i = 0; i < t->len; ++i)
     {
-      ret += t->keys[0].len;
+      ret += t->keys[i].len;
       ret += type_get_serial_size (&t->types[i]);
     }
 
   return ret;
+}
+
+TEST (union_t_get_serial_size)
+{
+  union_t st;
+  st.len = 4;
+  st.keys = (string[]){
+    {
+        .len = 3,
+        .data = "foo",
+    },
+    {
+        .len = 2,
+        .data = "fo",
+    },
+    {
+        .len = 4,
+        .data = "baro",
+    },
+    {
+        .len = 5,
+        .data = "bazbi",
+    },
+  };
+  st.types = (type[]){
+    {
+        .type = T_PRIM,
+        .p = U32,
+    },
+    {
+        .type = T_PRIM,
+        .p = U8,
+    },
+    {
+        .type = T_PRIM,
+        .p = U16,
+    },
+    {
+        .type = T_PRIM,
+        .p = CF128,
+    },
+  };
+
+  u64 act = union_t_get_serial_size (&st);
+  u64 exp = 2 + 4 * 2 + 3 + 2 + 4 + 5 + 4 * 2;
+
+  test_assert_int_equal (exp, act);
 }
 
 void
@@ -327,6 +400,72 @@ union_t_serialize (serializer *dest, const union_t *src)
     }
 }
 
+TEST (union_t_serialize)
+{
+  union_t st;
+  st.len = 4;
+  st.keys = (string[]){
+    {
+        .len = 3,
+        .data = "foo",
+    },
+    {
+        .len = 2,
+        .data = "fo",
+    },
+    {
+        .len = 4,
+        .data = "baro",
+    },
+    {
+        .len = 5,
+        .data = "bazbi",
+    },
+  };
+  st.types = (type[]){
+    {
+        .type = T_PRIM,
+        .p = U32,
+    },
+    {
+        .type = T_PRIM,
+        .p = U8,
+    },
+    {
+        .type = T_PRIM,
+        .p = U16,
+    },
+    {
+        .type = T_PRIM,
+        .p = CF128,
+    },
+  };
+
+  u8 act[200]; // Sloppy sizing
+  u8 exp[] = { 0, 0,
+               0, 0, 'f', 'o', 'o', (u8)T_PRIM, (u8)U32,
+               0, 0, 'f', 'o', (u8)T_PRIM, (u8)U8,
+               0, 0, 'b', 'a', 'r', 'o', (u8)T_PRIM, (u8)U16,
+               0, 0, 'b', 'a', 'z', 'b', 'i', (u8)T_PRIM, (u8)CF128 };
+  u16 len = 4;
+  u16 l0 = 3;
+  u16 l2 = 2;
+  u16 l3 = 4;
+  u16 l4 = 5;
+  i_memcpy (&exp[0], &len, sizeof (u16));
+  i_memcpy (&exp[2], &l0, sizeof (u16));
+  i_memcpy (&exp[9], &l2, sizeof (u16));
+  i_memcpy (&exp[15], &l3, sizeof (u16));
+  i_memcpy (&exp[23], &l4, sizeof (u16));
+
+  // Expected
+  serializer s = srlizr_create (act, 200);
+  union_t_serialize (&s, &st);
+
+  test_assert_int_equal (s.dlen, sizeof (exp));
+  test_assert_int_equal (i_memcmp (act, exp, sizeof (exp)), 0);
+}
+
 err_t
 union_t_deserialize (
     union_t *dest,
@@ -336,111 +475,153 @@ union_t_deserialize (
 {
   ASSERT (dest);
 
-  err_t ret = SUCCESS;
-  union_t un = { 0 };
+  union_t st = { 0 };
 
   /**
    * LEN
    */
-  u16 len = 0;
-  if (!dsrlizr_read_u16 (&len, src))
+  if (!dsrlizr_read_u16 (&st.len, src))
     {
-      ret = error_causef (
-          e, ERR_TYPE_DESER,
-          "Union Deserialize. Expected a length header");
-      goto failed;
+      goto early_termination;
     }
-  un.len = len;
 
   /**
    * Allocate Keys buffer
    */
-  lalloc_r keys = lcalloc (a, len, len, sizeof *un.keys);
+  lalloc_r keys = lcalloc (a, st.len, st.len, sizeof *st.keys);
   if (keys.stat != AR_SUCCESS)
     {
-      ret = error_causef (
-          e, ERR_NOMEM,
-          "Union Deserialize: not enough "
-          "memory to allocate keys buffer for %d keys",
-          len);
-      goto failed;
+      return union_t_nomem ("Allocating keys buffer", e);
     }
-  un.keys = keys.ret;
+  st.keys = keys.ret;
 
   /**
    * Allocate Types buffer
    */
-  lalloc_r types = lcalloc (a, len, len, sizeof *un.types);
+  lalloc_r types = lcalloc (a, st.len, st.len, sizeof *st.types);
   if (keys.stat != AR_SUCCESS)
     {
-      ret = error_causef (
-          e, ERR_NOMEM,
-          "Union Deserialize: not enough "
-          "memory to allocate type buffer for %d types",
-          len);
-      goto failed;
+      return union_t_nomem ("Allocating types buffer", e);
     }
-  un.types = types.ret;
+  st.types = types.ret;
 
-  for (u32 i = 0; i < len; ++i)
+  for (u32 i = 0; i < st.len; ++i)
     {
       /**
        * (KLEN
        */
-      if (!dsrlizr_read_u16 (&len, src))
+      if (!dsrlizr_read_u16 (&st.keys[i].len, src))
         {
-          ret = error_causef (
-              e, ERR_TYPE_DESER,
-              "Union Deserialize. Expected a key length "
-              "header for key: %d",
-              i);
-          goto failed;
+          goto early_termination;
         }
 
-      lalloc_r data = lmalloc (a, len, len, 1);
-
+      lalloc_r data = lmalloc (a, st.keys[i].len, st.keys[i].len, 1);
       if (keys.stat != AR_SUCCESS)
         {
-          ret = error_causef (
-              e, ERR_NOMEM,
-              "Union Deserialize: not enough "
-              "memory to allocate key: %d of length: %d",
-              i, len);
-          goto failed;
+          return union_t_nomem ("Allocating key", e);
         }
-
-      un.keys[i].data = data.ret;
-      un.keys[i].len = len;
+      st.keys[i].data = data.ret;
 
       /**
        * KEY)
        */
-      if (!dsrlizr_read ((u8 *)un.keys[i].data, len, src))
+      if (!dsrlizr_read ((u8 *)st.keys[i].data, st.keys[i].len, src))
         {
-          ret = error_causef (
-              e, ERR_TYPE_DESER,
-              "Union Deserialize. Expected %d bytes for key %d",
-              len, i);
-          goto failed;
+          goto early_termination;
         }
 
       /**
        * (TYPE)
        */
-      if (type_deserialize (&un.types[i], src, a, e))
-        {
-          goto failed;
-        }
+      err_t_wrap (type_deserialize (&st.types[i], src, a, e), e);
     }
 
-  unchecked_union_t_assert (&un);
-  err_t_wrap (union_t_validate_shallow (&un, e), e);
-  valid_union_t_assert (&un);
+  err_t_wrap (union_t_validate_shallow (&st, e), e);
 
-  *dest = un;
+  *dest = st;
   return SUCCESS;
 
-failed:
-  union_t_free_internals_forgiving (&un, a);
-  return ret;
+early_termination:
+  return union_t_type_deser ("Early end of serialized string", e);
+}
+
+TEST (union_t_deserialize_green_path)
+{
+  u8 data[] = { 0, 0,
+                0, 0, 'f', 'o', 'o', (u8)T_PRIM, (u8)U32,
+                0, 0, 'f', 'o', (u8)T_PRIM, (u8)U8,
+                0, 0, 'b', 'a', 'r', 'o', (u8)T_PRIM, (u8)U16,
+                0, 0, 'b', 'a', 'z', 'b', 'i', (u8)T_PRIM, (u8)CF128 };
+  u16 len = 4;
+  u16 l0 = 3;
+  u16 l2 = 2;
+  u16 l3 = 4;
+  u16 l4 = 5;
+  i_memcpy (&data[0], &len, sizeof (u16));
+  i_memcpy (&data[2], &l0, sizeof (u16));
+  i_memcpy (&data[9], &l2, sizeof (u16));
+  i_memcpy (&data[15], &l3, sizeof (u16));
+  i_memcpy (&data[23], &l4, sizeof (u16));
+
+  lalloc st_alloc = lalloc_create (2000); // sloppy sizing
+  lalloc er_alloc = lalloc_create (2000); // sloppy sizing
+
+  deserializer d = dsrlizr_create (data, sizeof (data));
+
+  error e = error_create (&er_alloc);
+
+  union_t eret;
+  err_t ret = union_t_deserialize (&eret, &d, &st_alloc, &e);
+
+  test_assert_int_equal (ret, SUCCESS);
+
+  test_assert_int_equal (eret.len, 4);
+
+  test_assert_int_equal (eret.keys[0].len, 3);
+  test_assert_int_equal (i_memcmp (eret.keys[0].data, "foo", 3), 0);
+  test_assert_int_equal (eret.types[0].type, T_PRIM);
+  test_assert_int_equal (eret.types[0].p, U32);
+
+  test_assert_int_equal (eret.keys[1].len, 2);
+  test_assert_int_equal (i_memcmp (eret.keys[1].data, "fo", 2), 0);
+  test_assert_int_equal (eret.types[1].type, T_PRIM);
+  test_assert_int_equal (eret.types[1].p, U8);
+
+  test_assert_int_equal (eret.keys[2].len, 4);
+  test_assert_int_equal (i_memcmp (eret.keys[2].data, "baro", 4), 0);
+  test_assert_int_equal (eret.types[2].type, T_PRIM);
+  test_assert_int_equal (eret.types[2].p, U16);
+
+  test_assert_int_equal (eret.keys[3].len, 5);
+  test_assert_int_equal (i_memcmp (eret.keys[3].data, "bazbi", 5), 0);
+  test_assert_int_equal (eret.types[3].type, T_PRIM);
+  test_assert_int_equal (eret.types[3].p, CF128);
+}
+
+TEST (union_t_deserialize_red_path)
+{
+  u8 data[] = { 0, 0,
+                0, 0, 'f', 'o', 'o', (u8)T_PRIM, (u8)U32,
+                0, 0, 'f', 'o', 'o', (u8)T_PRIM, (u8)U8,
+                0, 0, 'b', 'a', 'r', 'o', (u8)T_PRIM, (u8)U16,
+                0, 0, 'b', 'a', 'z', 'b', 'i', (u8)T_PRIM, (u8)CF128 };
+  u16 len = 4;
+  u16 l0 = 3;
+  u16 l2 = 3;
+  u16 l3 = 4;
+  u16 l4 = 5;
+  i_memcpy (&data[0], &len, sizeof (u16));
+  i_memcpy (&data[2], &l0, sizeof (u16));
+  i_memcpy (&data[9], &l2, sizeof (u16));
+  i_memcpy (&data[16], &l3, sizeof (u16));
+  i_memcpy (&data[24], &l4, sizeof (u16));
+
+  union_t sret;
+  lalloc alloc = lalloc_create (2000); // sloppy sizing
+  deserializer d = dsrlizr_create (data, sizeof (data));
+
+  error e = error_create (NULL);
+  err_t ret = union_t_deserialize (&sret, &d, &alloc, &e);
+
+  test_assert_int_equal (ret, ERR_INVALID_TYPE); // Duplicate
 }

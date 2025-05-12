@@ -1,7 +1,7 @@
 #include "paging/memory_pager.h"
 #include "dev/testing.h"
 #include "errors/error.h"
-#include "intf/mm.h"
+#include "mm/lalloc.h"
 #include "intf/stdlib.h"
 
 ///////////////////////////// MEMORY PAGE

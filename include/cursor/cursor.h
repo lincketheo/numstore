@@ -1,6 +1,6 @@
 #pragma once
 
-#include "intf/mm.h"                 // lalloc
+#include "mm/lalloc.h"                 // lalloc
 #include "query/queries/create.h"    // create_query
 #include "rptree/rptree.h"           // rptree
 #include "variables/vfile_hashmap.h" // vfile_hashmap

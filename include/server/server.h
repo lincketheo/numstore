@@ -1,7 +1,7 @@
 #pragma once
 
 #include "intf/io.h"          // i_file
-#include "intf/mm.h"          // lalloc
+#include "mm/lalloc.h"          // lalloc
 #include "server/connector.h" // connector
 
 #include <poll.h> // struct pollfd

@@ -2,7 +2,7 @@
 
 #include "compiler/stack_parser/stack_parser.h" // stack_parser
 #include "ds/cbuffer.h"                         // cbuffer
-#include "intf/mm.h"                            // lalloc
+#include "mm/lalloc.h"                            // lalloc
 
 typedef struct
 {

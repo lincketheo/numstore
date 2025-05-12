@@ -1,10 +1,11 @@
 #include "type/types.h"
 #include "dev/assert.h"
 #include "errors/error.h"
-#include "intf/mm.h"
+#include "mm/lalloc.h"
 #include "type/types/enum.h"
 #include "type/types/prim.h"
 #include "type/types/union.h"
+#include "utils/deserializer.h"
 
 DEFINE_DBG_ASSERT_I (type, unchecked_type, t)
 {
@@ -126,84 +127,6 @@ type_byte_size (const type *t)
     }
 }
 
-void
-type_free_internals_forgiving (type *t, lalloc *alloc)
-{
-  valid_type_assert (t);
-
-  switch (t->type)
-    {
-    case T_PRIM:
-      {
-        break;
-      }
-    case T_STRUCT:
-      {
-        struct_t_free_internals_forgiving (&t->st, alloc);
-        break;
-      }
-    case T_UNION:
-      {
-        union_t_free_internals_forgiving (&t->un, alloc);
-        break;
-      }
-    case T_ENUM:
-      {
-        enum_t_free_internals_forgiving (&t->en, alloc);
-        break;
-      }
-    case T_SARRAY:
-      {
-        sarray_t_free_internals_forgiving (&t->sa, alloc);
-        break;
-      }
-    default:
-      {
-        UNREACHABLE ();
-        break;
-      }
-    }
-}
-
-void
-type_free_internals (type *t, lalloc *alloc)
-{
-  valid_type_assert (t);
-
-  switch (t->type)
-    {
-    case T_PRIM:
-      {
-        break;
-      }
-    case T_STRUCT:
-      {
-        struct_t_free_internals (&t->st, alloc);
-        break;
-      }
-    case T_UNION:
-      {
-        union_t_free_internals (&t->un, alloc);
-        break;
-      }
-    case T_ENUM:
-      {
-        enum_t_free_internals (&t->en, alloc);
-        break;
-      }
-    case T_SARRAY:
-      {
-        sarray_t_free_internals (&t->sa, alloc);
-        break;
-      }
-    default:
-      {
-        UNREACHABLE ();
-        break;
-      }
-    }
-}
-
 u32
 type_get_serial_size (const type *t)
 {
@@ -291,12 +214,9 @@ type_serialize (serializer *dest, const type *src)
 err_t
 type_deserialize (type *dest, deserializer *src, lalloc *alloc, error *e)
 {
-  /**
-   * No need to free forgiving because functions
-   * are good citizens and do it
-   * Questionable behavior
-   */
-  switch (dest->type)
+  u8 type;
+  bool ret = dsrlizr_read_u8 (&type, src);
+  switch (type)
     {
     case T_PRIM:
       {
@@ -320,8 +240,9 @@ type_deserialize (type *dest, deserializer *src, lalloc *alloc, error *e)
       }
     default:
       {
-        UNREACHABLE ();
-        return ERR_FALLBACK;
+        return error_causef (
+            e, ERR_INVALID_TYPE,
+            "Unknown type code: %d", ret);
       }
     }
 }

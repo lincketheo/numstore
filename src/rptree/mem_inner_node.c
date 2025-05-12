@@ -2,7 +2,7 @@
 
 #include "dev/assert.h"              // DEFINE_DBG_ASSERT_I
 #include "errors/error.h"            // error
-#include "intf/mm.h"                 // malloc
+#include "mm/lalloc.h"                 // malloc
 #include "intf/stdlib.h"             // i_memcpy
 #include "paging/types/inner_node.h" // inner_node
 

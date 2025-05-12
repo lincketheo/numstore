@@ -2,7 +2,7 @@
 #include "errors/error.h"
 #include "intf/io.h"
 #include "intf/logging.h"
-#include "intf/mm.h"
+#include "mm/lalloc.h"
 
 #include <errno.h>
 #include <fcntl.h>

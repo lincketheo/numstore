@@ -1,7 +1,7 @@
 #include "rptree/dliacin.h"
 #include "dev/assert.h"
 #include "errors/error.h"
-#include "intf/mm.h"
+#include "mm/lalloc.h"
 #include "paging/page.h"
 #include "paging/types/data_list.h"
 #include "rptree/mem_inner_node.h"

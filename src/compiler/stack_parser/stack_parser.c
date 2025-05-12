@@ -4,7 +4,7 @@
 #include "compiler/stack_parser/type_parser.h"
 #include "compiler/tokens.h"
 #include "errors/error.h"
-#include "intf/mm.h"
+#include "mm/lalloc.h"
 #include "utils/bounds.h"
 
 DEFINE_DBG_ASSERT_I (stack_parser, stack_parser, t)

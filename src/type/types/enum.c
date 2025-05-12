@@ -1,8 +1,9 @@
 #include "type/types/enum.h"
 
-#include "dev/assert.h"  // DEFINE_DBG_ASSERT_I
-#include "dev/testing.h" // TEST
-#include "intf/stdlib.h" // i_snprintf
+#include "dev/assert.h"   // DEFINE_DBG_ASSERT_I
+#include "dev/testing.h"  // TEST
+#include "errors/error.h" // error
+#include "intf/stdlib.h"  // i_snprintf
 
 DEFINE_DBG_ASSERT_I (enum_t, unchecked_enum_t, e)
 {
@@ -16,6 +17,24 @@ DEFINE_DBG_ASSERT_I (enum_t, valid_enum_t, e)
   ASSERT (enum_t_validate (e, &e_) == SUCCESS);
 }
 
+static inline err_t
+enum_t_nomem (const char *msg, error *e)
+{
+  return error_causef (e, ERR_NOMEM, "Enum: %s", msg);
+}
+
+static inline err_t
+enum_t_type_err (const char *msg, error *e)
+{
+  return error_causef (e, ERR_INVALID_TYPE, "Enum: %s", msg);
+}
+
+static inline err_t
+enum_t_type_deser (const char *msg, error *e)
+{
+  return error_causef (e, ERR_TYPE_DESER, "Enum: %s", msg);
+}
+
 err_t
 enum_t_validate (const enum_t *en, error *e)
 {
@@ -23,25 +42,20 @@ enum_t_validate (const enum_t *en, error *e)
 
   if (en->len == 0)
     {
-      return error_causef (e, 1, "Enum key length must be > 0");
+      return enum_t_type_err ("Number of keys must be > 0", e);
     }
   for (u32 i = 0; i < en->len; ++i)
     {
       if (en->keys[i].len == 0)
         {
-          return error_causef (
-              e, ERR_INVALID_TYPE,
-              "Enum: length of key at index: %d is 0", i);
+          return enum_t_type_err ("Key length must be > 0", e);
         }
       ASSERT (en->keys[i].data);
     }
 
   if (!strings_all_unique (en->keys, en->len))
     {
-      return error_causef (
-          e, ERR_INVALID_TYPE,
-          "Enum: "
-          "Keys are not unique");
+      return enum_t_type_err ("Duplicate key", e);
     }
 
   return SUCCESS;
@@ -152,82 +166,6 @@ TEST (enum_t_snprintf)
 
   test_assert_int_equal (i, len);
   test_assert_int_equal (i_strncmp (expected, buffer, len), 0);
-}
-
-void
-enum_t_free_internals_forgiving (enum_t *t, lalloc *alloc)
-{
-  if (!t)
-    {
-      return;
-    }
-
-  if (t->keys)
-    {
-      for (u32 i = 0; i < t->len; ++i)
-        {
-          if (t->keys[i].data)
-            {
-              lfree (alloc, t->keys[i].data);
-            }
-
-          t->keys[i].len = 0;
-          t->keys[i].data = NULL;
-        }
-      lfree (alloc, t->keys);
-      t->keys = NULL;
-    }
-
-  t->len = 0;
-}
-
-TEST (enum_t_free_internals_forgiving)
-{
-  // lalloc temp = lalloc_create (1000);
-  /**
-  string *strings = lcalloc_test (&temp, 10, sizeof *strings);
-  enum_t e = {
-    .keys = strings,
-    .len = 10,
-  };
-  enum_t_free_internals_forgiving (&e, &temp);
-  test_assert_int_equal (temp.used, 0);
-  */
-}
-
-void
-enum_t_free_internals (enum_t *t, lalloc *alloc)
-{
-  valid_enum_t_assert (t);
-
-  for (u32 i = 0; i < t->len; ++i)
-    {
-      lfree (alloc, t->keys[i].data);
-      t->keys[i].len = 0;
-      t->keys[i].data = NULL;
-    }
-  lfree (alloc, t->keys);
-  t->keys = NULL;
-  t->len = 0;
-}
-
-TEST (enum_t_free_internals)
-{
-  /**
-  lalloc temp = lalloc_create (1000);
-  string *strings = lcalloc_test (&temp, 10, sizeof *strings);
-  for (u32 i = 0; i < 10; ++i)
-    {
-      strings[i].data = lcalloc_test (&temp, i + 4, 1);
-      strings[i].len = i + 4;
-    }
-  enum_t e = {
-    .keys = strings,
-    .len = 10,
-  };
-  enum_t_free_internals (&e, &temp);
-  test_assert_int_equal (temp.used, 0);
-  */
 }
 
 u32
@@ -363,91 +301,58 @@ enum_t_deserialize (enum_t *dest, deserializer *src, lalloc *a, error *e)
 {
   ASSERT (dest);
 
-  err_t ret = SUCCESS;
   enum_t en = { 0 };
 
   /**
    * LEN
    */
-  u16 len = 0;
-  if (!dsrlizr_read_u16 (&len, src))
+  if (!dsrlizr_read_u16 (&en.len, src))
     {
-      ret = error_causef (
-          e, ERR_TYPE_DESER,
-          "Enum Deserialize. Expected a length header");
-      goto failed;
+      goto early_termination;
     }
 
-  lalloc_r keys = lcalloc (a, len, len, sizeof *en.keys);
-
+  lalloc_r keys = lcalloc (a, en.len, en.len, sizeof *en.keys);
   if (keys.stat != AR_SUCCESS)
     {
-      ret = error_causef (
-          e, ERR_NOMEM,
-          "Enum Deserialize: not enough "
-          "memory to allocate keys buffer for %d keys",
-          len);
-      goto failed;
+      return enum_t_nomem ("Allocating keys buffer", e);
     }
 
   en.keys = keys.ret;
-  en.len = len;
 
-  for (u32 i = 0; i < len; ++i)
+  for (u32 i = 0; i < en.len; ++i)
     {
       /**
        * (KLEN
        */
-      if (!dsrlizr_read_u16 (&len, src))
+      if (!dsrlizr_read_u16 (&en.keys[i].len, src))
         {
-          ret = error_causef (
-              e, ERR_TYPE_DESER,
-              "Enum Deserialize. Expected a key length "
-              "header for key: %d",
-              i);
-          goto failed;
+          goto early_termination;
         }
 
-      lalloc_r data = lmalloc (a, len, len, 1);
-
-      if (keys.stat != AR_SUCCESS)
+      lalloc_r data = lmalloc (a, en.keys[i].len, en.keys[i].len, 1);
+      if (data.stat != AR_SUCCESS)
         {
-          ret = error_causef (
-              e, ERR_NOMEM,
-              "Enum Deserialize: not enough "
-              "memory to allocate key: %d of length: %d",
-              i, len);
-          goto failed;
+          return enum_t_nomem ("Allocating key", e);
         }
 
       en.keys[i].data = data.ret;
-      en.keys[i].len = len;
 
       /**
        * KEY)
        */
-      if (!dsrlizr_read ((u8 *)en.keys[i].data, len, src))
+      if (!dsrlizr_read ((u8 *)en.keys[i].data, en.keys[i].len, src))
         {
-          ret = error_causef (
-              e, ERR_TYPE_DESER,
-              "Enum Deserialize. Expected %d bytes for key %d",
-              len, i);
-          goto failed;
+          goto early_termination;
         }
     }
 
-  unchecked_enum_t_assert (&en);
-
   err_t_wrap (enum_t_validate (&en, e), e);
-
-  valid_enum_t_assert (&en);
 
   *dest = en;
   return SUCCESS;
 
-failed:
-  enum_t_free_internals_forgiving (&en, a);
-  return ret;
+early_termination:
+  return enum_t_type_deser ("Early end of serialized string", e);
 }
 
 TEST (enum_t_deserialize_green_path)
@@ -468,8 +373,8 @@ TEST (enum_t_deserialize_green_path)
   i_memcpy (&data[11], &l3, sizeof (u16));
   i_memcpy (&data[17], &l4, sizeof (u16));
 
-  lalloc en_alloc = lalloc_create (200); // sloppy sizing
-  lalloc er_alloc = lalloc_create (200); // sloppy sizing
+  lalloc en_alloc = lalloc_create (2000); // sloppy sizing
+  lalloc er_alloc = lalloc_create (2000); // sloppy sizing
 
   deserializer d = dsrlizr_create (data, sizeof (data));
 
@@ -493,10 +398,6 @@ TEST (enum_t_deserialize_green_path)
 
   test_assert_int_equal (eret.keys[3].len, 5);
   test_assert_int_equal (i_memcmp (eret.keys[3].data, "bazbi", 5), 0);
-
-  enum_t_free_internals (&eret, &en_alloc);
-  test_assert_int_equal (er_alloc.used, 0);
-  test_assert_int_equal (en_alloc.used, 0);
 }
 
 TEST (enum_t_deserialize_red_path)
@@ -518,12 +419,11 @@ TEST (enum_t_deserialize_red_path)
   i_memcpy (&data[18], &l4, sizeof (u16));
 
   enum_t eret;
-  lalloc alloc = lalloc_create (200); // sloppy sizing
+  lalloc alloc = lalloc_create (2000); // sloppy sizing
   deserializer d = dsrlizr_create (data, sizeof (data));
 
   error e = error_create (NULL);
   err_t ret = enum_t_deserialize (&eret, &d, &alloc, &e);
 
   test_assert_int_equal (ret, ERR_INVALID_TYPE); // Duplicate
-  test_assert_int_equal (alloc.used, 0);         // Cleans up on error
 }

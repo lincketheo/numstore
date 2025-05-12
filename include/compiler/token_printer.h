@@ -1,7 +1,7 @@
 #pragma once
 
 #include "ds/cbuffer.h"
-#include "intf/mm.h"
+#include "mm/lalloc.h"
 
 typedef struct
 {

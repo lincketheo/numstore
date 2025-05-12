@@ -2,7 +2,7 @@
 #include "dev/assert.h"
 #include "ds/cbuffer.h"
 #include "errors/error.h"
-#include "intf/mm.h"
+#include "mm/lalloc.h"
 
 #include <arpa/inet.h>
 #include <errno.h>

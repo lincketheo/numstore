@@ -1,7 +1,7 @@
 #include "variables/variable.h"
 #include "dev/assert.h"
 #include "errors/error.h"
-#include "intf/mm.h"
+#include "mm/lalloc.h"
 #include "type/types.h"
 #include "utils/deserializer.h"
 #include "utils/serializer.h"

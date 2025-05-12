@@ -2,7 +2,7 @@
 
 #include "ds/strings.h"         // string
 #include "errors/error.h"       // error
-#include "intf/mm.h"            // lalloc
+#include "mm/lalloc.h"            // lalloc
 #include "intf/types.h"         // u32
 #include "utils/deserializer.h" // deserializer
 #include "utils/serializer.h"   // serializer

@@ -85,6 +85,7 @@ TEST (fpgr_create)
                              },
                              &e),
                          ERR_CORRUPT);
+  e.cause_code = SUCCESS;
 
   // edge: file size = header + half a page
   test_fail_if (i_truncate (&fp, 10 + 2048 / 2, &e));
@@ -97,6 +98,7 @@ TEST (fpgr_create)
                              },
                              &e),
                          ERR_CORRUPT);
+  e.cause_code = SUCCESS;
 
   // happy: file exactly header size, zero pages
   test_fail_if (i_truncate (&fp, 10, &e));

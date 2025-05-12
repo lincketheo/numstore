@@ -2,7 +2,7 @@
 
 #include "dev/assert.h"   // DEFINE_DBG_ASSERT_I
 #include "intf/logging.h" // i_log_error
-#include "intf/mm.h"      // lalloc
+#include "mm/lalloc.h"      // lalloc
 #include "intf/stdlib.h"  // i_vsnprintf
 #include "utils/macros.h"
 
