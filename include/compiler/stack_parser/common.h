@@ -27,5 +27,6 @@ typedef enum
   SPR_NOMEM,
   SPR_SYNTAX_ERROR,
   SPR_DONE,
+  SPR_STACK_OVERFLOW,
 
 } stackp_result;

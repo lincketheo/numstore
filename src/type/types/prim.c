@@ -18,7 +18,7 @@ prim_t_validate (const prim_t *t, error *e)
   if (!(*t <= CU128 && *t >= U8))
     {
       return error_causef (
-          e, ERR_INVALID_TYPE,
+          e, ERR_INVALID_ARGUMENT,
           "Prim: Invalid numerical prim value: %d. "
           "Expect to be in range %d, %d",
           *t, U8, CU128);

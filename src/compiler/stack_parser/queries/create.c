@@ -1,7 +1,13 @@
 #include "compiler/stack_parser/queries/create.h"
+
 #include "compiler/stack_parser/common.h"
 #include "compiler/stack_parser/query_parser.h"
 #include "compiler/tokens.h"
+#include "dev/assert.h"
+#include "errors/error.h"
+#include "query/builders/create.h"
+#include "query/queries/create.h"
+#include "query/query.h"
 
 ////////////////////////// DEV
 DEFINE_DBG_ASSERT_I (query_parser, create_parser, s)
@@ -38,14 +44,24 @@ stackp_result
 crtp_build (query_parser *cb)
 {
   create_parser_assert_state (cb, CB_DONE);
-  /**
-  cb->ret.cquery = (create_query){
-    .type = cb->cp.type,
-    .vname = cb->cp.vname,
-  };
-  */
-  cb->ret.type = QT_CREATE;
-  return SPR_DONE;
+
+  error e = error_create (NULL);
+  switch (crb_build (&cb->ret.cquery, &cb->cp.builder, &e))
+    {
+    case ERR_INVALID_ARGUMENT:
+      {
+        return SPR_SYNTAX_ERROR;
+      }
+    case SUCCESS:
+      {
+        cb->ret.type = QT_CREATE;
+        return SPR_DONE;
+      }
+    default:
+      {
+        UNREACHABLE ();
+      }
+    }
 }
 
 ////////////////////////// ACCEPT TOKEN
@@ -60,10 +76,27 @@ HANDLER_FUNC (CB_WAITING_FOR_VNAME) (query_parser *cb, token t)
       return SPR_SYNTAX_ERROR;
     }
 
-  // cb->cp.vname = t.str;
-  cb->cp.state = CB_WAITING_FOR_TYPE;
-
-  return SPR_CONTINUE;
+  error e = error_create (NULL);
+  switch (crb_accept_string (&cb->cp.builder, t.str, &e))
+    {
+    case ERR_INVALID_ARGUMENT:
+      {
+        return SPR_SYNTAX_ERROR;
+      }
+    case ERR_NOMEM:
+      {
+        return SPR_NOMEM;
+      }
+    case SUCCESS:
+      {
+        cb->cp.state = CB_WAITING_FOR_TYPE;
+        return SPR_CONTINUE;
+      }
+    default:
+      {
+        UNREACHABLE ();
+      }
+    }
 }
 
 stackp_result
@@ -92,9 +125,28 @@ HANDLER_FUNC (CB_WAITING_FOR_TYPE) (query_parser *cb, type t)
 {
   (void)t;
   create_parser_assert_state (cb, CB_WAITING_FOR_TYPE);
-  // cb->cp.type = t;
-  cb->cp.state = CB_DONE;
-  return SPR_DONE;
+
+  error e = error_create (NULL);
+  switch (crb_accept_type (&cb->cp.builder, t, &e))
+    {
+    case ERR_NOMEM:
+      {
+        return SPR_NOMEM;
+      }
+    case ERR_INVALID_ARGUMENT:
+      {
+        return SPR_SYNTAX_ERROR;
+      }
+    case SUCCESS:
+      {
+        cb->cp.state = CB_DONE;
+        return SPR_DONE;
+      }
+    default:
+      {
+        UNREACHABLE ();
+      }
+    }
 }
 
 stackp_result

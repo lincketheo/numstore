@@ -18,25 +18,43 @@
 
 typedef struct
 {
+  /**
+   * Header
+   */
   i_file cfd;              // File descriptor we are open on
   struct sockaddr_in addr; // Address that is connected
   socklen_t addr_len;      // Length of address - not sure if needed
-  cbuffer input;           // RCV Buffer
-  cbuffer tokens;          // Output from scanner
-  cbuffer queries;         // Output from parser
-  u8 _input[20];           // Backing for input
-  token _tokens[10];       // Backing for tokens
-  query _queries[10];      // Backing for queries
-  scanner scanner;         // Scanner to tokenize input commands
-  parser parser;           // Parses tokens from the scanner
-  vm vm;                   // Virtual machine to execute queries
-
-  /**
-   * Signals back to the server
-   */
   bool want_read;
   bool want_write;
   bool want_close;
+
+  /**
+   * Workers
+   */
+  scanner scanner; // Scanner to tokenize input commands
+  parser parser;   // Parses tokens from the scanner
+  vm vm;           // Virtual machine to execute queries
+
+  /**
+   * Wrappers around Data Buffers
+   */
+  cbuffer input;   // RCV Buffer
+  cbuffer tokens;  // Output from scanner
+  cbuffer queries; // Output from parser
+  cbuffer output;  // Output data
+
+  /**
+   * Data Buffers
+   */
+  u8 _input[20];      // Backing for input
+  token _tokens[10];  // Backing for tokens
+  query _queries[10]; // Backing for queries
+  u8 _output[20];     // Backing for output
+
+  /**
+   * Memory allocators
+   */
+  lalloc query_allocator;
 } connector;
 
 typedef struct
@@ -44,13 +62,7 @@ typedef struct
   lalloc *alloc;
 } con_params;
 
-// Lifetime
-/**
- * Returns:
- *   - ERR_NOMEM if the stack allocator doesn't have
- *     enough room
- */
-err_t con_create (connector *dest, con_params params, error *e);
+void con_create (connector *dest, con_params params);
 
 void con_free (connector *c);
 
@@ -59,9 +71,9 @@ typedef struct
   i_file cfd;
   struct sockaddr_in caddr;
   socklen_t caddrlen;
-} conc_params;
+} connect_params;
 
-void con_connect (connector *c, conc_params p);
+void con_connect (connector *c, connect_params p);
 
 void con_disconnect (connector *c);
 

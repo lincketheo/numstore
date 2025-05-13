@@ -1,11 +1,12 @@
 #include "server/server.h"
 #include "errors/error.h"
 #include "intf/logging.h"
-#include "mm/lalloc.h"
 #include "intf/stdlib.h"
+#include "mm/lalloc.h"
 #include "server/connector.h"
 #include "utils/bounds.h"
 
+#include <asm-generic/socket.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdlib.h>
@@ -18,10 +19,7 @@ DEFINE_DBG_ASSERT_I (server, server, s)
 }
 
 static inline err_t
-server_create_connectors (
-    server *s,
-    server_params p,
-    error *e)
+server_create_connectors (server *s, server_params p, error *e)
 {
   lalloc_r cons = lcalloc (p.alloc, 10, 10, sizeof *s->cons);
   if (cons.stat != AR_SUCCESS)
@@ -36,7 +34,6 @@ server_create_connectors (
   s->ccap = cons.rlen;
   s->alloc = p.alloc;
 
-  err_t ret;
   u32 i = 0;
 
   for (; i < s->ccap; ++i)
@@ -44,19 +41,10 @@ server_create_connectors (
       con_params cparams = {
         .alloc = s->alloc,
       };
-      if ((ret = con_create (&s->cons[i], cparams, e)))
-        {
-          goto failed;
-        }
+      con_create (&s->cons[i], cparams);
     }
 
-failed:
-  for (u32 j = 0; j < i; ++j)
-    {
-      con_free (&s->cons[j]);
-    }
-  lfree (s->alloc, s->cons);
-  return ret;
+  return SUCCESS;
 }
 
 static inline void
@@ -82,6 +70,12 @@ server_connect (server *s, server_params params, error *e)
   addr.sin_family = AF_INET;
   addr.sin_addr.s_addr = INADDR_ANY;
   addr.sin_port = htons (params.port);
+
+  /**
+   * Allow socket to be
+   */
+  int prop = 1;
+  setsockopt (fd, SOL_SOCKET, SO_REUSEADDR, &prop, sizeof (prop));
 
   if (bind (fd, (struct sockaddr *)&addr, sizeof (addr)) < 0)
     {
@@ -146,7 +140,7 @@ server_build_pollfds (server *s)
 }
 
 static inline err_t
-server_accept (conc_params *dest, server *s, error *e)
+server_accept (connect_params *dest, server *s, error *e)
 {
   server_assert (s);
   ASSERT (dest);
@@ -165,7 +159,7 @@ server_accept (conc_params *dest, server *s, error *e)
   fcntl (cfd, F_SETFL, fcntl (F_GETFL, 0) | O_NONBLOCK);
 
   // Create connector
-  *dest = (conc_params){
+  *dest = (connect_params){
     .caddrlen = addrlen,
     .cfd = (i_file){ .fd = cfd },
     .caddr = client_addr,
@@ -185,7 +179,7 @@ server_execute_server (server *s, error *e)
     {
       i_log_trace ("Accepting client\n");
 
-      conc_params cparams;
+      connect_params cparams;
       err_t_wrap (server_accept (&cparams, s, e), e);
       con_connect (&s->cons[cparams.cfd.fd], cparams);
     }
@@ -205,27 +199,25 @@ server_execute_connectors (server *s)
 
       u32 ready = pfd.revents;
       connector *con = &s->cons[pfd.fd];
-      if (con_is_open (con))
+      ASSERT (con_is_open (con));
+      if (ready & POLLIN)
         {
-          if (ready & POLLIN)
-            {
-              ASSERT (con->want_read);
-              con_read (con);
-            }
+          ASSERT (con->want_read);
+          con_read (con);
+        }
 
-          ASSERT (!con->want_close);
-          con_execute (con);
+      ASSERT (!con->want_close);
+      con_execute (con);
 
-          if (ready & POLLOUT)
-            {
-              ASSERT (con->want_write);
-              con_write (con);
-            }
+      if (ready & POLLOUT)
+        {
+          ASSERT (con->want_write);
+          con_write (con);
+        }
 
-          if (con->want_close)
-            {
-              con_disconnect (con);
-            }
+      if (con->want_close)
+        {
+          con_disconnect (con);
         }
     }
 }

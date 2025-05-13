@@ -1,17 +1,18 @@
 #include "compiler/stack_parser/stack_parser.h"
+
 #include "compiler/stack_parser/common.h"
 #include "compiler/stack_parser/query_parser.h"
 #include "compiler/stack_parser/type_parser.h"
 #include "compiler/tokens.h"
+#include "dev/assert.h"
 #include "errors/error.h"
 #include "mm/lalloc.h"
-#include "utils/bounds.h"
 
 DEFINE_DBG_ASSERT_I (stack_parser, stack_parser, t)
 {
   ASSERT (t);
   ASSERT (t->stack);
-  ASSERT (t->sp <= t->cap);
+  ASSERT (t->sp <= 20);
 }
 
 static inline ast_parser
@@ -26,36 +27,21 @@ static inline void
 stackp_push (ast_parser value, stack_parser *sp)
 {
   stack_parser_assert (sp);
-  ASSERT (sp->sp < sp->cap);
+  ASSERT (sp->sp < 20);
   sp->stack[sp->sp++] = value;
 }
 
-err_t
-stackp_create (stack_parser *dest, sp_params params, error *e)
+stack_parser
+stackp_create (sp_params params)
 {
-  ASSERT (dest);
+  stack_parser ret = {
+    .sp = 0,
+    .type_allocator = params.type_allocator,
+  };
 
-  // Allocate the stack - start with 3 layers
-  lalloc_r stack = lmalloc (
-      params.stack_allocator,
-      10, 3, sizeof *dest->stack);
+  stack_parser_assert (&ret);
 
-  if (stack.stat != AR_SUCCESS)
-    {
-      return error_causef (
-          e, ERR_NOMEM,
-          "Stack Parser: "
-          "Failed to allocate stack");
-    }
-
-  dest->stack = stack.ret;
-  dest->sp = 0;
-  dest->cap = stack.rlen;
-
-  dest->type_allocator = params.type_allocator;
-  dest->stack_allocator = params.stack_allocator;
-
-  return SUCCESS;
+  return ret;
 }
 
 static inline sb_feed_t
@@ -184,6 +170,13 @@ stackp_feed_token (stack_parser *tp, token t)
 }
 
 void
+stackp_reset (stack_parser *sp)
+{
+  stack_parser_assert (sp);
+  sp->sp = 0;
+}
+
+void
 stackp_begin (stack_parser *sp, sb_build_type type)
 {
   stack_parser_assert (sp);
@@ -203,11 +196,12 @@ stackp_begin (stack_parser *sp, sb_build_type type)
       }
     case SBBT_QUERY:
       {
-        stackp_push ((ast_parser){
-                         .qb = qryp_create (),
-                         .type = type,
-                     },
-                     sp);
+        stackp_push (
+            (ast_parser){
+                .qb = qryp_create (),
+                .type = type,
+            },
+            sp);
         break;
       }
     }
@@ -251,5 +245,4 @@ void
 stack_parser_release (stack_parser *t)
 {
   stack_parser_assert (t);
-  lfree (t->stack_allocator, t->stack);
 }

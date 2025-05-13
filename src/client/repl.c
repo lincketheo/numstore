@@ -222,7 +222,7 @@ repl_execute (repl *r, error *e)
   if (r->buffer)
     {
       const string send = (string){ .data = r->buffer, .len = r->blen };
-      // err_t_wrap (client_send_all (&r->client, send, e), e);
+      err_t_wrap (client_send_all (&r->client, send, e), e);
       fprintf (stdout, "Sending: %.*s\n", send.len, send.data);
     }
 

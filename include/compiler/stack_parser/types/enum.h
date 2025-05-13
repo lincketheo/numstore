@@ -2,7 +2,7 @@
 
 #include "compiler/stack_parser/common.h" // stackp_result
 #include "compiler/tokens.h"              // token
-#include "mm/lalloc.h"                      // lalloc
+#include "mm/lalloc.h"                    // lalloc
 
 #include "type/builders/enum.h" // enum_builder
 

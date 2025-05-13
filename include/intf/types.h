@@ -75,11 +75,12 @@ typedef int bool;
  * Indexing into an array uses rational number
  * to support overlaps
  */
-typedef u32 t_size; // Represents the size of a single type in bytes
-typedef u32 p_size; // To index inside a page
-typedef u64 b_size; // Bytes size to index into a contiguous rope bytes
-typedef u64 pgno;   // Page number
-typedef u8 pgh;     // Page header
+typedef u32 t_size;  // Represents the size of a single type in bytes
+typedef u32 p_size;  // To index inside a page
+typedef u64 b_size;  // Bytes size to index into a contiguous rope bytes
+typedef i64 sb_size; // Signed b size
+typedef u64 pgno;    // Page number
+typedef u8 pgh;      // Page header
 
 #define PRt_size PRIu32
 #define PRp_size PRIu32

@@ -26,7 +26,7 @@ enum_t_nomem (const char *msg, error *e)
 static inline err_t
 enum_t_type_err (const char *msg, error *e)
 {
-  return error_causef (e, ERR_INVALID_TYPE, "Enum: %s", msg);
+  return error_causef (e, ERR_INVALID_ARGUMENT, "Enum: %s", msg);
 }
 
 static inline err_t
@@ -425,5 +425,5 @@ TEST (enum_t_deserialize_red_path)
   error e = error_create (NULL);
   err_t ret = enum_t_deserialize (&eret, &d, &alloc, &e);
 
-  test_assert_int_equal (ret, ERR_INVALID_TYPE); // Duplicate
+  test_assert_int_equal (ret, ERR_INVALID_ARGUMENT); // Duplicate
 }

@@ -47,6 +47,8 @@ typedef enum
   TT_LEFT_PAREN,
   TT_RIGHT_PAREN,
   TT_COMMA,
+
+  TT_ERROR,
 } token_t;
 
 /**

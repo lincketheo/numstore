@@ -21,7 +21,7 @@ struct_t_nomem (const char *msg, error *e)
 static inline err_t
 struct_t_type_err (const char *msg, error *e)
 {
-  return error_causef (e, ERR_INVALID_TYPE, "Struct: %s", msg);
+  return error_causef (e, ERR_INVALID_ARGUMENT, "Struct: %s", msg);
 }
 
 static inline err_t
@@ -623,5 +623,5 @@ TEST (struct_t_deserialize_red_path)
   error e = error_create (NULL);
   err_t ret = struct_t_deserialize (&sret, &d, &alloc, &e);
 
-  test_assert_int_equal (ret, ERR_INVALID_TYPE); // Duplicate
+  test_assert_int_equal (ret, ERR_INVALID_ARGUMENT); // Duplicate
 }

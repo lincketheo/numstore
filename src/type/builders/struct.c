@@ -123,7 +123,7 @@ stb_accept_key (struct_builder *sb, string key, error *e)
   if (stb_has_key_been_used (sb, key))
     {
       return error_causef (
-          e, ERR_INVALID_TYPE,
+          e, ERR_INVALID_ARGUMENT,
           "Struct Builder: "
           "Key: %.*s has already been used",
           key.len, key.data);
@@ -215,14 +215,14 @@ stb_build (struct_t *dest, struct_builder *sb, error *e)
   if (sb->tlen == 0)
     {
       return error_causef (
-          e, ERR_INVALID_TYPE,
+          e, ERR_INVALID_ARGUMENT,
           "Struct Builder: "
           "Expecting at least one key");
     }
   if (sb->tlen != sb->klen)
     {
       return error_causef (
-          e, ERR_INVALID_TYPE,
+          e, ERR_INVALID_ARGUMENT,
           "Struct Builder: "
           "Expects to have the same number of keys as values");
     }

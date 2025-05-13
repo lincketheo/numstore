@@ -2,9 +2,9 @@
 
 #include "dev/assert.h"   // DEFINE_DBG_ASSERT_I
 #include "intf/logging.h" // i_log_error
-#include "mm/lalloc.h"      // lalloc
 #include "intf/stdlib.h"  // i_vsnprintf
-#include "utils/macros.h"
+#include "mm/lalloc.h"    // lalloc
+#include "utils/macros.h" // MIN
 
 #include <stdarg.h>
 #include <stddef.h>

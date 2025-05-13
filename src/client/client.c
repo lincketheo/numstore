@@ -108,21 +108,11 @@ client_recv_some (client *c, error *e)
     {
       return err_t_from (e);
     }
-
-  if (read > 0)
-    {
-      i_file out = { .fd = fileno (stdout) };
-      i32 written = cbuffer_read_some_to_file (&out, &c->recv, e);
-      if (written < 0)
-        {
-          return err_t_from (e);
-        }
-    }
   return SUCCESS;
 }
 
 err_t
-client_execute_all (client *c, const string str, error *e)
+client_send_all (client *c, const string str, error *e)
 {
   client_assert (c);
   u32 written;
@@ -132,25 +122,7 @@ client_execute_all (client *c, const string str, error *e)
     {
       written = cbuffer_write (&str.data[i], 1, str.len - i, &c->send);
       err_t_wrap (client_send_some (c, e), e);
-
-      /*
-        if ((ret = client_recv_some (c)))
-          {
-            return ret;
-          }
-          */
     }
-
-  // Flush
-  /*
-  for (int i = 0; i < 10; ++i)
-    {
-      if ((ret = client_recv_some (c)))
-        {
-          return ret;
-        }
-    }
-  */
 
   return SUCCESS;
 }

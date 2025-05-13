@@ -14,8 +14,8 @@ DEFINE_DBG_ASSERT_I (connector, connector, c)
   ASSERT (c);
 }
 
-err_t
-con_create (connector *dest, con_params params, error *e)
+void
+con_create (connector *dest, con_params params)
 {
   ASSERT (dest);
 
@@ -26,12 +26,10 @@ con_create (connector *dest, con_params params, error *e)
   };
 
   parser_params pparams = {
-    .alloc = params.alloc,
+    .type_allocator = params.alloc,
     .tokens_input = &dest->tokens,
     .queries_output = &dest->queries,
   };
-  parser p;
-  err_t_wrap (parser_create (&p, pparams, e), e);
 
   vm_params vparams = {
     .queries_input = &dest->queries,
@@ -43,7 +41,7 @@ con_create (connector *dest, con_params params, error *e)
     .tokens = cbuffer_create_from (dest->_tokens),
     .queries = cbuffer_create_from (dest->_queries),
     .scanner = scanner_create (sparams),
-    .parser = p,
+    .parser = parser_create (pparams),
     .vm = vm_create (vparams),
 
     .want_read = true,
@@ -53,8 +51,6 @@ con_create (connector *dest, con_params params, error *e)
 
   connector_assert (dest);
   ASSERT (!con_is_open (dest));
-
-  return SUCCESS;
 }
 
 void
@@ -64,7 +60,7 @@ con_free (connector *c)
 }
 
 void
-con_connect (connector *c, conc_params cparams)
+con_connect (connector *c, connect_params cparams)
 {
   ASSERT (!con_is_open (c));
   connector_assert (c);
@@ -120,8 +116,16 @@ con_to_pollfd (const connector *src)
 void
 con_read (connector *c)
 {
-  ASSERT (c);
-  panic ();
+  connector_assert (c);
+  ASSERT (con_is_open (c));
+
+  error e = error_create (NULL);
+  if (cbuffer_write_some_from_file (&c->cfd, &c->input, &e) < 0)
+    {
+      error_log_consume (&e);
+      c->want_close = true;
+      return;
+    }
 }
 
 void
@@ -130,15 +134,7 @@ con_execute (connector *c)
   connector_assert (c);
   ASSERT (con_is_open (c));
 
-  lalloc ealloc = lalloc_create (1000);
-  error e = error_create (&ealloc);
-
-  if (scanner_execute (&c->scanner, &e))
-    {
-      error_log_consume (&e);
-      c->want_close = true;
-      return;
-    }
+  scanner_execute (&c->scanner);
   parser_execute (&c->parser);
   vm_execute (&c->vm);
 }

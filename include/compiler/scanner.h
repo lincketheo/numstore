@@ -19,18 +19,25 @@ const char *scanner_state_to_str (scanner_state);
 
 typedef struct
 {
-  // Input and output buffers
-  cbuffer *chars_input;
-  cbuffer *tokens_output;
-
-  // Current state
+  error e;
   scanner_state state;
 
-  // Internal growing string
+  /**
+   * Shared input output buffers
+   */
+  cbuffer *chars_input;   // A buffer of chars
+  cbuffer *tokens_output; // A buffer of token_msg
+
+  /**
+   * Internal growing string (free'd downstream)
+   */
   char *dcur;  // Current data for variable length data
   u32 dcurlen; // len of dcur
   u32 dcurcap; // capacity of dcur
 
+  /**
+   * Shared allocator for growing string
+   */
   lalloc *string_allocator;
 } scanner;
 
@@ -42,7 +49,4 @@ typedef struct
 } scanner_params;
 
 scanner scanner_create (scanner_params params);
-
-err_t scanner_execute (scanner *s, error *e);
-
-void scanner_release (scanner *dest);
+void scanner_execute (scanner *s);

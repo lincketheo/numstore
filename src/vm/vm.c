@@ -1,6 +1,7 @@
 #include "vm/vm.h"
 #include "dev/assert.h"
 #include "ds/cbuffer.h"
+#include "query/queries/create.h"
 #include "query/query.h"
 
 DEFINE_DBG_ASSERT_I (vm, vm, v)
@@ -30,15 +31,24 @@ vm_execute (vm *v)
 
   query q;
   u32 read = cbuffer_read (&q, sizeof q, 1, v->queries_input);
-  ASSERT (read == 0 || read == 1);
 
   if (read > 0)
     {
       switch (q.type)
         {
+        case QT_CREATE:
+          {
+            i_log_create (&q.cquery);
+            break;
+          }
+        case QT_DELETE:
+          {
+            i_log_delete (&q.dquery);
+            break;
+          }
         default:
           {
-            panic ();
+            UNREACHABLE ();
           }
         }
     }

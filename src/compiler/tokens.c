@@ -120,6 +120,8 @@ tt_tostr (token_t t)
       return (string){ .data = "TT_RIGHT_PAREN", .len = 14 };
     case TT_COMMA:
       return (string){ .data = "TT_COMMA", .len = 8 };
+    case TT_ERROR:
+      return (string){ .data = "TT_ERROR", .len = 8 };
     }
   UNREACHABLE ();
   return (string){ .data = NULL, .len = 0 };

@@ -88,7 +88,7 @@ enb_accept_key (enum_builder *eb, string key, error *e)
   if (enb_has_key_been_used (eb, key))
     {
       return error_causef (
-          e, ERR_INVALID_TYPE,
+          e, ERR_INVALID_ARGUMENT,
           "Enum Builder: "
           "Key: %.*s has already been used",
           key.len, key.data);
@@ -145,7 +145,7 @@ enb_build (enum_t *dest, enum_builder *eb, error *e)
   if (eb->len == 0)
     {
       return error_causef (
-          e, ERR_INVALID_TYPE,
+          e, ERR_INVALID_ARGUMENT,
           "Enum Builder: "
           "Expecting at least 1 type");
     }

@@ -1,7 +1,12 @@
 #include "compiler/stack_parser/queries/delete.h"
+
 #include "compiler/stack_parser/common.h"
 #include "compiler/stack_parser/query_parser.h"
 #include "compiler/tokens.h"
+#include "dev/assert.h"
+#include "errors/error.h"
+#include "query/builders/delete.h"
+#include "query/query.h"
 
 ////////////////////////// DEV
 DEFINE_DBG_ASSERT_I (query_parser, delete_parser, s)
@@ -22,7 +27,7 @@ delete_parser_assert_state (query_parser *q, int dltp_state)
 ////////////////////////// API
 
 stackp_result
-dltp_delete (query_parser *dest)
+dltp_create (query_parser *dest)
 {
   ASSERT (dest);
   ASSERT (dest->state == QP_UNKNOWN);
@@ -38,13 +43,24 @@ stackp_result
 dltp_build (query_parser *db)
 {
   delete_parser_assert_state (db, DB_DONE);
-  /**
-  db->ret.dquery = (delete_query){
-    .vname = db->dp.vname,
-  };
-  */
-  db->ret.type = QT_DELETE;
-  return SPR_DONE;
+
+  error e = error_create (NULL);
+  switch (dltb_build (&db->ret.dquery, &db->dp.builder, &e))
+    {
+    case ERR_INVALID_ARGUMENT:
+      {
+        return SPR_SYNTAX_ERROR;
+      }
+    case SUCCESS:
+      {
+        db->ret.type = QT_DELETE;
+        return SPR_DONE;
+      }
+    default:
+      {
+        UNREACHABLE ();
+      }
+    }
 }
 
 ////////////////////////// ACCEPT TOKEN
@@ -59,10 +75,27 @@ HANDLER_FUNC (DB_WAITING_FOR_VNAME) (query_parser *db, token t)
       return SPR_SYNTAX_ERROR;
     }
 
-  // db->dp.vname = t.str;
-  db->dp.state = DB_DONE;
-
-  return SPR_DONE;
+  error e = error_create (NULL);
+  switch (dltb_accept_string (&db->dp.builder, t.str, &e))
+    {
+    case ERR_INVALID_ARGUMENT:
+      {
+        return SPR_SYNTAX_ERROR;
+      }
+    case ERR_NOMEM:
+      {
+        return SPR_NOMEM;
+      }
+    case SUCCESS:
+      {
+        db->dp.state = DB_DONE;
+        return SPR_DONE;
+      }
+    default:
+      {
+        UNREACHABLE ();
+      }
+    }
 }
 
 stackp_result

@@ -63,7 +63,7 @@ enp_build (type_parser *eb)
   error e = error_create (NULL);
   switch (enb_build (&eb->ret.en, &eb->enp.builder, &e))
     {
-    case ERR_INVALID_TYPE:
+    case ERR_INVALID_ARGUMENT:
       {
         return SPR_SYNTAX_ERROR;
       }

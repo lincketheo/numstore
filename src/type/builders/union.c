@@ -123,7 +123,7 @@ unb_accept_key (union_builder *ub, string key, error *e)
   if (unb_has_key_been_used (ub, key))
     {
       return error_causef (
-          e, ERR_INVALID_TYPE,
+          e, ERR_INVALID_ARGUMENT,
           "Union Builder: "
           "Key: %.*s has already been used",
           key.len, key.data);
@@ -215,14 +215,14 @@ unb_build (union_t *dest, union_builder *ub, error *e)
   if (ub->tlen == 0)
     {
       return error_causef (
-          e, ERR_INVALID_TYPE,
+          e, ERR_INVALID_ARGUMENT,
           "Union Builder: "
           "Expecting at least one key");
     }
   if (ub->tlen != ub->klen)
     {
       return error_causef (
-          e, ERR_INVALID_TYPE,
+          e, ERR_INVALID_ARGUMENT,
           "Union Builder: "
           "Expects to have the same number of keys as values");
     }

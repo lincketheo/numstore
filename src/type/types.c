@@ -241,7 +241,7 @@ type_deserialize (type *dest, deserializer *src, lalloc *alloc, error *e)
     default:
       {
         return error_causef (
-            e, ERR_INVALID_TYPE,
+            e, ERR_INVALID_ARGUMENT,
             "Unknown type code: %d", ret);
       }
     }

@@ -1,6 +1,7 @@
 #include "compiler/scanner.h"
 #include "compiler/tokens.h"
 #include "dev/assert.h"
+#include "ds/cbuffer.h"
 #include "errors/error.h"
 #include "intf/logging.h"
 #include "mm/lalloc.h"
@@ -56,16 +57,12 @@ scanner_state_to_str (scanner_state state)
   UNREACHABLE ();
 }
 
-/**
- * Pushes a char to the end of the internal scanner string
- */
 static inline err_t
 scanner_push_char_dcur (scanner *s, char next, error *e)
 {
   scanner_assert (s);
   i_log_trace ("Pushing char: %c\n", next);
 
-  // Check room
   if (s->dcurlen == s->dcurcap)
     {
       lalloc_r next = lrealloc (
@@ -94,9 +91,6 @@ scanner_push_char_dcur (scanner *s, char next, error *e)
   return SUCCESS;
 }
 
-/**
- * Initializes internal string
- */
 static inline err_t
 scanner_alloc_init (scanner *s, error *e)
 {
@@ -119,26 +113,26 @@ scanner_alloc_init (scanner *s, error *e)
     }
 
   s->dcur = data.ret;
-  s->dcurcap = 10;
+  s->dcurcap = data.rlen;
   s->dcurlen = 0;
 
   return SUCCESS;
 }
 
-/**
- * Resets, but does not free the string (let the downstream free it)
- */
 static inline void
 scanner_buffer_reset (scanner *s)
 {
   scanner_assert (s);
-  i_log_trace ("Resetting scanner internal string: %s\n", s->dcur);
 
   // Called on a non empty string
   ASSERT (s->dcur != NULL);
   ASSERT (s->dcurcap > 0);
 
-  // INTENTIONALLY DONT FREE
+  /**
+   * WARNING - This looks like it's causing
+   * a dangling pointer but really I'm transferring
+   * responsibility to down the chain
+   */
   s->dcur = NULL;
   s->dcurlen = 0;
   s->dcurcap = 0;
@@ -150,11 +144,11 @@ scanner_create (scanner_params params)
   ASSERT (params.tokens_output->cap % sizeof (token) == 0);
 
   scanner ret = {
+    .e = error_create (NULL),
+    .state = SS_START,
 
     .chars_input = params.chars_input,
     .tokens_output = params.tokens_output,
-
-    .state = SS_START,
 
     .dcur = NULL,
     .dcurlen = 0,
@@ -235,16 +229,12 @@ consume_whitespace (scanner *s)
     }
 }
 
-/**
- * Writes token to the output stream
- */
 static inline void
 scanner_write_token_expect (scanner *s, token t)
 {
   scanner_assert (s);
   ASSERT (cbuffer_avail (s->tokens_output) >= sizeof (token));
 
-  // Write the token
   u32 ret = cbuffer_write (&t, sizeof t, 1, s->tokens_output);
   ASSERT (ret == 1);
 }
@@ -338,58 +328,49 @@ static err_t ss_string (scanner *s, error *e);
 static err_t ss_number (scanner *s, error *e);
 static err_t ss_decimal (scanner *s, error *e);
 
+/**
+ * We expect to have at least 1 char available here
+ */
 static err_t
 ss_transition (scanner *s, scanner_state state, error *e)
 {
   scanner_assert (s);
 
-  // Update state
-  s->state = state;
-
-  // Block on output
-  if (cbuffer_avail (s->tokens_output) < sizeof (token))
-    {
-      return SUCCESS;
-    }
-
   switch (state)
     {
     case SS_START:
       {
-        err_t_wrap (ss_start (s, e), e);
         break;
       }
     case SS_IDENT:
       {
-        // Initialize internal string
+        // initialize output string
         err_t_wrap (scanner_alloc_init (s, e), e);
 
-        /**
-         * We copy forward once so that we consume the first
-         * // char which can only be alpha - then internally,
-         * it's alpha numeric
-         */
+        // Write the first char to the array
         err_t_wrap (scanner_cpy_advance_expect (s, e), e);
-        err_t_wrap (ss_ident (s, e), e);
         break;
       }
     case SS_STRING:
       {
+        // Initialize output string
         err_t_wrap (scanner_alloc_init (s, e), e);
-        scanner_advance_expect (s); // Skip over the first "
-        err_t_wrap (ss_string (s, e), e);
+
+        // Skip over the first quotation mark
+        scanner_advance_expect (s);
         break;
       }
     case SS_NUMBER:
       {
+        // Initialize output string (to parse later)
         err_t_wrap (scanner_alloc_init (s, e), e);
-        err_t_wrap (ss_number (s, e), e);
         break;
       }
     case SS_DECIMAL:
       {
         // No allocation - we were previously in SS_NUMBER
-        err_t_wrap (ss_decimal (s, e), e);
+        // Skip over the "."
+        err_t_wrap (scanner_cpy_advance_expect (s, e), e);
         break;
       }
     default:
@@ -397,10 +378,11 @@ ss_transition (scanner *s, scanner_state state, error *e)
         UNREACHABLE ();
       }
     }
+
+  s->state = state;
   return SUCCESS;
 }
 
-// starts on the SECOND char of the sequence
 static err_t
 ss_ident (scanner *s, error *e)
 {
@@ -419,7 +401,7 @@ ss_ident (scanner *s, error *e)
       err_t_wrap (scanner_cpy_advance_expect (s, e), e);
     }
 
-  return SUCCESS;
+  return SUCCESS; // no more chars to consume
 
 finish:
   scanner_assert (s);
@@ -432,13 +414,7 @@ finish:
     .len = s->dcurlen,
   };
 
-  /**
-   * WARNING - This looks like it's causing
-   * a dangling pointer but really I'm transferring
-   * responsibility to the next block
-   */
   scanner_buffer_reset (s);
-  s->state = SS_START;
 
   // Check for magic tokens
   for (u32 i = 0; i < arrlen (magic_tokens); ++i)
@@ -472,6 +448,7 @@ finish:
         }
     }
 
+  // Otherwise, write an ident token
   scanner_write_token_expect (s, tt_ident (literal));
 
 theend:
@@ -491,7 +468,7 @@ ss_string (scanner *s, error *e)
     {
       if (c == '"')
         {
-          scanner_advance_expect (s); // Skip over quote
+          scanner_advance_expect (s); // Skip over (last) quote
           goto finish;
         }
 
@@ -510,15 +487,11 @@ finish:
     .len = s->dcurlen,
   };
 
-  /**
-   * WARNING - This looks like it's causing
-   * a dangling pointer but really I'm transferring
-   * responsibility to the next block
-   */
   scanner_buffer_reset (s);
-  s->state = SS_START;
-
   scanner_write_token_expect (s, tt_string (literal));
+
+  err_t_wrap (ss_transition (s, SS_START, e), e);
+
   return SUCCESS;
 }
 
@@ -570,7 +543,6 @@ ss_number (scanner *s, error *e)
         {
           if (c == '.')
             {
-              err_t_wrap (scanner_cpy_advance_expect (s, e), e);
               err_t_wrap (ss_transition (s, SS_DECIMAL, e), e);
               return SUCCESS;
             }
@@ -605,23 +577,23 @@ ss_start (scanner *s, error *e)
   scanner_assert (s);
   ASSERT (s->state == SS_START);
 
-  // Consume all whitespace
   consume_whitespace (s);
 
-  // First check if there's data available
   u8 next;
   if (!scanner_peek (&next, s))
     {
+      // no more tokens
       return SUCCESS;
     }
 
-  i_log_trace ("Current state: %s. Next char: %c\n",
-               scanner_state_to_str (s->state), next);
-
-#define single_tok_continue(ttype)         \
-  scanner_write_token_t_expect (s, ttype); \
-  scanner_advance_expect (s);              \
-  err_t_wrap (ss_transition (s, SS_START, e), e);
+#define single_tok_continue(ttype)                    \
+  do                                                  \
+    {                                                 \
+      scanner_advance_expect (s);                     \
+      scanner_write_token_t_expect (s, ttype);        \
+      err_t_wrap (ss_transition (s, SS_START, e), e); \
+    }                                                 \
+  while (0)
 
   switch (next)
     {
@@ -674,6 +646,8 @@ ss_start (scanner *s, error *e)
       {
         if (is_alpha (next))
           {
+            // Due to maximal munch all magic strings
+            // are treated as ident - then checked at the end
             err_t_wrap (ss_transition (s, SS_IDENT, e), e);
             break;
           }
@@ -697,7 +671,7 @@ ss_start (scanner *s, error *e)
 }
 
 err_t
-scanner_execute (scanner *s, error *e)
+scanner_execute_state (scanner *s, error *e)
 {
   scanner_assert (s);
 
@@ -706,36 +680,63 @@ scanner_execute (scanner *s, error *e)
     {
     case SS_START:
       {
-        err_t_wrap (ss_start (s, e), e);
-        break;
+        return ss_start (s, e);
       }
     case SS_IDENT:
       {
-        err_t_wrap (ss_ident (s, e), e);
-        break;
+        return ss_ident (s, e);
       }
     case SS_NUMBER:
       {
-        err_t_wrap (ss_number (s, e), e);
-        break;
+        return ss_number (s, e);
       }
     case SS_DECIMAL:
       {
-        err_t_wrap (ss_decimal (s, e), e);
-        break;
+        return ss_decimal (s, e);
       }
     case SS_STRING:
       {
-        err_t_wrap (ss_string (s, e), e);
-        break;
+        return ss_string (s, e);
+      }
+    default:
+      {
+        UNREACHABLE ();
       }
     }
-  return SUCCESS;
 }
 
 void
-scanner_release (scanner *s)
+scanner_execute (scanner *s)
 {
-  (void)s;
-  panic ();
+  while (true)
+    {
+      /**
+       * Block on downstream
+       */
+      if (cbuffer_avail (s->tokens_output) < sizeof (token))
+        {
+          return;
+        }
+
+      /**
+       * Block on upstream (all handlers are greedy)
+       */
+      if (cbuffer_len (s->chars_input) == 0)
+        {
+          return;
+        }
+
+      /**
+       * Write a maximum of 1 token
+       * or else handle error
+       */
+      if (scanner_execute_state (s, &s->e))
+        {
+          error_log_consume (&s->e);
+          scanner_write_token_expect (s, quick_tok (TT_ERROR));
+          err_t ret = ss_transition (s, SS_START, &s->e);
+          ASSERT (ret == SUCCESS);
+          return;
+        }
+    }
 }

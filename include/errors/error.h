@@ -13,7 +13,6 @@ typedef enum
   ERR_DOESNT_EXIST = -6,   // Something doesn't exist
   ERR_NOMEM = -9,          // No memory available
   ERR_INVALID_ARGUMENT = -13,
-  ERR_INVALID_TYPE = -14,
   ERR_TYPE_DESER = -15,
   ERR_SYNTAX = -16,
 

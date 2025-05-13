@@ -2,8 +2,8 @@
 #include "dev/assert.h"
 #include "ds/strings.h"
 #include "errors/error.h"
-#include "mm/lalloc.h"
 #include "intf/stdlib.h"
+#include "mm/lalloc.h"
 #include "type/types.h"
 
 DEFINE_DBG_ASSERT_I (sarray_builder, sarray_builder, s)
@@ -77,7 +77,7 @@ sab_accept_dim (sarray_builder *sab, u32 dim, error *e)
   if (dim == 0)
     {
       return error_causef (
-          e, ERR_INVALID_TYPE,
+          e, ERR_INVALID_ARGUMENT,
           "Strict Array Builder: "
           "Expecting dimensions to be greater than 0");
     }
@@ -100,7 +100,7 @@ sab_accept_type (sarray_builder *sab, type t, error *e)
   if (sab->type)
     {
       return error_causef (
-          e, ERR_INVALID_TYPE,
+          e, ERR_INVALID_ARGUMENT,
           "Strict Array Builder: "
           "Got multiple types");
     }
@@ -162,14 +162,16 @@ sab_build (sarray_t *dest, sarray_builder *sab, error *e)
   if (!sab->type)
     {
       return error_causef (
-          e, ERR_INVALID_TYPE,
-          "Strict Array Builder: Can't build without a type");
+          e, ERR_INVALID_ARGUMENT,
+          "Strict Array Builder: "
+          "Can't build without a type");
     }
   if (sab->len == 0)
     {
       return error_causef (
-          e, ERR_INVALID_TYPE,
-          "Strict Array Builder: Expect at least 1 dimension");
+          e, ERR_INVALID_ARGUMENT,
+          "Strict Array Builder: "
+          "Expect at least 1 dimension");
     }
 
   err_t_wrap (sab_clip (sab, e), e);

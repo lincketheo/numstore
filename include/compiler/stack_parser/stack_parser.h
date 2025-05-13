@@ -6,19 +6,12 @@
 #include "compiler/tokens.h" // token
 #include "type/types.h"      // u32
 
-/**
- * These are "non terminals" (not exactly, but similar)
- * All parsers visible to ast_parser should have an entry
- */
 typedef enum
 {
   SBBT_TYPE,
   SBBT_QUERY,
 } sb_build_type;
 
-/**
- * Abstract thing that we can build on the stack
- */
 typedef struct
 {
   sb_build_type type;
@@ -31,9 +24,6 @@ typedef struct
 
 } ast_parser;
 
-/**
- * A result of calling build
- */
 typedef struct
 {
   sb_build_type type;
@@ -47,27 +37,22 @@ typedef struct
 
 typedef struct
 {
-  ast_parser *stack;
+  ast_parser stack[20];
   u32 sp;
-  u32 cap;
 
-  lalloc *type_allocator;  // For allocating types onto
-  lalloc *stack_allocator; // For growing the stack
+  lalloc *type_allocator;
 } stack_parser;
 
 typedef struct
 {
   lalloc *type_allocator;
-  lalloc *stack_allocator;
 } sp_params;
 
-/**
- * Returns:
- *   - ERR_NOMEM if there's not enough memory to create the stack
- */
-err_t stackp_create (stack_parser *dest, sp_params params, error *e);
+stack_parser stackp_create (sp_params params);
 
 stackp_result stackp_feed_token (stack_parser *sp, token t);
+
+void stackp_reset (stack_parser *sp);
 
 void stackp_begin (stack_parser *sp, sb_build_type type);
 

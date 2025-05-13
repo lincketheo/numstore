@@ -1,4 +1,3 @@
-#include "domain/create_server.h"
 #include "ds/strings.h"
 #include "intf/logging.h"
 #include "mm/lalloc.h"
@@ -21,9 +20,24 @@ int
 main (void)
 {
   server s;
-  err_t ret = create_default_server (&s);
-  if (ret)
+  err_t ret = SUCCESS;
+
+  /**
+   * For now, just create a
+   * really big global allocator
+   */
+  lalloc alloc = lalloc_create (100000);
+
+  error e = error_create (NULL);
+  if ((ret = server_create (
+           &s,
+           (server_params){
+               .port = 12345,
+               .alloc = &alloc },
+           &e)))
+
     {
+      error_log_consume (&e);
       return ret;
     }
 

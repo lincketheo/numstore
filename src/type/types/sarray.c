@@ -29,7 +29,7 @@ sarray_t_nomem (const char *msg, error *e)
 static inline err_t
 sarray_t_type_err (const char *msg, error *e)
 {
-  return error_causef (e, ERR_INVALID_TYPE, "Strict Array: %s", msg);
+  return error_causef (e, ERR_INVALID_ARGUMENT, "Strict Array: %s", msg);
 }
 
 static inline err_t
@@ -370,5 +370,5 @@ TEST (sarray_t_deserialize_red_path)
   error e = error_create (NULL);
   err_t ret = sarray_t_deserialize (&eret, &d, &alloc, &e);
 
-  test_assert_int_equal (ret, ERR_INVALID_TYPE); // 0 value
+  test_assert_int_equal (ret, ERR_INVALID_ARGUMENT); // 0 value
 }

@@ -1,6 +1,8 @@
 #include "compiler/stack_parser/query_parser.h"
 #include "compiler/stack_parser/common.h"
+#include "compiler/stack_parser/queries/delete.h"
 #include "compiler/tokens.h"
+#include "dev/assert.h"
 
 DEFINE_DBG_ASSERT_I (query_parser, query_parser, qb)
 {
@@ -26,9 +28,9 @@ qryp_build (query_parser *qb)
       {
         return crtp_build (qb);
       }
-    case QP_APPEND:
+    case QP_DELETE:
       {
-        return apnd_build (qb);
+        return dltp_build (qb);
       }
     default:
       {
@@ -57,26 +59,6 @@ qryp_expect_next (const query_parser *qb)
       {
         return SBFT_TOKEN;
       }
-    case QP_APPEND:
-      {
-        return SBFT_TOKEN;
-      }
-    case QP_UPDATE:
-      {
-        return SBFT_TOKEN;
-      }
-    case QP_READ:
-      {
-        return SBFT_TOKEN;
-      }
-    case QP_TAKE:
-      {
-        return SBFT_TOKEN;
-      }
-    case QP_INSERT:
-      {
-        return SBFT_TOKEN;
-      }
     }
   return SBFT_TOKEN;
 }
@@ -96,9 +78,9 @@ qryp_accept_token (query_parser *qb, token t)
             {
               return crtp_create (qb);
             }
-          case TT_APPEND:
+          case TT_DELETE:
             {
-              return apnd_create (qb);
+              return dltp_create (qb);
             }
           default:
             {
@@ -109,6 +91,10 @@ qryp_accept_token (query_parser *qb, token t)
     case QP_CREATE:
       {
         return crtp_accept_token (qb, t);
+      }
+    case QP_DELETE:
+      {
+        return dltp_accept_token (qb, t);
       }
     default:
       {

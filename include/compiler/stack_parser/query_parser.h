@@ -1,12 +1,7 @@
 #pragma once
 
-#include "compiler/stack_parser/queries/append.h"
 #include "compiler/stack_parser/queries/create.h"
 #include "compiler/stack_parser/queries/delete.h"
-#include "compiler/stack_parser/queries/insert.h"
-#include "compiler/stack_parser/queries/read.h"
-#include "compiler/stack_parser/queries/take.h"
-#include "compiler/stack_parser/queries/update.h"
 
 #include "compiler/stack_parser/common.h" // stackp_result
 #include "query/query.h"                  // query
@@ -19,11 +14,6 @@ struct query_parser_s
 
     QP_CREATE,
     QP_DELETE,
-    QP_APPEND,
-    QP_INSERT,
-    QP_UPDATE,
-    QP_READ,
-    QP_TAKE,
 
   } state;
 
@@ -31,11 +21,6 @@ struct query_parser_s
   {
     create_parser cp;
     delete_parser dp;
-    append_parser ap;
-    insert_parser ip;
-    update_parser up;
-    read_parser rp;
-    take_parser tp;
   };
 
   query ret;
