@@ -1,17 +1,15 @@
 #pragma once
 
 #include "ds/cbuffer.h" // cbuffer
+#include "stmtctrl.h"
 
 typedef struct
 {
   cbuffer *queries_input;
+
+  stmtctrl *ctrl;
 } vm;
 
-typedef struct
-{
-  cbuffer *queries_input;
-} vm_params;
-
-vm vm_create (vm_params args);
+vm vm_create (cbuffer *queries_input, stmtctrl *ctrl);
 
 void vm_execute (vm *v);

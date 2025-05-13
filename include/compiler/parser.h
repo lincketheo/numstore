@@ -1,24 +1,29 @@
 #pragma once
 
-#include "compiler/stack_parser/stack_parser.h" // stack_parser
-#include "ds/cbuffer.h"                         // cbuffer
-#include "mm/lalloc.h"                          // lalloc
+#include "compiler/stack_parser/ast_parser.h" // ast_parser
+#include "stmtctrl.h"                         // stmtctrl
+
+#include "ds/cbuffer.h" // cbuffer
+#include "mm/lalloc.h"  // lalloc
 
 typedef struct
 {
   cbuffer *tokens_input;
   cbuffer *queries_output;
-  stack_parser sp;
-  bool is_error;
+
+  ast_parser stack[20];
+  u32 sp;
+
+  u8 _working_space[2048];
+  lalloc working_space;
+
+  stmtctrl *ctrl;
 } parser;
 
-typedef struct
-{
-  lalloc *type_allocator;
-  cbuffer *tokens_input;
-  cbuffer *queries_output;
-} parser_params;
-
-parser parser_create (parser_params params);
+void parser_create (
+    parser *dest,
+    cbuffer *tokens_input,
+    cbuffer *queries_output,
+    stmtctrl *ctrl);
 
 void parser_execute (parser *p);

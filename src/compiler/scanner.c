@@ -1,31 +1,20 @@
 #include "compiler/scanner.h"
-#include "compiler/tokens.h"
-#include "dev/assert.h"
-#include "ds/cbuffer.h"
-#include "errors/error.h"
-#include "intf/logging.h"
-#include "mm/lalloc.h"
-#include "utils/macros.h"
-#include "utils/numbers.h"
+
+#include "compiler/tokens.h" // token
+
+#include "dev/assert.h"    // DEFINE_DBG_ASSERT_I
+#include "ds/cbuffer.h"    // cbuffer
+#include "errors/error.h"  // err_t
+#include "intf/stdlib.h"   // i_memcpy
+#include "utils/macros.h"  // is_alpha
+#include "utils/numbers.h" // parse_i32_expect
 
 ////////////////////// SCANNER (chars -> tokens)
 
 DEFINE_DBG_ASSERT_I (scanner, scanner, s)
 {
   ASSERT (s);
-
-  if (s->dcur)
-    {
-      ASSERT (s->dcur);
-      ASSERT (s->dcurlen <= s->dcurcap);
-      ASSERT (s->dcurcap > 0);
-    }
-  else
-    {
-      ASSERT (s->dcur == NULL);
-      ASSERT (s->dcurlen == 0);
-      ASSERT (s->dcurcap == 0);
-    }
+  ASSERT (s->slen <= 512);
 }
 
 const char *
@@ -63,98 +52,34 @@ scanner_push_char_dcur (scanner *s, char next, error *e)
   scanner_assert (s);
   i_log_trace ("Pushing char: %c\n", next);
 
-  if (s->dcurlen == s->dcurcap)
-    {
-      lalloc_r next = lrealloc (
-          s->string_allocator,
-          s->dcur,
-          2 * s->dcurcap,
-          s->dcurcap + 1,
-          sizeof *s->dcur);
-
-      if (next.stat != AR_SUCCESS)
-        {
-          return error_causef (
-              e,
-              ERR_NOMEM,
-              "Scanner: "
-              "Failed to realloc internal dynamic string");
-        }
-
-      s->dcur = next.ret;
-      s->dcurcap = next.rlen;
-    }
-
-  // Append string
-  s->dcur[s->dcurlen++] = next;
-
-  return SUCCESS;
-}
-
-static inline err_t
-scanner_alloc_init (scanner *s, error *e)
-{
-  scanner_assert (s);
-
-  // Called on an empty string
-  ASSERT (s->dcur == NULL);
-
-  lalloc_r data = lmalloc (
-      s->string_allocator,
-      10, 10,
-      sizeof *s->dcur);
-
-  if (data.stat != AR_SUCCESS)
+  if (s->slen == 512)
     {
       return error_causef (
           e, ERR_NOMEM,
           "Scanner: "
-          "Failed to allocate dynamic string");
+          "ident buffer overflow");
     }
 
-  s->dcur = data.ret;
-  s->dcurcap = data.rlen;
-  s->dcurlen = 0;
+  s->str[s->slen++] = next;
 
   return SUCCESS;
 }
 
-static inline void
-scanner_buffer_reset (scanner *s)
-{
-  scanner_assert (s);
-
-  // Called on a non empty string
-  ASSERT (s->dcur != NULL);
-  ASSERT (s->dcurcap > 0);
-
-  /**
-   * WARNING - This looks like it's causing
-   * a dangling pointer but really I'm transferring
-   * responsibility to down the chain
-   */
-  s->dcur = NULL;
-  s->dcurlen = 0;
-  s->dcurcap = 0;
-}
-
 scanner
-scanner_create (scanner_params params)
+scanner_create (
+    cbuffer *chars_input,
+    cbuffer *tokens_output,
+    stmtctrl *ctrl)
 {
-  ASSERT (params.tokens_output->cap % sizeof (token) == 0);
-
   scanner ret = {
-    .e = error_create (NULL),
     .state = SS_START,
 
-    .chars_input = params.chars_input,
-    .tokens_output = params.tokens_output,
+    .chars_input = chars_input,
+    .tokens_output = tokens_output,
 
-    .dcur = NULL,
-    .dcurlen = 0,
-    .dcurcap = 0,
+    .slen = 0,
 
-    .string_allocator = params.string_allocator,
+    .ctrl = ctrl,
   };
   scanner_assert (&ret);
   return ret;
@@ -184,7 +109,6 @@ static inline err_t
 scanner_cpy_advance_expect (scanner *s, error *e)
 {
   scanner_assert (s);
-  ASSERT (s->dcur);
 
   // Dequeue and copy
   u8 next;
@@ -239,94 +163,82 @@ scanner_write_token_expect (scanner *s, token t)
   ASSERT (ret == 1);
 }
 
-static inline void
-scanner_write_token_t_expect (scanner *s, token_t t)
-{
-  scanner_assert (s);
-  ASSERT (cbuffer_avail (s->tokens_output) >= sizeof (token));
-  scanner_write_token_expect (s, quick_tok (t));
-}
-
 typedef struct
 {
-  char *data;
-  u32 len;
-  prim_t type;
+  const string token;
+  token t;
 } prim_token;
 
-// Maybe a trie for faster checks?
-// TODO - move this to prim_t module
-static const prim_token prim_tokens[] = {
-  { .data = "u8", .len = 2, .type = U8 },
-  { .data = "u16", .len = 3, .type = U16 },
-  { .data = "u32", .len = 3, .type = U32 },
-  { .data = "u64", .len = 3, .type = U64 },
-
-  { .data = "i8", .len = 2, .type = I8 },
-  { .data = "i16", .len = 3, .type = I16 },
-  { .data = "i32", .len = 3, .type = I32 },
-  { .data = "i64", .len = 3, .type = I64 },
-
-  { .data = "f16", .len = 3, .type = F16 },
-  { .data = "f32", .len = 3, .type = F32 },
-  { .data = "f64", .len = 3, .type = F64 },
-  { .data = "f128", .len = 4, .type = F128 },
-
-  { .data = "cf32", .len = 4, .type = CF32 },
-  { .data = "cf64", .len = 4, .type = CF64 },
-  { .data = "cf128", .len = 5, .type = CF128 },
-  { .data = "cf256", .len = 5, .type = CF256 },
-
-  { .data = "ci16", .len = 4, .type = CI16 },
-  { .data = "ci32", .len = 4, .type = CI32 },
-  { .data = "ci64", .len = 4, .type = CI64 },
-  { .data = "ci128", .len = 5, .type = CI128 },
-
-  { .data = "cu16", .len = 4, .type = CU16 },
-  { .data = "cu32", .len = 4, .type = CU32 },
-  { .data = "cu64", .len = 4, .type = CU64 },
-  { .data = "cu128", .len = 5, .type = CU128 },
-};
-
 typedef struct
 {
-  char *data;
-  u32 len;
-  token_t type;
+  string token;
+  token t;
 } magic_token;
 
-// Maybe a trie
+// helper to infer string length at compile time
+#define STR_LIT(s)        \
+  {                       \
+    (sizeof (s) - 1), (s) \
+  }
+
+static const prim_token prim_tokens[] = {
+  { .token = STR_LIT ("u8"), .t = { .type = TT_PRIM, .prim = U8 } },
+  { .token = STR_LIT ("u16"), .t = { .type = TT_PRIM, .prim = U16 } },
+  { .token = STR_LIT ("u32"), .t = { .type = TT_PRIM, .prim = U32 } },
+  { .token = STR_LIT ("u64"), .t = { .type = TT_PRIM, .prim = U64 } },
+  { .token = STR_LIT ("i8"), .t = { .type = TT_PRIM, .prim = I8 } },
+  { .token = STR_LIT ("i16"), .t = { .type = TT_PRIM, .prim = I16 } },
+  { .token = STR_LIT ("i32"), .t = { .type = TT_PRIM, .prim = I32 } },
+  { .token = STR_LIT ("i64"), .t = { .type = TT_PRIM, .prim = I64 } },
+  { .token = STR_LIT ("f16"), .t = { .type = TT_PRIM, .prim = F16 } },
+  { .token = STR_LIT ("f32"), .t = { .type = TT_PRIM, .prim = F32 } },
+  { .token = STR_LIT ("f64"), .t = { .type = TT_PRIM, .prim = F64 } },
+  { .token = STR_LIT ("f128"), .t = { .type = TT_PRIM, .prim = F128 } },
+  { .token = STR_LIT ("cf32"), .t = { .type = TT_PRIM, .prim = CF32 } },
+  { .token = STR_LIT ("cf64"), .t = { .type = TT_PRIM, .prim = CF64 } },
+  { .token = STR_LIT ("cf128"), .t = { .type = TT_PRIM, .prim = CF128 } },
+  { .token = STR_LIT ("cf256"), .t = { .type = TT_PRIM, .prim = CF256 } },
+  { .token = STR_LIT ("ci16"), .t = { .type = TT_PRIM, .prim = CI16 } },
+  { .token = STR_LIT ("ci32"), .t = { .type = TT_PRIM, .prim = CI32 } },
+  { .token = STR_LIT ("ci64"), .t = { .type = TT_PRIM, .prim = CI64 } },
+  { .token = STR_LIT ("ci128"), .t = { .type = TT_PRIM, .prim = CI128 } },
+  { .token = STR_LIT ("cu16"), .t = { .type = TT_PRIM, .prim = CU16 } },
+  { .token = STR_LIT ("cu32"), .t = { .type = TT_PRIM, .prim = CU32 } },
+  { .token = STR_LIT ("cu64"), .t = { .type = TT_PRIM, .prim = CU64 } },
+  { .token = STR_LIT ("cu128"), .t = { .type = TT_PRIM, .prim = CU128 } },
+};
+
 static const magic_token magic_tokens[] = {
-  // Json commands
-  { .data = "create", .len = 6, .type = TT_CREATE },
-  { .data = "delete", .len = 6, .type = TT_DELETE },
-  { .data = "append", .len = 6, .type = TT_APPEND },
-  { .data = "insert", .len = 6, .type = TT_INSERT },
-  { .data = "update", .len = 6, .type = TT_UPDATE },
-  { .data = "read", .len = 4, .type = TT_READ },
-  { .data = "take", .len = 4, .type = TT_TAKE },
+  // JSON commands
+  { .token = STR_LIT ("create"), .t = { .type = TT_CREATE } },
+  { .token = STR_LIT ("delete"), .t = { .type = TT_DELETE } },
+  { .token = STR_LIT ("append"), .t = { .type = TT_APPEND } },
+  { .token = STR_LIT ("insert"), .t = { .type = TT_INSERT } },
+  { .token = STR_LIT ("update"), .t = { .type = TT_UPDATE } },
+  { .token = STR_LIT ("read"), .t = { .type = TT_READ } },
+  { .token = STR_LIT ("take"), .t = { .type = TT_TAKE } },
 
-  // Binary commands
-  { .data = "bcreate", .len = 7, .type = TT_BCREATE },
-  { .data = "bdelete", .len = 7, .type = TT_BDELETE },
-  { .data = "bappend", .len = 7, .type = TT_BAPPEND },
-  { .data = "binsert", .len = 7, .type = TT_BINSERT },
-  { .data = "bupdate", .len = 7, .type = TT_BUPDATE },
-  { .data = "bread", .len = 5, .type = TT_BREAD },
-  { .data = "btake", .len = 5, .type = TT_BTAKE },
+  // binary commands
+  { .token = STR_LIT ("bcreate"), .t = { .type = TT_BCREATE } },
+  { .token = STR_LIT ("bdelete"), .t = { .type = TT_BDELETE } },
+  { .token = STR_LIT ("bappend"), .t = { .type = TT_BAPPEND } },
+  { .token = STR_LIT ("binsert"), .t = { .type = TT_BINSERT } },
+  { .token = STR_LIT ("bupdate"), .t = { .type = TT_BUPDATE } },
+  { .token = STR_LIT ("bread"), .t = { .type = TT_BREAD } },
+  { .token = STR_LIT ("btake"), .t = { .type = TT_BTAKE } },
 
-  // Types
-  { .data = "struct", .len = 6, .type = TT_STRUCT },
-  { .data = "union", .len = 5, .type = TT_UNION },
-  { .data = "enum", .len = 4, .type = TT_ENUM },
+  // types
+  { .token = STR_LIT ("struct"), .t = { .type = TT_STRUCT } },
+  { .token = STR_LIT ("union"), .t = { .type = TT_UNION } },
+  { .token = STR_LIT ("enum"), .t = { .type = TT_ENUM } },
 };
 
 static err_t ss_transition (scanner *s, scanner_state state, error *e);
-static err_t ss_start (scanner *s, error *e);
-static err_t ss_ident (scanner *s, error *e);
-static err_t ss_string (scanner *s, error *e);
-static err_t ss_number (scanner *s, error *e);
-static err_t ss_decimal (scanner *s, error *e);
+static err_t steady_state_start (scanner *s, error *e);
+static err_t steady_state_ident (scanner *s, error *e);
+static err_t steady_state_string (scanner *s, error *e);
+static err_t steady_state_number (scanner *s, error *e);
+static err_t steady_state_dec (scanner *s, error *e);
 
 /**
  * We expect to have at least 1 char available here
@@ -345,7 +257,7 @@ ss_transition (scanner *s, scanner_state state, error *e)
     case SS_IDENT:
       {
         // initialize output string
-        err_t_wrap (scanner_alloc_init (s, e), e);
+        s->slen = 0;
 
         // Write the first char to the array
         err_t_wrap (scanner_cpy_advance_expect (s, e), e);
@@ -354,7 +266,7 @@ ss_transition (scanner *s, scanner_state state, error *e)
     case SS_STRING:
       {
         // Initialize output string
-        err_t_wrap (scanner_alloc_init (s, e), e);
+        s->slen = 0;
 
         // Skip over the first quotation mark
         scanner_advance_expect (s);
@@ -363,7 +275,7 @@ ss_transition (scanner *s, scanner_state state, error *e)
     case SS_NUMBER:
       {
         // Initialize output string (to parse later)
-        err_t_wrap (scanner_alloc_init (s, e), e);
+        s->slen = 0;
         break;
       }
     case SS_DECIMAL:
@@ -384,7 +296,7 @@ ss_transition (scanner *s, scanner_state state, error *e)
 }
 
 static err_t
-ss_ident (scanner *s, error *e)
+steady_state_ident (scanner *s, error *e)
 {
   scanner_assert (s);
   ASSERT (s->state == SS_IDENT);
@@ -406,28 +318,20 @@ ss_ident (scanner *s, error *e)
 finish:
   scanner_assert (s);
 
-  ASSERT (s->dcurlen > 0);
-  ASSERT (s->dcur);
+  ASSERT (s->slen > 0);
 
   string literal = (string){
-    .data = s->dcur,
-    .len = s->dcurlen,
+    .data = s->str,
+    .len = s->slen,
   };
-
-  scanner_buffer_reset (s);
+  s->slen = 0;
 
   // Check for magic tokens
   for (u32 i = 0; i < arrlen (magic_tokens); ++i)
     {
-      if (string_equal (
-              literal,
-              (string){
-                  .data = magic_tokens[i].data,
-                  .len = magic_tokens[i].len,
-              }))
+      if (string_equal (literal, magic_tokens[i].token))
         {
-          scanner_write_token_t_expect (s, magic_tokens[i].type);
-          lfree (s->string_allocator, literal.data);
+          scanner_write_token_expect (s, magic_tokens[i].t);
           goto theend;
         }
     }
@@ -435,29 +339,35 @@ finish:
   // Check for primitives
   for (u32 i = 0; i < arrlen (prim_tokens); ++i)
     {
-      if (string_equal (
-              literal,
-              (string){
-                  .data = prim_tokens[i].data,
-                  .len = prim_tokens[i].len,
-              }))
+      if (string_equal (literal, prim_tokens[i].token))
         {
-          scanner_write_token_expect (s, tt_prim (prim_tokens[i].type));
-          lfree (s->string_allocator, literal.data);
+          scanner_write_token_expect (s, prim_tokens[i].t);
           goto theend;
         }
     }
 
   // Otherwise, write an ident token
+  literal.data = lmalloc (&s->ctrl->strs_alloc, literal.len, 1);
+  if (literal.data == NULL)
+    {
+      return error_causef (
+          e, ERR_NOMEM,
+          "Scanner: "
+          "Failed to allocate identifier token: %.*s into string space",
+          s->slen, s->str);
+    }
+  i_memcpy (literal.data, s->str, literal.len);
+
   scanner_write_token_expect (s, tt_ident (literal));
 
 theend:
+  s->slen = 0;
   err_t_wrap (ss_transition (s, SS_START, e), e);
   return SUCCESS;
 }
 
 static err_t
-ss_string (scanner *s, error *e)
+steady_state_string (scanner *s, error *e)
 {
   scanner_assert (s);
   ASSERT (s->state == SS_STRING);
@@ -480,14 +390,24 @@ ss_string (scanner *s, error *e)
 finish:
   scanner_assert (s);
 
-  ASSERT (s->dcur);
+  ASSERT (s->slen > 0);
 
-  string literal = (string){
-    .data = s->dcur,
-    .len = s->dcurlen,
+  string literal = {
+    .data = lmalloc (&s->ctrl->strs_alloc, s->slen, 1),
+    .len = s->slen,
   };
+  s->slen = 0;
 
-  scanner_buffer_reset (s);
+  if (literal.data == NULL)
+    {
+      return error_causef (
+          e, ERR_NOMEM,
+          "Scanner: "
+          "Failed to allocate string token: %.*s into query space",
+          s->slen, s->str);
+    }
+  i_memcpy (literal.data, s->str, literal.len);
+
   scanner_write_token_expect (s, tt_string (literal));
 
   err_t_wrap (ss_transition (s, SS_START, e), e);
@@ -496,7 +416,7 @@ finish:
 }
 
 static err_t
-ss_decimal (scanner *s, error *e)
+steady_state_dec (scanner *s, error *e)
 {
   scanner_assert (s);
   ASSERT (s->state == SS_DECIMAL);
@@ -506,31 +426,36 @@ ss_decimal (scanner *s, error *e)
     {
       if (!is_num (c))
         {
-          const string literal = (string){
-            .data = s->dcur,
-            .len = s->dcurlen,
-          };
-
-          // Parse the int
-          f32 dest = parse_f32_expect (literal);
-
-          // Reset and write
-          lfree (s->string_allocator, s->dcur);
-          scanner_buffer_reset (s);
-          scanner_write_token_expect (s, tt_float (dest));
-
-          // TODO - should I require whitespace after numbers?
-          err_t_wrap (ss_transition (s, SS_START, e), e);
-          return SUCCESS;
+          goto finished;
         }
       err_t_wrap (scanner_cpy_advance_expect (s, e), e);
     }
+
+  return SUCCESS; // Nothing else, but in the middle
+
+finished:
+  scanner_assert (s);
+
+  const string literal = (string){
+    .data = s->str,
+    .len = s->slen,
+  };
+  s->slen = 0;
+
+  // Parse the float
+  f32 dest;
+  err_t_wrap (parse_f32_expect (&dest, literal, e), e);
+
+  scanner_write_token_expect (s, tt_float (dest));
+
+  // TODO - should I require whitespace after numbers?
+  err_t_wrap (ss_transition (s, SS_START, e), e);
 
   return SUCCESS;
 }
 
 static err_t
-ss_number (scanner *s, error *e)
+steady_state_number (scanner *s, error *e)
 {
   scanner_assert (s);
   ASSERT (s->state == SS_NUMBER);
@@ -544,35 +469,40 @@ ss_number (scanner *s, error *e)
           if (c == '.')
             {
               err_t_wrap (ss_transition (s, SS_DECIMAL, e), e);
-              return SUCCESS;
+              return steady_state_dec (s, e);
             }
           else
             {
-              const string literal = (string){
-                .data = s->dcur,
-                .len = s->dcurlen,
-              };
-
-              // Parse the int
-              i32 dest = parse_i32_expect (literal);
-
-              // Reset and write
-              lfree (s->string_allocator, s->dcur);
-              scanner_buffer_reset (s);
-              scanner_write_token_expect (s, tt_integer (dest));
-
-              err_t_wrap (ss_transition (s, SS_START, e), e);
-              return SUCCESS;
+              goto finished;
             }
         }
       err_t_wrap (scanner_cpy_advance_expect (s, e), e);
     }
 
   return SUCCESS;
+
+finished:
+  scanner_assert (s);
+
+  const string literal = (string){
+    .data = s->str,
+    .len = s->slen,
+  };
+  s->slen = 0;
+
+  // Parse the int
+  i32 dest;
+  err_t_wrap (parse_i32_expect (&dest, literal, e), e);
+
+  scanner_write_token_expect (s, tt_integer (dest));
+
+  err_t_wrap (ss_transition (s, SS_START, e), e);
+
+  return SUCCESS;
 }
 
 static err_t
-ss_start (scanner *s, error *e)
+steady_state_start (scanner *s, error *e)
 {
   scanner_assert (s);
   ASSERT (s->state == SS_START);
@@ -586,13 +516,13 @@ ss_start (scanner *s, error *e)
       return SUCCESS;
     }
 
-#define single_tok_continue(ttype)                    \
-  do                                                  \
-    {                                                 \
-      scanner_advance_expect (s);                     \
-      scanner_write_token_t_expect (s, ttype);        \
-      err_t_wrap (ss_transition (s, SS_START, e), e); \
-    }                                                 \
+#define single_tok_continue(ttype)                       \
+  do                                                     \
+    {                                                    \
+      scanner_advance_expect (s);                        \
+      scanner_write_token_expect (s, quick_tok (ttype)); \
+      err_t_wrap (ss_transition (s, SS_START, e), e);    \
+    }                                                    \
   while (0)
 
   switch (next)
@@ -680,23 +610,23 @@ scanner_execute_state (scanner *s, error *e)
     {
     case SS_START:
       {
-        return ss_start (s, e);
+        return steady_state_start (s, e);
       }
     case SS_IDENT:
       {
-        return ss_ident (s, e);
+        return steady_state_ident (s, e);
       }
     case SS_NUMBER:
       {
-        return ss_number (s, e);
+        return steady_state_number (s, e);
       }
     case SS_DECIMAL:
       {
-        return ss_decimal (s, e);
+        return steady_state_dec (s, e);
       }
     case SS_STRING:
       {
-        return ss_string (s, e);
+        return steady_state_string (s, e);
       }
     default:
       {
@@ -708,6 +638,28 @@ scanner_execute_state (scanner *s, error *e)
 void
 scanner_execute (scanner *s)
 {
+  scanner_assert (s);
+
+  switch (s->ctrl->state)
+    {
+    case STCTRL_ERROR:
+      {
+        // Discard elements
+        cbuffer_discard_all (s->chars_input);
+        return;
+      }
+    case STCTRL_WRITING:
+      {
+        // Expect to be done
+        ASSERT (cbuffer_len (s->chars_input) == 0);
+        return;
+      }
+    case STCTRL_EXECTUING:
+      {
+        break;
+      }
+    }
+
   while (true)
     {
       /**
@@ -730,12 +682,12 @@ scanner_execute (scanner *s)
        * Write a maximum of 1 token
        * or else handle error
        */
-      if (scanner_execute_state (s, &s->e))
+      if (scanner_execute_state (s, &s->ctrl->e))
         {
-          error_log_consume (&s->e);
-          scanner_write_token_expect (s, quick_tok (TT_ERROR));
-          err_t ret = ss_transition (s, SS_START, &s->e);
+          err_t ret = ss_transition (s, SS_START, NULL);
           ASSERT (ret == SUCCESS);
+
+          s->ctrl->state = STCTRL_ERROR;
           return;
         }
     }

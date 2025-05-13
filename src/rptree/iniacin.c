@@ -35,18 +35,16 @@ DEFINE_DBG_ASSERT_I (iniacin_s, iniacin_s, d)
   ASSERT (d->pg0.type == PG_INNER_NODE);
 }
 
-static inline err_t
-iniacin_s_save_right (iniacin_s *d, p_size idx0, error *e)
+static inline void
+iniacin_s_save_right (iniacin_s *d, p_size idx0)
 {
   iniacin_s_assert (d);
   ASSERT (idx0 <= in_get_nkeys (&d->pg0.in));
 
   if (idx0 == in_get_nkeys (&d->pg0.in))
     {
-      return SUCCESS;
+      return;
     }
-
-  err_t ret = SUCCESS;
 
   // TODO - this can be optimized
   for (p_size i = idx0; i < in_get_nkeys (&d->pg0.in); ++i)
@@ -54,37 +52,32 @@ iniacin_s_save_right (iniacin_s *d, p_size idx0, error *e)
       // Get the right key and the right page
       b_size key = in_get_key (&d->pg0.in, i);
       pgno leaf = in_get_key (&d->pg0.in, i + 1);
-      err_t_wrap (mintn_add_right_no_add (&d->input, key, leaf, e), e);
+      if (!mintn_add_right_no_add (&d->input, key, leaf))
+        {
+          panic ();
+        }
     }
 
   in_clip_right (&d->pg0.in, idx0);
-
-  return ret;
 }
 
-static err_t
-iniacin_s_create (iniacin_s *dest, iniacin_s_params p, error *e)
+static void
+iniacin_s_create (iniacin_s *dest, iniacin_s_params p)
 {
   ASSERT (dest);
   ASSERT (p.pg0.type == PG_INNER_NODE);
 
   *dest = (iniacin_s){
     .input = p.input,
-    .out = mintn_create (
-        (mintn_params){
-            .alloc = p.alloc,
-            .pg = p.pg0.pg,
-        }),
+    .out = mintn_create (p.pg0.pg),
     .pg0 = p.pg0,
     .pager = p.pager,
     .alloc = p.alloc,
   };
 
-  err_t_wrap (iniacin_s_save_right (dest, p.idx0, e), e);
+  iniacin_s_save_right (dest, p.idx0);
 
   iniacin_s_assert (dest);
-
-  return SUCCESS;
 }
 
 static err_t
@@ -105,7 +98,10 @@ iniacin_s_alloc_then_write_once (iniacin_s *r, page *cur, error *e)
        * Push previous node's capacity (left key) and this node's
        * page number (right page number)
        */
-      err_t_wrap (mintn_add_right (&r->out, key, next.pg, e), e);
+      if (!mintn_add_right (&r->out, key, next.pg))
+        {
+          panic ();
+        }
 
       // Commit so that we can swap it
       err_t_wrap (pgr_commit (r->pager, cur->in.raw, cur->pg, e), e);
@@ -148,42 +144,23 @@ iniacin_s_consume (iniacin_s *r, error *e)
   return SUCCESS;
 }
 
-static err_t
-iniacin_s_complete (mem_inner_node *dest, iniacin_s *d, error *e)
-{
-  iniacin_s_assert (d);
-  mintn_free (&d->input);
-
-  // TODO
-  // Probably don't need to clip because I think
-  // later on we append more
-  err_t ret = SUCCESS;
-  err_t_wrap (mintn_clip (&d->out, e), e);
-
-  *dest = d->out;
-  return ret;
-}
-
 err_t
 iniacin (mem_inner_node *dest, iniacin_params p, error *e)
 {
   iniacin_s d;
+  iniacin_s_params s_p = {
+    .input = p.input,
+    .idx0 = p.idx0,
+    .pg0 = p.pg0,
+    .pager = p.pager,
+    .alloc = p.alloc,
+  };
 
-  err_t_wrap (
-      iniacin_s_create (
-          &d, (iniacin_s_params){
-                  .input = p.input,
-                  .idx0 = p.idx0,
-                  .pg0 = p.pg0,
-                  .pager = p.pager,
-                  .alloc = p.alloc,
-              },
-          e),
-      e);
+  iniacin_s_create (&d, s_p);
 
   err_t_wrap (iniacin_s_consume (&d, e), e);
 
-  err_t_wrap (iniacin_s_complete (dest, &d, e), e);
+  *dest = d.out;
 
   return SUCCESS;
 }

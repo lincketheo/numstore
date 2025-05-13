@@ -4,7 +4,7 @@
 #include "intf/logging.h" // i_log_error
 #include "intf/stdlib.h"  // i_vsnprintf
 #include "mm/lalloc.h"    // lalloc
-#include "utils/macros.h" // MIN
+#include "utils/macros.h"
 
 #include <stdarg.h>
 #include <stddef.h>
@@ -52,9 +52,7 @@ error_create (lalloc *alloc)
 
     .cmlen = 0,
 
-    .evidence = NULL,
     .elen = 0,
-    .ecap = 0,
     .alloc = alloc
   };
 
@@ -84,36 +82,6 @@ error_causef (error *e, err_t c, const char *fmt, ...)
   return err_t_from (e);
 }
 
-static inline err_t
-error_make_room (error *e)
-{
-  error_assert (e);
-
-  lalloc_r evidence = lrealloc (
-      e->alloc,
-      e->evidence,
-      e->ecap * 1.25,
-      (e->ecap + 1),
-      sizeof *e->evidence);
-
-  switch (evidence.stat)
-    {
-    case AR_SUCCESS:
-      {
-        e->ecap = evidence.rlen;
-        e->evidence = evidence.ret;
-        break;
-      }
-    case AR_NOMEM:
-    case AR_AVAIL_BUT_USED:
-      {
-        return ERR_NOMEM;
-      }
-    }
-
-  return SUCCESS;
-}
-
 err_t
 error_trailf (error *e, const char *fmt, ...)
 {
@@ -126,16 +94,9 @@ error_trailf (error *e, const char *fmt, ...)
       return err_t_from (e);
     }
 
-  if (e->ecap == e->elen)
+  if (10 == e->elen)
     {
-      err_t ret = error_make_room (e);
-      /**
-       * Sweep malloc errors under the rug
-       */
-      if (ret)
-        {
-          return err_t_from (e);
-        }
+      return err_t_from (e);
     }
 
   va_list ap;
@@ -143,31 +104,14 @@ error_trailf (error *e, const char *fmt, ...)
   u32 n = i_vsnprintf (NULL, 0, fmt, ap) + 1;
   va_end (ap);
 
-  lalloc_r buf = lmalloc (e->alloc, n, n, 1);
+  void *buf = lmalloc (e->alloc, n, 1);
 
-  switch (buf.stat)
+  if (buf == NULL)
     {
-    case AR_SUCCESS:
-      {
-        va_start (ap, fmt);
-        i_vsnprintf (buf.ret, buf.rlen, fmt, ap);
-        e->evidence[e->elen++] = (string){
-          .data = buf.ret,
-          .len = buf.rlen,
-        };
-        return err_t_from (e);
-      }
-    case AR_NOMEM:
-    case AR_AVAIL_BUT_USED:
-      {
-        return err_t_from (e);
-      }
-    default:
-      {
-        UNREACHABLE ();
-        return ERR_FALLBACK;
-      }
+      return err_t_from (e);
     }
+
+  return err_t_from (e);
 }
 
 err_t
@@ -192,24 +136,17 @@ error_log_consume (error *e)
   ASSERT (e->cause_code != SUCCESS);
 
   i_log_error ("%.*s\n", e->cmlen, e->cause_msg);
-  e->cmlen = 0;
+  lalloc_reset (e->alloc);
 
   for (u32 i = 0; i < e->elen; ++i)
     {
       string msg = e->evidence[i];
       i_log_warn ("TRACEBACK: %.*s\n", msg.len, msg.data);
-      lfree (e->alloc, msg.data);
       e->evidence[i].data = NULL;
       e->evidence[i].len = 0;
     }
 
+  e->cmlen = 0;
   e->elen = 0;
-  if (e->ecap > 0)
-    {
-      lfree (e->alloc, e->evidence);
-      e->ecap = 0;
-      e->evidence = NULL;
-    }
-
   e->cause_code = SUCCESS;
 }

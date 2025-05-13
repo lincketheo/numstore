@@ -1,8 +1,9 @@
 #include "rptree/rptree.h"
+
 #include "dev/assert.h"
 #include "errors/error.h"
-#include "mm/lalloc.h"
 #include "intf/stdlib.h"
+#include "mm/lalloc.h"
 #include "paging/page.h"
 #include "paging/pager.h"
 #include "paging/types/data_list.h"
@@ -11,7 +12,6 @@
 #include "rptree/iniacin.h"
 #include "rptree/mem_inner_node.h"
 #include "rptree/seek.h"
-#include <bits/types/stack_t.h>
 
 DEFINE_DBG_ASSERT_I (rptree, rptree, r)
 {
@@ -24,8 +24,8 @@ DEFINE_DBG_ASSERT_I (rptree, rptree, r)
 
 //////////////////////////////// LIFECYCLE
 
-rptree
-rpt_create (rpt_params p)
+err_t
+rpt_create (rptree *dest, rpt_params p, error *e)
 {
   rptree ret = {
     .gidx = 0,          // meaningless if !is_open
@@ -36,14 +36,16 @@ rpt_create (rpt_params p)
     // r->seek // Nothing
     .is_seeked = false,
 
-    .alloc = p.alloc,
-
     .pager = p.pager,
   };
 
+  u32 space = p.pager->page_size + 2048;
+  err_t_wrap (lalloc_reserve (&ret.espace_alloc, p.alloc, space, e), e);
+  *dest = ret;
+
   rptree_assert (&ret);
 
-  return ret;
+  return SUCCESS;
 }
 
 err_t
@@ -94,18 +96,14 @@ rpt_seek (rptree *r, b_size b, error *e)
 {
   rptree_assert (r);
 
-  err_t_wrap (
-      seek (
-          &r->seek,
-          (seek_params){
-              .starting_page = r->cur,
-              .pager = r->pager,
-              .alloc = r->alloc,
-              .whereto = b,
-              .scap = 10,
-          },
-          e),
-      e);
+  seek_params params = {
+    .starting_page = r->cur,
+    .pager = r->pager,
+    .whereto = b,
+    .scap = 10,
+  };
+
+  err_t_wrap (seek (&r->seek, params, e), e);
 
   r->is_seeked = true;
 
@@ -134,11 +132,7 @@ rpt_insert (const u8 *src, t_size size, b_size n, rptree *r, error *e)
     {
       page cur;
       seek_v next = r->seek.stack[i];
-      err_t_wrap (
-          pgr_get_expect (
-              &cur, PG_INNER_NODE,
-              next.pg, r->pager, e),
-          e);
+      err_t_wrap (pgr_get_expect (&cur, PG_INNER_NODE, next.pg, r->pager, e), e);
       {
         return ret;
       }
@@ -150,20 +144,17 @@ rpt_insert (const u8 *src, t_size size, b_size n, rptree *r, error *e)
    * data node
    */
   mem_inner_node out;
-  err_t_wrap (
-      dliacin (
-          &out,
-          (dliacin_params){
-              .idx0 = r->lidx,
-              .pg0 = r->cur,
-              .pager = r->pager,
-              .alloc = r->alloc,
-              .src = src,
-              .size = size,
-              .n = n,
-          },
-          e),
-      e);
+
+  dliacin_params params = {
+    .idx0 = r->lidx,
+    .pg0 = r->cur,
+    .pager = r->pager,
+    .alloc = &r->espace_alloc,
+    .src = src,
+    .size = size,
+    .n = n,
+  };
+  err_t_wrap (dliacin (&out, params, e), e);
 
   int sp = r->seek.sp;
   mem_inner_node input = out;
@@ -192,27 +183,19 @@ rpt_insert (const u8 *src, t_size size, b_size n, rptree *r, error *e)
            * We are at an inner node, fetch that node
            */
           seek_v v = r->seek.stack[--sp];
-          err_t_wrap (
-              pgr_get_expect (
-                  &cur,
-                  PG_INNER_NODE,
-                  v.pg, r->pager, e),
-              e);
+          err_t_wrap (pgr_get_expect (&cur, PG_INNER_NODE, v.pg, r->pager, e), e);
 
           from = v.lidx;
         }
 
-      err_t_wrap (
-          iniacin (
-              &out, (iniacin_params){
-                        .input = input,
-                        .idx0 = from,
-                        .alloc = r->alloc,
-                        .pager = r->pager,
-                        .pg0 = cur,
-                    },
-              e),
-          e);
+      iniacin_params iparams = {
+        .input = input,
+        .idx0 = from,
+        .alloc = &r->espace_alloc,
+        .pager = r->pager,
+        .pg0 = cur,
+      };
+      err_t_wrap (iniacin (&out, iparams, e), e);
     }
   return ret;
 }
@@ -237,13 +220,7 @@ rpt_read_next (u8 *dest, b_size *bytes, rptree *r, error *e)
             }
 
           // Fetch the next page
-          err_t_wrap (
-              pgr_get_expect (
-                  &r->cur,
-                  PG_DATA_LIST,
-                  *r->cur.dl.next,
-                  r->pager, e),
-              e);
+          err_t_wrap (pgr_get_expect (&r->cur, PG_DATA_LIST, *r->cur.dl.next, r->pager, e), e);
 
           r->lidx = 0;
         }

@@ -2,8 +2,8 @@
 
 #include "ds/strings.h"         // string
 #include "errors/error.h"       // error
-#include "mm/lalloc.h"            // lalloc
 #include "intf/types.h"         // u32
+#include "mm/lalloc.h"          // lalloc
 #include "utils/deserializer.h" // deserializer
 #include "utils/serializer.h"   // serializer
 
@@ -18,10 +18,6 @@ err_t enum_t_validate (const enum_t *t, error *e);
 int enum_t_snprintf (char *str, u32 size, const enum_t *st);
 
 #define enum_t_byte_size(e) sizeof (u8)
-
-void enum_t_free_internals_forgiving (enum_t *t, lalloc *alloc);
-
-void enum_t_free_internals (enum_t *t, lalloc *alloc);
 
 u32 enum_t_get_serial_size (const enum_t *t);
 

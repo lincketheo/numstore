@@ -13,6 +13,8 @@ typedef struct
 } create_builder;
 
 create_builder crb_create (void);
+
 err_t crb_accept_string (create_builder *b, const string vname, error *e);
 err_t crb_accept_type (create_builder *b, type t, error *e);
+
 err_t crb_build (create_query *dest, create_builder *b, error *e);

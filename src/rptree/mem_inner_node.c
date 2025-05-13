@@ -2,124 +2,36 @@
 
 #include "dev/assert.h"              // DEFINE_DBG_ASSERT_I
 #include "errors/error.h"            // error
-#include "mm/lalloc.h"                 // malloc
 #include "intf/stdlib.h"             // i_memcpy
+#include "mm/lalloc.h"               // malloc
 #include "paging/types/inner_node.h" // inner_node
 
 DEFINE_DBG_ASSERT_I (mem_inner_node, mem_inner_node, o)
 {
   ASSERT (o);
-  //  ASSERT (o->first_pg != 0); // TODO - enable
-  ASSERT (o->kvlen <= o->kvcap);
-  if (o->kvcap == 0)
-    {
-      ASSERT (o->kvs == NULL);
-    }
-  else
-    {
-      ASSERT (o->kvs);
-    }
+  ASSERT (o->first_pg != 0); // TODO - enable
+  ASSERT (o->kvlen <= 50);
 }
 
 mem_inner_node
-mintn_create (mintn_params params)
+mintn_create (pgno pg)
 {
   mem_inner_node ret = {
-    .first_pg = params.pg,
-    .kvcap = 0,
+    .first_pg = pg,
     .kvlen = 0,
-    .alloc = params.alloc,
-    .kvs = NULL,
   };
   mem_inner_node_assert (&ret);
   return ret;
 }
 
-err_t
-mintn_clip (mem_inner_node *r, error *e)
+bool
+mintn_add_right (mem_inner_node *r, b_size key, pgno pg)
 {
   mem_inner_node_assert (r);
 
-  if (r->kvs == NULL)
+  if (r->kvlen == 50)
     {
-      return SUCCESS;
-    }
-
-  lalloc_r kvs = lrealloc (r->alloc, r->kvs, r->kvlen, r->kvlen, sizeof *r->kvs);
-
-  ASSERT (kvs.stat != AR_AVAIL_BUT_USED);
-  ASSERT (kvs.stat != AR_NOMEM);
-
-  if (kvs.stat != AR_SUCCESS)
-    {
-      /*
-       * Edge condition realloc shrink fail, treat as nomem
-       */
-      return error_causef (
-          e, ERR_NOMEM,
-          "Failed to shrink in memory inner node buffer");
-    }
-
-  r->kvs = kvs.ret;
-  r->kvcap = r->kvlen;
-  return SUCCESS;
-}
-
-void
-mintn_free (mem_inner_node *r)
-{
-  mem_inner_node_assert (r);
-
-  if (r->kvs == NULL)
-    {
-      return;
-    }
-
-  lfree (r->alloc, r->kvs);
-
-  r->kvlen = 0;
-  r->kvcap = 0;
-  r->kvs = NULL;
-}
-
-static inline err_t
-mintn_expand (mem_inner_node *r, error *e)
-{
-  mem_inner_node_assert (r);
-  ASSERT (r->kvlen == r->kvcap);
-
-  lalloc_r kvs;
-
-  if (r->kvcap == 0)
-    {
-      kvs = lmalloc (r->alloc, 10, 1, sizeof *r->kvs);
-    }
-  else
-    {
-      kvs = lrealloc (r->alloc, r->kvs, 2 * r->kvcap, r->kvcap + 1, sizeof *r->kvs);
-    }
-
-  if (kvs.stat != AR_SUCCESS)
-    {
-      return error_causef (
-          e, ERR_NOMEM,
-          "Not enough memory to expand in memory inner node buffer");
-    }
-
-  r->kvcap = kvs.rlen;
-  r->kvs = kvs.ret;
-
-  return SUCCESS;
-}
-
-err_t
-mintn_add_right (mem_inner_node *r, b_size key, pgno pg, error *e)
-{
-  mem_inner_node_assert (r);
-
-  if (r->kvlen == r->kvcap)
-    {
-      err_t_wrap (mintn_expand (r, e), e);
+      return false;
     }
 
   /*
@@ -137,17 +49,17 @@ mintn_add_right (mem_inner_node *r, b_size key, pgno pg, error *e)
     .key = adj_key,
   };
 
-  return SUCCESS;
+  return true;
 }
 
-err_t
-mintn_add_right_no_add (mem_inner_node *r, b_size key, pgno pg, error *e)
+bool
+mintn_add_right_no_add (mem_inner_node *r, b_size key, pgno pg)
 {
   mem_inner_node_assert (r);
 
-  if (r->kvlen == r->kvcap)
+  if (r->kvlen == 50)
     {
-      err_t_wrap (mintn_expand (r, e), e);
+      return false;
     }
 
   r->kvs[r->kvlen++] = (pg_rk){
@@ -155,17 +67,17 @@ mintn_add_right_no_add (mem_inner_node *r, b_size key, pgno pg, error *e)
     .key = key,
   };
 
-  return SUCCESS;
+  return true;
 }
 
 err_t
-mintn_add_left (mem_inner_node *r, pgno pg, b_size key, error *e)
+mintn_add_left (mem_inner_node *r, pgno pg, b_size key)
 {
   mem_inner_node_assert (r);
 
-  if (r->kvlen == r->kvcap)
+  if (r->kvlen == 50)
     {
-      err_t_wrap (mintn_expand (r, e), e);
+      return false;
     }
 
   /**
@@ -195,7 +107,7 @@ mintn_add_left (mem_inner_node *r, pgno pg, b_size key, error *e)
   r->first_pg = pg;
 
   r->kvlen++;
-  return SUCCESS;
+  return true;
 }
 
 b_size

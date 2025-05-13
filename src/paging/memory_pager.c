@@ -1,8 +1,8 @@
 #include "paging/memory_pager.h"
 #include "dev/testing.h"
 #include "errors/error.h"
-#include "mm/lalloc.h"
 #include "intf/stdlib.h"
+#include "mm/lalloc.h"
 
 ///////////////////////////// MEMORY PAGE
 
@@ -56,36 +56,25 @@ mpgr_create (memory_pager *dest, mpgr_params params, error *e)
   ASSERT (dest);
   ASSERT (params.len > 0);
 
-  lalloc_r pages = lmalloc (
-      params.alloc,
-      params.len,
-      params.len,
-      sizeof *dest->pages);
-
-  if (pages.stat != AR_SUCCESS)
+  dest->pages = lmalloc (params.alloc, params.len, sizeof *dest->pages);
+  if (!dest->pages)
     {
       return error_causef (
           e, ERR_NOMEM,
           "Memory pager: Not enough memory to allocate pages");
     }
 
-  lalloc_r _page_block = lmalloc (
-      params.alloc,
-      params.len,
-      params.len,
-      params.page_size);
+  u8 *page_block = lmalloc (params.alloc, params.len, params.page_size);
 
-  if (_page_block.stat != AR_SUCCESS)
+  if (!page_block)
     {
       return error_causef (
           e, ERR_NOMEM,
           "Memory pager: Not enough memory to allocate page block");
     }
 
-  dest->pages = pages.ret;
   dest->len = params.len;
   dest->idx = 0;
-  u8 *page_block = _page_block.ret;
 
   // Initialize the pages
   for (u32 i = 0; i < params.len; ++i)

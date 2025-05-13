@@ -1,7 +1,7 @@
 #pragma once
 
-#include "mm/lalloc.h"
 #include "intf/types.h"
+#include "mm/lalloc.h"
 #include "paging/pager.h"
 #include "paging/types/hash_leaf.h"
 #include "rptree/seek.h"
@@ -28,17 +28,17 @@ typedef struct
     bool is_seeked;
   };
 
-  lalloc *alloc; // For now one global allocator
+  lalloc espace_alloc; // Allocator for execution space
   pager *pager;
 } rptree;
 
 typedef struct
 {
   pager *pager;
-  lalloc *alloc;
+  lalloc *alloc; // The allocator that we're going to take space from
 } rpt_params;
 
-rptree rpt_create (rpt_params params);
+err_t rpt_create (rptree *dest, rpt_params params, error *e);
 
 /**
  * Creates a new rptree and returns the page number of

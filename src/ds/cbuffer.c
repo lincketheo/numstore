@@ -99,6 +99,15 @@ TEST (cbuffer_avail)
   test_assert_int_equal (cbuffer_avail (&b), 3);
 }
 
+void
+cbuffer_discard_all (cbuffer *b)
+{
+  cbuffer_assert (b);
+  b->tail = 0;
+  b->head = 0;
+  b->isfull = 0;
+}
+
 ///////////////////////// Raw Read / Write
 
 u32

@@ -39,34 +39,26 @@ vm_to_vhe (
    * Allocate tstr
    */
 
-  lalloc_r tstr = lmalloc (tstr_allocator, tlen, tlen, 1);
-  if (tstr.stat != AR_SUCCESS)
+  void *tstr = lmalloc (tstr_allocator, tlen, 1);
+  if (tstr == NULL)
     {
       return error_causef (
           e, ERR_NOMEM,
-          "Failed to allocate memory for "
-          "type string of length: %d bytes",
-          tlen);
+          "Failed to allocate type string");
     }
 
-  serializer s = srlizr_create (tstr.ret, tlen);
+  serializer s = srlizr_create (tstr, tlen);
   type_serialize (&s, &src.type);
 
   dest->vstr = vname.data;
   dest->vlen = vname.len;
-  dest->tstr = tstr.ret;
+  dest->tstr = tstr;
   dest->tlen = tlen;
   dest->pg0 = src.pgn0;
 
   var_hash_entry_assert (dest);
 
   return SUCCESS;
-}
-
-void
-var_hash_entry_free (var_hash_entry *v, lalloc *tstr_allocator)
-{
-  lfree (tstr_allocator, v->tstr);
 }
 
 err_t

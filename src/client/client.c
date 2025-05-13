@@ -76,13 +76,11 @@ client_disconnect (client *c)
   client_assert (c);
   ASSERT (c->sfd.fd >= 0);
 
-  lalloc ealloc = lalloc_create (1000);
-  error e = error_create (&ealloc);
+  error e = error_create (NULL);
   if (i_close (&c->sfd, &e))
     {
       error_log_consume (&e);
     }
-  ASSERT (ealloc.used == 0);
 
   c->sfd = (i_file){ .fd = -1 };
 }

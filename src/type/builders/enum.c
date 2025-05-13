@@ -1,78 +1,31 @@
 #include "type/builders/enum.h"
-#include "dev/assert.h"
-#include "ds/strings.h"
-#include "errors/error.h"
-#include "mm/lalloc.h"
-#include "type/types.h"
+
+#include "dev/assert.h" // DEFINE_DBG_ASSERT_I
 
 DEFINE_DBG_ASSERT_I (enum_builder, enum_builder, s)
 {
   ASSERT (s);
-  ASSERT (s->cap > 0);
-  ASSERT (s->len <= s->cap);
-  ASSERT (s->keys);
 }
 
-err_t
-enb_create (enum_builder *dest, lalloc *alloc, error *e)
+static const char *TAG = "Enum Builder";
+
+enum_builder
+enb_create (lalloc *alloc)
 {
-  ASSERT (dest);
-
-  lalloc_r keys = lmalloc (alloc, 10, 2, sizeof *dest->keys);
-  if (keys.stat != AR_SUCCESS)
-    {
-      return error_causef (
-          e, ERR_NOMEM,
-          "Enum Builder: "
-          "Failed to allocate memory for enum keys buffer");
-    }
-
-  dest->keys = keys.ret;
-  dest->len = 0;
-  dest->cap = keys.rlen;
-  dest->alloc = alloc;
-
-  enum_builder_assert (dest);
-
-  return SUCCESS;
+  enum_builder builder = {
+    .head = NULL,
+    .alloc = alloc,
+  };
+  return builder;
 }
 
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-
-static inline err_t
-enb_expand (enum_builder *eb, error *e)
+static bool
+enb_has_key_been_used (const enum_builder *eb, string key)
 {
-  enum_builder_assert (eb);
-
-  u32 cap = 2 * eb->cap;
-
-  lalloc_r keys = lrealloc (
-      eb->alloc,
-      eb->keys,
-      2 * eb->cap,
-      eb->cap + 1,
-      sizeof *eb->keys);
-
-  if (keys.stat != AR_SUCCESS)
+  for (llnode *it = eb->head; it; it = it->next)
     {
-      return error_causef (
-          e, ERR_NOMEM,
-          "Enum Builder: "
-          "Failed to expand enum keys buffer");
-    }
-
-  eb->cap = cap;
-  eb->keys = keys.ret;
-
-  return SUCCESS;
-}
-
-static inline bool
-enb_has_key_been_used (const enum_builder *eb, const string key)
-{
-  for (u32 i = 0; i < eb->len; ++i)
-    {
-      if (string_equal (eb->keys[i], key))
+      k_llnode *kn = container_of (it, k_llnode, link);
+      if (string_equal (kn->key, key))
         {
           return true;
         }
@@ -81,79 +34,85 @@ enb_has_key_been_used (const enum_builder *eb, const string key)
 }
 
 err_t
-enb_accept_key (enum_builder *eb, string key, error *e)
+enb_accept_key (enum_builder *eb, const string key, error *e)
 {
   enum_builder_assert (eb);
 
+  if (key.len == 0)
+    {
+      return error_causef (
+          e, ERR_INVALID_ARGUMENT,
+          "%s: Key length must be > 0", TAG);
+    }
   if (enb_has_key_been_used (eb, key))
     {
       return error_causef (
           e, ERR_INVALID_ARGUMENT,
-          "Enum Builder: "
-          "Key: %.*s has already been used",
-          key.len, key.data);
+          "%s: Key '%.*s' already used",
+          TAG, key.len, key.data);
     }
 
-  if (eb->len == eb->cap)
+  u16 idx = (u16)list_length (eb->head);
+  llnode *slot = llnode_get_n (eb->head, idx);
+  k_llnode *node;
+  if (slot)
     {
-      err_t_wrap (enb_expand (eb, e), e);
+      node = container_of (slot, k_llnode, link);
     }
-
-  eb->keys[eb->len++] = key;
-
-  return SUCCESS;
-}
-
-static inline err_t
-enb_clip (enum_builder *eb, error *e)
-{
-  enum_builder_assert (eb);
-
-  if (eb->len != eb->cap)
+  else
     {
-      lalloc_r keys = lrealloc (
-          eb->alloc,
-          eb->keys,
-          eb->len,
-          eb->len,
-          sizeof *eb->keys);
-
-      if (keys.stat != AR_SUCCESS)
+      node = lmalloc (eb->alloc, 1, sizeof *node);
+      if (!node)
         {
-          /*
-           * Edge condition realloc shrink fail, treat as nomem
-           */
           return error_causef (
               e, ERR_NOMEM,
-              "Enum Builder: "
-              "Failed to shrink enum keys buffer");
+              "%s: allocation failed", TAG);
         }
-
-      eb->cap = eb->len;
-      eb->keys = keys.ret;
+      llnode_init (&node->link);
+      node->key = (string){ 0 };
+      if (!eb->head)
+        {
+          eb->head = &node->link;
+        }
+      else
+        {
+          list_append (&eb->head, &node->link);
+        }
     }
-
+  node->key = key;
   return SUCCESS;
 }
 
 err_t
-enb_build (enum_t *dest, enum_builder *eb, error *e)
+enb_build (enum_t *dest, enum_builder *eb, lalloc *destination, error *e)
 {
   enum_builder_assert (eb);
   ASSERT (dest);
 
-  if (eb->len == 0)
+  u16 len = (u16)list_length (eb->head);
+  if (len == 0)
     {
       return error_causef (
           e, ERR_INVALID_ARGUMENT,
-          "Enum Builder: "
-          "Expecting at least 1 type");
+          "%s: no keys to build", TAG);
     }
 
-  err_t_wrap (enb_clip (eb, e), e);
+  string *keys = lmalloc (destination, len, sizeof *keys);
+  if (!keys)
+    {
+      return error_causef (
+          e, ERR_NOMEM,
+          "%s: failed to allocate keys array", TAG);
+    }
 
-  dest->keys = eb->keys;
-  dest->len = eb->len;
+  u16 i = 0;
+  for (llnode *it = eb->head; it; it = it->next)
+    {
+      k_llnode *kn = container_of (it, k_llnode, link);
+      keys[i++] = kn->key;
+    }
 
+  dest->len = len;
+  dest->keys = keys;
   return SUCCESS;
 }

@@ -47,8 +47,6 @@ typedef enum
   TT_LEFT_PAREN,
   TT_RIGHT_PAREN,
   TT_COMMA,
-
-  TT_ERROR,
 } token_t;
 
 /**
@@ -88,4 +86,4 @@ typedef struct
 
 #define MAX_TOK_T_LEN 16
 
-string tt_tostr (token_t t);
+const char *tt_tostr (token_t t);

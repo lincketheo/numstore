@@ -1,12 +1,11 @@
 #include "server/server.h"
 #include "errors/error.h"
+#include "intf/io.h"
 #include "intf/logging.h"
 #include "intf/stdlib.h"
-#include "mm/lalloc.h"
-#include "server/connector.h"
+#include "server/connection.h"
 #include "utils/bounds.h"
 
-#include <asm-generic/socket.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdlib.h>
@@ -19,47 +18,7 @@ DEFINE_DBG_ASSERT_I (server, server, s)
 }
 
 static inline err_t
-server_create_connectors (server *s, server_params p, error *e)
-{
-  lalloc_r cons = lcalloc (p.alloc, 10, 10, sizeof *s->cons);
-  if (cons.stat != AR_SUCCESS)
-    {
-      return error_causef (
-          e, ERR_NOMEM,
-          "Not enough memory in the server "
-          "for connections buffer");
-    }
-
-  s->cons = cons.ret;
-  s->ccap = cons.rlen;
-  s->alloc = p.alloc;
-
-  u32 i = 0;
-
-  for (; i < s->ccap; ++i)
-    {
-      con_params cparams = {
-        .alloc = s->alloc,
-      };
-      con_create (&s->cons[i], cparams);
-    }
-
-  return SUCCESS;
-}
-
-static inline void
-server_free_connectors (server *s)
-{
-  for (u32 j = 0; j < s->ccap; ++j)
-    {
-      ASSERT (!con_is_open (&s->cons[j]));
-      con_free (&s->cons[j]);
-    }
-  lfree (s->alloc, s->cons);
-}
-
-static inline err_t
-server_connect (server *s, server_params params, error *e)
+server_connect (server *s, u16 port, error *e)
 {
   int fd;
   struct sockaddr_in addr;
@@ -69,7 +28,7 @@ server_connect (server *s, server_params params, error *e)
     }
   addr.sin_family = AF_INET;
   addr.sin_addr.s_addr = INADDR_ANY;
-  addr.sin_port = htons (params.port);
+  addr.sin_port = htons (port);
 
   /**
    * Allow socket to be
@@ -91,61 +50,28 @@ server_connect (server *s, server_params params, error *e)
 
   s->fd = (i_file){ .fd = fd };
 
-  i_log_info ("Server listening on port: %d\n", params.port);
+  i_log_info ("Server listening on port: %d\n", port);
 
   return SUCCESS;
 }
 
 err_t
-server_create (server *dest, server_params params, error *e)
+server_create (server *dest, u16 port, error *e)
 {
   ASSERT (dest);
-  err_t ret = SUCCESS;
 
-  ret = server_create_connectors (dest, params, e);
-  if (ret)
-    {
-      return ret;
-    }
+  i_memset (dest->cons, 0, 40 * sizeof (dest->cons));
+  err_t_wrap (server_connect (dest, port, e), e);
 
-  ret = server_connect (dest, params, e);
-  if (ret)
-    {
-      server_free_connectors (dest);
-      return ret;
-    }
-
-  return ret;
-}
-
-static inline void
-server_build_pollfds (server *s)
-{
-  server_assert (s);
-  i_memset (&s->pollfds, 0, sizeof (s->pollfds));
-  s->pfdlen = 0;
-
-  // Add (my) socket to the first index
-  struct pollfd myfd = { s->fd.fd, POLLIN, 0 };
-  s->pollfds[s->pfdlen++] = myfd;
-
-  // Add all the clients to the list
-  for (u32 i = 0; i < s->ccap; ++i)
-    {
-      if (con_is_open (&s->cons[i]))
-        {
-          s->pollfds[s->pfdlen++] = con_to_pollfd (&s->cons[i]);
-        }
-    }
+  return SUCCESS;
 }
 
 static inline err_t
-server_accept (connect_params *dest, server *s, error *e)
+server_accept (server *s, error *e)
 {
   server_assert (s);
-  ASSERT (dest);
 
-  // Accept new connector
+  // Accept new connection
   struct sockaddr_in client_addr;
   socklen_t addrlen = sizeof (client_addr);
   int cfd = accept (s->fd.fd, (struct sockaddr *)&client_addr, &addrlen);
@@ -154,70 +80,68 @@ server_accept (connect_params *dest, server *s, error *e)
       return error_causef (e, ERR_IO, "accept: %s", strerror (errno));
     }
 
-  // Set to non blocking
-  // I don't think this can fail
+  /**
+   * Set to non blocking
+   * I don't think this can fail
+   */
   fcntl (cfd, F_SETFL, fcntl (F_GETFL, 0) | O_NONBLOCK);
 
-  // Create connector
-  *dest = (connect_params){
-    .caddrlen = addrlen,
-    .cfd = (i_file){ .fd = cfd },
-    .caddr = client_addr,
-  };
+  err_t_wrap (con_create (&s->cons[cfd], (i_file){ .fd = cfd }, client_addr, e), e);
 
   return SUCCESS;
 }
 
-static inline err_t
-server_execute_server (server *s, error *e)
+static inline void
+server_execute_server (server *s)
 {
   server_assert (s);
-  err_t ret = SUCCESS;
 
   // Check server socket for events
   if (s->pollfds[0].revents)
     {
       i_log_trace ("Accepting client\n");
-
-      connect_params cparams;
-      err_t_wrap (server_accept (&cparams, s, e), e);
-      con_connect (&s->cons[cparams.cfd.fd], cparams);
+      error e = error_create (NULL);
+      if (server_accept (s, &e))
+        {
+          error_log_consume (&e);
+          return;
+        }
     }
-
-  return ret;
 }
 
 static inline void
-server_execute_connectors (server *s)
+server_execute_connections (server *s)
 {
   server_assert (s);
 
   for (u32 i = 1; i < s->pfdlen; ++i)
     {
       struct pollfd pfd = s->pollfds[i];
-      ASSERT (pfd.fd < (int)s->ccap);
+      ASSERT (pfd.fd < 40);
 
       u32 ready = pfd.revents;
-      connector *con = &s->cons[pfd.fd];
-      ASSERT (con_is_open (con));
+      connection *con = s->cons[pfd.fd];
+      ASSERT (con);
+
+      // READ
       if (ready & POLLIN)
         {
-          ASSERT (con->want_read);
           con_read (con);
         }
 
-      ASSERT (!con->want_close);
+      // EXECUTE
       con_execute (con);
 
+      // WRITE
       if (ready & POLLOUT)
         {
-          ASSERT (con->want_write);
           con_write (con);
         }
 
-      if (con->want_close)
+      if (con_is_done (con))
         {
-          con_disconnect (con);
+          con_free (con);
+          s->cons[pfd.fd] = NULL;
         }
     }
 }
@@ -226,10 +150,25 @@ void
 server_execute (server *s)
 {
   server_assert (s);
-  err_t ret = SUCCESS;
 
-  // Construct the poll array
-  server_build_pollfds (s);
+  // Create poll fd's
+  {
+    i_memset (&s->pollfds, 0, sizeof (s->pollfds));
+    s->pfdlen = 0;
+
+    // Add (my) socket to the first index
+    struct pollfd myfd = { s->fd.fd, POLLIN, 0 };
+    s->pollfds[s->pfdlen++] = myfd;
+
+    // Add all the clients to the list
+    for (u32 i = 0; i < 40; ++i)
+      {
+        if (s->cons[i])
+          {
+            s->pollfds[s->pfdlen++] = con_to_pollfd (s->cons[i]);
+          }
+      }
+  }
 
   // Execute Poll
   int rv = poll (s->pollfds, (nfds_t)s->pfdlen, -1);
@@ -244,29 +183,23 @@ server_execute (server *s)
       return;
     }
 
-  lalloc ealloc = lalloc_create (1000);
-  error e = error_create (&ealloc);
+  // Listens for connections
+  server_execute_server (s);
 
-  if ((ret = server_execute_server (s, &e)))
-    {
-      error_log_consume (&e);
-      ASSERT (ealloc.used == 0);
-      return;
-    }
-
-  server_execute_connectors (s);
+  // Executes code
+  server_execute_connections (s);
 }
 
 void
 server_close (server *s)
 {
   server_assert (s);
-  for (u32 i = 0; i < s->ccap; ++i)
+  for (u32 i = 0; i < 40; ++i)
     {
-      if (con_is_open (&s->cons[i]))
+      if (s->cons[i])
         {
-          con_disconnect (&s->cons[i]);
+          con_free (s->cons[i]);
+          s->cons[i] = NULL;
         }
     }
-  lfree (s->alloc, s->cons);
 }

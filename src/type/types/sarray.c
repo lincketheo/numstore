@@ -267,22 +267,22 @@ sarray_t_deserialize (sarray_t *dest, deserializer *src, lalloc *a, error *e)
   /**
    * Allocate dimensions buffer
    */
-  lalloc_r dims = lmalloc (a, sa.rank, sa.rank, sizeof *sa.dims);
-  if (dims.stat != AR_SUCCESS)
+  u32 *dims = lmalloc (a, sa.rank, sizeof *dims);
+  if (dims == NULL)
     {
       return sarray_t_nomem ("Allocating dims buffer", e);
     }
-  sa.dims = dims.ret;
+  sa.dims = dims;
 
   /**
    * Allocate type
    */
-  lalloc_r t = lmalloc (a, 1, 1, sizeof *sa.t);
-  if (dims.stat != AR_SUCCESS)
+  type *t = lmalloc (a, 1, sizeof *t);
+  if (t == NULL)
     {
       return sarray_t_nomem ("Allocating subtype", e);
     }
-  sa.t = t.ret;
+  sa.t = t;
 
   for (u32 i = 0; i < sa.rank; ++i)
     {
@@ -328,12 +328,12 @@ TEST (sarray_t_deserialize_green_path)
   i_memcpy (data + 6, &d1, 4);
   i_memcpy (data + 10, &d2, 4);
 
-  lalloc sab_alloc = lalloc_create (2000); // sloppy sizing
-  lalloc er_alloc = lalloc_create (2000);  // sloppy sizing
+  u8 *_backing[2000];
+  lalloc sab_alloc = lalloc_create ((u8 *)_backing, sizeof (_backing));
 
   deserializer d = dsrlizr_create (data, sizeof (data));
 
-  error e = error_create (&er_alloc);
+  error e = error_create (NULL);
 
   sarray_t sret;
   err_t ret = sarray_t_deserialize (&sret, &d, &sab_alloc, &e);
@@ -364,7 +364,8 @@ TEST (sarray_t_deserialize_red_path)
   i_memcpy (data + 10, &d2, 4);
 
   sarray_t eret;
-  lalloc alloc = lalloc_create (2000); // sloppy sizing
+  u8 *_backing[2000];
+  lalloc alloc = lalloc_create ((u8 *)_backing, sizeof (_backing));
   deserializer d = dsrlizr_create (data, sizeof (data));
 
   error e = error_create (NULL);

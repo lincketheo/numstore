@@ -46,9 +46,7 @@ i_close (i_file *fp, error *e)
   int ret = close (fp->fd);
   if (ret)
     {
-      error_causef (e, ERR_IO, "close: %s", strerror (errno));
-      error_trailf_dbg (e, "fd: %d", fp->fd);
-      return err_t_from (e);
+      return error_causef (e, ERR_IO, "close: %s", strerror (errno));
     }
   return SUCCESS;
 }
@@ -65,9 +63,7 @@ i_pread_some (i_file *fp, void *dest, u64 n, u64 offset, error *e)
 
   if (ret < 0 && errno != EINTR)
     {
-      error_causef (e, ERR_IO, "pread: %s", strerror (errno));
-      error_trailf_dbg (e, "fd: %d n: %" PRIu64 " offset: %" PRIu64 ".", fp->fd, n, offset);
-      return err_t_from (e);
+      return error_causef (e, ERR_IO, "pread: %s", strerror (errno));
     }
 
   return (i64)ret;
@@ -102,11 +98,7 @@ i_pread_all (i_file *fp, void *dest, u64 n, u64 offset, error *e)
       // Error
       if (_nread < 0 && errno != EINTR)
         {
-          error_causef (e, ERR_IO, "pread: %s", strerror (errno));
-          error_trailf_dbg (
-              e, "fd: %d n: %" PRIu64 " offset: %" PRIu64 " return: %lu.",
-              fp->fd, n - nread, offset, _nread);
-          return err_t_from (e);
+          return error_causef (e, ERR_IO, "pread: %s", strerror (errno));
         }
 
       nread += (i64)_nread;
@@ -127,9 +119,7 @@ i_pwrite_some (i_file *fp, const void *src, u64 n, u64 offset, error *e)
   ssize_t ret = pwrite (fp->fd, src, n, (size_t)offset);
   if (ret < 0 && errno != EINTR)
     {
-      error_causef (e, ERR_IO, "pread: %s", strerror (errno));
-      error_trailf_dbg (e, "n: %" PRIu64 " offset: %" PRIu64, n, offset);
-      return err_t_from (e);
+      return error_causef (e, ERR_IO, "pread: %s", strerror (errno));
     }
   return (i64)ret;
 }
@@ -157,10 +147,7 @@ i_pwrite_all (i_file *fp, const void *src, u64 n, u64 offset, error *e)
       // Error
       if (_nwrite < 0 && errno != EINTR)
         {
-          error_causef (e, ERR_IO, "pwrite: %s", strerror (errno));
-          error_trailf_dbg (
-              e, "n: %" PRIu64 " offset: %" PRIu64, n, offset);
-          return err_t_from (e);
+          return error_causef (e, ERR_IO, "pwrite: %s", strerror (errno));
         }
 
       nwrite += _nwrite;
@@ -182,9 +169,7 @@ i_read_some (i_file *fp, void *dest, u64 nbytes, error *e)
   ssize_t ret = read (fp->fd, dest, nbytes);
   if (ret < 0 && errno != EINTR)
     {
-      error_causef (e, ERR_IO, "read: %s", strerror (errno));
-      error_trailf_dbg (e, "nbytes: %" PRIu64, nbytes);
-      return err_t_from (e);
+      return error_causef (e, ERR_IO, "read: %s", strerror (errno));
     }
   return (i64)ret;
 }
@@ -217,9 +202,7 @@ i_read_all (i_file *fp, void *dest, u64 nbytes, error *e)
       // Error
       if (_nread < 0 && errno != EINTR)
         {
-          error_causef (e, ERR_IO, "read: %s", strerror (errno));
-          error_trailf_dbg (e, "nbytes: %" PRIu64 " return: %lu", nbytes, _nread);
-          return err_t_from (e);
+          return error_causef (e, ERR_IO, "read: %s", strerror (errno));
         }
 
       nread += (i64)_nread;
@@ -240,9 +223,7 @@ i_write_some (i_file *fp, const void *src, u64 nbytes, error *e)
   ssize_t ret = write (fp->fd, src, nbytes);
   if (ret < 0 && errno != EINTR)
     {
-      error_causef (e, ERR_IO, "write: %s", strerror (errno));
-      error_trailf_dbg (e, "nbytes: %" PRIu64 " return: %lu", nbytes, ret);
-      return err_t_from (e);
+      return error_causef (e, ERR_IO, "write: %s", strerror (errno));
     }
   return (i64)ret;
 }
@@ -270,9 +251,7 @@ i_write_all (i_file *fp, const void *src, u64 nbytes, error *e)
       // Error
       if (_nwrite < 0 && errno != EINTR)
         {
-          error_causef (e, ERR_IO, "write: %s", strerror (errno));
-          error_trailf_dbg (e, "nbytes: %" PRIu64 " return: %lu", nbytes, _nwrite);
-          return err_t_from (e);
+          return error_causef (e, ERR_IO, "write: %s", strerror (errno));
         }
 
       nwrite += _nwrite;
@@ -289,9 +268,7 @@ i_truncate (i_file *fp, u64 bytes, error *e)
 {
   if (ftruncate (fp->fd, bytes) == -1)
     {
-      error_causef (e, ERR_IO, "truncate: %s", strerror (errno));
-      error_trailf_dbg (e, "bytes: %" PRIu64, bytes);
-      return err_t_from (e);
+      return error_causef (e, ERR_IO, "truncate: %s", strerror (errno));
     }
 
   return 0;

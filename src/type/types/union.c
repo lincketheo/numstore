@@ -3,6 +3,7 @@
 #include "ds/strings.h"
 #include "errors/error.h"
 #include "intf/stdlib.h"
+#include "type/builders/kvt.h"
 #include "type/types.h"
 
 DEFINE_DBG_ASSERT_I (union_t, unchecked_union_t, s)
@@ -240,12 +241,13 @@ union_t_byte_size (const union_t *t)
   valid_union_t_assert (t);
   u32 ret = 0;
 
-  /**
-   * Each type is layed out contiguously
-   */
   for (u32 i = 0; i < t->len; ++i)
     {
-      ret += type_byte_size (&t->types[i]);
+      u32 next = type_byte_size (&t->types[i]);
+      if (next > ret)
+        {
+          ret = next;
+        }
     }
 
   return ret;
@@ -293,7 +295,7 @@ TEST (union_t_byte_size)
   };
 
   u64 act = union_t_byte_size (&st);
-  u64 exp = (sizeof (u32) + sizeof (u8) + sizeof (u16) + sizeof (cf128));
+  u64 exp = sizeof (cf128);
 
   test_assert_int_equal (exp, act);
 }
@@ -475,70 +477,47 @@ union_t_deserialize (
 {
   ASSERT (dest);
 
-  union_t st = { 0 };
+  u8 working[2048];
+  lalloc balloc = lalloc_create (working, sizeof (working));
+  kvt_builder unb = kvb_create (&balloc);
 
   /**
    * LEN
    */
-  if (!dsrlizr_read_u16 (&st.len, src))
+  u16 len;
+  if (!dsrlizr_read_u16 (&len, src))
     {
       goto early_termination;
     }
 
-  /**
-   * Allocate Keys buffer
-   */
-  lalloc_r keys = lcalloc (a, st.len, st.len, sizeof *st.keys);
-  if (keys.stat != AR_SUCCESS)
+  for (u32 i = 0; i < len; ++i)
     {
-      return union_t_nomem ("Allocating keys buffer", e);
-    }
-  st.keys = keys.ret;
-
-  /**
-   * Allocate Types buffer
-   */
-  lalloc_r types = lcalloc (a, st.len, st.len, sizeof *st.types);
-  if (keys.stat != AR_SUCCESS)
-    {
-      return union_t_nomem ("Allocating types buffer", e);
-    }
-  st.types = types.ret;
-
-  for (u32 i = 0; i < st.len; ++i)
-    {
-      /**
-       * (KLEN
-       */
-      if (!dsrlizr_read_u16 (&st.keys[i].len, src))
+      string key;
+      if (!dsrlizr_read_u16 (&key.len, src))
         {
           goto early_termination;
         }
 
-      lalloc_r data = lmalloc (a, st.keys[i].len, st.keys[i].len, 1);
-      if (keys.stat != AR_SUCCESS)
+      key.data = lmalloc (a, key.len, 1);
+      if (key.data == NULL)
         {
           return union_t_nomem ("Allocating key", e);
         }
-      st.keys[i].data = data.ret;
 
-      /**
-       * KEY)
-       */
-      if (!dsrlizr_read ((u8 *)st.keys[i].data, st.keys[i].len, src))
+      if (!dsrlizr_read ((u8 *)key.data, key.len, src))
         {
           goto early_termination;
         }
 
-      /**
-       * (TYPE)
-       */
-      err_t_wrap (type_deserialize (&st.types[i], src, a, e), e);
+      type t;
+      err_t_wrap (type_deserialize (&t, src, a, e), e);
+
+      err_t_wrap (kvb_accept_key (&unb, key, e), e);
+      err_t_wrap (kvb_accept_type (&unb, t, e), e);
     }
 
-  err_t_wrap (union_t_validate_shallow (&st, e), e);
+  err_t_wrap (kvb_union_t_build (dest, &unb, a, e), e);
 
-  *dest = st;
   return SUCCESS;
 
 early_termination:
@@ -563,12 +542,12 @@ TEST (union_t_deserialize_green_path)
   i_memcpy (&data[15], &l3, sizeof (u16));
   i_memcpy (&data[23], &l4, sizeof (u16));
 
-  lalloc st_alloc = lalloc_create (2000); // sloppy sizing
-  lalloc er_alloc = lalloc_create (2000); // sloppy sizing
+  char space[2000];
+  lalloc st_alloc = lalloc_create ((u8 *)space, sizeof (space));
 
   deserializer d = dsrlizr_create (data, sizeof (data));
 
-  error e = error_create (&er_alloc);
+  error e = error_create (NULL);
 
   union_t eret;
   err_t ret = union_t_deserialize (&eret, &d, &st_alloc, &e);
@@ -617,7 +596,8 @@ TEST (union_t_deserialize_red_path)
   i_memcpy (&data[24], &l4, sizeof (u16));
 
   union_t sret;
-  lalloc alloc = lalloc_create (2000); // sloppy sizing
+  char space[2000];
+  lalloc alloc = lalloc_create ((u8 *)space, sizeof (space));
   deserializer d = dsrlizr_create (data, sizeof (data));
 
   error e = error_create (NULL);

@@ -4,6 +4,7 @@
 #include "dev/testing.h"  // TEST
 #include "errors/error.h" // error
 #include "intf/stdlib.h"  // i_snprintf
+#include "mm/lalloc.h"    // lalloc
 
 DEFINE_DBG_ASSERT_I (enum_t, unchecked_enum_t, e)
 {
@@ -311,13 +312,12 @@ enum_t_deserialize (enum_t *dest, deserializer *src, lalloc *a, error *e)
       goto early_termination;
     }
 
-  lalloc_r keys = lcalloc (a, en.len, en.len, sizeof *en.keys);
-  if (keys.stat != AR_SUCCESS)
+  string *keys = lcalloc (a, en.len, sizeof *keys);
+  if (keys == NULL)
     {
       return enum_t_nomem ("Allocating keys buffer", e);
     }
-
-  en.keys = keys.ret;
+  en.keys = keys;
 
   for (u32 i = 0; i < en.len; ++i)
     {
@@ -329,13 +329,13 @@ enum_t_deserialize (enum_t *dest, deserializer *src, lalloc *a, error *e)
           goto early_termination;
         }
 
-      lalloc_r data = lmalloc (a, en.keys[i].len, en.keys[i].len, 1);
-      if (data.stat != AR_SUCCESS)
+      char *data = lmalloc (a, en.keys[i].len, 1);
+      if (data == NULL)
         {
           return enum_t_nomem ("Allocating key", e);
         }
 
-      en.keys[i].data = data.ret;
+      en.keys[i].data = data;
 
       /**
        * KEY)
@@ -373,12 +373,12 @@ TEST (enum_t_deserialize_green_path)
   i_memcpy (&data[11], &l3, sizeof (u16));
   i_memcpy (&data[17], &l4, sizeof (u16));
 
-  lalloc en_alloc = lalloc_create (2000); // sloppy sizing
-  lalloc er_alloc = lalloc_create (2000); // sloppy sizing
+  char _backing[2000];
+  lalloc en_alloc = lalloc_create ((u8 *)_backing, sizeof (_backing));
 
   deserializer d = dsrlizr_create (data, sizeof (data));
 
-  error e = error_create (&er_alloc);
+  error e = error_create (NULL);
 
   enum_t eret;
   err_t ret = enum_t_deserialize (&eret, &d, &en_alloc, &e);
@@ -419,7 +419,8 @@ TEST (enum_t_deserialize_red_path)
   i_memcpy (&data[18], &l4, sizeof (u16));
 
   enum_t eret;
-  lalloc alloc = lalloc_create (2000); // sloppy sizing
+  char _backing[2000];
+  lalloc alloc = lalloc_create ((u8 *)_backing, sizeof (_backing));
   deserializer d = dsrlizr_create (data, sizeof (data));
 
   error e = error_create (NULL);

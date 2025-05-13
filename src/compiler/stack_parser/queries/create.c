@@ -1,52 +1,45 @@
 #include "compiler/stack_parser/queries/create.h"
 
-#include "compiler/stack_parser/common.h"
-#include "compiler/stack_parser/query_parser.h"
-#include "compiler/tokens.h"
-#include "dev/assert.h"
-#include "errors/error.h"
-#include "query/builders/create.h"
-#include "query/queries/create.h"
-#include "query/query.h"
+#include "dev/assert.h" // DEFINE_DBG_ASSERT_I
 
 ////////////////////////// DEV
-DEFINE_DBG_ASSERT_I (query_parser, create_parser, s)
+DEFINE_DBG_ASSERT_I (create_parser, create_parser, s)
 {
-  ASSERT (s->state == QP_CREATE);
   ASSERT (s);
 }
 
+static const char *TAG = "Create Parser";
+
 static inline void
-create_parser_assert_state (query_parser *q, int crtp_state)
+create_parser_assert_state (create_parser *q, int crtp_state)
 {
   create_parser_assert (q);
-  ASSERT ((int)q->cp.state == crtp_state);
+  ASSERT ((int)q->state == crtp_state);
 }
 
 #define HANDLER_FUNC(state) crtp_handle_##state
 
 ////////////////////////// API
 
-stackp_result
-crtp_create (query_parser *dest)
+create_parser
+crtp_create (void)
 {
-  ASSERT (dest);
-  ASSERT (dest->state == QP_UNKNOWN);
+  create_parser ret = {
+    .builder = crb_create (),
+    .state = CB_WAITING_FOR_VNAME,
+  };
 
-  dest->state = QP_CREATE;
+  create_parser_assert_state (&ret, CB_WAITING_FOR_VNAME);
 
-  create_parser_assert_state (dest, QP_UNKNOWN);
-
-  return SPR_CONTINUE;
+  return ret;
 }
 
 stackp_result
-crtp_build (query_parser *cb)
+crtp_build (create_query *dest, create_parser *cb, error *e)
 {
   create_parser_assert_state (cb, CB_DONE);
 
-  error e = error_create (NULL);
-  switch (crb_build (&cb->ret.cquery, &cb->cp.builder, &e))
+  switch (crb_build (dest, &cb->builder, e))
     {
     case ERR_INVALID_ARGUMENT:
       {
@@ -54,7 +47,6 @@ crtp_build (query_parser *cb)
       }
     case SUCCESS:
       {
-        cb->ret.type = QT_CREATE;
         return SPR_DONE;
       }
     default:
@@ -67,17 +59,19 @@ crtp_build (query_parser *cb)
 ////////////////////////// ACCEPT TOKEN
 
 static inline stackp_result
-HANDLER_FUNC (CB_WAITING_FOR_VNAME) (query_parser *cb, token t)
+HANDLER_FUNC (CB_WAITING_FOR_VNAME) (create_parser *cb, token t, error *e)
 {
   create_parser_assert_state (cb, CB_WAITING_FOR_VNAME);
 
   if (t.type != TT_IDENTIFIER)
     {
-      return SPR_SYNTAX_ERROR;
+      return (stackp_result)error_causef (
+          e, (err_t)SPR_SYNTAX_ERROR,
+          "%s: Expecting token type %s, got %s",
+          TAG, tt_tostr (TT_IDENTIFIER), tt_tostr (t.type));
     }
 
-  error e = error_create (NULL);
-  switch (crb_accept_string (&cb->cp.builder, t.str, &e))
+  switch (crb_accept_string (&cb->builder, t.str, e))
     {
     case ERR_INVALID_ARGUMENT:
       {
@@ -89,7 +83,7 @@ HANDLER_FUNC (CB_WAITING_FOR_VNAME) (query_parser *cb, token t)
       }
     case SUCCESS:
       {
-        cb->cp.state = CB_WAITING_FOR_TYPE;
+        cb->state = CB_WAITING_FOR_TYPE;
         return SPR_CONTINUE;
       }
     default:
@@ -100,20 +94,20 @@ HANDLER_FUNC (CB_WAITING_FOR_VNAME) (query_parser *cb, token t)
 }
 
 stackp_result
-crtp_accept_token (query_parser *cb, token t)
+crtp_accept_token (create_parser *cb, token t, error *e)
 {
   create_parser_assert (cb);
 
-  switch (cb->cp.state)
+  switch (cb->state)
     {
     case CB_WAITING_FOR_VNAME:
       {
-        return HANDLER_FUNC (CB_WAITING_FOR_VNAME) (cb, t);
+        return HANDLER_FUNC (CB_WAITING_FOR_VNAME) (cb, t, e);
       }
 
     default:
       {
-        return SPR_SYNTAX_ERROR;
+        UNREACHABLE ();
       }
     }
 }
@@ -121,13 +115,11 @@ crtp_accept_token (query_parser *cb, token t)
 ////////////////////////// ACCEPT TYPE
 
 static inline stackp_result
-HANDLER_FUNC (CB_WAITING_FOR_TYPE) (query_parser *cb, type t)
+HANDLER_FUNC (CB_WAITING_FOR_TYPE) (create_parser *cb, type t, error *e)
 {
-  (void)t;
   create_parser_assert_state (cb, CB_WAITING_FOR_TYPE);
 
-  error e = error_create (NULL);
-  switch (crb_accept_type (&cb->cp.builder, t, &e))
+  switch (crb_accept_type (&cb->builder, t, e))
     {
     case ERR_NOMEM:
       {
@@ -139,7 +131,7 @@ HANDLER_FUNC (CB_WAITING_FOR_TYPE) (query_parser *cb, type t)
       }
     case SUCCESS:
       {
-        cb->cp.state = CB_DONE;
+        cb->state = CB_DONE;
         return SPR_DONE;
       }
     default:
@@ -150,20 +142,20 @@ HANDLER_FUNC (CB_WAITING_FOR_TYPE) (query_parser *cb, type t)
 }
 
 stackp_result
-crtp_accept_type (query_parser *cb, type type)
+crtp_accept_type (create_parser *cb, type type, error *e)
 {
   create_parser_assert (cb);
 
-  switch (cb->cp.state)
+  switch (cb->state)
     {
     case CB_WAITING_FOR_TYPE:
       {
-        return HANDLER_FUNC (CB_WAITING_FOR_TYPE) (cb, type);
+        return HANDLER_FUNC (CB_WAITING_FOR_TYPE) (cb, type, e);
       }
 
     default:
       {
-        return SPR_SYNTAX_ERROR;
+        UNREACHABLE ();
       }
     }
 }

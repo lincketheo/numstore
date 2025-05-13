@@ -6,8 +6,6 @@
 
 #include "type/builders/enum.h" // enum_builder
 
-typedef struct type_parser_s type_parser;
-
 typedef struct
 {
 
@@ -23,8 +21,8 @@ typedef struct
 
 } enum_parser;
 
-stackp_result enp_create (type_parser *dest, lalloc *alloc);
+enum_parser enp_create (lalloc *working_space);
 
-stackp_result enp_build (type_parser *eb);
+stackp_result enp_build (enum_t *dest, enum_parser *eb, lalloc *destination, error *e);
 
-stackp_result enp_accept_token (type_parser *eb, token t);
+stackp_result enp_accept_token (enum_parser *eb, token t, error *e);

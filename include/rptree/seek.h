@@ -27,13 +27,11 @@ typedef struct
  */
 typedef struct
 {
-  page result;   // The data list page that contains our seek byte
-  b_size gidx;   // global location
-  p_size lidx;   // local idx (within top node)
-  seek_v *stack; // A stack of previous inner nodes and choices
-  u32 sp;        // Length of the stack
-  u32 scap;      // Capacity of the stack
-  lalloc *alloc; // Allocator for growing the stack
+  page result;      // The data list page that contains our seek byte
+  b_size gidx;      // global location
+  p_size lidx;      // local idx (within top node)
+  seek_v stack[20]; // A stack of previous inner nodes and choices
+  u32 sp;           // Length of the stack
 } seek_r;
 
 /**
@@ -48,7 +46,6 @@ typedef struct
   b_size whereto;     // Which byte to seek to
   u32 scap;           // Starting capacity to allocate for the stack
   pager *pager;       // To find pages
-  lalloc *alloc;      // Allocator for stack
 } seek_params;
 
 /**

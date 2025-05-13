@@ -1,8 +1,12 @@
 #pragma once
 
-#include "ds/strings.h" // string
-#include "intf/types.h" // u32
+#include "ds/strings.h"   // string
+#include "errors/error.h" // err_t
+#include "intf/types.h"   // u32
 
-u32 smlst_dbl_fctr (u32 *cap, u32 len, u32 nbytes);
-i32 parse_i32_expect (const string data);
-f32 parse_f32_expect (const string data);
+/**
+ * Returns:
+ *   - ERR_ARITH - Arithmetic error (e.g. bounds or finite etc)
+ */
+err_t parse_i32_expect (i32 *dest, const string data, error *e);
+err_t parse_f32_expect (f32 *dest, const string data, error *e);

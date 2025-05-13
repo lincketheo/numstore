@@ -1,7 +1,7 @@
 #include "variables/vhash_fmt.h"
 #include "errors/error.h"
-#include "mm/lalloc.h"
 #include "intf/stdlib.h"
+#include "mm/lalloc.h"
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
@@ -13,6 +13,12 @@ vrhfmt_create (lalloc *alloc)
     .alloc = alloc,
     .state = VHFMT_START,
   };
+}
+
+void
+vrhfmt_reset (vread_hash_fmt *v)
+{
+  lalloc_reset (v->alloc);
 }
 
 static err_t
@@ -49,9 +55,8 @@ vrhfmt_parse_header (vread_hash_fmt *v, error *e)
       v->state = VHFMT_CORRUPT;
       return error_causef (
           e, ERR_CORRUPT,
-          "Encountered invalid hash leaf "
-          "header with vstrlen == %d, tstrlen == %d, pg0 == %" PRpgno,
-          vstrlen, tstrlen, pg0);
+          "VHash Format: "
+          "Invalid variable header");
     }
 
   v->state = VHFMT_SCANNING;
@@ -65,22 +70,16 @@ vrhfmt_parse_header (vread_hash_fmt *v, error *e)
    */
   if (!v->is_tombstone)
     {
-      lalloc_r raw = lmalloc (
-          v->alloc,
-          vstrlen + tstrlen,
-          vstrlen + tstrlen, 1);
-
-      if (raw.stat != AR_SUCCESS)
+      u8 *raw = lmalloc (v->alloc, vstrlen + tstrlen, 1);
+      if (raw == NULL)
         {
           return error_causef (
               e, ERR_NOMEM,
-              "Not enough memory to allocate %d bytes for "
-              "variable + type string for variable "
-              "hash entry with vstrlen = %d and tstrlen = %d",
-              vstrlen + tstrlen, vstrlen, tstrlen);
+              "VHash Format: "
+              "Failed to allocate vhash format string");
         }
 
-      v->raw = raw.ret;
+      v->raw = raw;
       v->vstr = (char *)v->raw;
       v->tstr = v->raw + vstrlen;
     }
@@ -241,34 +240,6 @@ vrhfmt_read_in (
 theend:
   *nbytes = read;
   return ret;
-}
-
-void
-vrhfmt_free_and_reset_forgiving (vread_hash_fmt *v)
-{
-  if (v->raw)
-    {
-      lfree (v->alloc, v->raw);
-    }
-
-  {
-    lalloc *alloc = v->alloc;
-    i_memset (v, 0, sizeof *v);
-    v->alloc = alloc;
-  }
-}
-
-void
-vrhfmt_free_and_reset (vread_hash_fmt *v)
-{
-  ASSERT (v->raw);
-  lfree (v->alloc, v->raw);
-
-  {
-    lalloc *alloc = v->alloc;
-    i_memset (v, 0, sizeof *v);
-    v->alloc = alloc;
-  }
 }
 
 vwrite_hash_fmt

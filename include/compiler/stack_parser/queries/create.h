@@ -1,9 +1,11 @@
 #pragma once
 
 #include "compiler/stack_parser/common.h" // stackp_result
-#include "query/builders/create.h"        // create_builder
+#include "compiler/tokens.h"              // token
+#include "type/types.h"                   // type
 
-typedef struct query_parser_s query_parser;
+#include "query/builders/create.h" // create_builder
+#include "query/queries/create.h"  // create_query
 
 typedef struct
 {
@@ -18,10 +20,9 @@ typedef struct
 
 } create_parser;
 
-stackp_result crtp_create (query_parser *dest);
+create_parser crtp_create (void);
 
-stackp_result crtp_build (query_parser *cb);
+stackp_result crtp_build (create_query *dest, create_parser *cb, error *e);
 
-stackp_result crtp_accept_token (query_parser *eb, token t);
-
-stackp_result crtp_accept_type (query_parser *eb, type type);
+stackp_result crtp_accept_token (create_parser *p, token t, error *e);
+stackp_result crtp_accept_type (create_parser *p, type type, error *e);

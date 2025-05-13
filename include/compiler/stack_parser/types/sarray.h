@@ -1,12 +1,9 @@
 #pragma once
 
-#include "compiler/stack_parser/common.h"
-#include "compiler/tokens.h"
-#include "mm/lalloc.h"
-#include "intf/types.h"
-#include "type/builders/sarray.h"
-
-typedef struct type_parser_s type_parser;
+#include "compiler/stack_parser/common.h" // stackp_result
+#include "compiler/tokens.h"              // token
+#include "mm/lalloc.h"                    // lalloc
+#include "type/builders/sarray.h"         // sarray_builder
 
 typedef struct
 {
@@ -23,12 +20,9 @@ typedef struct
 
 } sarray_parser;
 
-stackp_result sap_create (type_parser *dest, lalloc *alloc);
+sarray_parser sap_create (lalloc *alloc);
 
-stackp_result sap_build (type_parser *eb);
+stackp_result sap_build (sarray_t *dest, sarray_parser *eb, lalloc *destination, error *e);
 
-sb_feed_t sap_expect_next (const type_parser *tb, token t);
-
-stackp_result sap_accept_token (type_parser *eb, token t);
-
-stackp_result sap_accept_type (type_parser *eb, type type);
+stackp_result sap_accept_token (sarray_parser *eb, token t, error *e);
+stackp_result sap_accept_type (sarray_parser *eb, type type, error *e);

@@ -11,56 +11,25 @@ DEFINE_DBG_ASSERT_I (seek_r, seek_r, r)
 {
   ASSERT (r);
   ASSERT (r->stack);
-  ASSERT (r->scap > 0);
-  ASSERT (r->sp <= r->scap);
+  ASSERT (r->sp <= 20);
 }
 
-static err_t
-seek_r_create (seek_r *dest, seek_params p, error *e)
+static seek_r
+seek_r_create (seek_params p)
 {
-  ASSERT (dest);
-
-  lalloc_r stack = lmalloc (p.alloc, p.scap, p.scap, sizeof *dest->stack);
-  if (stack.stat != AR_SUCCESS)
-    {
-      return error_causef (
-          e, ERR_NOMEM,
-          "Not enough memory to allocate rptree stack of "
-          "size %d elements, %d bytes",
-          p.scap, p.scap * (u32)sizeof *dest->stack);
-    }
-
   /**
    * Only allow inner node / data list starting nodes
    */
   ASSERT (p.starting_page.type & (PG_INNER_NODE | PG_DATA_LIST));
 
-  dest->result = p.starting_page;
-  dest->stack = stack.ret;
-  dest->sp = 0;
-  dest->scap = p.scap;
+  seek_r ret = {
+    .result = p.starting_page,
+    .sp = 0,
+  };
 
-  return SUCCESS;
-}
+  seek_r_assert (&ret);
 
-static inline err_t
-seek_r_make_room (seek_r *r, u32 newcap, error *e)
-{
-  seek_r_assert (r);
-
-  lalloc_r stack = lmalloc (r->alloc, newcap, newcap, sizeof *r->stack);
-  if (stack.stat != AR_SUCCESS)
-    {
-      return error_causef (
-          e, ERR_NOMEM,
-          "Not enough memory to allocate rptree stack of "
-          "size %d elements, %d bytes",
-          newcap, newcap * (u32)sizeof *r->stack);
-    }
-
-  r->stack = stack.ret;
-  r->scap = newcap;
-  return SUCCESS;
+  return ret;
 }
 
 static err_t
@@ -68,9 +37,11 @@ seek_r_push_page (seek_r *r, page p, p_size lidx, error *e)
 {
   seek_r_assert (r);
 
-  if (r->sp == r->scap)
+  if (r->sp == 20)
     {
-      err_t_wrap (seek_r_make_room (r, r->scap + 1, e), e);
+      return error_causef (
+          e, ERR_PAGE_STACK_OVERFLOW,
+          "Seek: Page stack overflow");
     }
 
   r->stack[r->sp++] = (seek_v){
@@ -86,9 +57,11 @@ seek_r_push_to_bottom (seek_r *r, page p, p_size lidx, error *e)
 {
   seek_r_assert (r);
 
-  if (r->sp == r->scap)
+  if (r->sp == 20)
     {
-      err_t_wrap (seek_r_make_room (r, r->scap + 1, e), e);
+      return error_causef (
+          e, ERR_PAGE_STACK_OVERFLOW,
+          "Seek: Page stack overflow");
     }
 
   /**
@@ -212,8 +185,9 @@ seek (seek_r *s, seek_params params, error *e)
 {
   ASSERT (s);
 
-  err_t_wrap (seek_r_create (s, params, e), e);
-  err_t_wrap (seek_recursive (s, params.whereto, params.pager, e), e);
+  seek_r _s = seek_r_create (params);
+  err_t_wrap (seek_recursive (&_s, params.whereto, params.pager, e), e);
+  *s = _s;
 
   return SUCCESS;
 }

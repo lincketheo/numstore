@@ -19,6 +19,7 @@ cbuffer cbuffer_create (u8 *data, u32 cap);
 bool cbuffer_isempty (const cbuffer *b);
 u32 cbuffer_len (const cbuffer *b);
 u32 cbuffer_avail (const cbuffer *b);
+void cbuffer_discard_all (cbuffer *b);
 
 ///////////////////////// Raw Read / Write
 u32 cbuffer_read (void *dest, u32 size, u32 n, cbuffer *b);

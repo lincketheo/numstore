@@ -1,4 +1,5 @@
 #include "rptree/dliacin.h"
+
 #include "dev/assert.h"
 #include "errors/error.h"
 #include "mm/lalloc.h"
@@ -18,14 +19,14 @@ typedef struct
   p_size tbl;         // The length of temp_buf
   mem_inner_node out; // The output internal node
   page pg0;           // Starting page
-  pager *pager;
-  lalloc *alloc;
+  pager *pager;       // To fetch pages
+  lalloc *alloc;      // Allocates inner nodes
 } dliacin_s;
 
 typedef struct
 {
-  p_size idx0;
-  page pg0;
+  p_size idx0; // Starting local index on page
+  page pg0;    // Starting page (a data list)
   pager *pager;
   lalloc *alloc;
 } dliacin_s_params;
@@ -56,16 +57,17 @@ dliacin_s_save_right (dliacin_s *d, p_size idx0, error *e)
 
   if (right_len > 0)
     {
-      lalloc_r temp_buf = lmalloc (d->alloc, right_len, right_len, sizeof *d->temp_buf);
-      if (temp_buf.stat != AR_SUCCESS)
+      u8 *temp_buf = lmalloc (d->alloc, right_len, sizeof *temp_buf);
+      if (temp_buf == NULL)
         {
           return error_causef (
               e, ERR_NOMEM,
-              "Not enough memory to allocate %" PRp_size " bytes for temp buf in rptree",
+              "Not enough memory to allocate "
+              "%" PRp_size " bytes for temp buf in rptree",
               right_len * (p_size)sizeof *d->temp_buf);
         }
 
-      d->temp_buf = temp_buf.ret;
+      d->temp_buf = temp_buf;
 
       p_size read = dl_read_out_from (&d->pg0.dl, d->temp_buf, idx0);
       ASSERT (read == right_len);
@@ -84,21 +86,13 @@ dliacin_s_create (dliacin_s *dest, dliacin_s_params p, error *e)
   *dest = (dliacin_s){
     .temp_buf = NULL,
     .tbl = 0,
-    .out = mintn_create (
-        (mintn_params){
-            .alloc = p.alloc,
-            .pg = p.pg0.pg,
-        }),
+    .out = mintn_create (p.pg0.pg),
     .pg0 = p.pg0,
     .pager = p.pager,
     .alloc = p.alloc,
   };
 
-  err_t ret = dliacin_s_save_right (dest, p.idx0, e);
-  if (ret)
-    {
-      return ret;
-    }
+  err_t_wrap (dliacin_s_save_right (dest, p.idx0, e), e);
 
   dliacin_s_assert (dest);
 
@@ -130,7 +124,10 @@ dliacin_s_alloc_then_write_once (
        * Push previous node's capacity (left key) and this node's
        * page number (right page number)
        */
-      err_t_wrap (mintn_add_right (&r->out, dl_used (&cur->dl), next.pg, e), e);
+      if (!mintn_add_right (&r->out, dl_used (&cur->dl), next.pg))
+        {
+          panic ();
+        }
 
       // Commit so that we can swap it
       err_t_wrap (pgr_commit (r->pager, cur->dl.raw, cur->pg, e), e);
@@ -209,45 +206,23 @@ dliacin_s_consume (dliacin_s *r, const u8 *src, t_size size, b_size n, error *e)
   return SUCCESS;
 }
 
-static err_t
-dliacin_s_complete (mem_inner_node *dest, dliacin_s *d, error *e)
-{
-  dliacin_s_assert (d);
-  if (d->temp_buf)
-    {
-      lfree (d->alloc, d->temp_buf);
-    }
-
-  // TODO
-  // Probably don't need to clip because I think
-  // later on we append more
-  err_t_wrap (mintn_clip (&d->out, e), e);
-
-  *dest = d->out;
-
-  return SUCCESS;
-}
-
 err_t
 dliacin (mem_inner_node *dest, dliacin_params p, error *e)
 {
   dliacin_s d;
   err_t ret = SUCCESS;
+  dliacin_s_params dparams = {
+    .pg0 = p.pg0,
+    .alloc = p.alloc,
+    .pager = p.pager,
+    .idx0 = p.idx0,
+  };
 
-  err_t_wrap (
-      dliacin_s_create (
-          &d, (dliacin_s_params){
-                  .pg0 = p.pg0,
-                  .alloc = p.alloc,
-                  .pager = p.pager,
-                  .idx0 = p.idx0,
-              },
-          e),
-      e);
+  err_t_wrap (dliacin_s_create (&d, dparams, e), e);
 
   err_t_wrap (dliacin_s_consume (&d, p.src, p.size, p.n, e), e);
 
-  err_t_wrap (dliacin_s_complete (dest, &d, e), e);
+  *dest = d.out;
 
   return ret;
 }

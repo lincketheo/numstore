@@ -1,6 +1,6 @@
 #pragma once
 
-#include "mm/lalloc.h"                 // lalloc
+#include "mm/lalloc.h"               // lalloc
 #include "query/queries/create.h"    // create_query
 #include "rptree/rptree.h"           // rptree
 #include "variables/vfile_hashmap.h" // vfile_hashmap
@@ -11,6 +11,7 @@ typedef struct
   vfile_hashmap hm;
 
   vmeta meta;
+  u8 tstr[2048];
   bool is_meta_loaded;
 } cursor;
 
@@ -20,7 +21,7 @@ typedef struct
   lalloc *alloc;
 } crsr_params;
 
-cursor crsr_create (crsr_params params);
+err_t crsr_create (cursor *dest, crsr_params params, error *e);
 
 /**
  * Errors

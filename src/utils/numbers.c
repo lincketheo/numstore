@@ -2,163 +2,263 @@
 
 #include "dev/assert.h"   // ASSERT
 #include "dev/testing.h"  // TEST
+#include "errors/error.h" // err_t
 #include "intf/stdlib.h"  // i_unsafe_strlen
+#include "intf/types.h"   // i32 / f32
+#include "utils/bounds.h" // SAFE_...
 #include "utils/macros.h" // is_num
 
-i32
-parse_i32_expect (const string data)
+err_t
+parse_i32_expect (i32 *dest, const string data, error *e)
 {
+  ASSERT (data.data);
   ASSERT (data.len > 0);
-
-  int negative = 0;
-  u32 ret = 0;
+  ASSERT (dest);
 
   u32 i = 0;
-  u8 next = data.data[0];
+  bool neg = false;
 
-  if (next == '-')
+  if (data.data[i] == '+' || data.data[i] == '-')
     {
-      negative = 1;
+      neg = (data.data[i] == '-');
       i++;
-    }
-  else if (next == '+')
-    {
-      i++;
+      ASSERT (i < data.len); // We expect string to be valid
     }
 
-  ASSERT (i < data.len); // Should have at least 1 digit
+  i32 acc = 0;
 
-  for (; i < data.len; ++i)
+  for (; i < data.len; i++)
     {
-      next = data.data[i];
-      ASSERT (is_num (next));
-      u32 _next = next - '0';
-      ret = ret * 10 + _next;
+      char c = data.data[i];
+      ASSERT (is_num (c));
+
+      int32_t digit = c - '0';
+
+      if (!SAFE_MUL_I32 (&acc, acc, 10))
+        {
+          goto failed;
+        }
+
+      if (!SAFE_SUB_I32 (&acc, acc, digit))
+        {
+          goto failed;
+        }
     }
 
-  if (negative)
+  if (!neg)
     {
-      return -1 * (i32)ret;
+      if (acc == I32_MIN)
+        {
+          goto failed;
+        }
+      acc = -acc;
     }
-  else
-    {
-      return (i32)ret;
-    }
+
+  *dest = acc;
+  return SUCCESS;
+
+failed:
+  return error_causef (
+      e, ERR_ARITH,
+      "Parse I32: Arithmetic Exception");
 }
 
 TEST (parse_i32_expect)
 {
   i32 out;
+  error e = error_create (NULL);
 
   const string s1 = (string){
     .data = "1234",
     .len = i_unsafe_strlen ("1234"),
   };
-  out = parse_i32_expect (s1);
+  test_assert_int_equal (parse_i32_expect (&out, s1, &e), SUCCESS);
   test_assert_int_equal (out, 1234);
 
   const string s2 = (string){
     .data = "-56",
     .len = i_unsafe_strlen ("-56"),
   };
-  out = parse_i32_expect (s2);
+  test_assert_int_equal (parse_i32_expect (&out, s2, &e), SUCCESS);
   test_assert_int_equal (out, -56);
 
-  // TODO - handle int overflow
+  char *big = "999999999999999999999999999999999999999999";
+  const string s3 = (string){
+    .data = big,
+    .len = i_unsafe_strlen (big),
+  };
+  test_assert_int_equal (parse_i32_expect (&out, s3, &e), ERR_ARITH);
 }
 
-f32
-parse_f32_expect (const string src)
+err_t
+parse_f32_expect (f32 *dest, const string src, error *e)
 {
+  ASSERT (src.data);
+  ASSERT (dest);
   ASSERT (src.len > 0);
 
-  int negative = 0;
-  f32 ret = 0.0f;
-  u32 frac = 0;
-  f32 frac_div = 1.0f;
-  int seen_dot = 0;
-
+  u32 len = src.len;
+  char *s = src.data;
   u32 i = 0;
-  u8 next = src.data[0];
+  bool neg = false;
 
-  if (next == '-')
+  if (s[i] == '+' || s[i] == '-')
     {
-      negative = 1;
+      neg = (s[i] == '-');
       i++;
+      ASSERT (i < len);
     }
-  else if (next == '+')
+
+  // Integer part
+  f32 acc = 0.0f;
+  bool saw_digit = false;
+  while (i < len && s[i] >= '0' && s[i] <= '9')
+    {
+      f32 d = (f32)(s[i] - '0');
+      if (!SAFE_MUL_F32 (&acc, acc, 10.0f))
+        {
+          goto failed;
+        }
+      if (!SAFE_ADD_F32 (&acc, acc, d))
+        {
+          goto failed;
+        }
+      i++;
+      saw_digit = true;
+    }
+
+  // Fractional part
+  if (i < len && s[i] == '.')
     {
       i++;
-    }
-
-  ASSERT (i < src.len); // Should have at least 1 digit
-
-  for (; i < src.len; ++i)
-    {
-      next = src.data[i];
-
-      if (next == '.')
+      ASSERT (i < len); // cannot end with '.'
+      f32 frac = 0.0f, scale = 1.0f;
+      while (i < len && s[i] >= '0' && s[i] <= '9')
         {
-          ASSERT (!seen_dot);
-          seen_dot = 1;
-          continue;
+          f32 d = (f32)(s[i] - '0');
+          if (!SAFE_MUL_F32 (&frac, frac, 10.0f))
+            {
+              goto failed;
+            }
+          if (!SAFE_ADD_F32 (&frac, frac, d))
+            {
+              goto failed;
+            }
+          if (!SAFE_MUL_F32 (&scale, scale, 10.0f))
+            {
+              goto failed;
+            }
+          i++;
+          saw_digit = true;
         }
-
-      ASSERT (is_num (next));
-      u32 _next = next - '0';
-
-      if (!seen_dot)
+      f32 tmp;
+      if (!SAFE_DIV_F32 (&tmp, frac, scale))
         {
-          ret = ret * 10.0f + (f32)_next;
+          goto failed;
         }
-      else
+      if (!SAFE_ADD_F32 (&acc, acc, tmp))
         {
-          frac = frac * 10 + _next;
-          frac_div *= 10.0f;
+          goto failed;
         }
     }
 
-  ret += (f32)frac / frac_div;
+  ASSERT (saw_digit);
 
-  if (negative)
+  // Exponent part
+  if (i < len && (s[i] == 'e' || s[i] == 'E'))
     {
-      return -ret;
+      i++;
+      ASSERT (i < len); // must have exponent digits
+      bool exp_neg = false;
+      if (s[i] == '+' || s[i] == '-')
+        {
+          exp_neg = (s[i] == '-');
+          i++;
+          ASSERT (i < len);
+        }
+      u32 exp = 0;
+      bool saw_exp = false;
+      while (i < len && s[i] >= '0' && s[i] <= '9')
+        {
+          u32 d = (u32)(s[i] - '0');
+          ASSERT (exp <= (UINT32_MAX - d) / 10);
+          exp = exp * 10 + d;
+          i++;
+          saw_exp = true;
+        }
+      ASSERT (saw_exp);
+
+      // Apply exponent
+      for (u32 k = 0; k < exp; k++)
+        {
+          if (exp_neg)
+            {
+              if (!SAFE_DIV_F32 (&acc, acc, 10.0f))
+                {
+                  goto failed;
+                }
+            }
+          else
+            {
+              if (!SAFE_MUL_F32 (&acc, acc, 10.0f))
+                {
+                  goto failed;
+                }
+            }
+        }
     }
-  else
-    {
-      return ret;
-    }
+
+  ASSERT (i == len); // no extra characters
+
+  if (neg)
+    acc = -acc;
+  *dest = acc;
+  return SUCCESS;
+
+failed:
+  return error_causef (
+      e, ERR_ARITH,
+      "Parse F32: Arithmetic Exception");
 }
+
+#define EPSILON 1e-6f
 
 TEST (parse_f32_expect)
 {
   f32 out;
+  error e = error_create (NULL);
 
-  const string b1 = (string){
-    .data = "12.34",
-    .len = i_unsafe_strlen ("12.34"),
+  const string s1 = {
+    .data = "3.14",
+    .len = i_unsafe_strlen ("3.14"),
   };
-  out = parse_f32_expect (b1);
-  test_assert_equal ((int)(out * 100), 1234, "%d");
+  test_assert_int_equal (parse_f32_expect (&out, s1, &e), SUCCESS);
+  test_assert_int_equal (fabsf (out - 3.14f) < EPSILON, true);
 
-  const string b2 = (string){
+  const string s2 = {
     .data = "-0.5",
     .len = i_unsafe_strlen ("-0.5"),
   };
-  out = parse_f32_expect (b2);
-  test_assert_equal ((int)(out * 10), -5, "%d");
+  test_assert_int_equal (parse_f32_expect (&out, s2, &e), SUCCESS);
+  test_assert_int_equal (fabsf (out + 0.5f) < EPSILON, true);
 
-  const string b3 = (string){
-    .data = "100",
-    .len = i_unsafe_strlen ("100"),
+  const string s3 = {
+    .data = "1.23e3",
+    .len = i_unsafe_strlen ("1.23e3"),
   };
-  out = parse_f32_expect (b3);
-  test_assert_equal ((int)out, 100, "%d");
+  test_assert_int_equal (parse_f32_expect (&out, s3, &e), SUCCESS);
+  test_assert_int_equal (fabsf (out - 1230.0f) < EPSILON, true);
 
-  const string b4 = (string){
-    .data = "12.34",
-    .len = i_unsafe_strlen ("12.34"),
+  const string s4 = {
+    .data = ".25",
+    .len = i_unsafe_strlen (".25"),
   };
-  out = parse_f32_expect (b4);
-  test_assert_equal ((int)(out * 1000), 12340, "%d");
+  test_assert_int_equal (parse_f32_expect (&out, s4, &e), SUCCESS);
+  test_assert_int_equal (fabsf (out - 0.25f) < EPSILON, true);
+
+  const string s5 = {
+    .data = "1e40",
+    .len = i_unsafe_strlen ("1e40"),
+  };
+  test_assert_int_equal (parse_f32_expect (&out, s5, &e), ERR_ARITH);
 }

@@ -1,25 +1,31 @@
 #include "cursor/cursor.h"
 #include "errors/error.h"
+#include "mm/lalloc.h"
+#include "rptree/rptree.h"
+#include "variables/vfile_hashmap.h"
 
 DEFINE_DBG_ASSERT_I (cursor, cursor, c)
 {
   ASSERT (c);
 }
 
-cursor
-crsr_create (crsr_params params)
+err_t
+crsr_create (cursor *dest, crsr_params params, error *e)
 {
-  return (cursor){
-    .r = rpt_create ((rpt_params){
-        .alloc = params.alloc,
-        .pager = params.pager,
-    }),
-    .hm = vfhm_create ((vfhm_params){
-        .alloc = params.alloc,
-        .pager = params.pager,
-    }),
-    .is_meta_loaded = false,
+  ASSERT (dest);
+
+  rpt_params p = {
+    .alloc = params.alloc,
+    .pager = params.pager,
   };
+  err_t_wrap (rpt_create (&dest->r, p, e), e);
+
+  dest->hm = vfhm_create (params.pager);
+  dest->is_meta_loaded = false;
+
+  cursor_assert (dest);
+
+  return SUCCESS;
 }
 
 err_t
@@ -44,16 +50,11 @@ crsr_create_var (cursor *c, const create_query query, error *e)
   /**
    * Insert it into the variable hash table
    */
-  err_t_wrap (
-      vfhm_insert (
-          &c->hm,
-          query.vname,
-          (vmeta){
-              .pgn0 = pg0,
-              .type = query.type,
-          },
-          e),
-      e);
+  vmeta m = {
+    .pgn0 = pg0,
+    .type = query.type,
+  };
+  err_t_wrap (vfhm_insert (&c->hm, query.vname, m, e), e);
 
   return ret;
 }
@@ -77,7 +78,8 @@ crsr_load_var (cursor *c, const string vname, error *e)
   ASSERT (!c->is_meta_loaded);
   err_t ret = SUCCESS;
 
-  err_t_wrap (vfhm_get (&c->hm, &c->meta, vname, e), e);
+  lalloc dest = lalloc_create (c->tstr, sizeof (c->tstr));
+  err_t_wrap (vfhm_get (&c->hm, &c->meta, vname, &dest, e), e);
 
   c->is_meta_loaded = true;
 

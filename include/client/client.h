@@ -3,6 +3,7 @@
 #include "ds/cbuffer.h" //cbuffer
 #include "intf/io.h"    // i_file
 #include "intf/types.h" // u16
+#include "mm/lalloc.h"  // lalloc
 
 #include <netinet/in.h> // sockaddr_in
 

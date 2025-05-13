@@ -11,12 +11,13 @@ DEFINE_DBG_ASSERT_I (vm, vm, v)
 }
 
 vm
-vm_create (vm_params args)
+vm_create (cbuffer *queries_input, stmtctrl *ctrl)
 {
-  ASSERT (args.queries_input->cap % sizeof (query) == 0);
+  ASSERT (queries_input->cap % sizeof (query) == 0);
 
   vm ret = {
-    .queries_input = args.queries_input,
+    .queries_input = queries_input,
+    .ctrl = ctrl,
   };
 
   vm_assert (&ret);
@@ -29,27 +30,58 @@ vm_execute (vm *v)
 {
   vm_assert (v);
 
-  query q;
-  u32 read = cbuffer_read (&q, sizeof q, 1, v->queries_input);
-
-  if (read > 0)
+  switch (v->ctrl->state)
     {
-      switch (q.type)
+    case STCTRL_ERROR:
+      {
+        // Discard elements
+        cbuffer_discard_all (v->queries_input);
+        return;
+      }
+    case STCTRL_WRITING:
+      {
+        // Expect to be done
+        ASSERT (cbuffer_len (v->queries_input) == 0);
+        return;
+      }
+    case STCTRL_EXECTUING:
+      {
+        break;
+      }
+    }
+
+  while (true)
+    {
+      /**
+       * Block on upstream
+       */
+      if (cbuffer_len (v->queries_input) == 0)
         {
-        case QT_CREATE:
-          {
-            i_log_create (&q.cquery);
-            break;
-          }
-        case QT_DELETE:
-          {
-            i_log_delete (&q.dquery);
-            break;
-          }
-        default:
-          {
-            UNREACHABLE ();
-          }
+          return;
+        }
+
+      query q;
+      u32 read = cbuffer_read (&q, sizeof q, 1, v->queries_input);
+
+      if (read > 0)
+        {
+          switch (q.type)
+            {
+            case QT_CREATE:
+              {
+                i_log_create (&q.cquery);
+                break;
+              }
+            case QT_DELETE:
+              {
+                i_log_delete (&q.dquery);
+                break;
+              }
+            default:
+              {
+                UNREACHABLE ();
+              }
+            }
         }
     }
 }

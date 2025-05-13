@@ -1,138 +1,164 @@
-#include "server/connector.h"
-#include "compiler/parser.h"
-#include "compiler/scanner.h"
-#include "compiler/token_printer.h"
-#include "ds/cbuffer.h"
-#include "errors/error.h"
-#include "intf/io.h"
-#include "intf/logging.h"
-#include "mm/lalloc.h"
-#include "vm/vm.h"
+#include "server/connection.h"
 
-DEFINE_DBG_ASSERT_I (connector, connector, c)
+#include "compiler/parser.h"  // parser
+#include "compiler/scanner.h" // scanner
+#include "sckctrl.h"          // sckctrl
+#include "stmtctrl.h"         // stmtctrl
+#include "vm/vm.h"            // vm
+
+#include "ds/cbuffer.h"   // cbuffer
+#include "errors/error.h" // err_t
+#include "intf/io.h"      // i_file
+
+#include <stdlib.h>   // malloc / free
+#include <sys/poll.h> // pollfd
+
+DEFINE_DBG_ASSERT_I (connection, connection, c)
 {
   ASSERT (c);
 }
 
-void
-con_create (connector *dest, con_params params)
+struct connection_s
 {
-  ASSERT (dest);
+  bool want_close;
 
-  scanner_params sparams = {
-    .chars_input = &dest->input,
-    .tokens_output = &dest->tokens,
-    .string_allocator = params.alloc,
-  };
+  /**
+   * Workers
+   */
+  sckctrl socket;
+  scanner scanner; // Scanner to tokenize input commands
+  parser parser;   // Parses tokens from the scanner
+  vm vm;           // Virtual machine to execute queries
 
-  parser_params pparams = {
-    .type_allocator = params.alloc,
-    .tokens_input = &dest->tokens,
-    .queries_output = &dest->queries,
-  };
+  /**
+   * Shared data buffers
+   */
+  cbuffer input;   // Recieve Buffer
+  cbuffer tokens;  // Output from scanner
+  cbuffer queries; // Output from parser
+  cbuffer output;  // Output data
+  u8 _input[20];
+  token _tokens[10];
+  query _queries[10];
+  u8 _output[20];
 
-  vm_params vparams = {
-    .queries_input = &dest->queries,
-  };
+  stmtctrl ctrl; // Shared statement control
+};
 
-  *dest = (connector){
-    .cfd = (i_file){ .fd = -1 },
-    .input = cbuffer_create_from (dest->_input),
-    .tokens = cbuffer_create_from (dest->_tokens),
-    .queries = cbuffer_create_from (dest->_queries),
-    .scanner = scanner_create (sparams),
-    .parser = parser_create (pparams),
-    .vm = vm_create (vparams),
-
-    .want_read = true,
-    .want_write = false,
-    .want_close = false,
-  };
-
-  connector_assert (dest);
-  ASSERT (!con_is_open (dest));
-}
-
-void
-con_free (connector *c)
+err_t
+con_create (connection **dest, i_file cfd, struct sockaddr_in caddr, error *e)
 {
-  connector_assert (c);
-}
+  ASSERT (*dest = NULL);
+  connection *ret = malloc (sizeof *ret);
 
-void
-con_connect (connector *c, connect_params cparams)
-{
-  ASSERT (!con_is_open (c));
-  connector_assert (c);
-
-  ASSERT (cparams.cfd.fd >= 0);
-  c->cfd = cparams.cfd;
-  c->addr = cparams.caddr;
-  c->addr_len = cparams.caddrlen;
-}
-
-void
-con_disconnect (connector *c)
-{
-  connector_assert (c);
-  ASSERT (con_is_open (c));
-
-  lalloc alloc = lalloc_create (1000); // TODO - think about this
-  error e = error_create (&alloc);
-  err_t ret = i_close (&c->cfd, &e);
-  if (ret)
+  if (ret == NULL)
     {
-      error_log_consume (&e);
+      return error_causef (
+          e, ERR_NOMEM,
+          "Failed to allocate connection");
     }
-  ASSERT (alloc.used == 0);
+
+  ret->want_close = false;
+
+  ret->input = cbuffer_create_from (ret->_input);
+  ret->tokens = cbuffer_create_from (ret->_tokens);
+  ret->queries = cbuffer_create_from (ret->_queries);
+  ret->output = cbuffer_create_from (ret->_output);
+
+  stmtctrl_create (&ret->ctrl);
+
+  ret->socket = sckctrl_create (
+      cfd,
+      caddr,
+      &ret->input,
+      &ret->output,
+      &ret->ctrl);
+
+  ret->scanner = scanner_create (
+      &ret->input,
+      &ret->tokens,
+      &ret->ctrl);
+
+  parser_create (
+      &ret->parser,
+      &ret->tokens,
+      &ret->queries,
+      &ret->ctrl);
+
+  ret->vm = vm_create (
+      &ret->queries,
+      &ret->ctrl);
+
+  connection_assert (ret);
+
+  *dest = ret;
+
+  return SUCCESS;
 }
 
 bool
-con_is_open (const connector *c)
+con_is_done (connection *c)
 {
-  connector_assert (c);
-  return c->cfd.fd >= 0;
+  return c->want_close;
+}
+
+void
+con_free (connection *c)
+{
+  connection_assert (c);
+}
+
+void
+con_disconnect (connection *c)
+{
+  connection_assert (c);
+  sckctrl_close (&c->socket);
+  free (c);
 }
 
 struct pollfd
-con_to_pollfd (const connector *src)
+con_to_pollfd (const connection *src)
 {
-  connector_assert (src);
-  ASSERT (con_is_open (src));
+  connection_assert (src);
 
-  struct pollfd ret = { src->cfd.fd, POLLERR, 0 };
-  if (src->want_write)
+  struct pollfd ret = { src->socket.cfd.fd, POLLERR, 0 };
+  switch (src->ctrl.state)
     {
-      ret.events |= POLLOUT;
-    }
-  if (src->want_read)
-    {
-      ret.events |= POLLIN;
+    case STCTRL_EXECTUING:
+      {
+        ret.events |= POLLIN;
+        break;
+      }
+    case STCTRL_ERROR:
+    case STCTRL_WRITING:
+      {
+        ret.events |= POLLOUT;
+        break;
+      }
     }
 
   return ret;
 }
 
 void
-con_read (connector *c)
+con_read (connection *c)
 {
-  connector_assert (c);
-  ASSERT (con_is_open (c));
+  connection_assert (c);
+  ASSERT (c->ctrl.state == STCTRL_EXECTUING);
 
   error e = error_create (NULL);
-  if (cbuffer_write_some_from_file (&c->cfd, &c->input, &e) < 0)
+  if (sckctrl_read (&c->socket, &e))
     {
       error_log_consume (&e);
       c->want_close = true;
-      return;
     }
 }
 
 void
-con_execute (connector *c)
+con_execute (connection *c)
 {
-  connector_assert (c);
-  ASSERT (con_is_open (c));
+  connection_assert (c);
+  ASSERT (c->ctrl.state == STCTRL_EXECTUING);
 
   scanner_execute (&c->scanner);
   parser_execute (&c->parser);
@@ -140,8 +166,15 @@ con_execute (connector *c)
 }
 
 void
-con_write (connector *c)
+con_write (connection *c)
 {
-  ASSERT (c);
-  panic ();
+  connection_assert (c);
+  ASSERT (c->ctrl.state == STCTRL_WRITING || c->ctrl.state == STCTRL_ERROR);
+
+  error e = error_create (NULL);
+  if (sckctrl_write (&c->socket, &e))
+    {
+      error_log_consume (&e);
+      c->want_close = true;
+    }
 }

@@ -1,8 +1,8 @@
 #pragma once
 
 #include "ds/strings.h"
-#include "mm/lalloc.h"
 #include "intf/types.h"
+#include "mm/lalloc.h"
 #include "variables/variable.h"
 
 #define VHFMT_HDR_LEN (5 + sizeof (pgno))
@@ -70,16 +70,13 @@ typedef struct
 } vread_hash_fmt;
 
 vread_hash_fmt vrhfmt_create (lalloc *alloc);
+void vrhfmt_reset (vread_hash_fmt *v);
 
 err_t vrhfmt_read_in (
     const u8 *src,
     p_size *nbytes,
     vread_hash_fmt *dest,
     error *e);
-
-void vrhfmt_free_and_reset_forgiving (vread_hash_fmt *v);
-
-void vrhfmt_free_and_reset (vread_hash_fmt *v);
 
 typedef struct
 {

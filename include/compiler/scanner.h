@@ -1,8 +1,9 @@
 #pragma once
 
-#include "dev/assert.h"
-#include "ds/cbuffer.h"
-#include "mm/lalloc.h"
+#include "stmtctrl.h" // stmtctrl
+
+#include "ds/cbuffer.h" // cbuffer
+#include "intf/types.h" // u32
 
 ////////////////////// SCANNER (chars -> tokens)
 
@@ -15,38 +16,27 @@ typedef enum
   SS_DECIMAL,
 } scanner_state;
 
-const char *scanner_state_to_str (scanner_state);
-
 typedef struct
 {
-  error e;
   scanner_state state;
 
-  /**
-   * Shared input output buffers
-   */
-  cbuffer *chars_input;   // A buffer of chars
-  cbuffer *tokens_output; // A buffer of token_msg
-
-  /**
-   * Internal growing string (free'd downstream)
-   */
-  char *dcur;  // Current data for variable length data
-  u32 dcurlen; // len of dcur
-  u32 dcurcap; // capacity of dcur
-
-  /**
-   * Shared allocator for growing string
-   */
-  lalloc *string_allocator;
-} scanner;
-
-typedef struct
-{
   cbuffer *chars_input;
   cbuffer *tokens_output;
-  lalloc *string_allocator;
-} scanner_params;
 
-scanner scanner_create (scanner_params params);
+  /**
+   * "Scratch space". Contains:
+   *    - Internal growing string for
+   *      identifiers / floats / strings
+   */
+  char str[512];
+  u32 slen;
+
+  stmtctrl *ctrl;
+} scanner;
+
+scanner scanner_create (
+    cbuffer *chars_input,
+    cbuffer *tokens_output,
+    stmtctrl *ctrl);
+
 void scanner_execute (scanner *s);

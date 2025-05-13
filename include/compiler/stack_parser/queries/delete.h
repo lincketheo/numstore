@@ -1,9 +1,11 @@
 #pragma once
 
 #include "compiler/stack_parser/common.h" // stackp_result
-#include "query/builders/delete.h"        // delete_builder
+#include "compiler/tokens.h"              // token
+#include "type/types.h"                   // type
 
-typedef struct query_parser_s query_parser;
+#include "query/builders/delete.h" // delete_builder
+#include "query/queries/delete.h"  // delete_query
 
 typedef struct
 {
@@ -17,8 +19,8 @@ typedef struct
 
 } delete_parser;
 
-stackp_result dltp_create (query_parser *dest);
+delete_parser dltp_create (void);
 
-stackp_result dltp_build (query_parser *eb);
+stackp_result dltp_build (delete_query *dest, delete_parser *eb, error *e);
 
-stackp_result dltp_accept_token (query_parser *eb, token t);
+stackp_result dltp_accept_token (delete_parser *eb, token t, error *e);
