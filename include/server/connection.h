@@ -8,7 +8,7 @@
 typedef struct connection_s connection;
 
 // Lifecycle
-err_t con_create (connection **dest, i_file cfd, struct sockaddr_in caddr, error *e);
+connection *con_create (i_file cfd, struct sockaddr_in caddr);
 bool con_is_done (connection *c);
 void con_free (connection *c);
 

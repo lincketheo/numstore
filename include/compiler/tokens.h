@@ -1,28 +1,30 @@
 #pragma once
 
+#include "ast/query/queries/create.h"
+#include "ast/query/query.h"
+#include "ast/type/types.h"
 #include "ds/strings.h"
-#include "type/types.h"
 
 typedef enum
 {
   // Tokens that start with a letter (alpha)
   //      Json Operations
-  TT_CREATE,
-  TT_DELETE,
-  TT_APPEND,
-  TT_INSERT,
-  TT_UPDATE,
-  TT_READ,
-  TT_TAKE,
+  TT_CREATE = 0,
+  TT_DELETE = 1,
+  TT_APPEND = 2,
+  TT_INSERT = 3,
+  TT_UPDATE = 4,
+  TT_READ = 5,
+  TT_TAKE = 6,
 
   //      Binary Operations
-  TT_BCREATE,
-  TT_BDELETE,
-  TT_BAPPEND,
-  TT_BINSERT,
-  TT_BUPDATE,
-  TT_BREAD,
-  TT_BTAKE,
+  TT_BCREATE = 7,
+  TT_BDELETE = 8,
+  TT_BAPPEND = 9,
+  TT_BINSERT = 10,
+  TT_BUPDATE = 11,
+  TT_BREAD = 12,
+  TT_BTAKE = 13,
 
   //      Type Utils
   TT_STRUCT,
@@ -49,6 +51,8 @@ typedef enum
   TT_COMMA,
 } token_t;
 
+query_t tt_to_qt (token_t t);
+
 /**
  * A token is a tagged union that wraps
  * the value and the type together
@@ -61,6 +65,7 @@ typedef struct
     i32 integer;
     f32 floating;
     prim_t prim;
+    query *q;
   };
   token_t type;
 } token;

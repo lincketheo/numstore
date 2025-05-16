@@ -39,7 +39,7 @@
 typedef struct
 {
   p_size idx0;   // What byte we are starting on in this node
-  page pg0;      // Starting page (should be a data list)
+  page *pg0;     // Starting page (should be a data list)
   pager *pager;  // Pager for creating new pages
   lalloc *alloc; // Allocator for scratch work - must have page_size avail
   const u8 *src; // Data to read from

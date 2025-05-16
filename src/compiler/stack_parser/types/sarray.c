@@ -1,10 +1,10 @@
 #include "compiler/stack_parser/types/sarray.h"
 
+#include "ast/type/builders/sarray.h"
 #include "compiler/stack_parser/common.h"
 #include "compiler/tokens.h"
 #include "dev/assert.h"
 #include "errors/error.h"
-#include "type/builders/sarray.h"
 
 ////////////////////////// DEV
 

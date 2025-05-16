@@ -24,25 +24,23 @@ err_t vfhm_create_hashmap (vfile_hashmap *h, error *e);
  * Inserts [key] into the hash map
  *
  * Errors:
+ *    - ERR_NOMEM - can't allocate type type string
+ *      for serialized [var.type]
+ *    - ERR_IO, ERR_CORRUPT
+ *        - pgr_get_expect
+ *        - pgr_new
+ *        - pgr_write
  */
 err_t vfhm_insert (
-    vfile_hashmap *h, // The vfhm
-    const string key, // The key to insert
-    vmeta value,      // The value we're inserting
-    error *e          // Any errors that occur
-);
+    vfile_hashmap *h,
+    const variable var,
+    lalloc *alloc,
+    error *e);
 
-err_t vfhm_update_pg0 (
-    vfile_hashmap *h, // The vfhm
-    const string key, // The key we're updating
-    pgno pg0,         // The new page
-    error *e          // Any errors that occur
-);
-
-err_t vfhm_get (
-    const vfile_hashmap *h, // The vfhm
-    vmeta *dest,            // The vmeta destination to write to
-    const string key,       // The key we're querying
-    lalloc *alloc,          // To allocate the result string and type
-    error *e                // Any errors that occur
-);
+err_t
+vfhm_get (
+    const vfile_hashmap *h,
+    variable *dest,
+    const string key,
+    lalloc *alloc,
+    error *e);

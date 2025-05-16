@@ -1,13 +1,17 @@
 #pragma once
 
+// Type Impls
 #include "compiler/stack_parser/types/enum.h"
 #include "compiler/stack_parser/types/kvt.h"
 #include "compiler/stack_parser/types/sarray.h"
 
+// Query Impls
 #include "compiler/stack_parser/queries/create.h"
 #include "compiler/stack_parser/queries/delete.h"
-#include "compiler/tokens.h"
-#include "query/query.h"
+
+#include "ast/query/query.h" // query
+#include "ast/type/types.h"  // type
+#include "compiler/tokens.h" // token
 
 ////////////////// TYPE BUILDER
 /**
@@ -45,12 +49,11 @@ typedef struct
 
   union
   {
+    prim_t p;
     kvt_parser kvp;
     enum_parser enp;
     sarray_parser sap;
   };
-
-  type ret;
 } type_parser;
 
 typedef struct
@@ -69,8 +72,6 @@ typedef struct
     create_parser cp;
     delete_parser dp;
   };
-
-  query ret;
 } query_parser;
 
 typedef struct
@@ -82,4 +83,6 @@ typedef struct
     type_parser tb;
     query_parser qb;
   };
+  query *cur;
+  u32 alloc_start;
 } ast_parser;

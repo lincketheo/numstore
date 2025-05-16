@@ -3,6 +3,7 @@
 #include "intf/io.h"
 #include "intf/logging.h"
 #include "mm/lalloc.h"
+#include "utils/bounds.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -345,4 +346,34 @@ i_exists_rw (const string fname)
       return false;
     }
   return true;
+}
+
+////////////////// Wrappers
+void *
+i_malloc (u32 nelem, u32 size)
+{
+  ASSERT (nelem > 0);
+  ASSERT (size > 0);
+
+  u32 bytes;
+  ASSERT (SAFE_MUL_U32 (&bytes, nelem, size));
+  return malloc ((size_t)bytes);
+}
+
+void *
+i_calloc (u32 nelem, u32 size)
+{
+  ASSERT (nelem > 0);
+  ASSERT (size > 0);
+
+  u32 bytes;
+  ASSERT (SAFE_MUL_U32 (&bytes, nelem, size));
+  return calloc ((size_t)nelem, (size_t)size);
+}
+
+void
+i_free (void *ptr)
+{
+  ASSERT (ptr);
+  free (ptr);
 }

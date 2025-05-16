@@ -1,27 +1,27 @@
 #pragma once
 
-#include "mm/lalloc.h"               // lalloc
-#include "query/queries/create.h"    // create_query
-#include "rptree/rptree.h"           // rptree
+#include "ast/query/queries/create.h" // create_query
+#include "ast/query/query.h"
+#include "mm/lalloc.h"     // lalloc
+#include "rptree/rptree.h" // rptree
+#include "variables/variable.h"
 #include "variables/vfile_hashmap.h" // vfile_hashmap
 
 typedef struct
 {
-  rptree r;
-  vfile_hashmap hm;
+  vfile_hashmap hm; // To retrieve / create variables
 
-  vmeta meta;
-  u8 tstr[2048];
-  bool is_meta_loaded;
+  struct
+  {
+    rptree r;     // To modify currently loaded variable
+    variable var; // Current loaded variable
+    bool is_loaded;
+  };
+
+  pager *p;
 } cursor;
 
-typedef struct
-{
-  pager *pager;
-  lalloc *alloc;
-} crsr_params;
-
-err_t crsr_create (cursor *dest, crsr_params params, error *e);
+cursor crsr_open (pager *p);
 
 /**
  * Errors
@@ -35,10 +35,13 @@ err_t crsr_create_hash_table (cursor *c, error *e);
  * Errors:
  *  - ERR_NOMEM -
  */
-err_t crsr_create_var (cursor *c, const create_query query, error *e);
+err_t crsr_create_var (
+    cursor *c,
+    query *create_q, // create_query
+    error *e);
 
-err_t crsr_create_and_load_var (cursor *c, const create_query query, error *e);
-
+/**
 err_t crsr_load_var (cursor *c, const string vname, error *e);
 
 void crsr_unload_var (cursor *c);
+*/

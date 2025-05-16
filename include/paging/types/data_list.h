@@ -1,7 +1,8 @@
 #pragma once
 
-#include "errors/error.h"
-#include "intf/types.h"
+#include "config.h"       // PAGE_SIZE
+#include "errors/error.h" // err_t
+#include "intf/types.h"   // u8
 
 /**
  * DATA LIST
@@ -21,42 +22,25 @@
  */
 typedef struct
 {
-  u8 *raw;
-  p_size rlen;
-
   pgh *header;  // Page header
   pgno *next;   // Pointer to the next node or 0
   p_size *blen; // The length of this node in bytes
   u8 *data;     // The raw contiguous data pointer
 } data_list;
 
-/**
- * Checks that this data list is valid
- */
+#define DL_HEDR_OFST ((p_size)0)
+#define DL_NEXT_OFST ((p_size)(DL_HEDR_OFST + sizeof (pgh)))
+#define DL_BLEN_OFST ((p_size)(DL_NEXT_OFST + sizeof (pgno)))
+#define DL_DATA_OFST ((p_size)(DL_BLEN_OFST + sizeof (p_size)))
+
+_Static_assert(PAGE_SIZE > DL_DATA_OFST + 10,
+               "Data List: PAGE_SIZE must be > DL_DATA_OFST "
+               "plus at least 10 extra bytes of data");
+#define DL_DATA_SIZE ((p_size)(PAGE_SIZE - DL_DATA_OFST))
+
 err_t dl_validate (const data_list *d, error *e);
-
-/**
- * Simply parses raw and sets pointers and returns
- * the data_list pointer struct
- * Doesn't modify raw data at all or do any validity
- * checking
- */
-data_list dl_set_ptrs (u8 *raw, p_size len);
-
-/**
- * Returns the size of the data chunk of data_list node
- */
-p_size dl_data_size (p_size page_size);
-
-/**
- * Returns how many bytes are available to write to in this node
- */
+void dl_set_ptrs (data_list *dl, u8 raw[PAGE_SIZE]);
 p_size dl_avail (const data_list *d);
-
-/**
- * Sets the content inside d so that it's
- * empty - used on an init call
- */
 void dl_init_empty (data_list *d);
 
 /**

@@ -39,3 +39,8 @@ err_t i_unlink (const string name, error *e);
 ////////////////// Wrappers
 err_t i_access_rw (const string fname, error *e);
 bool i_exists_rw (const string fname);
+
+////////////////// Memory
+void *i_malloc (u32 nelem, u32 size);
+void *i_calloc (u32 nelem, u32 size);
+void i_free (void *ptr);

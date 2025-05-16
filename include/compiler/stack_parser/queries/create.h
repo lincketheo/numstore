@@ -1,11 +1,11 @@
 #pragma once
 
+#include "ast/type/types.h"               // type
 #include "compiler/stack_parser/common.h" // stackp_result
 #include "compiler/tokens.h"              // token
-#include "type/types.h"                   // type
 
-#include "query/builders/create.h" // create_builder
-#include "query/queries/create.h"  // create_query
+#include "ast/query/builders/create.h" // create_builder
+#include "ast/query/queries/create.h"  // create_query
 
 typedef struct
 {

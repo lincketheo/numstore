@@ -3,7 +3,8 @@
 #include "compiler/stack_parser/common.h" // stackp_result
 #include "compiler/tokens.h"              // token
 #include "mm/lalloc.h"                    // lalloc
-#include "type/builders/sarray.h"         // sarray_builder
+
+#include "ast/type/builders/sarray.h" // sarray_builder
 
 typedef struct
 {
@@ -22,7 +23,11 @@ typedef struct
 
 sarray_parser sap_create (lalloc *alloc);
 
-stackp_result sap_build (sarray_t *dest, sarray_parser *eb, lalloc *destination, error *e);
+stackp_result sap_build (
+    sarray_t *dest,
+    sarray_parser *eb,
+    lalloc *destination,
+    error *e);
 
 stackp_result sap_accept_token (sarray_parser *eb, token t, error *e);
 stackp_result sap_accept_type (sarray_parser *eb, type type, error *e);

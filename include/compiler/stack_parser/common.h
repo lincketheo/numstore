@@ -1,8 +1,8 @@
 #pragma once
 
+#include "ast/type/types.h"  // type
 #include "compiler/tokens.h" // token
 #include "errors/error.h"    // ERR_...
-#include "type/types.h"      // type
 
 // What you can get out of the stack_parser
 typedef enum

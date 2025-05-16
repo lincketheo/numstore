@@ -1,107 +1,30 @@
 #include "paging/memory_pager.h"
-#include "dev/testing.h"
-#include "errors/error.h"
-#include "intf/stdlib.h"
-#include "mm/lalloc.h"
 
-///////////////////////////// MEMORY PAGE
-
-DEFINE_DBG_ASSERT_I (memory_page, memory_page, p)
-{
-  ASSERT (p);
-  ASSERT (p->data);
-}
-
-void
-mp_create (memory_page *dest, u8 *data, u32 dlen, u64 pgno)
-{
-  dest->data = data;
-  i_memset (dest->data, 0, dlen);
-  dest->data = data;
-  dest->pgno = pgno;
-}
-
-TEST (mp_create)
-{
-  u8 _page[2048];
-
-  memory_page m;
-
-  mp_create (&m, _page, 2048, 42);
-
-  // fields initialized correctly
-  test_assert_int_equal ((int)m.pgno, 42);
-
-  // page memory zeroed out (check first and last byte)
-  test_assert_int_equal (_page[0], 0);
-  test_assert_int_equal (_page[2048 - 1], 0);
-}
-
-///////////////////////////// MEMORY PAGER
+#include "dev/assert.h"  // DEFINE_DBG_ASSERT_I
+#include "dev/testing.h" // TEST
+#include "intf/io.h"     // i_malloc
 
 DEFINE_DBG_ASSERT_I (memory_pager, memory_pager, p)
 {
   ASSERT (p);
-  ASSERT (p->pages);
-  ASSERT (p->len > 0);
-  for (u32 i = 0; i < p->len; ++i)
-    {
-      memory_page_assert (&p->pages[i]);
-    }
+  ASSERT (p->idx < MEMORY_PAGE_LEN);
 }
 
-err_t
-mpgr_create (memory_pager *dest, mpgr_params params, error *e)
-{
-  ASSERT (dest);
-  ASSERT (params.len > 0);
-
-  dest->pages = lmalloc (params.alloc, params.len, sizeof *dest->pages);
-  if (!dest->pages)
-    {
-      return error_causef (
-          e, ERR_NOMEM,
-          "Memory pager: Not enough memory to allocate pages");
-    }
-
-  u8 *page_block = lmalloc (params.alloc, params.len, params.page_size);
-
-  if (!page_block)
-    {
-      return error_causef (
-          e, ERR_NOMEM,
-          "Memory pager: Not enough memory to allocate page block");
-    }
-
-  dest->len = params.len;
-  dest->idx = 0;
-
-  // Initialize the pages
-  for (u32 i = 0; i < params.len; ++i)
-    {
-      dest->pages[i].data = page_block + i * params.page_size;
-    }
-
-  memory_pager_assert (dest);
-
-  return SUCCESS;
-}
-
-u8 *
-mpgr_new (memory_pager *p, u64 pgno)
+page *
+mpgr_new (memory_pager *p, pgno pgno)
 {
   memory_pager_assert (p);
 
-  for (u32 i = 0; i < p->len; ++i)
+  for (u32 i = 0; i < MEMORY_PAGE_LEN; ++i)
     {
       memory_page *mp = &p->pages[p->idx];
-      p->idx = (p->idx + 1) % p->len;
+      p->idx = (p->idx + 1) % MEMORY_PAGE_LEN;
 
       if (!mp->is_present)
         {
-          mp->pgno = pgno;
-          mp->is_present = 1;
-          return mp->data;
+          mp->page.pg = pgno;
+          mp->is_present = true;
+          return &mp->page;
         }
     }
 
@@ -115,10 +38,10 @@ mpgr_is_full (const memory_pager *p)
 
   u32 idx = p->idx;
 
-  for (u32 i = 0; i < p->len; ++i)
+  for (u32 i = 0; i < MEMORY_PAGE_LEN; ++i)
     {
-      memory_page *mp = &p->pages[idx];
-      idx = (p->idx + 1) % p->len;
+      const memory_page *mp = &p->pages[idx];
+      idx = (p->idx + 1) % MEMORY_PAGE_LEN;
 
       if (!mp->is_present)
         {
@@ -129,19 +52,34 @@ mpgr_is_full (const memory_pager *p)
   return true;
 }
 
-u8 *
-mpgr_get (const memory_pager *p, u64 pgno)
+page *
+mpgr_get_rw (memory_pager *p, u64 pgno)
 {
   memory_pager_assert (p);
 
-  for (u32 i = 0; i < p->len; ++i)
+  for (u32 i = 0; i < MEMORY_PAGE_LEN; ++i)
     {
-
-      memory_page *mp = &p->pages[(i + p->idx) % p->len];
-
-      if (mp->is_present && mp->pgno == pgno)
+      memory_page *mp = &p->pages[(i + p->idx) % MEMORY_PAGE_LEN];
+      if (mp->is_present && mp->page.pg == pgno)
         {
-          return mp->data;
+          return &mp->page;
+        }
+    }
+
+  return NULL;
+}
+
+const page *
+mpgr_get_r (const memory_pager *p, u64 pgno)
+{
+  memory_pager_assert (p);
+
+  for (u32 i = 0; i < MEMORY_PAGE_LEN; ++i)
+    {
+      const memory_page *mp = &p->pages[(i + p->idx) % MEMORY_PAGE_LEN];
+      if (mp->is_present && mp->page.pg == pgno)
+        {
+          return &mp->page;
         }
     }
 
@@ -152,9 +90,9 @@ u64
 mpgr_get_evictable (const memory_pager *p)
 {
   memory_pager_assert (p);
-  memory_page *mp = &p->pages[p->idx];
+  const memory_page *mp = &p->pages[p->idx];
   ASSERT (mp->is_present);
-  return mp->pgno;
+  return mp->page.pg;
 }
 
 void
@@ -162,23 +100,18 @@ mpgr_evict (memory_pager *p, u64 pgno)
 {
   memory_pager_assert (p);
 
-  for (u32 i = 0; i < p->len; ++i)
+  for (u32 i = 0; i < MEMORY_PAGE_LEN; ++i)
     {
 
       memory_page *mp = &p->pages[p->idx];
 
-      if (mp->is_present && mp->pgno == pgno)
+      if (mp->is_present && mp->page.pg == pgno)
         {
           mp->is_present = 0;
           return;
         }
 
-      p->idx = (p->idx + 1) % p->len;
+      p->idx = (p->idx + 1) % MEMORY_PAGE_LEN;
     }
   UNREACHABLE ();
-}
-
-TEST (mpgr_evict)
-{
-  // TODO
 }

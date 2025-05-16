@@ -23,17 +23,10 @@ DEFINE_DBG_ASSERT_I (error, error, e)
    */
   if (e->cmlen == 0)
     {
-      ASSERT (e->evidence == NULL);
+      ASSERT (e->elen == 0);
     }
 
-  if (e->elen == 0)
-    {
-      ASSERT (e->evidence == NULL);
-    }
-  else
-    {
-      ASSERT (e->evidence);
-    }
+  ASSERT (e->elen <= 10);
 
   /**
    * Don't allow evidence on null allocator

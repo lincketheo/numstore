@@ -1,10 +1,7 @@
 #include "compiler/stack_parser/types/enum.h"
 
-#include "compiler/stack_parser/common.h"
-#include "compiler/tokens.h"
-#include "dev/assert.h"
-#include "errors/error.h"
-#include "type/builders/enum.h"
+#include "ast/type/builders/enum.h" // enum_builder
+#include "dev/assert.h"             // DEFINE_DBG_ASSERT_I
 
 ////////////////////////// DEV
 

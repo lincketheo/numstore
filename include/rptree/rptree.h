@@ -15,8 +15,7 @@ typedef struct
   {
     b_size gidx; // The global byte I'm on
     b_size lidx; // The local byte (within the page I'm on)
-    page cur;    // Current page we're on
-    bool is_open;
+    page *cur;   // Current page we're on
   };
 
   /**
@@ -28,17 +27,8 @@ typedef struct
     bool is_seeked;
   };
 
-  lalloc espace_alloc; // Allocator for execution space
   pager *pager;
 } rptree;
-
-typedef struct
-{
-  pager *pager;
-  lalloc *alloc; // The allocator that we're going to take space from
-} rpt_params;
-
-err_t rpt_create (rptree *dest, rpt_params params, error *e);
 
 /**
  * Creates a new rptree and returns the page number of
@@ -48,7 +38,7 @@ err_t rpt_create (rptree *dest, rpt_params params, error *e);
  *    - ERR_CORRUPT
  *    - ERR_IO
  */
-err_t rpt_new (pgno *dest, rptree *r, error *e);
+err_t rpt_open_new (rptree *dest, pgno *pg0, pager *p, error *e);
 
 /**
  * Errors:
@@ -56,12 +46,7 @@ err_t rpt_new (pgno *dest, rptree *r, error *e);
  *    - ERR_IO
  *    - ERR_CORRUPT - Expects either an inner node or data list node
  */
-err_t rpt_open (rptree *r, pgno p0, error *e);
-
-/**
- * Closes rptree [r]. r should be open
- */
-void rpt_close (rptree *r);
+err_t rpt_open_existing (rptree *dest, pgno p0, pager *p, error *e);
 
 //////////////////////////////// OPERATIONS
 /**
@@ -72,11 +57,24 @@ err_t rpt_seek (rptree *r, b_size b, error *e);
 /**
  * Reads data in chunks of size [size] into dest
  */
-err_t rpt_read (u8 *dest, t_size size, b_size *n, b_size nskip, rptree *r, error *e);
+err_t rpt_read (
+    u8 *dest,
+    t_size size,
+    b_size *n,
+    b_size nskip,
+    rptree *r,
+    error *e);
 
 /**
  * Errors:
  *   - From pgr_get_expect
  *      - ERR_CORRUPT - Expects inner nodes and data lists
  */
-err_t rpt_insert (const u8 *src, t_size size, b_size n, rptree *r, error *e);
+err_t rpt_insert (
+    const u8 *src, // Source data we're writing
+    t_size size,   // Size of each individual element
+    b_size n,      // Number of elements to write
+    rptree *r,     // The rptree that's writing this
+    lalloc *alloc, // TODO - get rid of this in favor of iterative writes
+    error *e       // Any error goes here
+);

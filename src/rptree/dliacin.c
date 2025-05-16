@@ -4,6 +4,7 @@
 #include "errors/error.h"
 #include "mm/lalloc.h"
 #include "paging/page.h"
+#include "paging/pager.h"
 #include "paging/types/data_list.h"
 #include "rptree/mem_inner_node.h"
 
@@ -18,7 +19,7 @@ typedef struct
   u8 *temp_buf;       // Stores the right half of the current node
   p_size tbl;         // The length of temp_buf
   mem_inner_node out; // The output internal node
-  page pg0;           // Starting page
+  page *pg0;          // Starting page
   pager *pager;       // To fetch pages
   lalloc *alloc;      // Allocates inner nodes
 } dliacin_s;
@@ -26,7 +27,7 @@ typedef struct
 typedef struct
 {
   p_size idx0; // Starting local index on page
-  page pg0;    // Starting page (a data list)
+  page *pg0;   // Starting page (a data list)
   pager *pager;
   lalloc *alloc;
 } dliacin_s_params;
@@ -34,7 +35,7 @@ typedef struct
 DEFINE_DBG_ASSERT_I (dliacin_s, dliacin_s, d)
 {
   ASSERT (d);
-  ASSERT (d->pg0.type == PG_DATA_LIST);
+  ASSERT (d->pg0->type == PG_DATA_LIST);
   if (d->tbl > 0)
     {
       ASSERT (d->temp_buf);
@@ -51,7 +52,7 @@ dliacin_s_save_right (dliacin_s *d, p_size idx0, error *e)
   dliacin_s_assert (d);
   ASSERT (d->temp_buf == NULL);
 
-  p_size used = dl_used (&d->pg0.dl);
+  p_size used = dl_used (&d->pg0->dl);
   ASSERT (used >= idx0);
   p_size right_len = used - idx0;
 
@@ -69,7 +70,7 @@ dliacin_s_save_right (dliacin_s *d, p_size idx0, error *e)
 
       d->temp_buf = temp_buf;
 
-      p_size read = dl_read_out_from (&d->pg0.dl, d->temp_buf, idx0);
+      p_size read = dl_read_out_from (&d->pg0->dl, d->temp_buf, idx0);
       ASSERT (read == right_len);
       d->tbl = read;
     }
@@ -81,12 +82,12 @@ static err_t
 dliacin_s_create (dliacin_s *dest, dliacin_s_params p, error *e)
 {
   ASSERT (dest);
-  ASSERT (p.pg0.type == PG_DATA_LIST);
+  ASSERT (p.pg0->type == PG_DATA_LIST);
 
   *dest = (dliacin_s){
     .temp_buf = NULL,
     .tbl = 0,
-    .out = mintn_create (p.pg0.pg),
+    .out = mintn_create (p.pg0->pg),
     .pg0 = p.pg0,
     .pager = p.pager,
     .alloc = p.alloc,
@@ -114,26 +115,29 @@ dliacin_s_alloc_then_write_once (
   if (dl_avail (&cur->dl) == 0)
     {
       // Allocate a new node
-      page next;
-      err_t_wrap (pgr_new (&next, r->pager, PG_DATA_LIST, e), e);
+      page *next = pgr_new (r->pager, PG_DATA_LIST, e);
+      if (next == NULL)
+        {
+          return err_t_from (e);
+        }
 
       // Link current node to it
-      dl_set_next (&cur->dl, next.pg);
+      dl_set_next (&cur->dl, next->pg);
 
       /**
        * Push previous node's capacity (left key) and this node's
        * page number (right page number)
        */
-      if (!mintn_add_right (&r->out, dl_used (&cur->dl), next.pg))
+      if (!mintn_add_right (&r->out, dl_used (&cur->dl), next->pg))
         {
           panic ();
         }
 
       // Commit so that we can swap it
-      err_t_wrap (pgr_commit (r->pager, cur->dl.raw, cur->pg, e), e);
+      err_t_wrap (pgr_write (r->pager, cur, e), e);
 
       // Swap it
-      *cur = next;
+      cur = next;
     }
 
   /**
@@ -145,17 +149,22 @@ dliacin_s_alloc_then_write_once (
 }
 
 static err_t
-dliacin_s_consume (dliacin_s *r, const u8 *src, t_size size, b_size n, error *e)
+dliacin_s_consume (
+    dliacin_s *r,
+    const u8 *src,
+    t_size size,
+    b_size n,
+    error *e)
 {
   dliacin_s_assert (r);
   ASSERT (src);
   ASSERT (size > 0);
   ASSERT (n);
 
-  b_size btotal = n * size;               // Total bytes to write
-  page cur = r->pg0;                      // Current working page
-  b_size written = 0;                     // Total bytes written
-  pgno last_link = dl_get_next (&cur.dl); // Right node for last page
+  b_size btotal = n * size;                // Total bytes to write
+  page *cur = r->pg0;                      // Current working page
+  b_size written = 0;                      // Total bytes written
+  pgno last_link = dl_get_next (&cur->dl); // Right node for last page
 
   /**
    * First,
@@ -168,7 +177,7 @@ dliacin_s_consume (dliacin_s *r, const u8 *src, t_size size, b_size n, error *e)
 
       err_t_wrap (
           dliacin_s_alloc_then_write_once (
-              r, &cur, &next_write, src + written, e),
+              r, cur, &next_write, src + written, e),
           e);
 
       ASSERT (next_write > 0); // to avoid infinite loops
@@ -188,7 +197,7 @@ dliacin_s_consume (dliacin_s *r, const u8 *src, t_size size, b_size n, error *e)
 
       err_t_wrap (
           dliacin_s_alloc_then_write_once (
-              r, &cur, &next_write, r->temp_buf + written, e),
+              r, cur, &next_write, r->temp_buf + written, e),
           e);
 
       ASSERT (next_write > 0);
@@ -200,8 +209,8 @@ dliacin_s_consume (dliacin_s *r, const u8 *src, t_size size, b_size n, error *e)
    * Finally,
    * Link and Commit the current page
    */
-  dl_set_next (&cur.dl, last_link);
-  err_t_wrap (pgr_commit (r->pager, cur.dl.raw, cur.pg, e), e);
+  dl_set_next (&cur->dl, last_link);
+  err_t_wrap (pgr_write (r->pager, cur, e), e);
 
   return SUCCESS;
 }

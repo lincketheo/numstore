@@ -16,9 +16,9 @@ typedef struct lalloc_s
 
 lalloc lalloc_create (u8 *data, u32 limit);
 
-lalloc lalloc_reserve_remaining (lalloc *from);
+u32 lalloc_get_state (const lalloc *l);
 
-err_t lalloc_reserve (lalloc *dest, lalloc *from, u32 amount, error *e);
+void lalloc_reset_to_state (lalloc *l, u32 state);
 
 void *lmalloc (lalloc *a, u32 req, u32 size);
 

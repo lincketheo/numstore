@@ -1,24 +1,17 @@
 #include "compiler/parser.h"
 
-#include "compiler/stack_parser/common.h"
-#include "compiler/stack_parser/queries/create.h"
-#include "compiler/stack_parser/queries/delete.h"
-#include "compiler/stack_parser/types/enum.h"
-#include "compiler/stack_parser/types/kvt.h"
-#include "compiler/stack_parser/types/sarray.h"
-#include "compiler/tokens.h"
-#include "dev/assert.h" // DEFINE_DBG_ASSERT_I
-#include "errors/error.h"
-#include "mm/lalloc.h"
-#include "type/types.h"
+#include "dev/assert.h"  // DEFINE_DBG_ASSERT_I
+#include "dev/testing.h" // TEST
 
 DEFINE_DBG_ASSERT_I (parser, parser, p)
 {
   ASSERT (p);
   ASSERT (p->tokens_input);
-  ASSERT (p->queries_output);
+  ASSERT (p->tokens_input->cap % sizeof (token) == 0);
+  ASSERT (p->query_ptr_output->cap % sizeof (query *) == 0);
 }
 
+// The thing that you can pop off of the stack
 typedef struct
 {
   sb_build_type type;
@@ -26,51 +19,9 @@ typedef struct
   union
   {
     type t;
-    query q;
+    query *q;
   };
 } ast_result;
-
-//////////////////////////////////////////// UTILS
-
-static inline ast_parser
-parser_pop (parser *sp)
-{
-  parser_assert (sp);
-  ASSERT (sp->sp > 0);
-  return sp->stack[--sp->sp];
-}
-
-static inline ast_parser *
-parser_top (parser *sp)
-{
-  parser_assert (sp);
-  ASSERT (sp->sp > 0);
-  return &sp->stack[sp->sp - 1];
-}
-
-static inline void
-parser_push_expect (parser *p, ast_parser value)
-{
-  parser_assert (p);
-  ASSERT (p->sp < 20);
-  p->stack[p->sp++] = value;
-}
-
-static inline err_t
-parser_push (parser *p, ast_parser value, error *e)
-{
-  parser_assert (p);
-
-  if (p->sp == 20)
-    {
-      return error_causef (
-          e, ERR_NOMEM,
-          "Parser: stack overflow");
-    }
-
-  parser_push_expect (p, value);
-  return SUCCESS;
-}
 
 /**
  * Given your current state and the next token [t], what
@@ -144,7 +95,11 @@ ast_parser_expect_next (ast_parser *b, token t)
 }
 
 static inline stackp_result
-ast_parser_accept_token (ast_parser *b, token t, lalloc *alloc, error *e)
+ast_parser_accept_token (
+    ast_parser *b,
+    token t,
+    lalloc *alloc,
+    error *e)
 {
   switch (b->type)
     {
@@ -182,7 +137,7 @@ ast_parser_accept_token (ast_parser *b, token t, lalloc *alloc, error *e)
                   }
                 case TT_PRIM:
                   {
-                    b->tb.ret = (type){ .type = T_PRIM, .p = t.prim };
+                    b->tb.p = t.prim;
                     b->tb.state = TB_PRIM;
                     return SPR_DONE;
                   }
@@ -223,12 +178,16 @@ ast_parser_accept_token (ast_parser *b, token t, lalloc *alloc, error *e)
                   {
                     b->qb.state = QP_CREATE;
                     b->qb.cp = crtp_create ();
+                    b->cur = t.q;
+
                     return SPR_CONTINUE;
                   }
                 case TT_DELETE:
                   {
-                    b->qb.state = QP_CREATE;
+                    b->qb.state = QP_DELETE;
                     b->qb.dp = dltp_create ();
+                    b->cur = t.q;
+
                     return SPR_CONTINUE;
                   }
                 default:
@@ -304,8 +263,10 @@ ast_parser_accept_type (ast_parser *b, type t, error *e)
 }
 
 static inline stackp_result
-ast_parser_build (ast_parser *b, lalloc *destination, error *e)
+ast_parser_build (ast_parser *b, ast_result *dest, error *e)
 {
+  dest->type = b->type;
+
   switch (b->type)
     {
     case SBBT_TYPE:
@@ -314,22 +275,40 @@ ast_parser_build (ast_parser *b, lalloc *destination, error *e)
           {
           case TB_STRUCT:
             {
-              return kvp_build_struct (&b->tb.ret.st, &b->tb.kvp, destination, e);
+              dest->t.type = T_STRUCT;
+              return kvp_build_struct (
+                  &dest->t.st,
+                  &b->tb.kvp,
+                  &b->cur->alloc, e);
             }
           case TB_UNION:
             {
-              return kvp_build_union (&b->tb.ret.un, &b->tb.kvp, destination, e);
+              dest->t.type = T_UNION;
+              return kvp_build_union (
+                  &dest->t.un,
+                  &b->tb.kvp,
+                  &b->cur->alloc, e);
             }
           case TB_ENUM:
             {
-              return enp_build (&b->tb.ret.en, &b->tb.enp, destination, e);
+              dest->t.type = T_ENUM;
+              return enp_build (
+                  &dest->t.en,
+                  &b->tb.enp,
+                  &b->cur->alloc, e);
             }
           case TB_SARRAY:
             {
-              return sap_build (&b->tb.ret.sa, &b->tb.sap, destination, e);
+              dest->t.type = T_SARRAY;
+              return sap_build (
+                  &dest->t.sa,
+                  &b->tb.sap,
+                  &b->cur->alloc, e);
             }
           case TB_PRIM:
             {
+              dest->t.type = T_PRIM;
+              dest->t.p = b->tb.p;
               return SPR_DONE;
             }
           default:
@@ -344,11 +323,15 @@ ast_parser_build (ast_parser *b, lalloc *destination, error *e)
           {
           case QP_CREATE:
             {
-              return crtp_build (&b->qb.ret.cquery, &b->qb.cp, e);
+              ASSERT (b->cur->type == QT_CREATE);
+              dest->q = b->cur;
+              return crtp_build (dest->q->create, &b->qb.cp, e);
             }
           case QP_DELETE:
             {
-              return dltp_build (&b->qb.ret.dquery, &b->qb.dp, e);
+              ASSERT (b->cur->type == QT_DELETE);
+              dest->q = b->cur;
+              return dltp_build (dest->q->delete, &b->qb.dp, e);
             }
           default:
             {
@@ -363,7 +346,79 @@ ast_parser_build (ast_parser *b, lalloc *destination, error *e)
     }
 }
 
-stackp_result
+//////////////////////////////////////////// UTILS
+
+static inline stackp_result
+parser_pop (parser *sp, ast_result *dest, error *e)
+{
+  parser_assert (sp);
+  ASSERT (sp->sp > 0);
+  ast_parser top = sp->stack[--sp->sp];
+  stackp_result ret = ast_parser_build (&top, dest, e);
+  lalloc_reset_to_state (&sp->working_space, top.alloc_start);
+  return ret;
+}
+
+static inline ast_parser *
+parser_top_ref (parser *sp)
+{
+  parser_assert (sp);
+  ASSERT (sp->sp > 0);
+  return &sp->stack[sp->sp - 1];
+}
+
+static inline void
+parser_push_expect (parser *p, ast_parser value)
+{
+  parser_assert (p);
+  ASSERT (p->sp < 20);
+  p->stack[p->sp++] = value;
+}
+
+static inline err_t
+parser_push_type_parser (parser *p, query *cur, error *e)
+{
+  parser_assert (p);
+
+  if (p->sp == 20)
+    {
+      return error_causef (
+          e, ERR_NOMEM,
+          "Parser: stack overflow");
+    }
+
+  ast_parser value = {
+    .tb = (type_parser){
+        .state = TB_UNKNOWN,
+    },
+    .type = SBBT_TYPE,
+    .cur = cur,
+    .alloc_start = lalloc_get_state (&p->working_space),
+  };
+
+  parser_push_expect (p, value);
+  return SUCCESS;
+}
+
+static void
+parser_push_query_parser (parser *sp)
+{
+  parser_assert (sp);
+  ASSERT (sp->sp == 0);
+
+  ast_parser top = {
+    .qb = (query_parser){
+        .state = QP_UNKNOWN,
+    },
+    .type = SBBT_QUERY,
+    .cur = NULL,
+    .alloc_start = lalloc_get_state (&sp->working_space),
+  };
+  parser_push_expect (sp, top);
+}
+
+//////////////////////////////////////////// Main Subroutines
+static stackp_result
 parser_feed_token (parser *tp, token t, error *e)
 {
   parser_assert (tp);
@@ -374,7 +429,7 @@ parser_feed_token (parser *tp, token t, error *e)
    * stack - and ask: "Hey parser, do you
    * want a token or a type next?"
    */
-  ast_parser *top = parser_top (tp);
+  ast_parser *top = parser_top_ref (tp);
   sb_feed_t exp = ast_parser_expect_next (top, t);
 
   /**
@@ -385,28 +440,24 @@ parser_feed_token (parser *tp, token t, error *e)
    */
   if (exp == SBFT_TYPE)
     {
-      ast_parser _next = {
-        .tb = (type_parser){
-            .state = TB_UNKNOWN,
-        },
-        .type = SBBT_TYPE,
-      };
-
-      err_t ret = parser_push (tp, _next, e);
-      if (ret)
+      err_t ret = parser_push_type_parser (tp, top->cur, e);
+      if (ret < 0)
         {
           return (stackp_result)ret;
         }
 
-      top = parser_top (tp);
+      // Get the new top
+      top = parser_top_ref (tp);
 
+      // It definitely wants a token this time
       ASSERT (ast_parser_expect_next (top, t) == SBFT_TOKEN);
     }
 
-  /**
-   * Give the top ast parser a token
-   */
-  stackp_result ret = ast_parser_accept_token (top, t, &tp->working_space, e);
+  // Give the top a token
+  stackp_result ret = ast_parser_accept_token (
+      top, t,
+      &tp->working_space, e);
+
   if (ret < 0)
     {
       return ret;
@@ -423,12 +474,8 @@ parser_feed_token (parser *tp, token t, error *e)
   while (tp->sp > 1 && ret == SPR_DONE)
     {
       // Pop the top off the stack
-      ast_parser top = parser_pop (tp);
-
-      /**
-       * And call it's build routine
-       */
-      ret = ast_parser_build (&top, &tp->ctrl->types_alloc, e);
+      ast_result top;
+      ret = parser_pop (tp, &top, e);
       if (ret < 0)
         {
           return ret;
@@ -440,9 +487,25 @@ parser_feed_token (parser *tp, token t, error *e)
       ASSERT (ret == SPR_DONE);
 
       /**
-       * Merge it into the next element
+       * Merge whatever we just built
+       * into the next element
        */
-      ret = ast_parser_accept_type (&tp->stack[tp->sp - 1], top.tb.ret, e);
+      switch (top.type)
+        {
+        case SBBT_TYPE:
+          {
+            ret = ast_parser_accept_type (
+                &tp->stack[tp->sp - 1], top.t, e);
+            break;
+          }
+        case SBBT_QUERY:
+          {
+            // Don't support recursive queries yet
+            panic ();
+            break;
+          }
+        }
+
       if (ret < 0)
         {
           return ret;
@@ -453,35 +516,24 @@ parser_feed_token (parser *tp, token t, error *e)
   return ret;
 }
 
-void
-parser_begin (parser *sp)
-{
-  parser_assert (sp);
-  ASSERT (sp->sp == 0);
-
-  ast_parser top = {
-    .qb = (query_parser){
-        .state = QP_UNKNOWN,
-    },
-    .type = SBBT_QUERY,
-  };
-  parser_push_expect (sp, top);
-}
-
 /**
  * Asserts that the stack is one element high
  * and the only element that lives on it is
  * done and valid
  */
 static inline err_t
-parser_get (query *dest, parser *sp, error *e)
+parser_get (query **dest, parser *sp, error *e)
 {
   parser_assert (sp);
   ASSERT (sp->sp == 1);
 
-  ast_parser top = parser_pop (sp);
+  /**
+   * Pop the last element off the stack -
+   * it should be a query
+   */
+  ast_result top;
+  stackp_result res = parser_pop (sp, &top, e);
   ASSERT (top.type == SBBT_QUERY);
-  stackp_result res = ast_parser_build (&top, &sp->ctrl->types_alloc, e);
 
   switch (res)
     {
@@ -494,7 +546,7 @@ parser_get (query *dest, parser *sp, error *e)
       }
     case SPR_CONTINUE:
       {
-        UNREACHABLE ();
+        UNREACHABLE (); // The last query should be done
       }
     default:
       {
@@ -502,86 +554,86 @@ parser_get (query *dest, parser *sp, error *e)
       }
     }
 
-  *dest = top.qb.ret;
+  *dest = top.q;
 
   return SUCCESS;
-}
-
-void
-parser_release (parser *t)
-{
-  parser_assert (t);
-}
-
-void
-parser_create (
-    parser *dest,
-    cbuffer *tokens_input,
-    cbuffer *queries_output,
-    stmtctrl *ctrl)
-{
-  *dest = (parser){
-    .tokens_input = tokens_input,
-    .queries_output = queries_output,
-
-    .sp = 0,
-
-    .working_space = lalloc_create_from (dest->_working_space),
-
-    .ctrl = ctrl,
-  };
-
-  parser_begin (dest);
-
-  parser_assert (dest);
 }
 
 static inline err_t
 parser_write_out (parser *p, error *e)
 {
-  query res;
+  query *res;
 
   err_t_wrap (parser_get (&res, p, e), e);
+  parser_push_query_parser (p);
 
-  u32 written = cbuffer_write (&res, sizeof res, 1, p->queries_output);
+  u32 written = cbuffer_write (&res, sizeof res, 1, p->query_ptr_output);
   ASSERT (written == 1);
 
   return SUCCESS;
 }
 
-void
-parser_execute (parser *p)
+static err_t
+parser_feed_and_translate_token (parser *p, token tok, error *e)
 {
-  parser_assert (p);
+  i_log_trace ("Parser got token: %s\n", tt_tostr (tok.type));
 
-  switch (p->ctrl->state)
+  switch (parser_feed_token (p, tok, e))
     {
-    case STCTRL_ERROR:
+    case SPR_DONE:
       {
-        // Discard elements
-        cbuffer_discard_all (p->tokens_input);
-        return;
+        err_t_wrap (parser_write_out (p, e), e);
+        return SUCCESS;
       }
-    case STCTRL_WRITING:
+    case SPR_CONTINUE:
       {
-        // Expect to be done
-        ASSERT (cbuffer_len (p->tokens_input) == 0);
-        return;
+        return SUCCESS; // Do nothing
       }
-    case STCTRL_EXECTUING:
+    case SPR_NOMEM:
+    case SPR_SYNTAX_ERROR:
       {
-        break;
+        return err_t_from (e);
       }
     }
+  UNREACHABLE ();
+}
+
+//////////////////////////////////////////// Main Methods
+void
+parser_create (
+    parser *dest,
+    cbuffer *tokens_input,
+    cbuffer *query_ptr_output)
+{
+  *dest = (parser){
+    .tokens_input = tokens_input,
+    .query_ptr_output = query_ptr_output,
+
+    .sp = 0,
+
+    .working_space = lalloc_create_from (dest->_working_space),
+
+    .cur = NULL,
+  };
+
+  parser_push_query_parser (dest);
+
+  parser_assert (dest);
+}
+
+err_t
+parser_execute (parser *p, error *e)
+{
+  parser_assert (p);
 
   while (true)
     {
       /**
        * Block on downstream
        */
-      if (cbuffer_avail (p->queries_output) < sizeof (query))
+      if (cbuffer_avail (p->query_ptr_output) < sizeof (query *))
         {
-          return;
+          return SUCCESS;
         }
 
       /**
@@ -589,43 +641,13 @@ parser_execute (parser *p)
        */
       if (cbuffer_len (p->tokens_input) == 0)
         {
-          return;
+          return SUCCESS;
         }
 
       token tok;
       u32 read = cbuffer_read (&tok, sizeof tok, 1, p->tokens_input);
+      ASSERT (read > 0);
 
-      // Block on upstream
-      if (read == 0)
-        {
-          return;
-        }
-
-      i_log_trace ("Parser got token: %s\n", tt_tostr (tok.type));
-
-      switch (parser_feed_token (p, tok, &p->ctrl->e))
-        {
-        case SPR_DONE:
-          {
-            if (parser_write_out (p, &p->ctrl->e))
-              {
-                panic ();
-              }
-            break;
-          }
-        case SPR_CONTINUE:
-          {
-            continue; // Do nothing
-          }
-        case SPR_NOMEM:
-        case SPR_SYNTAX_ERROR:
-          {
-            p->sp = 0;
-            parser_begin (p);
-
-            p->ctrl->state = STCTRL_ERROR;
-            return;
-          }
-        }
+      err_t_wrap (parser_feed_and_translate_token (p, tok, e), e);
     }
 }

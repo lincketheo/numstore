@@ -1,6 +1,27 @@
 #include "compiler/tokens.h"
 
-#include "dev/assert.h" // UNREACHABLE
+#include "ast/query/query.h" // QT_...
+#include "dev/assert.h"      // UNREACHABLE
+
+query_t
+tt_to_qt (token_t t)
+{
+  switch (t)
+    {
+    case TT_CREATE:
+      {
+        return QT_CREATE;
+      }
+    case TT_DELETE:
+      {
+        return QT_DELETE;
+      }
+    default:
+      {
+        UNREACHABLE ();
+      }
+    }
+}
 
 void
 i_log_token (token t)

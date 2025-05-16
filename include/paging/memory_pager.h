@@ -1,45 +1,27 @@
 #pragma once
 
-#include "errors/error.h"
-#include "mm/lalloc.h"
-#include "intf/types.h"
+#include "config.h"      // MEMORY_PAGE_LEN
+#include "intf/types.h"  // bool
+#include "paging/page.h" // page
 
 typedef struct
 {
-  u8 *data;
-  pgno pgno;
-  int is_present;
+  page page;
+  bool is_present;
 } memory_page;
 
 typedef struct
 {
-  memory_page *pages;
-  u32 len;
-  u32 idx;
+  memory_page pages[MEMORY_PAGE_LEN];
+  u32 idx; // A rolling index - not very sophisticated yet
 } memory_pager;
-
-typedef struct
-{
-  // Allocates constant room for:
-  //  1. Room for memory_page array (len * sizeof(memory_page))
-  //  2. All pages (len * page_size)
-  lalloc *alloc;
-  u32 len; // Number of pages to store in memory
-  p_size page_size;
-} mpgr_params;
-
-/**
- * Returns:
- *  - ERR_NOMEM from allocation
- */
-err_t mpgr_create (memory_pager *dest, mpgr_params params, error *e);
 
 /**
  * Creates a new page
  * Returns:
  *   - NULL if the memory_pager is full
  */
-u8 *mpgr_new (memory_pager *p, pgno pgno);
+page *mpgr_new (memory_pager *p, pgno pgno);
 
 bool mpgr_is_full (const memory_pager *p);
 
@@ -48,7 +30,8 @@ bool mpgr_is_full (const memory_pager *p);
  * Returns:
  *   - NULL if the page doesn't exist
  */
-u8 *mpgr_get (const memory_pager *p, pgno pgno);
+page *mpgr_get_rw (memory_pager *p, pgno pgno);
+const page *mpgr_get_r (const memory_pager *p, pgno pgno);
 
 /**
  * Gets the next evictable page. [p] must be full

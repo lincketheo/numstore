@@ -60,3 +60,37 @@ create a struct { a u32, b i32, c cf128 }
 create a struct { a u32, b i32 }
 .quit
 create a struct { a u32, b i32 }
+.quit
+create a u32 
+create a struct { a u32, b i32 } 
+.quit
+create foo u32 
+.quit
+create a u32 
+.quit
+create a u32 
+.quit
+create a u32 
+.quit
+create a u32 
+.quit
+create a u32 
+.quit
+create a u32 
+.quit
+create a u32 
+.quit
+create a u32 
+create a struct { a u32 } 
+.quit
+create a struct { a u32 } 
+.quit
+create a struct { a u32 } 
+.quit
+create a struct { foo u32, bar cf128 } 
+.quit
+create a struct { foo u32, bar cf128 } 
+create a struct { foo u32, bar struct { biz i32, baz struct { i u32, b cf128 } } }
+create a u32 
+create a struct { foo u32, bar struct { biz i32, baz struct { i u32, c cf128 } } 
+.quit

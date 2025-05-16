@@ -33,7 +33,6 @@ typedef struct
 
   string evidence[10];    // Only built if alloc is not null
   u32 elen;               // Length of evidence
-  u32 ecap;               // Capacity of evidence
   struct lalloc_s *alloc; // Sweeps ERRNOMEM under the rug
 } error;
 

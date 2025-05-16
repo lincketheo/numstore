@@ -8,15 +8,13 @@ sckctrl_create (
     i_file cfd,
     struct sockaddr_in addr,
     cbuffer *recv,
-    cbuffer *send,
-    stmtctrl *ctrl)
+    cbuffer *send)
 {
   sckctrl ret = {
     .cfd = cfd,
     .addr = addr,
     .recv = recv,
     .send = send,
-    .ctrl = ctrl,
   };
   return ret;
 }

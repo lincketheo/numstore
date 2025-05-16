@@ -1,10 +1,7 @@
 #include "compiler/stack_parser/types/kvt.h"
-#include "compiler/stack_parser/common.h"
 
-#include "compiler/tokens.h"
-#include "dev/assert.h"
-#include "errors/error.h"
-#include "type/builders/kvt.h"
+#include "ast/type/builders/kvt.h" // kvt_builder
+#include "dev/assert.h"            // DEFINE_DBG_ASSERT_I
 
 ////////////////////////// DEV
 

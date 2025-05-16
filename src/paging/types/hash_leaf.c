@@ -1,26 +1,17 @@
 #include "paging/types/hash_leaf.h"
 #include "dev/assert.h"
 #include "ds/strings.h"
-#include "mm/lalloc.h"
 #include "intf/stdlib.h"
+#include "mm/lalloc.h"
 #include "paging/page.h"
 #include "paging/types/inner_node.h"
 #include "utils/hashing.h"
 #include "variables/vhash_fmt.h"
 
-#define HL_HEDR_OFFSET (0)
-#define HL_NEXT_OFFSET (HL_HEDR_OFFSET + sizeof (*((hash_leaf *)0)->header))
-#define HL_DATA_OFFSET (HL_NEXT_OFFSET + sizeof (*((hash_leaf *)0)->next))
-
 DEFINE_DBG_ASSERT_I (hash_leaf, unchecked_hash_leaf, d)
 {
   ASSERT (d);
-  ASSERT (d->raw);
-  ASSERT (d->rlen > 0);
-  ASSERT_PTR_IS_IDX (d->raw, d->header, HL_HEDR_OFFSET);
-  ASSERT_PTR_IS_IDX (d->raw, d->next, HL_NEXT_OFFSET);
-  ASSERT_PTR_IS_IDX (d->raw, d->data, HL_DATA_OFFSET);
-  ASSERT (HL_DATA_OFFSET + 10 < d->rlen);
+  ASSERT (HL_DATA_OFST + 10 < PAGE_SIZE);
 }
 
 DEFINE_DBG_ASSERT_I (hash_leaf, valid_hash_leaf, d)
@@ -48,13 +39,6 @@ hl_validate (const hash_leaf *d, error *e)
   return SUCCESS;
 }
 
-p_size
-hl_data_len (p_size page_size)
-{
-  ASSERT (page_size > HL_DATA_OFFSET);
-  return page_size - HL_DATA_OFFSET;
-}
-
 void
 hl_init_empty (hash_leaf *hl)
 {
@@ -71,27 +55,15 @@ hl_init_empty (hash_leaf *hl)
   valid_hash_leaf_assert (hl);
 }
 
-hash_leaf
-hl_set_ptrs (u8 *raw, p_size len)
+void
+hl_set_ptrs (hash_leaf *hl, u8 raw[PAGE_SIZE])
 {
-  ASSERT (raw);
-  ASSERT (len > 0);
-
-  hash_leaf ret;
-
-  // Set pointers
-  ret = (hash_leaf){
-    .raw = raw,
-    .rlen = len,
-
-    .header = (pgh *)&raw[HL_HEDR_OFFSET],
-    .next = (pgno *)&raw[HL_NEXT_OFFSET],
-    .data = (u8 *)&raw[HL_DATA_OFFSET],
+  *hl = (hash_leaf){
+    .header = (pgh *)&raw[HL_HEDR_OFST],
+    .next = (pgno *)&raw[HL_NEXT_OFST],
+    .data = (u8 *)&raw[HL_DATA_OFST],
   };
-
-  unchecked_hash_leaf_assert (&ret);
-
-  return ret;
+  unchecked_hash_leaf_assert (hl);
 }
 
 pgno

@@ -4,7 +4,7 @@
 #include "compiler/tokens.h"              // token
 #include "mm/lalloc.h"                    // lalloc
 
-#include "type/builders/enum.h" // enum_builder
+#include "ast/type/builders/enum.h" // enum_builder
 
 typedef struct
 {

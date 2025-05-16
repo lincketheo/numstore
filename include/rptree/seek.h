@@ -27,7 +27,7 @@ typedef struct
  */
 typedef struct
 {
-  page result;      // The data list page that contains our seek byte
+  page *result;     // The data list page that contains our seek byte
   b_size gidx;      // global location
   p_size lidx;      // local idx (within top node)
   seek_v stack[20]; // A stack of previous inner nodes and choices
@@ -38,14 +38,14 @@ typedef struct
  * Errors:
  *  - ERR_NOMEM - not enough memory to grow the stack
  */
-err_t seek_r_push_to_bottom (seek_r *r, page p, p_size lidx, error *e);
+err_t seek_r_push_to_bottom (seek_r *r, page *p, p_size lidx, error *e);
 
 typedef struct
 {
-  page starting_page; // Starting root page
-  b_size whereto;     // Which byte to seek to
-  u32 scap;           // Starting capacity to allocate for the stack
-  pager *pager;       // To find pages
+  page *starting_page; // Starting root page
+  b_size whereto;      // Which byte to seek to
+  u32 scap;            // Starting capacity to allocate for the stack
+  pager *pager;        // To find pages
 } seek_params;
 
 /**

@@ -1,29 +1,23 @@
 #pragma once
 
-#include "intf/io.h"
-#include "intf/types.h"
+#include "errors/error.h" // err_t
+#include "intf/io.h"      // i_file
+#include "intf/types.h"   // pgno
 
 typedef struct
 {
-  p_size page_size;
-  p_size header_size;
-  pgno npages;
-  i_file f;
+  pgno npages; // Cached so you don't need to call fsize a ton
+  i_file f;    // The file we're working with
 } file_pager;
 
-typedef struct
-{
-  i_file f;
-  p_size header_size;
-  p_size page_size;
-} fpgr_params;
-
 /**
+ * Opens [fname] as a file pager, or creates a new file with size = 0
+ *
  * Errors:
  *    - ERR_IO - fstat failure
  *    - ERR_CORRUPT - If the file is found in a bad spot on initial open
  */
-err_t fpgr_create (file_pager *dest, fpgr_params p, error *e);
+err_t fpgr_create (file_pager *dest, const string fname, error *e);
 
 /**
  * Errors:
@@ -47,4 +41,4 @@ err_t fpgr_delete (file_pager *p, pgno pgno, error *e);
  * Errors:
  *    - ERR_IO - pwrite error on page write
  */
-err_t fpgr_commit (file_pager *p, const u8 *src, pgno pgno, error *e);
+err_t fpgr_write (file_pager *p, const u8 *src, pgno pgno, error *e);

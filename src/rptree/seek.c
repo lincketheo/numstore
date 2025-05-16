@@ -20,7 +20,7 @@ seek_r_create (seek_params p)
   /**
    * Only allow inner node / data list starting nodes
    */
-  ASSERT (p.starting_page.type & (PG_INNER_NODE | PG_DATA_LIST));
+  ASSERT (p.starting_page->type & (PG_INNER_NODE | PG_DATA_LIST));
 
   seek_r ret = {
     .result = p.starting_page,
@@ -33,7 +33,7 @@ seek_r_create (seek_params p)
 }
 
 static err_t
-seek_r_push_page (seek_r *r, page p, p_size lidx, error *e)
+seek_r_push_page (seek_r *r, page *p, p_size lidx, error *e)
 {
   seek_r_assert (r);
 
@@ -45,7 +45,7 @@ seek_r_push_page (seek_r *r, page p, p_size lidx, error *e)
     }
 
   r->stack[r->sp++] = (seek_v){
-    .pg = p.pg,
+    .pg = p->pg,
     .lidx = lidx,
   };
 
@@ -53,7 +53,7 @@ seek_r_push_page (seek_r *r, page p, p_size lidx, error *e)
 }
 
 err_t
-seek_r_push_to_bottom (seek_r *r, page p, p_size lidx, error *e)
+seek_r_push_to_bottom (seek_r *r, page *p, p_size lidx, error *e)
 {
   seek_r_assert (r);
 
@@ -76,7 +76,7 @@ seek_r_push_to_bottom (seek_r *r, page p, p_size lidx, error *e)
    * Push result to the bottom
    */
   r->stack[0] = (seek_v){
-    .pg = p.pg,
+    .pg = p->pg,
     .lidx = lidx,
   };
 
@@ -94,7 +94,7 @@ seek_recursive_inner_node (seek_r *s, b_size byte, pager *pager, error *e)
    * First, pick the index of the leaf we want
    * to traverse
    */
-  p_size lidx = in_choose_lidx (&s->result.in, byte);
+  p_size lidx = in_choose_lidx (&s->result->in, byte);
 
   /**
    * Push it onto the top of the stack
@@ -104,8 +104,8 @@ seek_recursive_inner_node (seek_r *s, b_size byte, pager *pager, error *e)
   /**
    * Fetch the key and value at that location
    */
-  pgno next = in_get_leaf (&s->result.in, lidx);
-  b_size nleft = lidx > 0 ? in_get_key (&s->result.in, lidx - 1) : 0;
+  pgno next = in_get_leaf (&s->result->in, lidx);
+  b_size nleft = lidx > 0 ? in_get_key (&s->result->in, lidx - 1) : 0;
 
   /**
    * We are "skipping" [nleft] bytes so add that
@@ -122,12 +122,12 @@ seek_recursive_inner_node (seek_r *s, b_size byte, pager *pager, error *e)
    * Fetch the next page, which can either be
    * an inner node or a data list
    */
-  err_t_wrap (
-      pgr_get_expect (
-          &s->result,
-          PG_INNER_NODE | PG_DATA_LIST,
-          next, pager, e),
-      e);
+  s->result = pgr_get_expect_rw (
+      PG_INNER_NODE | PG_DATA_LIST, next, pager, e);
+  if (s->result == NULL)
+    {
+      return err_t_from (e);
+    }
 
   return seek_recursive (s, byte, pager, e);
 }
@@ -141,9 +141,9 @@ seek_recursive_data_list (seek_r *s, b_size byte)
    * Clip the byte to the maximum of this node
    * Otherwise, set it to the requested byte
    */
-  if ((p_size)byte >= dl_used (&s->result.dl))
+  if ((p_size)byte >= dl_used (&s->result->dl))
     {
-      s->lidx = dl_used (&s->result.dl);
+      s->lidx = dl_used (&s->result->dl);
     }
   else
     {
@@ -159,7 +159,7 @@ seek_recursive_data_list (seek_r *s, b_size byte)
 static err_t
 seek_recursive (seek_r *s, b_size byte, pager *pager, error *e)
 {
-  switch (s->result.type)
+  switch (s->result->type)
     {
     case PG_INNER_NODE:
       {
@@ -175,7 +175,7 @@ seek_recursive (seek_r *s, b_size byte, pager *pager, error *e)
         /**
          * pgr_get_expect protects us from this branch
          */
-        crash ();
+        UNREACHABLE ();
       }
     }
 }

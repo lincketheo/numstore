@@ -20,7 +20,7 @@
 typedef struct
 {
   p_size idx0; // The current page we are replacing
-  page pg0;
+  page *pg0;
   pager *pager;
   lalloc *alloc;
   mem_inner_node input;

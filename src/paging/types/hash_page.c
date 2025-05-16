@@ -1,20 +1,13 @@
 #include "paging/types/hash_page.h"
-#include "dev/assert.h"
-#include "errors/error.h"
-#include "intf/stdlib.h"
-#include "paging/page.h"
-#include "utils/hashing.h"
 
-#define HP_HEDR_OFFSET (0)
-#define HP_HASH_OFFSET (HP_HEDR_OFFSET + sizeof (*((hash_page *)0)->hashes))
+#include "dev/assert.h"    // DEFINE_DBG_ASSERT_I
+#include "intf/stdlib.h"   // i_memset
+#include "paging/page.h"   // PG_HASH_PAGE
+#include "utils/hashing.h" // fnv1a_hash
 
 DEFINE_DBG_ASSERT_I (hash_page, unchecked_hash_page, d)
 {
   ASSERT (d);
-  ASSERT (d->raw);
-  ASSERT (d->rlen > 0);
-  ASSERT_PTR_IS_IDX (d->raw, d->header, HP_HEDR_OFFSET);
-  ASSERT_PTR_IS_IDX (d->raw, d->hashes, HP_HASH_OFFSET);
 }
 
 DEFINE_DBG_ASSERT_I (hash_page, valid_hash_page, d)
@@ -47,53 +40,32 @@ hp_init_empty (hash_page *hp)
 {
   unchecked_hash_page_assert (hp);
   *hp->header = PG_HASH_PAGE;
-  i_memset (hp->hashes, 0, hp_hash_len (hp->rlen) * sizeof *hp->hashes);
+  i_memset (hp->hashes, 0, HP_NHASHES * sizeof *hp->hashes);
   valid_hash_page_assert (hp);
 }
 
-hash_page
-hp_set_ptrs (u8 *raw, p_size len)
+void
+hp_set_ptrs (hash_page *hp, u8 raw[PAGE_SIZE])
 {
-  ASSERT (raw);
-  ASSERT (len > 0);
-
-  hash_page ret;
-
-  // Set pointers
-  ret = (hash_page){
-    .raw = raw,
-    .rlen = len,
-    .header = (pgh *)&raw[HP_HEDR_OFFSET],
-    .hashes = (pgno *)&raw[HP_HASH_OFFSET],
+  *hp = (hash_page){
+    .header = (pgh *)&raw[HP_HEDR_OFST],
+    .hashes = (pgno *)&raw[HP_HASH_OFST],
   };
-
-  unchecked_hash_page_assert (&ret);
-
-  return ret;
-}
-
-p_size
-hp_hash_len (p_size page_size)
-{
-  ASSERT (page_size > HP_HASH_OFFSET);
-  p_size bytes = page_size - HP_HASH_OFFSET;
-  p_size len = bytes / sizeof (pgno);
-  ASSERT (len > 0);
-  return len;
+  unchecked_hash_page_assert (hp);
 }
 
 p_size
 hp_get_hash_pos (const hash_page *p, const string str)
 {
   valid_hash_page_assert (p);
-  return fnv1a_hash (str) % hp_hash_len (p->rlen);
+  return fnv1a_hash (str) % HP_NHASHES;
 }
 
 pgno
 hp_get_pgno (const hash_page *p, p_size pos)
 {
   valid_hash_page_assert (p);
-  ASSERT (pos < hp_hash_len (p->rlen));
+  ASSERT (pos < HP_NHASHES);
   return p->hashes[pos];
 }
 
@@ -101,6 +73,6 @@ void
 hp_set_hash (hash_page *p, p_size pos, pgno pg)
 {
   valid_hash_page_assert (p);
-  ASSERT (pos < hp_hash_len (p->rlen));
+  ASSERT (pos < HP_NHASHES);
   p->hashes[pos] = pg;
 }

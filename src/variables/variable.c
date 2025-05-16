@@ -1,10 +1,5 @@
 #include "variables/variable.h"
 #include "dev/assert.h"
-#include "errors/error.h"
-#include "mm/lalloc.h"
-#include "type/types.h"
-#include "utils/deserializer.h"
-#include "utils/serializer.h"
 
 DEFINE_DBG_ASSERT_I (var_hash_entry, var_hash_entry, v)
 {
@@ -17,29 +12,25 @@ DEFINE_DBG_ASSERT_I (var_hash_entry, var_hash_entry, v)
 }
 
 err_t
-vm_to_vhe (
+var_hash_entry_create (
     var_hash_entry *dest,
-    string vname,
-    vmeta src,
-    lalloc *tstr_allocator,
+    const variable *src,
+    lalloc *alloc,
     error *e)
 {
   ASSERT (dest);
-  ASSERT (vname.len > 0);
-  ASSERT (vname.data);
+  ASSERT (src);
+  ASSERT (src->vname.len > 0);
+  ASSERT (src->vname.data);
 
   /**
    * Get the output buffer size for
    * type string
    */
-  u32 tlen = type_byte_size (&src.type);
+  u32 tlen = type_byte_size (&src->type);
   ASSERT (tlen > 0);
 
-  /**
-   * Allocate tstr
-   */
-
-  void *tstr = lmalloc (tstr_allocator, tlen, 1);
+  void *tstr = lmalloc (alloc, tlen, 1);
   if (tstr == NULL)
     {
       return error_causef (
@@ -48,13 +39,13 @@ vm_to_vhe (
     }
 
   serializer s = srlizr_create (tstr, tlen);
-  type_serialize (&s, &src.type);
+  type_serialize (&s, &src->type);
 
-  dest->vstr = vname.data;
-  dest->vlen = vname.len;
+  dest->vstr = src->vname.data;
+  dest->vlen = src->vname.len;
   dest->tstr = tstr;
   dest->tlen = tlen;
-  dest->pg0 = src.pgn0;
+  dest->pg0 = src->pg0;
 
   var_hash_entry_assert (dest);
 
@@ -62,21 +53,24 @@ vm_to_vhe (
 }
 
 err_t
-vhe_to_vm (
-    vmeta *dmeta,
+var_hash_entry_deserialize (
+    variable *dest,
     const var_hash_entry *src,
-    lalloc *type_allocator,
+    lalloc *alloc,
     error *e)
 {
-  ASSERT (dmeta);
   var_hash_entry_assert (src);
 
   type t;
   deserializer d = dsrlizr_create (src->tstr, src->tlen);
-  err_t_wrap (type_deserialize (&t, &d, type_allocator, e), e);
+  err_t_wrap (type_deserialize (&t, &d, alloc, e), e);
 
-  dmeta->pgn0 = src->pg0;
-  dmeta->type = t;
+  dest->pg0 = src->pg0;
+  dest->type = t;
+  dest->vname = (string){
+    .data = src->vstr,
+    .len = src->vlen,
+  };
 
   return SUCCESS;
 }

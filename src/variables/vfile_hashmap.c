@@ -1,18 +1,8 @@
 #include "variables/vfile_hashmap.h"
 
-#include "dev/assert.h"
-#include "ds/strings.h"
 #include "errors/error.h"
-#include "intf/logging.h"
-#include "intf/stdlib.h"
 #include "mm/lalloc.h"
-#include "paging/file_pager.h"
-#include "paging/page.h"
-#include "paging/pager.h"
-#include "paging/types/hash_leaf.h"
-#include "paging/types/hash_page.h"
-#include "variables/variable.h"
-#include "variables/vhash_fmt.h"
+#include "variables/vhash_fmt.h" // vread_hash_fmt
 
 DEFINE_DBG_ASSERT_I (vfile_hashmap, vfile_hashmap, v)
 {
@@ -63,6 +53,15 @@ vfhm_create_hashmap (vfile_hashmap *h, error *e)
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
+/**
+ * Finds the starting leaf for the variable
+ * with key name [key]
+ * Errors:
+ *    - ERR_IO / ERR_CORRUPT (pgr_get_expect) - e.g. leaf page
+ *      says it exists on page 0 but doesn't or page 0 doesn't
+ *      exist
+ *    - ERR_DOESNT_EXIST - Leaf doesn't exist
+ */
 static err_t
 vfhmg_fetch_starting_leaf (
     page *leaf,       // Destination for the leaf
@@ -163,7 +162,6 @@ vfhmg_scroll_leafs (
                     *result = v;
                     return SUCCESS;
                   }
-                vrhfmt_reset (&v);
               }
             break;
           }
@@ -208,7 +206,7 @@ vfhmg_scroll_leafs (
 err_t
 vfhm_get (
     const vfile_hashmap *h,
-    vmeta *dest,
+    variable *dest,
     const string key,
     lalloc *alloc,
     error *e)
@@ -232,20 +230,15 @@ vfhm_get (
   /**
    * Convert the reader to a var_hash_entry
    */
-  var_hash_entry result = (var_hash_entry){
-    .vstr = entry.vstr,
-    .vlen = entry.vstrlen,
-    .tstr = entry.tstr,
-    .tlen = entry.tstrlen,
-    .pg0 = entry.pg0,
-  };
+  var_hash_entry result = vrhfmt_consume (&entry);
 
   /**
    * Convert to a variable meta
    */
-  err_t ret = vhe_to_vm (dest, &result, alloc, e);
+  err_t ret = var_hash_entry_deserialize (dest, &result, alloc, e);
   if (ret == ERR_TYPE_DESER)
     {
+      // Treat invalid serialize methods as corrupt
       return error_change_causef (
           e, ERR_CORRUPT,
           "VHash Map: "
@@ -295,7 +288,7 @@ vfhmi_fetch_starting_leaf (
        * Save the starting node of the hash page
        */
       hp_set_hash (&hp.hp, hpos, leaf.pg);
-      err_t_wrap (pgr_commit (h->pager, hp.hp.raw, hp.pg, e), e);
+      err_t_wrap (pgr_write (h->pager, hp.hp.raw, hp.pg, e), e);
     }
   else
     {
@@ -319,22 +312,20 @@ vfhmi_scroll_to_eof (
     p_size *dest_ppos, // The local page pos at the end
     pager *p,          // Used to fetch pages
     const string key,  // Used to check for dupes
+    lalloc *alloc,     // allocator to read temporary tstr / vstr
     error *e)
 {
   ASSERT (dest_pg->type == PG_HASH_LEAF);
   page leaf = *dest_pg;
-
-  u8 working[MAX_VSTR + MAX_TSTR];
-  lalloc alloc = lalloc_create (working, sizeof (working));
 
   /**
    * Create a deserializer to scan the variables
    * first to find duplicates or the end (very similar
    * to the get routine)
    */
-  vread_hash_fmt v = vrhfmt_create (&alloc); // The reader
-  p_size pos = 0;                            // Local position on page
-  p_size dlen = hl_data_len (leaf.hl.rlen);  // Save byte length of leaf
+  vread_hash_fmt v = vrhfmt_create (alloc); // The reader
+  p_size pos = 0;                           // Local position on page
+  p_size dlen = hl_data_len (leaf.hl.rlen); // Save byte length of leaf
 
   while (v.state != VHFMT_EOF)
     {
@@ -350,7 +341,7 @@ vfhmi_scroll_to_eof (
           }
         case VHFMT_EOF:
           {
-            UNREACHABLE ();
+            UNREACHABLE (); // Checked in loop condition
             break;
           }
         case VHFMT_DONE:
@@ -366,6 +357,7 @@ vfhmi_scroll_to_eof (
                   .len = v.vstrlen,
                 };
                 bool equal = string_equal (vstr, key);
+
                 vrhfmt_reset (&v);
 
                 if (equal)
@@ -395,8 +387,9 @@ vfhmi_scroll_to_eof (
                      * so this is corrupt because there should be
                      * more
                      */
-                    vrhfmt_reset (&v);
-                    return error_causef (e, ERR_CORRUPT, "Hash Leaf expecting next page");
+                    return error_causef (
+                        e, ERR_CORRUPT,
+                        "Hash Leaf expecting next page");
                   }
 
                 err_t_wrap (pgr_get_expect (&leaf, PG_HASH_LEAF, next, p, e), e);
@@ -415,6 +408,7 @@ vfhmi_scroll_to_eof (
         }
     }
 
+  vrhfmt_reset (&v);
   ASSERT (v.state == VHFMT_EOF);
   ASSERT (v.pos == 1); // vrhfmt reads the first byte to determine eof
   ASSERT (pos > 0);
@@ -460,14 +454,14 @@ vfhmi_write_variable_here (
               err_t_wrap (pgr_new (&nextp, p, PG_HASH_LEAF, e), e);
 
               hl_set_next (&leaf.hl, nextp.pg);
-              err_t_wrap (pgr_commit (p, leaf.hl.raw, leaf.pg, e), e);
+              err_t_wrap (pgr_write (p, leaf.hl.raw, leaf.pg, e), e);
 
               leaf = nextp;
               pos = 0;
             }
           else
             {
-              err_t_wrap (pgr_commit (p, leaf.hl.data, leaf.pg, e), e);
+              err_t_wrap (pgr_write (p, leaf.hl.data, leaf.pg, e), e);
               err_t_wrap (pgr_get_expect (&leaf, PG_HASH_LEAF, next, p, e), e);
             }
 
@@ -486,39 +480,50 @@ vfhmi_write_variable_here (
 err_t
 vfhm_insert (
     vfile_hashmap *h,
-    const string key,
-    vmeta value,
+    const variable var,
+    lalloc *alloc,
     error *e)
 {
   page leaf;
   var_hash_entry entry;
+  err_t ret = SUCCESS;
 
-  // Stores the serialized variable from [key, value]
-  u8 vspace[MAX_VSTR + MAX_TSTR];
-  lalloc myvar = lalloc_create (vspace, sizeof (vspace));
-
-  /**
-   * Convert the variable meta info into
-   * a var hash entry
-   */
-  err_t_wrap (vm_to_vhe (&entry, key, value, &myvar, e), e);
+  u32 alloc_state = lalloc_get_state (alloc); // to reset at the end
 
   /**
-   * Create or get the starting hash leaf
-   * page for this key
+   * First, Convert the variable into a var hash entry
    */
-  err_t_wrap (vfhmi_fetch_starting_leaf (&leaf, h, key, e), e);
+  if ((ret = var_hash_entry_create (&entry, &var, alloc, e)))
+    {
+      goto theend;
+    }
+
+  /**
+   * Then create or get the starting hash leaf page for this key
+   */
+  if ((ret = vfhmi_fetch_starting_leaf (&leaf, h, var.vname, e)))
+    {
+      goto theend;
+    }
 
   /**
    * Scroll to the end of the variable entries
    */
-  p_size pos; // Local page position
-  err_t_wrap (vfhmi_scroll_to_eof (&leaf, &pos, h->pager, key, e), e);
+  p_size pos;
+  if ((ret = vfhmi_scroll_to_eof (&leaf, &pos, h->pager, var.vname, alloc, e)))
+    {
+      goto theend;
+    }
 
   /**
    * Write the variable to the end
    */
-  err_t_wrap (vfhmi_write_variable_here (h->pager, entry, leaf, pos, e), e);
+  if ((ret = vfhmi_write_variable_here (h->pager, entry, leaf, pos, e)))
+    {
+      goto theend;
+    }
 
-  return SUCCESS;
+theend:
+  lalloc_reset_to_state (alloc, alloc_state);
+  return ret;
 }

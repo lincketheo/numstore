@@ -29,29 +29,16 @@ lalloc_create (u8 *data, u32 limit)
   return ret;
 }
 
-lalloc
-lalloc_reserve_remaining (lalloc *from)
+u32
+lalloc_get_state (const lalloc *l)
 {
-  lalloc_assert (from);
-  u32 avail = from->limit - from->used;
-  return lalloc_create (from->data + from->used, avail);
+  return l->used;
 }
 
-err_t
-lalloc_reserve (lalloc *dest, lalloc *from, u32 amount, error *e)
+void
+lalloc_reset_to_state (lalloc *l, u32 state)
 {
-  lalloc_assert (from);
-  ASSERT (dest);
-  ASSERT (amount > 0);
-  u32 avail = from->limit - from->used;
-  if (amount > avail)
-    {
-      return error_causef (e, ERR_NOMEM, "Failed to reserve memory");
-    }
-  *dest = lalloc_create (from->data + from->used, amount);
-  from->used += amount;
-  lalloc_assert (dest);
-  return SUCCESS;
+  l->used = state;
 }
 
 void *

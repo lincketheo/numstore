@@ -1,10 +1,10 @@
 #pragma once
 
+#include "ast/type/types.h"               // type
 #include "compiler/stack_parser/common.h" // stackp_result
 #include "compiler/tokens.h"              // token
-#include "type/types.h"                   // type
 
-#include "type/builders/kvt.h" // kvt_builder
+#include "ast/type/builders/kvt.h" // kvt_builder
 
 typedef struct
 {

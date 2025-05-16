@@ -1,94 +1,67 @@
 #include "rptree/rptree.h"
 
-#include "dev/assert.h"
-#include "errors/error.h"
-#include "intf/stdlib.h"
-#include "mm/lalloc.h"
-#include "paging/page.h"
-#include "paging/pager.h"
-#include "paging/types/data_list.h"
-#include "paging/types/inner_node.h"
-#include "rptree/dliacin.h"
-#include "rptree/iniacin.h"
-#include "rptree/mem_inner_node.h"
-#include "rptree/seek.h"
+#include "dev/assert.h"             // DEFINE_DBG_ASSERT_I
+#include "paging/types/data_list.h" // dl_get_next
+#include "rptree/dliacin.h"         // dliacin
+#include "rptree/iniacin.h"         // iniacin
 
 DEFINE_DBG_ASSERT_I (rptree, rptree, r)
 {
   ASSERT (r);
-  if (!r->is_open)
-    {
-      ASSERT (!r->is_seeked);
-    }
 }
 
 //////////////////////////////// LIFECYCLE
 
 err_t
-rpt_create (rptree *dest, rpt_params p, error *e)
+rpt_open_new (rptree *dest, pgno *p0, pager *p, error *e)
 {
-  rptree ret = {
-    .gidx = 0,          // meaningless if !is_open
-    .lidx = 0,          // ^^
-    .cur = (page){ 0 }, // ^^
-    .is_open = false,
+  ASSERT (dest);
 
-    // r->seek // Nothing
+  page *start = pgr_new (p, PG_DATA_LIST, e);
+  if (start == NULL)
+    {
+      return err_t_from (e);
+    }
+
+  *dest = (rptree){
+    .gidx = 0,
+    .lidx = 0,
+    .cur = start,
     .is_seeked = false,
-
-    .pager = p.pager,
+    .pager = p,
   };
 
-  u32 space = p.pager->page_size + 2048;
-  err_t_wrap (lalloc_reserve (&ret.espace_alloc, p.alloc, space, e), e);
-  *dest = ret;
+  *p0 = start->pg;
 
-  rptree_assert (&ret);
+  rptree_assert (dest);
 
   return SUCCESS;
 }
 
 err_t
-rpt_new (pgno *dest, rptree *r, error *e)
+rpt_open_existing (rptree *dest, pgno p0, pager *p, error *e)
 {
-  rptree_assert (r);
-  ASSERT (!r->is_open);
+  ASSERT (dest);
 
-  err_t_wrap (pgr_new (&r->cur, r->pager, PG_DATA_LIST, e), e);
+  page *start = pgr_get_expect_rw (
+      PG_INNER_NODE | PG_DATA_LIST, p0, p, e);
 
-  *dest = r->cur.pg;
-  r->is_open = true;
+  if (start == NULL)
+    {
+      return err_t_from (e);
+    }
+
+  *dest = (rptree){
+    .gidx = 0,
+    .lidx = 0,
+    .cur = start,
+    .is_seeked = false,
+    .pager = p,
+  };
+
+  rptree_assert (dest);
 
   return SUCCESS;
-}
-
-err_t
-rpt_open (rptree *r, pgno p0, error *e)
-{
-  rptree_assert (r);
-  ASSERT (!r->is_open);
-
-  // Fetch the root page
-  err_t_wrap (
-      pgr_get_expect (
-          &r->cur,
-          PG_INNER_NODE | PG_DATA_LIST,
-          p0, r->pager, e),
-      e);
-
-  r->is_open = true;
-
-  return SUCCESS;
-}
-
-void
-rpt_close (rptree *r)
-{
-  rptree_assert (r);
-  ASSERT (r->is_open);
-  r->is_open = false;
-  r->is_seeked = false;
-  // rpts_reset (&r->seek);
 }
 
 err_t
@@ -111,7 +84,13 @@ rpt_seek (rptree *r, b_size b, error *e)
 }
 
 err_t
-rpt_insert (const u8 *src, t_size size, b_size n, rptree *r, error *e)
+rpt_insert (
+    const u8 *src,
+    t_size size,
+    b_size n,
+    rptree *r,
+    lalloc *alloc,
+    error *e)
 {
   ASSERT (src);
   ASSERT (size > 0);
@@ -130,13 +109,16 @@ rpt_insert (const u8 *src, t_size size, b_size n, rptree *r, error *e)
   b_size btotal = n * size;
   for (u32 i = 0; i < r->seek.sp; ++i)
     {
-      page cur;
       seek_v next = r->seek.stack[i];
-      err_t_wrap (pgr_get_expect (&cur, PG_INNER_NODE, next.pg, r->pager, e), e);
-      {
-        return ret;
-      }
-      in_add_right (&cur.in, next.lidx, btotal);
+
+      page *cur = pgr_get_expect_rw (
+          PG_INNER_NODE, next.pg, r->pager, e);
+      if (cur == NULL)
+        {
+          return err_t_from (e);
+        }
+
+      in_add_right (&cur->in, next.lidx, btotal);
     }
 
   /**
@@ -149,7 +131,7 @@ rpt_insert (const u8 *src, t_size size, b_size n, rptree *r, error *e)
     .idx0 = r->lidx,
     .pg0 = r->cur,
     .pager = r->pager,
-    .alloc = &r->espace_alloc,
+    .alloc = alloc,
     .src = src,
     .size = size,
     .n = n,
@@ -161,7 +143,7 @@ rpt_insert (const u8 *src, t_size size, b_size n, rptree *r, error *e)
 
   if (input.kvlen > 0)
     {
-      page cur;
+      page *cur;
       p_size from;
 
       if (sp == 0)
@@ -171,7 +153,11 @@ rpt_insert (const u8 *src, t_size size, b_size n, rptree *r, error *e)
            * need more room, create a new root node and push it
            * onto the stack
            */
-          err_t_wrap (pgr_new (&cur, r->pager, PG_INNER_NODE, e), e);
+          cur = pgr_new (r->pager, PG_INNER_NODE, e);
+          if (cur == NULL)
+            {
+              return err_t_from (e);
+            }
 
           err_t_wrap (seek_r_push_to_bottom (&r->seek, cur, 0, e), e);
 
@@ -183,7 +169,11 @@ rpt_insert (const u8 *src, t_size size, b_size n, rptree *r, error *e)
            * We are at an inner node, fetch that node
            */
           seek_v v = r->seek.stack[--sp];
-          err_t_wrap (pgr_get_expect (&cur, PG_INNER_NODE, v.pg, r->pager, e), e);
+          cur = pgr_get_expect_rw (PG_INNER_NODE, v.pg, r->pager, e);
+          if (cur == NULL)
+            {
+              return err_t_from (e);
+            }
 
           from = v.lidx;
         }
@@ -191,7 +181,7 @@ rpt_insert (const u8 *src, t_size size, b_size n, rptree *r, error *e)
       iniacin_params iparams = {
         .input = input,
         .idx0 = from,
-        .alloc = &r->espace_alloc,
+        .alloc = alloc,
         .pager = r->pager,
         .pg0 = cur,
       };
@@ -210,23 +200,24 @@ rpt_read_next (u8 *dest, b_size *bytes, rptree *r, error *e)
   b_size read = 0;
   while (read < *bytes)
     {
-      if (*r->cur.dl.blen == r->lidx)
+      if (dl_used (&r->cur->dl) == r->lidx)
         {
           // No more pages left, return
-          if (*r->cur.dl.next == 0)
+          if (dl_get_next (&r->cur->dl) == 0)
             {
               *bytes = read;
               return SUCCESS;
             }
 
           // Fetch the next page
-          err_t_wrap (pgr_get_expect (&r->cur, PG_DATA_LIST, *r->cur.dl.next, r->pager, e), e);
+          r->cur = pgr_get_expect_rw (
+              PG_DATA_LIST, dl_get_next (&r->cur->dl), r->pager, e);
 
           r->lidx = 0;
         }
 
       p_size _read = dl_read (
-          &r->cur.dl,
+          &r->cur->dl,
           dest ? dest + read : NULL,
           r->lidx,
           *bytes - read);

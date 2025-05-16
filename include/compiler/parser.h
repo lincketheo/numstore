@@ -1,29 +1,28 @@
 #pragma once
 
+#include "ast/query/query.h"
 #include "compiler/stack_parser/ast_parser.h" // ast_parser
-#include "stmtctrl.h"                         // stmtctrl
-
-#include "ds/cbuffer.h" // cbuffer
-#include "mm/lalloc.h"  // lalloc
+#include "ds/cbuffer.h"                       // cbuffer
+#include "mm/lalloc.h"                        // lalloc
 
 typedef struct
 {
   cbuffer *tokens_input;
-  cbuffer *queries_output;
+  cbuffer *query_ptr_output;
 
   ast_parser stack[20];
   u32 sp;
 
+  // Used for builders (linked lists etc) before they run build
   u8 _working_space[2048];
   lalloc working_space;
 
-  stmtctrl *ctrl;
+  query *cur; // Same as scanner - keep track of where to allocate things
 } parser;
 
 void parser_create (
     parser *dest,
     cbuffer *tokens_input,
-    cbuffer *queries_output,
-    stmtctrl *ctrl);
+    cbuffer *query_ptr_output);
 
-void parser_execute (parser *p);
+err_t parser_execute (parser *p, error *e);

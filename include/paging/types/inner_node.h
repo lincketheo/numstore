@@ -1,7 +1,8 @@
 #pragma once
 
-#include "errors/error.h"
-#include "intf/types.h"
+#include "config.h"       // PAGE_SIZE
+#include "errors/error.h" // err_t
+#include "intf/types.h"   // b_size
 
 /**
  * INNER NODE
@@ -27,18 +28,30 @@
  */
 typedef struct
 {
-  u8 *raw;
-  p_size rlen;
-
-  pgh *header;
+  pgh *header;   // Page header (PG_INNER_NODE)
   p_size *nkeys; // Number of keys
   pgno *leafs;   // len(leafs) == nkeys + 1
   b_size *keys;  // The keys used for rope traversal
 } inner_node;
 
+#define IN_HEDR_OFST ((p_size)0)
+#define IN_NKEY_OFST ((p_size)(IN_HEDR_OFST + sizeof (pgh)))
+#define IN_LEAF_OFST ((p_size)(IN_NKEY_OFST + sizeof (p_size)))
+
 /**
- * Checks that this is a valid node
+ * Derivation:
+ *
+ * nbytes = PAGE_SIZE - IN_LEAF_OFST
+ * N * sizeof(key) + (N + 1) * sizeof(pgno) <= nbytes
+ * N * (sizeof(key) + sizeof(pgno)) + sizeof(pgno) <= nbytes
+ * N <= (nbytes - sizeof(value))/(sizeof(key) + sizeof(value))
  */
+_Static_assert(PAGE_SIZE > IN_LEAF_OFST + 5 * sizeof (b_size) + 6 * sizeof (pgno),
+               "Inner Node: PAGE_SIZE must be > IN_LEAF_OFST plus at least 5 keys");
+#define IN_MAX_KEYS ((p_size)(((PAGE_SIZE - IN_LEAF_OFST) - sizeof (pgno)) \
+                              / (sizeof (pgno) + sizeof (p_size))))
+_Static_assert(IN_MAX_KEYS > 5, "Inner Node: IN_MAX_KEYS must be > 5");
+
 err_t in_validate (const inner_node *in, error *e);
 
 /**
@@ -66,7 +79,7 @@ void in_add_right (inner_node *node, p_size from, b_size add);
  *
  * After calling this, in_is_valid would be false because it's meaningless
  */
-inner_node in_set_initial_ptrs (u8 *raw, p_size len);
+void in_set_initial_ptrs (inner_node *in, u8 raw[PAGE_SIZE]);
 
 /**
  * Actually sets data as if this node were empty
@@ -81,14 +94,18 @@ void in_init_empty (inner_node *in);
  *
  * On Success, After calling this, in_is_valid would be true
  */
-err_t in_read_and_set_ptrs (inner_node *dest, u8 *raw, p_size len, error *e);
+err_t in_read_and_set_ptrs (inner_node *dest, u8 raw[PAGE_SIZE], error *e);
 
 /**
  * Sets klen = 1 and pushes left / right to leafs and key to keys
  *
  * After calling this, in_is_valid would be true
  */
-void in_init (inner_node *dest, b_size key, pgno left, pgno right);
+void in_init (
+    inner_node *dest,
+    b_size key,
+    pgno left,
+    pgno right);
 
 /**
  * Pushes a key and leaf to the right side of the node
@@ -118,7 +135,7 @@ void in_clip_right (inner_node *in, p_size fromkey);
  *
  * node must be in a valid state
  */
-p_size in_keys_avail (inner_node *in);
+p_size in_keys_avail (const inner_node *in);
 
 /**
  * Get number of keys
@@ -131,7 +148,7 @@ p_size in_get_nkeys (const inner_node *in);
  * node must be in a valid state
  * idx must be a valid index
  */
-b_size in_get_key (inner_node *in, p_size idx);
+b_size in_get_key (const inner_node *in, p_size idx);
 
 /**
  * Gets key at idx
@@ -139,14 +156,14 @@ b_size in_get_key (inner_node *in, p_size idx);
  * node must be in a valid state
  * idx must be a valid index
  */
-pgno in_get_leaf (inner_node *in, p_size idx);
+pgno in_get_leaf (const inner_node *in, p_size idx);
 
 /**
  * Get's the right most leaf
  */
-pgno in_get_right_most_leaf (inner_node *in);
+pgno in_get_right_most_leaf (const inner_node *in);
 
 /**
  * Get's the right most key
  */
-b_size in_get_right_most_key (inner_node *in);
+b_size in_get_right_most_key (const inner_node *in);

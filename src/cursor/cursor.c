@@ -1,4 +1,6 @@
 #include "cursor/cursor.h"
+
+#include "ast/query/query.h"
 #include "errors/error.h"
 #include "mm/lalloc.h"
 #include "rptree/rptree.h"
@@ -9,23 +11,16 @@ DEFINE_DBG_ASSERT_I (cursor, cursor, c)
   ASSERT (c);
 }
 
-err_t
-crsr_create (cursor *dest, crsr_params params, error *e)
+cursor
+crsr_open (pager *p)
 {
-  ASSERT (dest);
-
-  rpt_params p = {
-    .alloc = params.alloc,
-    .pager = params.pager,
+  cursor ret = {
+    .hm = vfhm_create (p),
+    .is_loaded = false,
   };
-  err_t_wrap (rpt_create (&dest->r, p, e), e);
 
-  dest->hm = vfhm_create (params.pager);
-  dest->is_meta_loaded = false;
-
-  cursor_assert (dest);
-
-  return SUCCESS;
+  cursor_assert (&ret);
+  return ret;
 }
 
 err_t
@@ -36,60 +31,28 @@ crsr_create_hash_table (cursor *c, error *e)
 }
 
 err_t
-crsr_create_var (cursor *c, const create_query query, error *e)
+crsr_create_var (cursor *c, query *create_q, error *e)
 {
   cursor_assert (c);
+  ASSERT (create_q->type == QT_CREATE);
   err_t ret = SUCCESS;
   pgno pg0;
 
   /**
-   * Create the rptree
+   * Create a new rptree
    */
-  err_t_wrap (rpt_new (&pg0, &c->r, e), e);
+  err_t_wrap (rpt_open_new (&c->r, &pg0, c->p, e), e);
 
   /**
    * Insert it into the variable hash table
    */
-  vmeta m = {
-    .pgn0 = pg0,
-    .type = query.type,
+  variable var = {
+    .pg0 = pg0,
+    .type = create_q->create->type,
+    .vname = create_q->create->vname,
   };
-  err_t_wrap (vfhm_insert (&c->hm, query.vname, m, e), e);
+
+  err_t_wrap (vfhm_insert (&c->hm, var, &create_q->alloc, e), e);
 
   return ret;
-}
-
-err_t
-crsr_create_and_load_var (cursor *c, const create_query query, error *e)
-{
-  err_t ret = SUCCESS;
-
-  err_t_wrap (crsr_create_var (c, query, e), e);
-
-  err_t_wrap (crsr_load_var (c, query.vname, e), e);
-
-  return ret;
-}
-
-err_t
-crsr_load_var (cursor *c, const string vname, error *e)
-{
-  cursor_assert (c);
-  ASSERT (!c->is_meta_loaded);
-  err_t ret = SUCCESS;
-
-  lalloc dest = lalloc_create (c->tstr, sizeof (c->tstr));
-  err_t_wrap (vfhm_get (&c->hm, &c->meta, vname, &dest, e), e);
-
-  c->is_meta_loaded = true;
-
-  return ret;
-}
-
-void
-crsr_unload_var (cursor *c)
-{
-  cursor_assert (c);
-  ASSERT (c->is_meta_loaded);
-  c->is_meta_loaded = false;
 }

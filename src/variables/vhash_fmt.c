@@ -3,7 +3,61 @@
 #include "intf/stdlib.h"
 #include "mm/lalloc.h"
 
+#include "dev/assert.h" // ASSERT
+#include "variables/variable.h"
+
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
+
+DEFINE_DBG_ASSERT_I (vread_hash_fmt, vread_hash_fmt, v)
+{
+  ASSERT (v);
+  switch (v->state)
+    {
+    case VHFMT_START:
+      {
+        ASSERT (v->pos == 0);
+        break;
+      }
+    case VHFMT_SCANNING:
+      {
+        ASSERT (v->pos > VHFMT_HDR_LEN + 1);
+        ASSERT (v->pos < VHFMT_HDR_LEN + 1 + v->vstrlen + v->tstrlen);
+        ASSERT (v->vidx <= v->vstrlen);
+        ASSERT (v->tidx <= v->tstrlen);
+        if (v->vidx < v->vstrlen)
+          {
+            ASSERT (v->tidx == 0);
+          }
+        if (v->is_tombstone)
+          {
+            ASSERT (v->raw == NULL);
+            ASSERT (v->vstr == NULL);
+            ASSERT (v->tstr == NULL);
+          }
+        else
+          {
+            ASSERT (v->raw);
+            ASSERT (v->vstr);
+            ASSERT (v->tstr);
+          }
+        break;
+      }
+    case VHFMT_CORRUPT:
+      {
+        break;
+      }
+    case VHFMT_DONE:
+      {
+        ASSERT (v->pos == VHFMT_HDR_LEN + 1 + v->vstrlen + v->tstrlen);
+        break;
+      }
+    case VHFMT_EOF:
+      {
+        ASSERT (v->pos == 1);
+        break;
+      }
+    }
+}
 
 vread_hash_fmt
 vrhfmt_create (lalloc *alloc)
@@ -12,18 +66,21 @@ vrhfmt_create (lalloc *alloc)
     .pos = 0,
     .alloc = alloc,
     .state = VHFMT_START,
+    .alloc_start = lalloc_get_state (alloc),
   };
 }
 
 void
 vrhfmt_reset (vread_hash_fmt *v)
 {
-  lalloc_reset (v->alloc);
+  vread_hash_fmt_assert (v);
+  lalloc_reset_to_state (v->alloc, v->alloc_start);
 }
 
 static err_t
 vrhfmt_parse_header (vread_hash_fmt *v, error *e)
 {
+  vread_hash_fmt_assert (v);
   ASSERT (v->pos == VHFMT_HDR_LEN + 1);
   ASSERT (v->state == VHFMT_SCANNING);
 
@@ -94,6 +151,7 @@ vrhfmt_read_in (
     vread_hash_fmt *dest,
     error *e)
 {
+  vread_hash_fmt_assert (dest);
   ASSERT (*nbytes > 0);
 
   err_t ret = SUCCESS;     // Return code
@@ -142,6 +200,7 @@ vrhfmt_read_in (
         }
     }
 
+  vread_hash_fmt_assert (dest);
   ASSERT (dest->state == VHFMT_SCANNING);
   ASSERT (dest->pos > 0);
 
@@ -182,7 +241,7 @@ vrhfmt_read_in (
         }
     }
 
-  ASSERT (dest->pos >= VHFMT_HDR_LEN + 1);
+  vread_hash_fmt_assert (dest);
   ASSERT (dest->state == VHFMT_SCANNING);
 
   /**
@@ -211,6 +270,8 @@ vrhfmt_read_in (
         }
     }
 
+  vread_hash_fmt_assert (dest);
+
   /**
    * Read in tstr if it's not done and vstr _is_ done
    */
@@ -231,29 +292,71 @@ vrhfmt_read_in (
         }
     }
 
+  vread_hash_fmt_assert (dest);
+
   if (dest->tidx == dest->tstrlen)
     {
-      ASSERT (dest->pos == 1 + VHFMT_HDR_LEN + dest->tstrlen + dest->vstrlen);
       dest->state = VHFMT_DONE;
     }
 
 theend:
+
+  vread_hash_fmt_assert (dest);
+
+  ASSERT (read <= *nbytes);
+  ASSERT (toread <= *nbytes);
+
   *nbytes = read;
+
   return ret;
 }
 
+var_hash_entry
+vrhfmt_consume (vread_hash_fmt *fmt)
+{
+  vread_hash_fmt_assert (fmt);
+  ASSERT (fmt->state == VHFMT_DONE);
+  return (var_hash_entry){
+    .vstr = fmt->vstr,
+    .tstr = fmt->tstr,
+    .pg0 = fmt->pg0,
+    .tlen = fmt->tstrlen,
+    .vlen = fmt->vstrlen,
+  };
+}
+
+DEFINE_DBG_ASSERT_I (vwrite_hash_fmt, vwrite_hash_fmt, v)
+{
+  ASSERT (v);
+  ASSERT (v->hidx <= VHFMT_HDR_LEN + 1);
+  ASSERT (v->vidx <= v->src.vlen);
+  ASSERT (v->tidx <= v->src.tlen);
+
+  if (v->done)
+    {
+      ASSERT (v->hidx == VHFMT_HDR_LEN + 1);
+      ASSERT (v->vidx == v->src.vlen);
+      ASSERT (v->tidx == v->src.tlen);
+    }
+  else if (v->hidx < VHFMT_HDR_LEN + 1)
+    {
+      ASSERT (v->vidx == 0);
+      ASSERT (v->tidx == 0);
+    }
+  else if (v->vidx < v->src.vlen)
+    {
+      ASSERT (v->tidx == 0);
+    }
+}
+
 vwrite_hash_fmt
-vwhfmt_create (var_hash_entry params)
+vwhfmt_create (const var_hash_entry src)
 {
   vwrite_hash_fmt w = {
     .done = false,
     .hidx = 0,
 
-    .vstr = params.vstr,
-    .vstrlen = params.vlen,
-
-    .tstr = params.tstr,
-    .tstrlen = params.tlen,
+    .src = src,
 
     .vidx = 0,
     .tidx = 0,
@@ -262,10 +365,12 @@ vwhfmt_create (var_hash_entry params)
   u8 *p = w.type_and_header;
 
   p[0] = (u8)VHFMT_TYPE_PRESENT;
-  i_memcpy (p + 1, &w.vstrlen, sizeof w.vstrlen);
-  i_memcpy (p + 3, &w.tstrlen, sizeof w.tstrlen);
+  i_memcpy (p + 1, &w.src.vlen, sizeof w.src.vlen);
+  i_memcpy (p + 3, &w.src.tlen, sizeof w.src.tlen);
   p[5] = 0; // is_tombstone
-  i_memcpy (p + 6, &params.pg0, sizeof params.pg0);
+  i_memcpy (p + 6, &src.pg0, sizeof src.pg0);
+
+  vwrite_hash_fmt_assert (&w);
 
   return w;
 }
@@ -277,6 +382,7 @@ vwhfmt_write_out (
     vwrite_hash_fmt *src,
     error *e)
 {
+  vwrite_hash_fmt_assert (src);
   ASSERT (*nbytes > 0);
 
   p_size next;
@@ -323,17 +429,18 @@ vwhfmt_write_out (
         }
     }
 
+  vwrite_hash_fmt_assert (src);
   ASSERT (src->hidx <= VHFMT_HDR_LEN + 1);
 
   /**
    * Write out vstr if type_and_header is done
    */
-  if (src->hidx == VHFMT_HDR_LEN + 1 && src->vidx < src->vstrlen)
+  if (src->hidx == VHFMT_HDR_LEN + 1 && src->vidx < src->src.vlen)
     {
-      next = MIN (src->vstrlen - src->vidx, towrite);
+      next = MIN (src->src.vlen - src->vidx, towrite);
       if (next > 0)
         {
-          i_memcpy (dest + written, src->vstr + src->vidx, next);
+          i_memcpy (dest + written, src->src.vstr + src->vidx, next);
           src->vidx += next;
           written += next;
           towrite -= next;
@@ -345,25 +452,29 @@ vwhfmt_write_out (
         }
     }
 
+  vwrite_hash_fmt_assert (src);
+
   /**
    * Write out tstr if vstr is done
    */
-  if (src->vidx == src->vstrlen && src->tidx < src->tstrlen)
+  if (src->vidx == src->src.vlen && src->tidx < src->src.tlen)
     {
-      next = MIN (src->tstrlen - src->tidx, towrite);
+      next = MIN (src->src.tlen - src->tidx, towrite);
       if (next > 0)
         {
-          memcpy (dest + written, src->tstr + src->tidx, next);
+          memcpy (dest + written, src->src.tstr + src->tidx, next);
           src->tidx += next;
           written += next;
           towrite -= next;
         }
     }
 
+  vwrite_hash_fmt_assert (src);
+
   /**
    * Write out the last EOF byte
    */
-  if (src->tidx == src->tstrlen && !src->done)
+  if (src->tidx == src->src.tlen && !src->done)
     {
       next = MIN (1, towrite);
       if (next > 0)
@@ -377,8 +488,12 @@ vwhfmt_write_out (
     }
 
 theend:
+  vwrite_hash_fmt_assert (src);
+
   ASSERT (written <= *nbytes);
   ASSERT (towrite <= *nbytes);
+
   *nbytes = written;
+
   return SUCCESS;
 }
