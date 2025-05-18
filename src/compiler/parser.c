@@ -8,7 +8,7 @@ DEFINE_DBG_ASSERT_I (parser, parser, p)
   ASSERT (p);
   ASSERT (p->tokens_input);
   ASSERT (p->tokens_input->cap % sizeof (token) == 0);
-  ASSERT (p->query_ptr_output->cap % sizeof (query *) == 0);
+  ASSERT (p->query_ptr_output->cap % sizeof (query) == 0);
 }
 
 // The thing that you can pop off of the stack
@@ -631,7 +631,7 @@ parser_execute (parser *p, error *e)
       /**
        * Block on downstream
        */
-      if (cbuffer_avail (p->query_ptr_output) < sizeof (query *))
+      if (cbuffer_avail (p->query_ptr_output) < sizeof (query))
         {
           return SUCCESS;
         }

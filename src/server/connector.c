@@ -36,7 +36,7 @@ struct connection_s
   cbuffer queries; // Output from parser
 
   u8 _input[20];
-  query *_queries[10];
+  query _queries[10];
 
   database *db;
 };
