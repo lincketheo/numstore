@@ -8,16 +8,24 @@ typedef struct
 {
   page page;
   bool is_present;
-} memory_page;
+} page_wrapper;
 
 typedef struct
 {
-  memory_page pages[MEMORY_PAGE_LEN];
+  page_wrapper pages[MEMORY_PAGE_LEN];
   u32 idx; // A rolling index - not very sophisticated yet
 } memory_pager;
 
+void mpgr_create (memory_pager *dest);
+
 /**
- * Creates a new page
+ * Creates a new page if there's room. Doesn't
+ * write any data to the page, just "allocates" room.
+ * The next step would likely be reading in a page from
+ * disk
+ *
+ * page type on return is PG_UNKNOWN
+ *
  * Returns:
  *   - NULL if the memory_pager is full
  */

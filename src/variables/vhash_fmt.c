@@ -1,4 +1,5 @@
 #include "variables/vhash_fmt.h"
+#include "config.h"
 #include "errors/error.h"
 #include "intf/stdlib.h"
 #include "mm/lalloc.h"
@@ -60,21 +61,12 @@ DEFINE_DBG_ASSERT_I (vread_hash_fmt, vread_hash_fmt, v)
 }
 
 vread_hash_fmt
-vrhfmt_create (lalloc *alloc)
+vrhfmt_create (void)
 {
   return (vread_hash_fmt){
     .pos = 0,
-    .alloc = alloc,
     .state = VHFMT_START,
-    .alloc_start = lalloc_get_state (alloc),
   };
-}
-
-void
-vrhfmt_reset (vread_hash_fmt *v)
-{
-  vread_hash_fmt_assert (v);
-  lalloc_reset_to_state (v->alloc, v->alloc_start);
 }
 
 static err_t
@@ -98,16 +90,20 @@ vrhfmt_parse_header (vread_hash_fmt *v, error *e)
    */
   {
     u32 pos = v->pos;
-    lalloc *alloc = v->alloc;
     i_memset (v, 0, sizeof *v);
     v->pos = pos;
-    v->alloc = alloc;
   }
 
   /**
    * Require strs > 0 and no magic pages
    */
-  if (vstrlen == 0 || tstrlen == 0 || pg0 == 0)
+  bool valid = true;
+  valid = valid && vstrlen > 0 && tstrlen > 0;
+  valid = valid && vstrlen < MAX_VSTR;
+  valid = valid && tstrlen < MAX_TSTR;
+  valid = valid && pg0 != 0;
+
+  if (!valid)
     {
       v->state = VHFMT_CORRUPT;
       return error_causef (
@@ -127,16 +123,6 @@ vrhfmt_parse_header (vread_hash_fmt *v, error *e)
    */
   if (!v->is_tombstone)
     {
-      u8 *raw = lmalloc (v->alloc, vstrlen + tstrlen, 1);
-      if (raw == NULL)
-        {
-          return error_causef (
-              e, ERR_NOMEM,
-              "VHash Format: "
-              "Failed to allocate vhash format string");
-        }
-
-      v->raw = raw;
       v->vstr = (char *)v->raw;
       v->tstr = v->raw + vstrlen;
     }

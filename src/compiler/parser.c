@@ -19,7 +19,7 @@ typedef struct
   union
   {
     type t;
-    query *q;
+    query q;
   };
 } ast_result;
 
@@ -279,7 +279,7 @@ ast_parser_build (ast_parser *b, ast_result *dest, error *e)
               return kvp_build_struct (
                   &dest->t.st,
                   &b->tb.kvp,
-                  &b->cur->alloc, e);
+                  b->cur.qalloc, e);
             }
           case TB_UNION:
             {
@@ -287,7 +287,7 @@ ast_parser_build (ast_parser *b, ast_result *dest, error *e)
               return kvp_build_union (
                   &dest->t.un,
                   &b->tb.kvp,
-                  &b->cur->alloc, e);
+                  b->cur.qalloc, e);
             }
           case TB_ENUM:
             {
@@ -295,7 +295,7 @@ ast_parser_build (ast_parser *b, ast_result *dest, error *e)
               return enp_build (
                   &dest->t.en,
                   &b->tb.enp,
-                  &b->cur->alloc, e);
+                  b->cur.qalloc, e);
             }
           case TB_SARRAY:
             {
@@ -303,7 +303,7 @@ ast_parser_build (ast_parser *b, ast_result *dest, error *e)
               return sap_build (
                   &dest->t.sa,
                   &b->tb.sap,
-                  &b->cur->alloc, e);
+                  b->cur.qalloc, e);
             }
           case TB_PRIM:
             {
@@ -323,15 +323,15 @@ ast_parser_build (ast_parser *b, ast_result *dest, error *e)
           {
           case QP_CREATE:
             {
-              ASSERT (b->cur->type == QT_CREATE);
+              ASSERT (b->cur.type == QT_CREATE);
               dest->q = b->cur;
-              return crtp_build (dest->q->create, &b->qb.cp, e);
+              return crtp_build (dest->q.create, &b->qb.cp, e);
             }
           case QP_DELETE:
             {
-              ASSERT (b->cur->type == QT_DELETE);
+              ASSERT (b->cur.type == QT_DELETE);
               dest->q = b->cur;
-              return dltp_build (dest->q->delete, &b->qb.dp, e);
+              return dltp_build (dest->q.delete, &b->qb.dp, e);
             }
           default:
             {
@@ -376,7 +376,7 @@ parser_push_expect (parser *p, ast_parser value)
 }
 
 static inline err_t
-parser_push_type_parser (parser *p, query *cur, error *e)
+parser_push_type_parser (parser *p, query cur, error *e)
 {
   parser_assert (p);
 
@@ -411,7 +411,7 @@ parser_push_query_parser (parser *sp)
         .state = QP_UNKNOWN,
     },
     .type = SBBT_QUERY,
-    .cur = NULL,
+    .cur = (query){ 0 },
     .alloc_start = lalloc_get_state (&sp->working_space),
   };
   parser_push_expect (sp, top);
@@ -522,7 +522,7 @@ parser_feed_token (parser *tp, token t, error *e)
  * done and valid
  */
 static inline err_t
-parser_get (query **dest, parser *sp, error *e)
+parser_get (query *dest, parser *sp, error *e)
 {
   parser_assert (sp);
   ASSERT (sp->sp == 1);
@@ -562,7 +562,7 @@ parser_get (query **dest, parser *sp, error *e)
 static inline err_t
 parser_write_out (parser *p, error *e)
 {
-  query *res;
+  query res;
 
   err_t_wrap (parser_get (&res, p, e), e);
   parser_push_query_parser (p);

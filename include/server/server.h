@@ -1,5 +1,6 @@
 #pragma once
 
+#include "database.h"
 #include "intf/io.h"           // i_file
 #include "mm/lalloc.h"         // lalloc
 #include "paging/pager.h"      // pager
@@ -14,7 +15,7 @@ typedef struct
   struct pollfd pollfds[20]; // Poll list for connections
   u32 pfdlen;                // Length of pollfds
 
-  pager *p;
+  database db;
 } server;
 
 /**

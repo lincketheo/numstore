@@ -2,7 +2,9 @@
 
 #include "config.h"      // PAGE_SIZE
 #include "dev/testing.h" // TEST
+#include "errors/error.h"
 #include "intf/io.h"
+#include "intf/logging.h"
 #include "intf/stdlib.h" // i_memset
 
 ///////////////////////////// FILE PAGING
@@ -29,7 +31,7 @@ fpgr_set_len (file_pager *p, error *e)
     {
       return error_causef (
           e, ERR_CORRUPT,
-          "%s: Database should be a multiple of "
+          "%s: Database file size should be a multiple of "
           "PAGE_SIZE: %" PRp_size "actual file size was: %" PRId64,
           TAG, PAGE_SIZE, size);
     }
@@ -85,6 +87,18 @@ TEST (fpgr_create)
   test_fail_if (i_close (&fp, &e));
 }
 
+void
+fpgr_close (file_pager *f)
+{
+  file_pager_assert (f);
+  error e = error_create (NULL);
+  if (i_close (&f->f, &e))
+    {
+      i_log_warn ("Error closing file pager:\n");
+      error_log_consume (&e);
+    }
+}
+
 err_t
 fpgr_new (file_pager *p, u64 *dest, error *e)
 {
@@ -133,7 +147,7 @@ TEST (fpgr_new)
 }
 
 err_t
-fpgr_get_expect (file_pager *p, u8 *dest, u64 pgno, error *e)
+fpgr_get_expect (file_pager *p, u8 dest[PAGE_SIZE], u64 pgno, error *e)
 {
   file_pager_assert (p);
   ASSERT (dest);
@@ -202,7 +216,7 @@ fpgr_delete (file_pager *p, u64 pgno __attribute__ ((unused)), error *e)
 }
 
 err_t
-fpgr_write (file_pager *p, const u8 *src, u64 pgno, error *e)
+fpgr_write (file_pager *p, const u8 src[PAGE_SIZE], u64 pgno, error *e)
 {
   file_pager_assert (p);
   ASSERT (src);

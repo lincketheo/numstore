@@ -16,11 +16,10 @@ typedef struct
   query_t type;
   union
   {
-    // Pointers so that queries
-    // aren't the size of the maximum
-    // query space
+    // Pointer because
+    // these are big
     create_query *create;
     delete_query *delete;
   };
-  lalloc alloc;
+  lalloc *qalloc; // Allocator for query data
 } query;

@@ -65,7 +65,7 @@ typedef struct
     i32 integer;
     f32 floating;
     prim_t prim;
-    query *q;
+    query q;
   };
   token_t type;
 } token;

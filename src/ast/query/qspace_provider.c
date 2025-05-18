@@ -4,40 +4,40 @@
 #include "ast/query/query.h"
 #include "dev/assert.h"
 #include "errors/error.h"
+#include "intf/io.h"
 #include "intf/stdlib.h"
 #include "mm/lalloc.h"
 
-#include <stdlib.h>
+DEFINE_DBG_ASSERT_I (qspce_prvdr, qspce_prvdr, q)
+{
+  ASSERT (q);
+}
 
 qspce_prvdr *
-qspce_prvdr_create (void)
+qspce_prvdr_create (error *e)
 {
-  qspce_prvdr *ret = malloc (sizeof *ret);
+  qspce_prvdr *ret = i_malloc (1, sizeof *ret);
   if (ret == NULL)
     {
+      error_causef (
+          e, ERR_NOMEM,
+          "Not enough memory to allocate "
+          "qspce_prvdr");
       return NULL;
     }
 
   for (u32 i = 0; i < 20; ++i)
     {
-      ret->create[i] = (create_wrapper){
-        .is_used = false,
-        .query = (query){
-            .alloc = lalloc_create_from (&ret->create[i].create.data),
-            .create = &ret->create[i].create,
-            .type = QT_CREATE,
-        },
-      };
+      // Create
+      create_query_create (&ret->create[i].create);
+      ret->create[i].is_used = false;
 
-      ret->delete[i] = (delete_wrapper){
-        .is_used = false,
-        .query = (query){
-            .alloc = lalloc_create_from (&ret->delete[i].delete.data),
-            .delete = &ret->delete[i].delete,
-            .type = QT_DELETE,
-        },
-      };
+      // Delete
+      delete_query_create (&ret->delete[i].delete);
+      ret->delete[i].is_used = false;
     }
+
+  qspce_prvdr_assert (ret);
 
   return ret;
 }
@@ -45,11 +45,11 @@ qspce_prvdr_create (void)
 err_t
 qspce_prvdr_get (
     qspce_prvdr *q,
-    query **dest,
+    query *dest,
     query_t type,
     error *e)
 {
-  ASSERT (q);
+  qspce_prvdr_assert (q);
   ASSERT (dest);
 
   for (u32 i = 0; i < 20; ++i)
@@ -60,10 +60,13 @@ qspce_prvdr_get (
           {
             if (!q->create[i].is_used)
               {
-                // reset lalloc
-                q->create[i].query.alloc = lalloc_create_from (q->create[i].create.data);
-                *dest = &q->create[i].query;
+                create_query_reset (&q->create[i].create);
                 q->create[i].is_used = true;
+                *dest = (query){
+                  .type = type,
+                  .create = &q->create[i].create,
+                  .qalloc = &q->create[i].create.alloc,
+                };
                 return SUCCESS;
               }
             break;
@@ -72,10 +75,13 @@ qspce_prvdr_get (
           {
             if (!q->delete[i].is_used)
               {
-                // reset lalloc
-                q->delete[i].query.alloc = lalloc_create_from (q->delete[i].delete.data);
-                *dest = &q->delete[i].query;
+                delete_query_reset (&q->delete[i].delete);
                 q->delete[i].is_used = true;
+                *dest = (query){
+                  .type = type,
+                  .delete = &q->delete[i].delete,
+                  .qalloc = &q->delete[i].delete.vname_allocator,
+                };
                 return SUCCESS;
               }
             break;
@@ -83,21 +89,23 @@ qspce_prvdr_get (
         }
     }
 
-  *dest = NULL;
-  return error_causef (
-      e, ERR_NOMEM,
-      "Too many query spaces being used");
+  return error_causef (e, ERR_NOMEM, "Query provider full");
 }
 
 void
-qspce_prvdr_release (qspce_prvdr *q, query *qu, query_t type)
+qspce_prvdr_release (qspce_prvdr *q, query *qu)
 {
+  qspce_prvdr_assert (q);
+  ASSERT (qu);
+
   for (u32 i = 0; i < 20; ++i)
     {
-      switch (type)
+      switch (qu->type)
         {
         case QT_CREATE:
           {
+            // POINTER COMPARISON
+            // Maybe id's instead of pointers?
             if (&q->create[i].create == qu->create)
               {
                 ASSERT (q->create[i].is_used);
@@ -116,6 +124,10 @@ qspce_prvdr_release (qspce_prvdr *q, query *qu, query_t type)
               }
             break;
           }
+        default:
+          {
+            UNREACHABLE ();
+          }
         }
     }
 }
@@ -123,6 +135,6 @@ qspce_prvdr_release (qspce_prvdr *q, query *qu, query_t type)
 void
 qspce_prvdr_free (qspce_prvdr *q)
 {
-  ASSERT (q);
-  free (q);
+  qspce_prvdr_assert (q);
+  i_free (q);
 }

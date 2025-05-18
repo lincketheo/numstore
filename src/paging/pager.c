@@ -2,7 +2,8 @@
 
 #include "errors/error.h"
 #include "intf/io.h" // i_malloc
-#include "paging/page.h"
+#include "paging/file_pager.h"
+#include "paging/memory_pager.h"
 
 ///////////////////////////// PAGER
 
@@ -16,6 +17,15 @@ static const char *TAG = "Pager";
 pager *
 pgr_create (const string fname, error *e)
 {
+  if (!i_exists_rw (fname))
+    {
+      error_causef (
+          e, ERR_DOESNT_EXIST,
+          "Database file: %.*s doesn't exist",
+          fname.len, fname.data);
+      return NULL;
+    }
+
   pager *ret = i_calloc (1, sizeof *ret);
   if (ret == NULL)
     {
@@ -31,9 +41,19 @@ pgr_create (const string fname, error *e)
       return NULL;
     }
 
+  mpgr_create (&ret->mpager);
+
   pager_assert (ret);
 
   return ret;
+}
+
+void
+pgr_close (pager *p)
+{
+  pager_assert (p);
+  fpgr_close (&p->fpager);
+  i_free (p);
 }
 
 static inline err_t

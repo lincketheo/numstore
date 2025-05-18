@@ -162,7 +162,7 @@ scanner_state_to_str (scanner_state state)
  *    - ERR_NOMEM - internal stack overflows
  */
 static inline err_t
-scanner_push_char_dcur (scanner *s, char next, error *e)
+scanner_push_char (scanner *s, char next, error *e)
 {
   scanner_assert (s);
 
@@ -213,7 +213,7 @@ scanner_cpy_advance_expect (scanner *s, error *e)
   bool more = cbuffer_dequeue (&next, s->chars_input);
   ASSERT (more);
 
-  err_t_wrap (scanner_push_char_dcur (s, next, e), e);
+  err_t_wrap (scanner_push_char (s, next, e), e);
 
   return SUCCESS;
 }
@@ -318,23 +318,25 @@ process_string_or_ident (scanner *s, token_t type, error *e)
    * Can only scan a string or ident if we're inside
    * a query
    */
-  if (s->cur == NULL)
+  if (!s->q_loaded)
     {
       return error_causef (
           e, ERR_NOMEM,
-          "%s: Encountered token: %s before an op code, no query space to allocate data onto.",
+          "%s: Encountered token: %s before an op code, "
+          "no query space to allocate data onto.",
           TAG, tt_tostr (type));
     }
 
   /**
    * Allocate space to copy the token data
    */
-  literal.data = lmalloc (&s->cur->alloc, literal.len, 1);
+  literal.data = lmalloc (s->cur.qalloc, literal.len, 1);
   if (literal.data == NULL)
     {
       return error_causef (
           e, ERR_NOMEM,
-          "%s: Failed to allocate identifier token: %.*s into string space",
+          "%s: Failed to allocate identifier "
+          "token: %.*s into string space",
           TAG, s->slen, s->str);
     }
 
@@ -386,10 +388,16 @@ process_maybe_ident (scanner *s, error *e)
           s->slen = 0;
 
           // Allocate query space for downstream
-          query *q;
-          err_t_wrap (qspce_prvdr_get (s->qspcp, &q, tt_to_qt (t.type), e), e);
-          s->cur = q; // Keep track of the current query to allocate later things to like strings and idents
-          t.q = q;    // Assign the query to the token
+          query q;
+          err_t_wrap (qspce_prvdr_get (
+                          s->qspcp,
+                          &q,
+                          tt_to_qt (t.type), e),
+                      e);
+
+          s->q_loaded = true;
+          s->cur = q;
+          t.q = q;
 
           scanner_process_token_expect (s, t);
           return SUCCESS;
@@ -661,7 +669,8 @@ scanner_create (
     .slen = 0,
 
     .qspcp = qspcp,
-    .cur = NULL,
+    .q_loaded = false,
+    .cur = { 0 },
   };
   scanner_assert (&ret);
   return ret;

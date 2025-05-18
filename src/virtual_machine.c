@@ -4,7 +4,7 @@
 #include "dev/assert.h" // ASSERT
 
 static inline err_t
-create_query_execute (pager *p, query *q, error *e)
+create_query_execute (pager *p, create_query *q, error *e)
 {
   cursor c = crsr_open (p);
   return crsr_create_var (&c, q, e);
@@ -19,11 +19,15 @@ query_execute (pager *p, query *q, error *e)
     {
     case QT_CREATE:
       {
-        return create_query_execute (p, q, e);
+        return create_query_execute (p, q->create, e);
       }
     case QT_DELETE:
       {
         panic ();
+      }
+    default:
+      {
+        UNREACHABLE ();
       }
     }
 }

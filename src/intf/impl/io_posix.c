@@ -294,7 +294,7 @@ i_remove_quiet (const string fname, error *e)
 
   if (ret && errno != ENOENT)
     {
-      error_causef (e, ERR_IO, "truncate: %s", strerror (errno));
+      error_causef (e, ERR_IO, "remove: %s", strerror (errno));
       return err_t_from (e);
     }
 
@@ -348,7 +348,20 @@ i_exists_rw (const string fname)
   return true;
 }
 
-////////////////// Wrappers
+err_t
+i_touch (const string fname, error *e)
+{
+  ASSERT (fname.len > 0);
+  ASSERT (fname.data);
+
+  i_file fd;
+  err_t_wrap (i_open_rw (&fd, fname, e), e);
+  err_t_wrap (i_close (&fd, e), e);
+
+  return SUCCESS;
+}
+
+////////////////// Memory
 void *
 i_malloc (u32 nelem, u32 size)
 {

@@ -17,8 +17,12 @@ typedef struct
  *    - ERR_CORRUPT - If the file is found in a bad spot on initial open
  */
 pager *pgr_create (const string fname, error *e);
+void pgr_close (pager *p);
 
 /**
+ * Fetch a page, expect it to be any of the unioned types in [type]
+ * or else return ERR_CORRUPT
+ *
  * Errors (on return NULL):
  *    - ERR_IO - pwrite error when evicting if evicting is needed
  *    - ERR_CORRUPT - no page pgno exists (empty read)

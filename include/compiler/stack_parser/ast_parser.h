@@ -83,6 +83,6 @@ typedef struct
     type_parser tb;
     query_parser qb;
   };
-  query *cur;
+  query cur;
   u32 alloc_start;
 } ast_parser;

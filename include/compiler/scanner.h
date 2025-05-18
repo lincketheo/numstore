@@ -29,7 +29,8 @@ typedef struct
   u32 slen;
 
   qspce_prvdr *qspcp; // To allocate query spaces on op codes
-  query *cur;         // Current query to allocate data onto
+  bool q_loaded;      // true if cur means something
+  query cur;          // Current query to allocate data onto
 } scanner;
 
 scanner scanner_create (

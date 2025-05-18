@@ -23,7 +23,7 @@ main (void)
   err_t ret = SUCCESS;
 
   error e = error_create (NULL);
-  if ((ret = server_create (&s, 12345, &e)))
+  if ((ret = server_create (&s, 12345, unsafe_cstrfrom ("test.db"), &e)))
 
     {
       error_log_consume (&e);

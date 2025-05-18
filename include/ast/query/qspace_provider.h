@@ -7,14 +7,12 @@
 typedef struct
 {
   create_query create;
-  query query;
   bool is_used;
 } create_wrapper;
 
 typedef struct
 {
   delete_query delete;
-  query query;
   bool is_used;
 } delete_wrapper;
 
@@ -37,10 +35,14 @@ typedef struct
   delete_wrapper delete[20];
 } qspce_prvdr;
 
-qspce_prvdr *qspce_prvdr_create (void);
+qspce_prvdr *qspce_prvdr_create (error *e);
 
-err_t qspce_prvdr_get (qspce_prvdr *q, query **dest, query_t type, error *e);
+err_t qspce_prvdr_get (
+    qspce_prvdr *q,
+    query *dest,
+    query_t type,
+    error *e);
 
-void qspce_prvdr_release (qspce_prvdr *q, query *qu, query_t type);
+void qspce_prvdr_release (qspce_prvdr *q, query *qu);
 
 void qspce_prvdr_free (qspce_prvdr *q);

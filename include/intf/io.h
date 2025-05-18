@@ -39,6 +39,7 @@ err_t i_unlink (const string name, error *e);
 ////////////////// Wrappers
 err_t i_access_rw (const string fname, error *e);
 bool i_exists_rw (const string fname);
+err_t i_touch (const string fname, error *e);
 
 ////////////////// Memory
 void *i_malloc (u32 nelem, u32 size);

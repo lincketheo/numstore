@@ -37,7 +37,7 @@ err_t crsr_create_hash_table (cursor *c, error *e);
  */
 err_t crsr_create_var (
     cursor *c,
-    query *create_q, // create_query
+    create_query *create_q,
     error *e);
 
 /**

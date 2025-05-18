@@ -47,6 +47,17 @@ typedef struct
     }                                                               \
   while (0)
 
+#define err_t_log_swallow(expr, ename)   \
+  do                                     \
+    {                                    \
+      error ename = error_create (NULL); \
+      if (expr)                          \
+        {                                \
+          error_log_consume (&ename);    \
+        }                                \
+    }                                    \
+  while (0)
+
 error error_create (struct lalloc_s *alloc);
 
 #define err_t_from(eptr) (eptr)->cause_code

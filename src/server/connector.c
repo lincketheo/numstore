@@ -1,6 +1,7 @@
-#include "ast/query/qspace_provider.h"
-#include "compiler/compiler.h"
 #include "server/connection.h"
+
+#include "compiler/compiler.h" // compiler
+#include "database.h"          // database
 
 #include "compiler/parser.h"  // parser
 #include "compiler/scanner.h" // scanner
@@ -37,23 +38,23 @@ struct connection_s
   u8 _input[20];
   query *_queries[10];
 
-  qspce_prvdr *qspcp;
+  database *db;
 };
 
 connection *
-con_create (i_file cfd, struct sockaddr_in caddr)
+con_create (
+    i_file cfd,
+    struct sockaddr_in caddr,
+    database *db,
+    error *e)
 {
-  connection *ret = malloc (sizeof *ret);
+  connection *ret = i_malloc (1, sizeof *ret);
 
   if (ret == NULL)
     {
-      return NULL;
-    }
-
-  qspce_prvdr *qspcp = qspce_prvdr_create ();
-  if (qspcp == NULL)
-    {
-      free (ret);
+      error_causef (
+          e, ERR_NOMEM,
+          "Failed to allocate connection");
       return NULL;
     }
 
@@ -64,9 +65,9 @@ con_create (i_file cfd, struct sockaddr_in caddr)
   ret->input = cbuffer_create_from (ret->_input);
   ret->queries = cbuffer_create_from (ret->_queries);
 
-  ret->qspcp = qspcp;
+  ret->db = db;
 
-  compiler_create (&ret->compiler, &ret->input, &ret->queries, qspcp);
+  compiler_create (&ret->compiler, &ret->input, &ret->queries, db->qspce);
 
   connection_assert (ret);
 

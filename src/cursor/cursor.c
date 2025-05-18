@@ -31,10 +31,9 @@ crsr_create_hash_table (cursor *c, error *e)
 }
 
 err_t
-crsr_create_var (cursor *c, query *create_q, error *e)
+crsr_create_var (cursor *c, create_query *create, error *e)
 {
   cursor_assert (c);
-  ASSERT (create_q->type == QT_CREATE);
   err_t ret = SUCCESS;
   pgno pg0;
 
@@ -48,11 +47,11 @@ crsr_create_var (cursor *c, query *create_q, error *e)
    */
   variable var = {
     .pg0 = pg0,
-    .type = create_q->create->type,
-    .vname = create_q->create->vname,
+    .type = create->type,
+    .vname = create->vname,
   };
 
-  err_t_wrap (vfhm_insert (&c->hm, var, &create_q->alloc, e), e);
+  err_t_wrap (vfhm_insert (&c->hm, var, &create->alloc, e), e);
 
   return ret;
 }

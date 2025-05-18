@@ -1,5 +1,6 @@
 #pragma once
 
+#include "config.h"             // MAX_VSTR
 #include "ds/strings.h"         // string
 #include "intf/types.h"         // u16
 #include "mm/lalloc.h"          // lalloc
@@ -35,9 +36,7 @@
  */
 typedef struct
 {
-  u32 pos;         // Position inside this variable (byte number)
-  lalloc *alloc;   // Allocates [raw]
-  u32 alloc_start; // Starting state of the allocator to reset each read
+  u32 pos; // Position inside this variable (byte number)
 
   /**
    * START -> SCANNING | CORRUPT | EOF
@@ -75,25 +74,22 @@ typedef struct
       p_size vidx; // if < vstrlen, tidx == 0
       p_size tidx;
 
-      u8 *raw; // len = vstrlen + tstrlen
+      u8 raw[MAX_VSTR + MAX_TSTR]; // len = vstrlen + tstrlen
     };
   };
 } vread_hash_fmt;
 
-vread_hash_fmt vrhfmt_create (
-    lalloc *alloc // Allocates [raw]
-);
-
-void vrhfmt_reset (vread_hash_fmt *v);
+vread_hash_fmt vrhfmt_create (void);
 
 /**
  * After a call to read, the vread_hash_fmt state may change
  * Errors:
  *   - ERR_CORRUPT
  *       - Unknown header value
- *       - Invalid header (vstrlen == 0 || tstrlen == 0 || pg0 == 0)
- *   - ERR_NOMEM
- *       - Can't allocate raw onto provided alloc
+ *       - Invalid header
+ *          vstrlen == 0 || > MAX_VSTR
+ *          tstrlen == 0 || > MAX_TSTR
+ *          pg0 == 0
  */
 err_t vrhfmt_read_in (
     const u8 *src,        // Source data to read from

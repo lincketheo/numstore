@@ -1,4 +1,5 @@
 #include "server/server.h"
+#include "database.h"
 #include "errors/error.h"
 #include "intf/io.h"
 #include "intf/logging.h"
@@ -16,8 +17,6 @@ DEFINE_DBG_ASSERT_I (server, server, s)
 {
   ASSERT (s);
 }
-
-static const char *TAG = "Server";
 
 static inline err_t
 server_connect (server *s, u16 port, error *e)
@@ -57,17 +56,6 @@ server_connect (server *s, u16 port, error *e)
   return SUCCESS;
 }
 
-static err_t
-server_open_pager (
-    server *dest,
-    const string dbname,
-    error *e)
-{
-  if (!i_exists_rw (dbname))
-    {
-    }
-}
-
 err_t
 server_create (
     server *dest,
@@ -77,8 +65,13 @@ server_create (
 {
   ASSERT (dest);
 
-  i_memset (dest->cons, 0, sizeof (dest->cons));
   err_t_wrap (server_connect (dest, port, e), e);
+
+  if (!i_exists_rw (dbname))
+    {
+      err_t_wrap (db_create (dbname, e), e);
+    }
+  err_t_wrap (db_open (&dest->db, dbname, e), e);
 
   return SUCCESS;
 }
@@ -103,12 +96,14 @@ server_accept (server *s, error *e)
    */
   fcntl (cfd, F_SETFL, fcntl (F_GETFL, 0) | O_NONBLOCK);
 
-  connection *c = con_create ((i_file){ .fd = cfd }, client_addr);
+  connection *c = con_create (
+      (i_file){ .fd = cfd },
+      client_addr,
+      &s->db, e);
+
   if (c == NULL)
     {
-      return error_causef (
-          e, ERR_NOMEM,
-          "%s: Not enough memory to allocate connection", TAG);
+      return err_t_from (e);
     }
   s->cons[cfd] = c;
 
