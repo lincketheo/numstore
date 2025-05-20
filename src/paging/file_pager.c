@@ -2,9 +2,6 @@
 
 #include "config.h"      // PAGE_SIZE
 #include "dev/testing.h" // TEST
-#include "errors/error.h"
-#include "intf/io.h"
-#include "intf/logging.h"
 #include "intf/stdlib.h" // i_memset
 
 ///////////////////////////// FILE PAGING
