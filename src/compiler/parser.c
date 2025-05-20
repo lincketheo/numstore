@@ -576,8 +576,6 @@ parser_write_out (parser *p, error *e)
 static err_t
 parser_feed_and_translate_token (parser *p, token tok, error *e)
 {
-  i_log_trace ("Parser got token: %s\n", tt_tostr (tok.type));
-
   switch (parser_feed_token (p, tok, e))
     {
     case SPR_DONE:

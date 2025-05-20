@@ -16,7 +16,7 @@ i_log_create (create_query *q)
   create_query_assert (q);
   int n = type_snprintf (NULL, 0, &q->type);
   char *str = i_malloc (n + 1, sizeof *str);
-  type_snprintf (str, n, &q->type);
+  type_snprintf (str, n + 1, &q->type);
   i_log_info ("create \n%.*s\n%.*s\n",
               q->vname.len, q->vname.data,
               n, str);

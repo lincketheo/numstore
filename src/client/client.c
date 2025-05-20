@@ -2,6 +2,7 @@
 #include "dev/assert.h"
 #include "ds/cbuffer.h"
 #include "errors/error.h"
+#include "intf/stdlib.h"
 #include "mm/lalloc.h"
 
 #include <arpa/inet.h>
@@ -16,17 +17,7 @@ DEFINE_DBG_ASSERT_I (client, client, c)
   ASSERT (c);
 }
 
-void
-client_create (client *dest)
-{
-  ASSERT (dest);
-  dest->sfd = (i_file){ .fd = -1 };
-  dest->send = cbuffer_create_from (dest->_send);
-  dest->recv = cbuffer_create_from (dest->_recv);
-  client_assert (dest);
-}
-
-err_t
+static err_t
 client_connect (client *c, const char *ipaddr, u16 port, error *e)
 {
   client_assert (c);
@@ -70,6 +61,22 @@ client_connect (client *c, const char *ipaddr, u16 port, error *e)
   return SUCCESS;
 }
 
+err_t
+client_create (
+    client *dest,
+    const char *ipaddr,
+    u16 port,
+    error *e)
+{
+  ASSERT (dest);
+
+  dest->sfd = (i_file){ .fd = -1 };
+  dest->send = cbuffer_create_from (dest->_send);
+  dest->recv = cbuffer_create_from (dest->_recv);
+
+  return client_connect (dest, ipaddr, port, e);
+}
+
 void
 client_disconnect (client *c)
 {
@@ -85,7 +92,7 @@ client_disconnect (client *c)
   c->sfd = (i_file){ .fd = -1 };
 }
 
-err_t
+static err_t
 client_send_some (client *c, error *e)
 {
   client_assert (c);
@@ -98,29 +105,44 @@ client_send_some (client *c, error *e)
 }
 
 err_t
-client_recv_some (client *c, error *e)
-{
-  client_assert (c);
-  i32 read = cbuffer_write_some_from_file (&c->sfd, &c->recv, e);
-  if (read < 0)
-    {
-      return err_t_from (e);
-    }
-  return SUCCESS;
-}
-
-err_t
-client_send_all (client *c, const string str, error *e)
+client_send (client *c, const string str, error *e)
 {
   client_assert (c);
   u32 written;
 
+  /**
+   * Prefix command with number of bytes
+   */
+  string newstr = (string){
+    .data = i_malloc (2 + str.len, 1),
+    .len = 2 + str.len,
+  };
+
+  if (newstr.data == NULL)
+    {
+      return error_causef (
+          e, ERR_NOMEM,
+          "Failed to allocate command wrapper");
+    }
+
+  u16 header = newstr.len;
+  i_memcpy (newstr.data, &header, 2);
+  i_memcpy (newstr.data + 2, str.data, str.len);
+
   // Send all
   for (u32 i = 0; i < str.len; i += written)
     {
-      written = cbuffer_write (&str.data[i], 1, str.len - i, &c->send);
-      err_t_wrap (client_send_some (c, e), e);
+      written = cbuffer_write (
+          &newstr.data[i],
+          1, newstr.len - i, &c->send);
+
+      if (client_send_some (c, e))
+        {
+          goto theend;
+        }
     }
 
-  return SUCCESS;
+theend:
+  i_free (newstr.data);
+  return err_t_from (e);
 }

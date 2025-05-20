@@ -93,27 +93,21 @@ repl_create (repl *dest, repl_params params, error *e)
 {
   ASSERT (dest);
 
-  client c;
-  client_create (&c);
-  (void)e;
-
-  err_t_wrap (
-      client_connect (
-          &c,
-          params.ip_addr,
-          params.port, e),
-      e);
-
   repl ret = {
     .buffer = NULL,
     .blen = 0,
     .ip_addr = params.ip_addr,
     .port = params.port,
-    .client = c,
     .running = true,
   };
 
   i_memcpy (dest, &ret, sizeof ret);
+
+  err_t_wrap (client_create (
+                  &dest->client,
+                  params.ip_addr,
+                  params.port, e),
+              e);
 
   linenoise_config ();
 
@@ -222,7 +216,7 @@ repl_execute (repl *r, error *e)
   if (r->buffer)
     {
       const string send = (string){ .data = r->buffer, .len = r->blen };
-      err_t_wrap (client_send_all (&r->client, send, e), e);
+      err_t_wrap (client_send (&r->client, send, e), e);
       fprintf (stdout, "Sending: %.*s\n", send.len, send.data);
     }
 

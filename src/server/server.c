@@ -67,13 +67,25 @@ server_create (
 
   err_t_wrap (server_connect (dest, port, e), e);
 
+  // Create database if it doesn't exist
   if (!i_exists_rw (dbname))
     {
-      err_t_wrap (db_create (dbname, e), e);
+      if (db_create (dbname, e))
+        {
+          goto close_and_fail;
+        }
     }
-  err_t_wrap (db_open (&dest->db, dbname, e), e);
+  if (db_open (&dest->db, dbname, e))
+    {
+      goto close_and_fail;
+    }
 
   return SUCCESS;
+
+close_and_fail:
+
+  server_close (dest);
+  return err_t_from (e);
 }
 
 static inline err_t
@@ -145,16 +157,16 @@ server_execute_connections (server *s)
       // READ
       if (ready & POLLIN)
         {
-          con_read (con);
+          err_t_log_swallow (con_read (con, &e), e);
         }
 
       // EXECUTE
-      con_execute (con);
+      err_t_log_swallow (con_execute (con, &e), e);
 
       // WRITE
       if (ready & POLLOUT)
         {
-          con_write (con);
+          err_t_log_swallow (con_write (con, &e), e);
         }
 
       if (con_is_done (con))
