@@ -34,21 +34,21 @@ extern int test_ret;
   }                                                                  \
   static void test_##name (void)
 
-#define test_assert_equal(left, right, fmt)                                              \
-  do                                                                                     \
-    {                                                                                    \
-      if ((left) != (right))                                                             \
-        {                                                                                \
-          i_log_failure ("%s != %s (" fmt " != " fmt ")\n", #left, #right, left, right); \
-          test_ret = -1;                                                                 \
-          return;                                                                        \
-        }                                                                                \
-    }                                                                                    \
+#define test_assert_equal(left, right)                 \
+  do                                                   \
+    {                                                  \
+      if ((left) != (right))                           \
+        {                                              \
+          i_log_failure ("%s != %s\n", #left, #right); \
+          test_ret = -1;                               \
+          return;                                      \
+        }                                              \
+    }                                                  \
   while (0)
 
-#define test_assert_int_equal(left, right) test_assert_equal ((int)(left), (int)(right), "%" PRId32)
+#define test_assert_int_equal(left, right) test_assert_equal ((int)(left), (int)(right))
 
-#define test_assert_ptr_equal(left, right) test_assert_equal ((void *)left, (void *)right, "%p")
+#define test_assert_ptr_equal(left, right) test_assert_equal ((void *)left, (void *)right)
 
 #define test_fail_if(expr)                                                 \
   do                                                                       \

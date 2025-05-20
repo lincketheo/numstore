@@ -33,6 +33,7 @@ i_open_rw (i_file *dest, const string fname, error *e)
                     fname.len, fname.data, strerror (errno));
       return err_t_from (e);
     }
+  *dest = (i_file){ .fd = fd };
 
   i_file_assert (dest);
 

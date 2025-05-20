@@ -120,7 +120,7 @@ TEST (fpgr_new)
   error e = error_create (NULL);
   test_fail_if (i_mkstemp (&fp, tmpl, &e));
 
-  test_fail_if (i_truncate (&fp, 10, &e));
+  test_fail_if (i_truncate (&fp, 0, &e));
 
   file_pager p;
   test_assert_int_equal (fpgr_create (&p, tmpl, &e), SUCCESS);
@@ -135,7 +135,7 @@ TEST (fpgr_new)
   test_fail_if (fpgr_new (&p, &pgno, &e));
   test_assert_int_equal (pgno, 1);
   test_assert_int_equal (p.npages, 2);
-  test_assert_int_equal (i_file_size (&fp, &e), PAGE_SIZE + p.npages);
+  test_assert_int_equal (i_file_size (&fp, &e), PAGE_SIZE * p.npages);
 
   test_fail_if (fpgr_new (&p, &pgno, &e));
   test_assert_int_equal (pgno, 2);
@@ -179,7 +179,7 @@ TEST (fpgr_get_expect)
   error e = error_create (NULL);
   test_fail_if (i_mkstemp (&fp, tmpl, &e));
 
-  test_fail_if (i_truncate (&fp, 10, &e));
+  test_fail_if (i_truncate (&fp, 0, &e));
 
   file_pager p;
   test_assert_int_equal (fpgr_create (&p, tmpl, &e), SUCCESS);
@@ -237,7 +237,7 @@ TEST (fpgr_write)
   error e = error_create (NULL);
   test_fail_if (i_mkstemp (&fp, tmpl, &e));
 
-  test_fail_if (i_truncate (&fp, 10, &e));
+  test_fail_if (i_truncate (&fp, 0, &e));
 
   file_pager p;
   test_assert_int_equal (fpgr_create (&p, tmpl, &e), SUCCESS);
