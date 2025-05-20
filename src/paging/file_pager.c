@@ -168,7 +168,7 @@ fpgr_get_expect (file_pager *p, u8 dest[PAGE_SIZE], u64 pgno, error *e)
 
 TEST (fpgr_get_expect)
 {
-  u8 _page[2048];
+  u8 _page[PAGE_SIZE];
 
   char _tmpl[] = "/tmp/fpgr_testXXXXXX";
   string tmpl = unsafe_cstrfrom (_tmpl);
@@ -226,7 +226,7 @@ fpgr_write (file_pager *p, const u8 src[PAGE_SIZE], u64 pgno, error *e)
 
 TEST (fpgr_write)
 {
-  u8 _page[2048];
+  u8 _page[PAGE_SIZE];
 
   char _tmpl[] = "/tmp/fpgr_testXXXXXX";
   string tmpl = unsafe_cstrfrom (_tmpl);
