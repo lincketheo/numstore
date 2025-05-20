@@ -108,6 +108,24 @@ mpgr_get_evictable (const memory_pager *p)
   return mp->page.pg;
 }
 
+bool
+mpgr_get_next (pgno *dest, const memory_pager *p)
+{
+  memory_pager_assert (p);
+
+  for (u32 i = 0; i < MEMORY_PAGE_LEN; ++i)
+    {
+      const page_wrapper *mp = &p->pages[(i + p->idx) % MEMORY_PAGE_LEN];
+      if (mp->is_present)
+        {
+          *dest = mp->page.pg;
+          return true;
+        }
+    }
+
+  return false;
+}
+
 void
 mpgr_evict (memory_pager *p, u64 pgno)
 {

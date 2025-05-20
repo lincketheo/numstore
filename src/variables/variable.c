@@ -27,7 +27,7 @@ var_hash_entry_create (
    * Get the output buffer size for
    * type string
    */
-  u32 tlen = type_byte_size (&src->type);
+  u32 tlen = type_get_serial_size (&src->type);
   ASSERT (tlen > 0);
 
   void *tstr = lmalloc (alloc, tlen, 1);

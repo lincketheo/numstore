@@ -17,6 +17,7 @@ crsr_open (pager *p)
   cursor ret = {
     .hm = vfhm_create (p),
     .is_loaded = false,
+    .p = p,
   };
 
   cursor_assert (&ret);

@@ -1,17 +1,22 @@
 #include "virtual_machine.h"
 
 #include "ast/query/queries/delete.h"
+#include "cursor/cursor.h"
 #include "dev/assert.h" // ASSERT
 
 static inline err_t
 create_query_execute (pager *p, create_query *q, error *e)
 {
-  (void)p;
-  (void)e;
   i_log_create (q);
-  return SUCCESS;
-  // cursor c = crsr_open (p);
-  // return crsr_create_var (&c, q, e);
+
+  cursor c = crsr_open (p);
+  if (crsr_create_var (&c, q, e))
+    {
+      goto theend;
+    }
+
+theend:
+  return err_t_from (e);
 }
 
 static inline err_t

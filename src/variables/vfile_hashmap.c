@@ -277,6 +277,10 @@ vfhmi_fetch_starting_leaf (
    * Fetch the first hash page
    */
   hp = pgr_get_expect_rw (PG_HASH_PAGE, 0, h->pager, e);
+  if (hp == NULL)
+    {
+      return NULL;
+    }
 
   /**
    * Hash the key

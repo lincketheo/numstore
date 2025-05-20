@@ -48,10 +48,23 @@ pgr_create (const string fname, error *e)
   return ret;
 }
 
+static void
+pgr_write_all (pager *pg)
+{
+  pgno next;
+  while (mpgr_get_next (&next, &pg->mpager))
+    {
+      page *p = mpgr_get_rw (&pg->mpager, next);
+      err_t_log_swallow (fpgr_write (&pg->fpager, p->raw, next, &e), e);
+      mpgr_evict (&pg->mpager, next);
+    }
+}
+
 void
 pgr_close (pager *p)
 {
   pager_assert (p);
+  pgr_write_all (p);
   fpgr_close (&p->fpager);
   i_free (p);
 }

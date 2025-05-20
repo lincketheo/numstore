@@ -154,6 +154,10 @@ server_execute_connections (server *s)
       connection *con = s->cons[pfd.fd];
       ASSERT (con);
 
+      /**
+       * TODO - figure out what to do with errors:
+       * https://github.com/lincketheo/numstore/issues/13
+       */
       // READ
       if (ready & POLLIN)
         {
@@ -208,6 +212,7 @@ server_execute (server *s)
       // Nothing to do
       return;
     }
+
   if (rv < 0)
     {
       i_log_error ("Poll: %s\n", strerror (errno));

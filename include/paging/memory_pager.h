@@ -47,6 +47,8 @@ const page *mpgr_get_r (const memory_pager *p, pgno pgno);
  */
 pgno mpgr_get_evictable (const memory_pager *p);
 
+bool mpgr_get_next (pgno *dest, const memory_pager *p);
+
 /**
  * Evicts the page pgno. [pgno] must be in the pool
  * Always succeeds

@@ -15,12 +15,22 @@ i_log_create (create_query *q)
 {
   create_query_assert (q);
   int n = type_snprintf (NULL, 0, &q->type);
-  char *str = i_malloc (n + 1, sizeof *str);
-  type_snprintf (str, n + 1, &q->type);
-  i_log_info ("create \n%.*s\n%.*s\n",
-              q->vname.len, q->vname.data,
-              n, str);
-  i_free (str);
+
+  i_log_info ("Creating variable with name: %.*s\n",
+              q->vname.len, q->vname.data);
+
+  u32 state = lalloc_get_state (&q->alloc);
+  char *str = lmalloc (&q->alloc, n + 1, 1);
+  if (str != NULL)
+    {
+      type_snprintf (str, n + 1, &q->type);
+      i_log_info ("Variable Type: %.*s\n", n, str);
+      lalloc_reset_to_state (&q->alloc, state);
+    }
+  else
+    {
+      i_log_info ("Variable Type: (Omitted due to length)");
+    }
 }
 
 void

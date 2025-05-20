@@ -25,3 +25,23 @@ create b enum { FOO, BAR, BIZ }
 .quit
 create a struct { a enum { FOO, BAR, BIZ }, b i32, c union { a i32, b u32 } } 
 .quit
+create a u32 
+.quit
+create a u32  
+.quit
+create a u32 
+.quit
+create a u32 
+.quit
+create a u32 
+.quit
+create a u32 
+.quit
+create a u32 
+.quit
+create a u32 
+.quit
+create a u32 
+.quit
+create a u32 
+.quit
