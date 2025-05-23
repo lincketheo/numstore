@@ -1,4 +1,5 @@
-#include "ast/query/qspace_provider.h"
+#include "ast/query/query_provider.h"
+
 #include "ast/query/queries/create.h"
 #include "ast/query/queries/delete.h"
 #include "ast/query/query.h"
@@ -8,48 +9,41 @@
 #include "intf/stdlib.h"
 #include "mm/lalloc.h"
 
-DEFINE_DBG_ASSERT_I (qspce_prvdr, qspce_prvdr, q)
+DEFINE_DBG_ASSERT_I (query_provider, query_provider, q)
 {
   ASSERT (q);
 }
 
-qspce_prvdr *
-qspce_prvdr_create (error *e)
+query_provider *
+query_provider_create (error *e)
 {
-  qspce_prvdr *ret = i_malloc (1, sizeof *ret);
+  query_provider *ret = i_malloc (1, sizeof *ret);
   if (ret == NULL)
     {
       error_causef (
           e, ERR_NOMEM,
           "Not enough memory to allocate "
-          "qspce_prvdr");
+          "query_provider");
       return NULL;
     }
 
-  for (u32 i = 0; i < 20; ++i)
-    {
-      // Create
-      create_query_create (&ret->create[i].create);
-      ret->create[i].is_used = false;
+  // set is_used = false
+  i_memset (ret->create, 0, sizeof (ret->create));
+  i_memset (ret->delete, 0, sizeof (ret->delete));
 
-      // Delete
-      delete_query_create (&ret->delete[i].delete);
-      ret->delete[i].is_used = false;
-    }
-
-  qspce_prvdr_assert (ret);
+  query_provider_assert (ret);
 
   return ret;
 }
 
 err_t
-qspce_prvdr_get (
-    qspce_prvdr *q,
+query_provider_get (
+    query_provider *q,
     query *dest,
     query_t type,
     error *e)
 {
-  qspce_prvdr_assert (q);
+  query_provider_assert (q);
   ASSERT (dest);
 
   for (u32 i = 0; i < 20; ++i)
@@ -60,13 +54,8 @@ qspce_prvdr_get (
           {
             if (!q->create[i].is_used)
               {
-                create_query_reset (&q->create[i].create);
+                *dest = create_query_create (&q->create[i].create);
                 q->create[i].is_used = true;
-                *dest = (query){
-                  .type = type,
-                  .create = &q->create[i].create,
-                  .qalloc = &q->create[i].create.alloc,
-                };
                 return SUCCESS;
               }
             break;
@@ -75,13 +64,8 @@ qspce_prvdr_get (
           {
             if (!q->delete[i].is_used)
               {
-                delete_query_reset (&q->delete[i].delete);
+                *dest = delete_query_create (&q->delete[i].delete);
                 q->delete[i].is_used = true;
-                *dest = (query){
-                  .type = type,
-                  .delete = &q->delete[i].delete,
-                  .qalloc = &q->delete[i].delete.vname_allocator,
-                };
                 return SUCCESS;
               }
             break;
@@ -93,9 +77,9 @@ qspce_prvdr_get (
 }
 
 void
-qspce_prvdr_release (qspce_prvdr *q, query *qu)
+query_provider_release (query_provider *q, query *qu)
 {
-  qspce_prvdr_assert (q);
+  query_provider_assert (q);
   ASSERT (qu);
 
   for (u32 i = 0; i < 20; ++i)
@@ -133,8 +117,8 @@ qspce_prvdr_release (qspce_prvdr *q, query *qu)
 }
 
 void
-qspce_prvdr_free (qspce_prvdr *q)
+query_provider_free (query_provider *q)
 {
-  qspce_prvdr_assert (q);
+  query_provider_assert (q);
   i_free (q);
 }

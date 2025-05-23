@@ -17,12 +17,14 @@ typedef struct
     ENP_DONE,
   } state;
 
-  enum_builder builder;
+  u32 working_start;    // Starting position to "free" [builder]
+  enum_builder builder; // Builds [result]
+
+  lalloc *destination; // Destination to allocate [result]
+  enum_t result;       // Final enum - built on last token
 
 } enum_parser;
 
-enum_parser enp_create (lalloc *working_space);
-
-stackp_result enp_build (enum_t *dest, enum_parser *eb, lalloc *destination, error *e);
+enum_parser enp_create (lalloc *working, lalloc *destination);
 
 stackp_result enp_accept_token (enum_parser *eb, token t, error *e);

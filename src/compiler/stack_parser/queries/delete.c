@@ -22,11 +22,12 @@ delete_parser_assert_state (delete_parser *q, int dltp_state)
 ////////////////////////// API
 
 delete_parser
-dltp_create (void)
+dltp_create (delete_query *dest)
 {
   delete_parser ret = {
-    .builder = dltb_create (),
     .state = DB_WAITING_FOR_VNAME,
+    .builder = dltb_create (),
+    .dest = dest,
   };
 
   delete_parser_assert_state (&ret, DB_WAITING_FOR_VNAME);
@@ -35,11 +36,13 @@ dltp_create (void)
 }
 
 stackp_result
-dltp_build (delete_query *dest, delete_parser *db, error *e)
+dltp_build (delete_parser *db, error *e)
 {
   delete_parser_assert_state (db, DB_DONE);
 
-  switch (dltb_build (dest, &db->builder, e))
+  err_t ret = dltb_build (db->dest, &db->builder, e);
+
+  switch (ret)
     {
     case ERR_INVALID_ARGUMENT:
       {
@@ -84,7 +87,7 @@ HANDLER_FUNC (DB_WAITING_FOR_VNAME) (delete_parser *db, token t, error *e)
     case SUCCESS:
       {
         db->state = DB_DONE;
-        return SPR_DONE;
+        return dltp_build (db, e);
       }
     default:
       {

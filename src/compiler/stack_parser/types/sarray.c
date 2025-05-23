@@ -5,6 +5,7 @@
 #include "compiler/tokens.h"
 #include "dev/assert.h"
 #include "errors/error.h"
+#include "mm/lalloc.h"
 
 ////////////////////////// DEV
 
@@ -28,24 +29,27 @@ sarray_parser_assert_state (sarray_parser *tb, int sap_state)
 ////////////////////////// API
 
 sarray_parser
-sap_create (lalloc *alloc)
+sap_create (lalloc *working, lalloc *destination)
 {
-  ASSERT (alloc);
-
   sarray_parser ret = {
     .state = SAP_WAITING_FOR_NUMBER,
-    .builder = sab_create (alloc),
+    .working_start = lalloc_get_state (working),
+    .builder = sab_create (working),
+    .destination = destination,
   };
   sarray_parser_assert_state (&ret, SAP_WAITING_FOR_NUMBER);
   return ret;
 }
 
-stackp_result
-sap_build (sarray_t *dest, sarray_parser *tb, lalloc *destination, error *e)
+static stackp_result
+sap_build (sarray_parser *tb, error *e)
 {
   sarray_parser_assert_state (tb, SAP_DONE);
 
-  switch (sab_build (dest, &tb->builder, destination, e))
+  err_t ret = sab_build (&tb->result, &tb->builder, tb->destination, e);
+  lalloc_reset_to_state (tb->builder.alloc, tb->working_start);
+
+  switch (ret)
     {
     case ERR_INVALID_ARGUMENT:
       {
@@ -196,7 +200,7 @@ TYPE_HANDLER_FUNC (SAP_WAITING_FOR_LEFT_OR_TYPE) (sarray_parser *sab, type t, er
     case SUCCESS:
       {
         sab->state = SAP_DONE;
-        return SPR_DONE;
+        return sap_build (sab, e);
       }
     default:
       {

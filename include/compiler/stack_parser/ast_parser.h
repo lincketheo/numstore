@@ -32,6 +32,9 @@
  * I = ENUM_KEY_LIST
  */
 
+/**
+ * Wraps around all the types you can parse
+ */
 typedef struct
 {
 
@@ -56,6 +59,9 @@ typedef struct
   };
 } type_parser;
 
+/**
+ * Wraps around [create] and [delete]
+ */
 typedef struct
 {
   enum
@@ -74,6 +80,10 @@ typedef struct
   };
 } query_parser;
 
+/**
+ * Generic wrapper around type and query
+ * non terminals
+ */
 typedef struct
 {
   sb_build_type type;
@@ -83,6 +93,65 @@ typedef struct
     type_parser tb;
     query_parser qb;
   };
-  query cur;
-  u32 alloc_start;
+
+  query cur;       // Current query we're working on
+  u32 alloc_start; // The start pos of the allocator to reset on pop
+
 } ast_parser;
+
+typedef struct
+{
+  sb_build_type type;
+
+  union
+  {
+    type t;
+    query q;
+  };
+} ast_result;
+
+/**
+ * Given your current state and the next token [t], what
+ * do you expect next?
+ */
+sb_feed_t
+ast_parser_expect_next (
+    ast_parser *b,
+    token t);
+
+/**
+ * Build the ast parser [b] and stores
+ * the results in [dest] if successful
+ *
+ * Errors:
+ *   - SPR_SYNTAX_ERROR (ERR_SYNTAX)
+ *   - SPR_MALLOC_ERROR (ERR_NOMEM)
+ */
+ast_result ast_parser_to_result (ast_parser *b);
+
+/**
+ * Gives this parser a type [t]
+ *
+ * Errors:
+ *   - SPR_SYNTAX_ERROR (ERR_SYNTAX)
+ *   - SPR_MALLOC_ERROR (ERR_NOMEM)
+ */
+stackp_result
+ast_parser_accept_type (
+    ast_parser *b,
+    type t,
+    error *e);
+
+/**
+ * Gives this parser a token [t]
+ *
+ * Errors:
+ *   - SPR_SYNTAX_ERROR (ERR_SYNTAX)
+ *   - SPR_MALLOC_ERROR (ERR_NOMEM)
+ */
+stackp_result
+ast_parser_accept_token (
+    ast_parser *b,
+    token t,
+    lalloc *alloc,
+    error *e);

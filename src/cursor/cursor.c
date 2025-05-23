@@ -52,7 +52,7 @@ crsr_create_var (cursor *c, create_query *create, error *e)
     .vname = create->vname,
   };
 
-  err_t_wrap (vfhm_insert (&c->hm, var, &create->alloc, e), e);
+  err_t_wrap (vfhm_insert (&c->hm, var, &create->query_allocator, e), e);
 
   return ret;
 }

@@ -2,6 +2,7 @@
 
 #include "ast/type/builders/enum.h" // enum_builder
 #include "dev/assert.h"             // DEFINE_DBG_ASSERT_I
+#include "mm/lalloc.h"
 
 ////////////////////////// DEV
 
@@ -24,24 +25,31 @@ enum_parser_assert_state (enum_parser *tb, int enp_state)
 ////////////////////////// API
 
 enum_parser
-enp_create (lalloc *alloc)
+enp_create (lalloc *working, lalloc *destination)
 {
-  ASSERT (alloc);
-
   enum_parser ret = {
     .state = ENP_WAITING_FOR_LB,
-    .builder = enb_create (alloc),
+    .working_start = lalloc_get_state (working),
+    .destination = destination,
+    .builder = enb_create (working),
   };
   enum_parser_assert_state (&ret, ENP_WAITING_FOR_LB);
   return ret;
 }
 
-stackp_result
-enp_build (enum_t *dest, enum_parser *eb, lalloc *destination, error *e)
+static stackp_result
+enp_build (enum_parser *eb, error *e)
 {
   enum_parser_assert_state (eb, ENP_DONE);
 
-  switch (enb_build (dest, &eb->builder, destination, e))
+  // Build the enum
+  err_t ret = enb_build (&eb->result, &eb->builder, eb->destination, e);
+
+  // "free" the builder
+  lalloc_reset_to_state (eb->builder.alloc, eb->working_start);
+
+  // Translate result
+  switch (ret)
     {
     case ERR_INVALID_ARGUMENT:
       {
@@ -128,7 +136,7 @@ HANDLER_FUNC (ENP_WAITING_FOR_COMMA_OR_RIGHT) (enum_parser *eb, token t, error *
   else if (t.type == TT_RIGHT_BRACE)
     {
       eb->state = ENP_DONE;
-      return SPR_DONE;
+      return enp_build (eb, e);
     }
 
   return (stackp_result)error_causef (

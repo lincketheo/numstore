@@ -33,16 +33,16 @@ typedef struct
 {
   create_wrapper create[20];
   delete_wrapper delete[20];
-} qspce_prvdr;
+} query_provider;
 
-qspce_prvdr *qspce_prvdr_create (error *e);
+query_provider *query_provider_create (error *e);
 
-err_t qspce_prvdr_get (
-    qspce_prvdr *q,
+err_t query_provider_get (
+    query_provider *q,
     query *dest,
     query_t type,
     error *e);
 
-void qspce_prvdr_release (qspce_prvdr *q, query *qu);
+void query_provider_release (query_provider *q, query *qu);
 
-void qspce_prvdr_free (qspce_prvdr *q);
+void query_provider_free (query_provider *q);

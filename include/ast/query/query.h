@@ -11,15 +11,21 @@ typedef enum
 } query_t;
 
 ///// QUERY
-typedef struct
+struct query_s
 {
   query_t type;
+
   union
   {
-    // Pointer because
-    // these are big
     create_query *create;
     delete_query *delete;
   };
-  lalloc *qalloc; // Allocator for query data
-} query;
+
+  /**
+   * Every query must have a local allocator for
+   * "query" related data. E.g. when I run
+   * create foo u32, where is "foo" and "u32"
+   * allocated.
+   */
+  lalloc *qalloc;
+};

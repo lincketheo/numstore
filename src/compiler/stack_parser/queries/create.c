@@ -22,11 +22,12 @@ create_parser_assert_state (create_parser *q, int crtp_state)
 ////////////////////////// API
 
 create_parser
-crtp_create (void)
+crtp_create (create_query *dest)
 {
   create_parser ret = {
-    .builder = crb_create (),
     .state = CB_WAITING_FOR_VNAME,
+    .builder = crb_create (),
+    .dest = dest,
   };
 
   create_parser_assert_state (&ret, CB_WAITING_FOR_VNAME);
@@ -34,12 +35,14 @@ crtp_create (void)
   return ret;
 }
 
-stackp_result
-crtp_build (create_query *dest, create_parser *cb, error *e)
+static stackp_result
+crtp_build (create_parser *cb, error *e)
 {
   create_parser_assert_state (cb, CB_DONE);
 
-  switch (crb_build (dest, &cb->builder, e))
+  err_t ret = crb_build (cb->dest, &cb->builder, e);
+
+  switch (ret)
     {
     case ERR_INVALID_ARGUMENT:
       {
@@ -132,7 +135,7 @@ HANDLER_FUNC (CB_WAITING_FOR_TYPE) (create_parser *cb, type t, error *e)
     case SUCCESS:
       {
         cb->state = CB_DONE;
-        return SPR_DONE;
+        return crtp_build (cb, e);
       }
     default:
       {

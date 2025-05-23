@@ -37,8 +37,7 @@ err_t vfhm_insert (
     lalloc *alloc,
     error *e);
 
-err_t
-vfhm_get (
+err_t vfhm_get (
     const vfile_hashmap *h,
     variable *dest,
     const string key,

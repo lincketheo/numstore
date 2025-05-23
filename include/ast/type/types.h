@@ -47,6 +47,7 @@ struct type_s
 
 /**
  * Checks that this type is valid
+ * Otherwise returns error
  */
 err_t type_validate (const type *t, error *e);
 

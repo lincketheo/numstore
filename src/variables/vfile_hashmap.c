@@ -484,12 +484,12 @@ vfhmi_write_variable_here (
 
           pos = 0;
         }
+
+      p_size nbytes = HL_DATA_LEN - pos;
+      err_t_wrap (vwhfmt_write_out (leaf->hl.data + pos, &nbytes, &vw, e), e);
+
+      pos += nbytes;
     }
-
-  p_size nbytes = HL_DATA_LEN - pos;
-  err_t_wrap (vwhfmt_write_out (leaf->hl.data + pos, &nbytes, &vw, e), e);
-
-  pos += nbytes;
 
   return SUCCESS;
 }

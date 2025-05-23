@@ -3,33 +3,29 @@
 #include "errors/error.h"
 #include "intf/io.h"
 
-sckctrl
+void
 sckctrl_create (
+    sckctrl *dest,
     i_file cfd,
-    struct sockaddr_in addr,
-    cbuffer *recv,
-    cbuffer *send)
+    struct sockaddr_in addr)
 {
-  sckctrl ret = {
-    .cfd = cfd,
-    .addr = addr,
-    .recv = recv,
-    .send = send,
-  };
-  return ret;
+  dest->cfd = cfd;
+  dest->addr = addr;
+  dest->recv = cbuffer_create_from (dest->_recv);
+  dest->send = cbuffer_create_from (dest->_send);
 }
 
 err_t
 sckctrl_read (sckctrl *s, error *e)
 {
-  err_t_wrap (cbuffer_write_some_from_file (&s->cfd, s->recv, e), e);
+  err_t_wrap (cbuffer_write_some_from_file (&s->cfd, &s->recv, e), e);
   return SUCCESS;
 }
 
 err_t
 sckctrl_write (sckctrl *s, error *e)
 {
-  err_t_wrap (cbuffer_read_some_to_file (&s->cfd, s->send, e), e);
+  err_t_wrap (cbuffer_read_some_to_file (&s->cfd, &s->send, e), e);
   return SUCCESS;
 }
 

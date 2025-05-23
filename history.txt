@@ -45,3 +45,12 @@ create a u32
 .quit
 create a u32 
 .quit
+create a u32 
+.quit
+create b u32 
+create c i32 
+.quit
+create d f32 
+.quit
+create a u32 
+.quit

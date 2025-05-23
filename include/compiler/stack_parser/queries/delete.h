@@ -16,11 +16,9 @@ typedef struct
   } state;
 
   delete_builder builder;
+  delete_query *dest;
 
 } delete_parser;
 
-delete_parser dltp_create (void);
-
-stackp_result dltp_build (delete_query *dest, delete_parser *eb, error *e);
-
+delete_parser dltp_create (delete_query *dest);
 stackp_result dltp_accept_token (delete_parser *eb, token t, error *e);

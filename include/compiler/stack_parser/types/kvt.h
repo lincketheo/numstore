@@ -17,14 +17,27 @@ typedef struct
     KVTP_DONE,
   } state;
 
-  kvt_builder builder;
+  u32 working_start;   // Starting position to "free" [builder]
+  kvt_builder builder; // Builds [result]
+
+  lalloc *destination; // Destination to allocate [result]
+  struct               // Final struct or union built on last token
+  {
+    enum
+    {
+      KVT_STRUCT,
+      KVT_UNION,
+    } type;
+
+    union
+    {
+      union_t un_res;
+      struct_t st_res;
+    };
+  } result;
 
 } kvt_parser;
 
-kvt_parser kvp_create (lalloc *alloc);
-
-stackp_result kvp_build_union (union_t *dest, kvt_parser *sb, lalloc *destination, error *e);
-stackp_result kvp_build_struct (struct_t *dest, kvt_parser *sb, lalloc *destination, error *e);
-
+kvt_parser kvp_create (lalloc *working, lalloc *destination, type_t type);
 stackp_result kvp_accept_token (kvt_parser *eb, token t, error *e);
 stackp_result kvp_accept_type (kvt_parser *eb, type type, error *e);

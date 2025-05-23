@@ -108,11 +108,15 @@ server_accept (server *s, error *e)
    */
   fcntl (cfd, F_SETFL, fcntl (F_GETFL, 0) | O_NONBLOCK);
 
-  connection *c = con_create (
-      (i_file){ .fd = cfd },
-      client_addr,
-      &s->db, e);
+  connection_params params = {
+    .cfd = (i_file){
+        .fd = cfd,
+    },
+    .db = &s->db,
+    .caddr = client_addr,
+  };
 
+  connection *c = con_create (params, e);
   if (c == NULL)
     {
       return err_t_from (e);
@@ -173,11 +177,13 @@ server_execute_connections (server *s)
           err_t_log_swallow (con_write (con, &e), e);
         }
 
-      if (con_is_done (con))
-        {
-          con_free (con);
-          s->cons[pfd.fd] = NULL;
-        }
+      /**
+        if (con_is_done (con))
+          {
+            con_free (con);
+            s->cons[pfd.fd] = NULL;
+          }
+         */
     }
 }
 

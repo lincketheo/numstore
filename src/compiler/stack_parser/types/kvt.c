@@ -1,7 +1,9 @@
 #include "compiler/stack_parser/types/kvt.h"
 
 #include "ast/type/builders/kvt.h" // kvt_builder
-#include "dev/assert.h"            // DEFINE_DBG_ASSERT_I
+#include "ast/type/types.h"
+#include "dev/assert.h" // DEFINE_DBG_ASSERT_I
+#include "mm/lalloc.h"
 
 ////////////////////////// DEV
 
@@ -24,52 +26,54 @@ kvt_parser_assert_state (kvt_parser *tb, int kvp_state)
 ////////////////////////// API
 
 kvt_parser
-kvp_create (lalloc *alloc)
+kvp_create (lalloc *working, lalloc *destination, type_t type)
 {
-  ASSERT (alloc);
+  ASSERT (type == T_STRUCT || type == T_UNION);
 
   kvt_parser ret = {
     .state = KVTP_WAITING_FOR_LB,
-    .builder = kvb_create (alloc),
+    .working_start = lalloc_get_state (working),
+    .builder = kvb_create (working),
+    .destination = destination,
+    .result = {
+        .type = type == T_STRUCT ? KVT_STRUCT : KVT_UNION,
+    },
   };
+
   kvt_parser_assert_state (&ret, KVTP_WAITING_FOR_LB);
+
   return ret;
 }
 
-stackp_result
-kvp_build_union (union_t *dest, kvt_parser *sb, lalloc *destination, error *e)
+static stackp_result
+kvp_build (kvt_parser *sb, error *e)
 {
   kvt_parser_assert_state (sb, KVTP_DONE);
 
-  switch (kvb_union_t_build (dest, &sb->builder, destination, e))
+  err_t ret;
+  switch (sb->result.type)
     {
-    case ERR_INVALID_ARGUMENT:
+    case KVT_UNION:
       {
-        return SPR_SYNTAX_ERROR;
+        ret = kvb_union_t_build (
+            &sb->result.un_res,
+            &sb->builder,
+            sb->destination, e);
+        break;
       }
-    case ERR_NOMEM:
+    case KVT_STRUCT:
       {
-        return SPR_NOMEM;
-      }
-    case SUCCESS:
-      {
-        return SPR_DONE;
-      }
-    default:
-      {
-        UNREACHABLE ();
+        ret = kvb_struct_t_build (
+            &sb->result.st_res,
+            &sb->builder,
+            sb->destination, e);
+        break;
       }
     }
 
-  return SPR_DONE;
-}
+  lalloc_reset_to_state (sb->builder.alloc, sb->working_start);
 
-stackp_result
-kvp_build_struct (struct_t *dest, kvt_parser *sb, lalloc *destination, error *e)
-{
-  kvt_parser_assert_state (sb, KVTP_DONE);
-
-  switch (kvb_struct_t_build (dest, &sb->builder, destination, e))
+  switch (ret)
     {
     case ERR_INVALID_ARGUMENT:
       {
@@ -157,7 +161,7 @@ HANDLER_FUNC (KVTP_WAITING_FOR_COMMA_OR_RIGHT) (kvt_parser *sb, token t, error *
   else if (t.type == TT_RIGHT_BRACE)
     {
       sb->state = KVTP_DONE;
-      return SPR_DONE;
+      return kvp_build (sb, e);
     }
 
   return (stackp_result)error_causef (

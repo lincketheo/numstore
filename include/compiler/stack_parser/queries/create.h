@@ -17,12 +17,10 @@ typedef struct
   } state;
 
   create_builder builder;
+  create_query *dest;
 
 } create_parser;
 
-create_parser crtp_create (void);
-
-stackp_result crtp_build (create_query *dest, create_parser *cb, error *e);
-
+create_parser crtp_create (create_query *dest);
 stackp_result crtp_accept_token (create_parser *p, token t, error *e);
 stackp_result crtp_accept_type (create_parser *p, type type, error *e);

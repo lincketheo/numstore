@@ -1,10 +1,8 @@
 #include "database.h"
 
-#include "ast/query/qspace_provider.h"
-#include "dev/assert.h" // DEFINE_DBG_ASSERT_I
-#include "errors/error.h"
-#include "intf/io.h"
-#include "paging/pager.h"
+#include "ast/query/query_provider.h"
+#include "dev/assert.h"              // DEFINE_DBG_ASSERT_I
+#include "intf/io.h"                 // i_touch
 #include "variables/vfile_hashmap.h" // vfile_hashmap
 
 DEFINE_DBG_ASSERT_I (database, database, d)
@@ -65,7 +63,7 @@ db_open (database *dest, const string fname, error *e)
       return err_t_from (e);
     }
 
-  qspce_prvdr *qspce = qspce_prvdr_create (e);
+  query_provider *qspce = query_provider_create (e);
   if (qspce == NULL)
     {
       pgr_close (p);
@@ -83,5 +81,5 @@ db_close (database *d)
 {
   database_assert (d);
   pgr_close (d->pager);
-  qspce_prvdr_free (d->qspce);
+  query_provider_free (d->qspce);
 }
