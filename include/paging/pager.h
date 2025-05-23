@@ -16,7 +16,7 @@ typedef struct
  *    - ERR_NOMEM - not enough memory to allocate pager
  *    - ERR_CORRUPT - If the file is found in a bad spot on initial open
  */
-pager *pgr_create (const string fname, error *e);
+pager *pgr_open (const string fname, error *e);
 void pgr_close (pager *p);
 
 /**
@@ -29,8 +29,7 @@ void pgr_close (pager *p);
  *    - ERR_CORRUPT - Page header does not match any of [type]
  *    - ERR_CORRUPT - extra page checks fail (<page type>_validate)
  */
-const page *pgr_get_expect_r (int type, pgno pgno, pager *p, error *e);
-page *pgr_get_expect_rw (int type, pgno pgno, pager *p, error *e);
+const page *pgr_get (int type, pgno pgno, pager *p, error *e);
 
 /**
  * Errors (on return NULL):
@@ -41,10 +40,20 @@ page *pgr_get_expect_rw (int type, pgno pgno, pager *p, error *e);
  *   - ERR_IO - truncate failure
  *   - ERR_IO - pwrite failure if an eviction is needed
  */
-page *pgr_new (pager *p, page_type type, error *e);
+const page *pgr_new (pager *p, page_type type, error *e);
+
+/**
+ * Converts a constant read only page to a writable page
+ */
+page *pgr_get_w (pager *p, const page *pg);
+
+/**
+ * Releases page
+ */
+void pgr_release (pager *p, const page *pg);
 
 /**
  * Errors:
  *    - ERR_IO - pwrite error on page write
  */
-err_t pgr_write (pager *p, const page *pg, error *e);
+err_t pgr_save (pager *p, page *pg, error *e);

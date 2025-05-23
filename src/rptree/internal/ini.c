@@ -1,16 +1,5 @@
-#include "rptree/iniacin.h"
-#include "errors/error.h"
-#include "intf/types.h"
-#include "paging/page.h"
-#include "paging/pager.h"
-#include "paging/types/hash_leaf.h"
-#include "paging/types/inner_node.h"
-#include "rptree/mem_inner_node.h"
+#include "rptree/internal/ini.h"
 
-/**
- * I just did this so it would
- * be similar to dliacin. I think it's probably pretty ugly
- */
 typedef struct
 {
   mem_inner_node input; // The input inner nodes
@@ -18,7 +7,7 @@ typedef struct
   page *pg0;            // The starting page
   pager *pager;
   lalloc *alloc;
-} iniacin_s;
+} ini_s;
 
 typedef struct
 {
@@ -27,18 +16,18 @@ typedef struct
   page *pg0;
   pager *pager;
   lalloc *alloc;
-} iniacin_s_params;
+} ini_s_params;
 
-DEFINE_DBG_ASSERT_I (iniacin_s, iniacin_s, d)
+DEFINE_DBG_ASSERT_I (ini_s, ini_s, d)
 {
   ASSERT (d);
   ASSERT (d->pg0->type == PG_INNER_NODE);
 }
 
 static inline void
-iniacin_s_save_right (iniacin_s *d, p_size idx0)
+ini_s_save_right (ini_s *d, p_size idx0)
 {
-  iniacin_s_assert (d);
+  ini_s_assert (d);
   ASSERT (idx0 <= in_get_nkeys (&d->pg0->in));
 
   if (idx0 == in_get_nkeys (&d->pg0->in))
@@ -62,12 +51,12 @@ iniacin_s_save_right (iniacin_s *d, p_size idx0)
 }
 
 static void
-iniacin_s_create (iniacin_s *dest, iniacin_s_params p)
+ini_s_create (ini_s *dest, ini_s_params p)
 {
   ASSERT (dest);
   ASSERT (p.pg0->type == PG_INNER_NODE);
 
-  *dest = (iniacin_s){
+  *dest = (ini_s){
     .input = p.input,
     .out = mintn_create (p.pg0->pg),
     .pg0 = p.pg0,
@@ -75,15 +64,15 @@ iniacin_s_create (iniacin_s *dest, iniacin_s_params p)
     .alloc = p.alloc,
   };
 
-  iniacin_s_save_right (dest, p.idx0);
+  ini_s_save_right (dest, p.idx0);
 
-  iniacin_s_assert (dest);
+  ini_s_assert (dest);
 }
 
 static err_t
-iniacin_s_alloc_then_write_once (iniacin_s *r, page *cur, error *e)
+ini_s_alloc_then_write_once (ini_s *r, page *cur, error *e)
 {
-  iniacin_s_assert (r);
+  ini_s_assert (r);
   ASSERT (cur);
 
   if (in_keys_avail (&cur->in) == 0)
@@ -122,9 +111,9 @@ iniacin_s_alloc_then_write_once (iniacin_s *r, page *cur, error *e)
 }
 
 static err_t
-iniacin_s_consume (iniacin_s *r, error *e)
+ini_s_consume (ini_s *r, error *e)
 {
-  iniacin_s_assert (r);
+  ini_s_assert (r);
 
   page *cur = r->pg0; // Current working page
 
@@ -135,7 +124,7 @@ iniacin_s_consume (iniacin_s *r, error *e)
    */
   while (r->input.kvlen > 0)
     {
-      err_t_wrap (iniacin_s_alloc_then_write_once (r, cur, e), e);
+      err_t_wrap (ini_s_alloc_then_write_once (r, cur, e), e);
     }
 
   /**
@@ -148,10 +137,10 @@ iniacin_s_consume (iniacin_s *r, error *e)
 }
 
 err_t
-iniacin (mem_inner_node *dest, iniacin_params p, error *e)
+ini (mem_inner_node *dest, ini_params p, error *e)
 {
-  iniacin_s d;
-  iniacin_s_params s_p = {
+  ini_s d;
+  ini_s_params s_p = {
     .input = p.input,
     .idx0 = p.idx0,
     .pg0 = p.pg0,
@@ -159,9 +148,9 @@ iniacin (mem_inner_node *dest, iniacin_params p, error *e)
     .alloc = p.alloc,
   };
 
-  iniacin_s_create (&d, s_p);
+  ini_s_create (&d, s_p);
 
-  err_t_wrap (iniacin_s_consume (&d, e), e);
+  err_t_wrap (ini_s_consume (&d, e), e);
 
   *dest = d.out;
 

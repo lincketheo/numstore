@@ -9,158 +9,178 @@
 DEFINE_DBG_ASSERT_I (mem_inner_node, mem_inner_node, o)
 {
   ASSERT (o);
-  ASSERT (o->first_pg != 0); // TODO - enable
-  ASSERT (o->kvlen <= 50);
+  ASSERT (o->klen <= 50);
 }
 
-mem_inner_node
-mintn_create (pgno pg)
+void
+meminode_create (mem_inner_node *dest, pgno pg)
 {
-  mem_inner_node ret = {
-    .first_pg = pg,
-    .kvlen = 0,
-  };
-  mem_inner_node_assert (&ret);
-  return ret;
+  dest->klen = 0;
+  dest->values[0] = pg;
+  mem_inner_node_assert (dest);
+}
+
+u32
+meminode_avail (mem_inner_node *r)
+{
+  mem_inner_node_assert (r);
+  return 50 - r->klen;
 }
 
 bool
-mintn_add_right (mem_inner_node *r, b_size key, pgno pg)
+meminode_full (mem_inner_node *r)
+{
+  mem_inner_node_assert (r);
+  return r->klen == 50;
+}
+
+void
+meminode_push_right (mem_inner_node *r, b_size key, pgno pg)
 {
   mem_inner_node_assert (r);
 
-  if (r->kvlen == 50)
-    {
-      return false;
-    }
+  ASSERT (r->klen < 50);
 
   /*
    * compute cumulative key
-   * add to the previous far-right key if any
+   * push to the previous far-right key if any
    */
-  b_size adj_key = key;
-  if (r->kvlen > 0)
+  if (r->klen > 0)
     {
-      adj_key += r->kvs[r->kvlen - 1].key;
+      key += r->keys[r->klen - 1];
     }
 
-  r->kvs[r->kvlen++] = (pg_rk){
-    .pg = pg,
-    .key = adj_key,
-  };
-
-  return true;
+  meminode_push_right_no_add (r, key, pg);
 }
 
-bool
-mintn_add_right_no_add (mem_inner_node *r, b_size key, pgno pg)
+void
+meminode_push_right_no_add (mem_inner_node *r, b_size key, pgno pg)
 {
   mem_inner_node_assert (r);
 
-  if (r->kvlen == 50)
-    {
-      return false;
-    }
+  ASSERT (r->klen < 50);
 
-  r->kvs[r->kvlen++] = (pg_rk){
-    .pg = pg,
-    .key = key,
-  };
+  r->keys[r->klen] = key;
+  r->values[r->klen + 1] = pg;
 
-  return true;
+  r->klen++;
 }
 
-err_t
-mintn_add_left (mem_inner_node *r, pgno pg, b_size key)
+void
+meminode_push_left (mem_inner_node *r, pgno pg, b_size key)
 {
   mem_inner_node_assert (r);
+  ASSERT (r->klen < 50);
 
-  if (r->kvlen == 50)
+  // Add [key] to all right most nodes
+  for (p_size i = 0; i < r->klen; ++i)
     {
-      return false;
+      r->keys[i + 1] += key;
     }
+
+  meminode_push_left_no_add (r, pg, key);
+}
+
+void
+meminode_push_left_no_add (mem_inner_node *r, pgno pg, b_size key)
+{
+  mem_inner_node_assert (r);
+  ASSERT (r->klen < 50);
 
   /**
-   * shift existing kvs right, and add to each shifted key
+   * shift existing keys right, and push to each shifted key
    */
-  p_size old_len = r->kvlen;
-  if (old_len > 0)
+  if (r->klen)
     {
-      memmove (
-          &r->kvs[1],
-          &r->kvs[0],
-          old_len * sizeof *r->kvs);
-      for (p_size i = 0; i < old_len; ++i)
-        {
-          r->kvs[i + 1].key += key;
-        }
+      // Shift arrays right
+      i_memmove (
+          &r->keys[1],
+          &r->keys[0],
+          r->klen * sizeof *r->keys);
+
+      i_memmove (
+          &r->values[1],
+          &r->values[0],
+          (r->klen + 1) * sizeof *r->values);
     }
 
-  /*
-   * insert new separator at 0, using old first_pg as its right‐child
-   */
-  pgno old_first = r->first_pg;
-  r->kvs[0] = (pg_rk){
-    .pg = old_first,
-    .key = key,
-  };
-  r->first_pg = pg;
+  r->keys[0] = key;
+  r->values[0] = pg;
 
-  r->kvlen++;
-  return true;
+  r->klen += 1;
 }
 
-b_size
-mintn_get_left (mem_inner_node *r, pgno exp)
+meminode_kv
+meminode_pop_left (mem_inner_node *r, pgno exp)
 {
   mem_inner_node_assert (r);
-  ASSERT (exp == r->first_pg);
-  ASSERT (r->kvlen > 0);
+
+  ASSERT (exp == r->values[0]);
+  ASSERT (r->klen > 0);
 
   /*
    * size of the removed leftmost subtree
    */
-  b_size removed = r->kvs[0].key;
-  pgno new_first = r->kvs[0].pg;
+  b_size left = r->keys[0];
+  b_size pg = r->values[0];
 
   /*
    * shift them down and adjust keys
    */
-  if (r->kvlen > 1)
+  if (r->klen > 1)
     {
+      // Shift left
       i_memmove (
-          &r->kvs[0],
-          &r->kvs[1],
-          (r->kvlen - 1) * sizeof *r->kvs);
-      for (p_size i = 0; i < r->kvlen - 1; ++i)
+          &r->keys[0],
+          &r->keys[1],
+          (r->klen - 1) * sizeof *r->keys);
+
+      i_memmove (
+          &r->values[0],
+          &r->values[1],
+          (r->klen) * sizeof *r->values);
+
+      // Subtract [left]
+      for (p_size i = 0; i < r->klen - 1; ++i)
         {
-          r->kvs[i].key -= removed;
+          ASSERT (r->keys[i] > left);
+          r->keys[i] -= left;
         }
     }
 
-  r->kvlen -= 1;
-  r->first_pg = new_first;
-  return removed;
+  r->klen -= 1;
+
+  return (meminode_kv){
+    .key = left,
+    .value = pg,
+  };
 }
 
 void
-mintn_write_max_into_in (inner_node *dest, mem_inner_node *m)
+meminode_write_max_into_in (inner_node *dest, mem_inner_node *m)
 {
   mem_inner_node_assert (m);
+  ASSERT (m->klen > 0);
 
+  /**
+   * On empty inner node, write out
+   * the first 2 values (1 key)
+   */
   if (in_get_nkeys (dest) == 0)
     {
-      pgno left = m->first_pg;
-      b_size key = mintn_get_left (m, m->first_pg);
-      in_init (dest, key, left, m->first_pg);
+      meminode_kv left = meminode_pop_left (m, m->values[0]);
+      in_init (dest, left.key, left.value, m->values[0]);
     }
 
   // TODO - can be heavily optimized (see memcpies)
-  while (m->kvlen > 0 && in_keys_avail (dest) > 0)
+  while (m->klen > 0 && in_keys_avail (dest) > 0)
     {
-      b_size key = mintn_get_left (m, in_get_right_most_leaf (dest));
-      key += in_get_right_most_key (dest);
-      bool added = in_add_kv (dest, key, m->first_pg);
-      ASSERT (added);
+      b_size right = in_get_right_most_key (dest);
+
+      meminode_kv left = meminode_pop_left (m, right);
+      left.key += right;
+
+      bool pushed = in_add_kv (dest, left.key, m->values[0]);
+      ASSERT (pushed);
     }
 }

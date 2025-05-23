@@ -1,12 +1,16 @@
 #pragma once
 
-#include "errors/error.h"
-#include "mm/lalloc.h"
-#include "paging/pager.h"
-#include "rptree/mem_inner_node.h"
+#include "errors/error.h"          // error
+#include "intf/types.h"            // f32
+#include "paging/page.h"           // page
+#include "paging/pager.h"          // pager
+#include "rptree/mem_inner_node.h" // mem_inner_node
 
 /**
- * DLIACIN = Data List Insert Allocate and Create Inner Node
+ * An internal wrapper for the insert algorithm for one
+ * data list node layer (the bottom layer)
+ *
+ * DLI = Data List Insert
  *
  * This function takes a starting data list page,
  * and writes to that page and allocates new pages
@@ -38,14 +42,13 @@
  */
 typedef struct
 {
-  p_size idx0;   // What byte we are starting on in this node
-  page *pg0;     // Starting page (should be a data list)
-  pager *pager;  // Pager for creating new pages
-  lalloc *alloc; // Allocator for scratch work - must have page_size avail
-  const u8 *src; // Data to read from
-  t_size size;   // Size of each element to consume
-  b_size n;      // Number of elements to write - changes this
-  // TODO - fill factor - what percent to fill when overflow
-} dliacin_params;
+  p_size idx0;       // What byte we are starting on in this node
+  const page *start; // Starting page (should be a data list)
+  pager *pager;      // Pager for creating new pages
+  const u8 *src;     // Data to read from
+  t_size size;       // Size of each element to consume
+  b_size n;          // Number of elements to write
+  f32 fill_factor;   // Percent of nodes to fill when splitting
+} dli_params;
 
-err_t dliacin (mem_inner_node *dest, dliacin_params params, error *e);
+sb_size _rpt_dli (mem_inner_node *dest, dli_params params, error *e);

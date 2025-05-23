@@ -49,13 +49,13 @@ pgr_create (const string fname, error *e)
 }
 
 static void
-pgr_write_all (pager *pg)
+pgr_save_all (pager *pg)
 {
   pgno next;
   while (mpgr_get_next (&next, &pg->mpager))
     {
       page *p = mpgr_get_rw (&pg->mpager, next);
-      err_t_log_swallow (fpgr_write (&pg->fpager, p->raw, next, &e), e);
+      err_t_log_swallow (fpgr_save (&pg->fpager, p->raw, next, &e), e);
       mpgr_evict (&pg->mpager, next);
     }
 }
@@ -64,7 +64,7 @@ void
 pgr_close (pager *p)
 {
   pager_assert (p);
-  pgr_write_all (p);
+  pgr_save_all (p);
   fpgr_close (&p->fpager);
   i_free (p);
 }
@@ -79,7 +79,7 @@ pgr_evict (pager *p, error *e)
   const page *evict_page = mpgr_get_r (&p->mpager, evict);
   ASSERT (evict_page);
 
-  err_t_wrap (pgr_write (p, evict_page, e), e);
+  err_t_wrap (pgr_save (p, evict_page, e), e);
 
   // Then evict that page
   mpgr_evict (&p->mpager, evict);
@@ -126,7 +126,7 @@ pgr_get_expect_r (int type, pgno pgno, pager *p, error *e)
   return pgr_get_expect_rw (type, pgno, p, e);
 }
 
-page *
+const page *
 pgr_new (pager *p, page_type type, error *e)
 {
   pager_assert (p);
@@ -165,11 +165,11 @@ pgr_new (pager *p, page_type type, error *e)
 }
 
 err_t
-pgr_write (pager *p, const page *pg, error *e)
+pgr_save (pager *p, const page *pg, error *e)
 {
   pager_assert (p);
 
-  err_t_wrap (fpgr_write (&p->fpager, pg->raw, pg->pg, e), e);
+  err_t_wrap (fpgr_save (&p->fpager, pg->raw, pg->pg, e), e);
 
   return SUCCESS;
 }

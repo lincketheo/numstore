@@ -3,12 +3,6 @@
 #include "mm/lalloc.h"
 #include "paging/types/inner_node.h"
 
-typedef struct
-{
-  pgno pg;
-  b_size key;
-} pg_rk; // Page and right key
-
 /**
  * Represents an internal node in memory
  *
@@ -17,39 +11,44 @@ typedef struct
  */
 typedef struct
 {
-  pg_rk kvs[50];
-  p_size kvlen;  // Length of kvs
-  pgno first_pg; // The far left page
+  /**
+   *        keys[0]       keys[1]
+   * values[0]    values[1]     values[2]
+   */
+  p_size keys[50];
+  pgno values[51];
+  u32 klen;
 } mem_inner_node;
 
-/**
- * Lifecycle
- */
-mem_inner_node mintn_create (pgno pg);
+void meminode_create (mem_inner_node *dest, pgno pg);
 
-/**
- * API methods
- */
+u32 meminode_avail (mem_inner_node *r);
+
+bool meminode_full (mem_inner_node *r);
 
 /**
  *    1   2                  1   2   5
  * a    b    c  + (3, d) = a   b   c   d
- *
- * Returns true if there was room false else
  */
-bool mintn_add_right (mem_inner_node *r, b_size key, pgno pg);
+void meminode_push_right (mem_inner_node *r, b_size key, pgno pg);
 
 /**
  *    1   2                  1   2   3
  * a    b    c  + (3, d) = a   b   c   d
  */
-bool mintn_add_right_no_add (mem_inner_node *r, b_size key, pgno pg);
+void meminode_push_right_no_add (mem_inner_node *r, b_size key, pgno pg);
 
 /**
- *             2   3         1   2   4
+ *             2   3         1   3   4
  * (1, a) + b    c    d  = a   b   c   d
  */
-bool mintn_add_left (mem_inner_node *r, pgno pg, b_size key);
+void meminode_push_left (mem_inner_node *r, pgno pg, b_size key);
+
+/**
+ *             2   3         1   2   3
+ * (1, a) + b    c    d  = a   b   c   d
+ */
+void meminode_push_left_no_add (mem_inner_node *r, pgno pg, b_size key);
 
 /**
  *    2   5   9         3   7
@@ -58,6 +57,12 @@ bool mintn_add_left (mem_inner_node *r, pgno pg, b_size key);
  * exp = a
  * return 2
  */
-b_size mintn_get_left (mem_inner_node *r, pgno exp);
+typedef struct
+{
+  b_size key;
+  pgno value;
+} meminode_kv;
 
-void mintn_write_max_into_in (inner_node *dest, mem_inner_node *m);
+meminode_kv meminode_pop_left (mem_inner_node *r, pgno exp);
+
+void meminode_write_max (inner_node *dest, mem_inner_node *m);

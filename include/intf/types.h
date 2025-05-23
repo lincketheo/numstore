@@ -80,6 +80,7 @@ typedef u32 p_size;  // To index inside a page
 typedef u64 b_size;  // Bytes size to index into a contiguous rope bytes
 typedef i64 sb_size; // Signed b size
 typedef u64 pgno;    // Page number
+typedef i64 spgno;   // Page number
 typedef u8 pgh;      // Page header
 
 #define PRt_size PRIu32

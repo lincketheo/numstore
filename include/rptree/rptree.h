@@ -4,77 +4,85 @@
 #include "mm/lalloc.h"
 #include "paging/pager.h"
 #include "paging/types/hash_leaf.h"
-#include "rptree/seek.h"
+#include "rptree/internal/seek.h"
 
-typedef struct
-{
-  /**
-   * Indexing (where am I?)
-   */
-  struct
-  {
-    b_size gidx; // The global byte I'm on
-    b_size lidx; // The local byte (within the page I'm on)
-    page *cur;   // Current page we're on
-  };
-
-  /**
-   * Seek result (a stack)
-   */
-  struct
-  {
-    seek_r seek; // Result from a seek call
-    bool is_seeked;
-  };
-
-  pager *pager;
-} rptree;
+typedef struct rptree_s rptree;
 
 /**
- * Creates a new rptree and returns the page number of
- * the root node (which is a data list)
+ * If [pg0] is -1, creates a new rptree
+ *
  * Errors:
  *   - From pgr_new:
  *    - ERR_CORRUPT
  *    - ERR_IO
  */
-err_t rpt_open_new (rptree *dest, pgno *pg0, pager *p, error *e);
+rptree *rpt_open (spgno pg0, pager *p, error *e);
+void rptree_close (rptree *r);
 
-/**
- * Errors:
- *   - From pgr_get_expect
- *    - ERR_IO
- *    - ERR_CORRUPT - Expects either an inner node or data list node
- */
-err_t rpt_open_existing (rptree *dest, pgno p0, pager *p, error *e);
-
-//////////////////////////////// OPERATIONS
 /**
  * Seeks to byte b
+ *
+ * On any subsequent operation, if [r] is unseeked,
+ * it will call seek(0) first.
  */
 err_t rpt_seek (rptree *r, b_size b, error *e);
 
 /**
- * Reads data in chunks of size [size] into dest
+ * Returns the current position of [r]
  */
-err_t rpt_read (
-    u8 *dest,
-    t_size size,
-    b_size *n,
-    b_size nskip,
-    rptree *r,
-    error *e);
+b_size rpt_tell (rptree *r);
 
 /**
+ * Checks if [r] is at the end of the data
+ */
+bool rpt_eof (rptree *r);
+
+/**
+ * Returns the starting page of [r]
+ */
+pgno rpt_pg0 (rptree *r);
+
+/**
+ * Reads maximum of [n] elements into [dest], each element
+ * of size [size] (so [dest] needs to be at least n * size
+ * bytes long) while skipping [nskip] elements every read
+ *
+ * Returns ERR (< 0) on failure or number of elements read
+ */
+sb_size rpt_read (
+    u8 *dest, t_size size, b_size n, b_size nskip,
+    rptree *r, error *e);
+
+/**
+ * Scans the exact same way as read, but
+ * deletes element at each location it hits
+ *
+ * if [dest] is present, writes deleted data to dest
+ */
+sb_size rpt_delete (
+    u8 *dest, t_size size, b_size n, b_size nskip,
+    rptree *r, error *e);
+
+/**
+ * Inserts data at the current seek position
+ *
  * Errors:
  *   - From pgr_get_expect
  *      - ERR_CORRUPT - Expects inner nodes and data lists
  */
-err_t rpt_insert (
-    const u8 *src, // Source data we're writing
-    t_size size,   // Size of each individual element
-    b_size n,      // Number of elements to write
-    rptree *r,     // The rptree that's writing this
-    lalloc *alloc, // TODO - get rid of this in favor of iterative writes
-    error *e       // Any error goes here
-);
+sb_size rpt_insert (
+    const u8 *src, t_size size, b_size n,
+    rptree *r, error *e);
+
+/**
+ * (Over) writes data at the current seek position
+ *
+ * If [nskip]
+ *
+ * Errors:
+ *   - From pgr_get_expect
+ *      - ERR_CORRUPT - Expects inner nodes and data lists
+ */
+sb_size rpt_write (
+    const u8 *src, t_size size, b_size n, b_size nskip,
+    rptree *r, error *e);
