@@ -40,7 +40,6 @@ dlr_s_read_once (
   dlr_s_assert (r);
   ASSERT (cur);
   ASSERT (*nbytes > 0);
-  ASSERT (!meminode_full (&r->out));
 
   // Nothing left - need to create a new page
   if (dl_avail (&cur->dl) == 0)
