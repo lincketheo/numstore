@@ -6,8 +6,23 @@
 
 typedef enum
 {
+  // Readable
   QT_CREATE,
   QT_DELETE,
+  QT_APPEND,
+  QT_INSERT,
+  QT_UPDATE,
+  QT_READ,
+  QT_TAKE,
+
+  // Binary
+  QT_BCREATE,
+  QT_BDELETE,
+  QT_BAPPEND,
+  QT_BINSERT,
+  QT_BUPDATE,
+  QT_BREAD,
+  QT_BTAKE,
 } query_t;
 
 ///// QUERY
