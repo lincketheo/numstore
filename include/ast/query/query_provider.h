@@ -17,7 +17,7 @@ typedef struct
 } delete_wrapper;
 
 /**
- * qspace provider provides query space. Areas of memory
+ * query provider provides query space. Areas of memory
  * to allocate strings onto so that each query has 1 malloc and
  * 1 free.
  *

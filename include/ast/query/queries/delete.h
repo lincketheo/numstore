@@ -9,6 +9,9 @@ typedef struct
 {
   string vname; // Variable to delete
 
+  /**
+   * Space to store variable name
+   */
   u8 _query_space[512];
   lalloc query_allocator;
 } delete_query;

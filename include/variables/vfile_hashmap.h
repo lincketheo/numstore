@@ -7,9 +7,9 @@
 typedef struct
 {
   pager *pager;
-} vfile_hashmap;
+} vhashmap;
 
-vfile_hashmap vfhm_create (pager *p);
+vhashmap vfhm_create (pager *p);
 
 /**
  * Creates and initializes the base hashmap page (page 0)
@@ -18,7 +18,7 @@ vfile_hashmap vfhm_create (pager *p);
  *   - ERR_CORRUPT - if the first page is already present
  *   - ERR_CORRUPT/ERR_IO - pgr_new errors
  */
-err_t vfhm_create_hashmap (vfile_hashmap *h, error *e);
+err_t vfhm_create_hashmap (vhashmap *h, error *e);
 
 /**
  * Inserts [key] into the hash map
@@ -32,14 +32,12 @@ err_t vfhm_create_hashmap (vfile_hashmap *h, error *e);
  *        - pgr_write
  */
 err_t vfhm_insert (
-    vfile_hashmap *h,
+    vhashmap *h,
     const variable var,
-    lalloc *alloc,
     error *e);
 
-err_t vfhm_get (
-    const vfile_hashmap *h,
+variable *vfhm_get (
+    const vhashmap *h,
     variable *dest,
     const string key,
-    lalloc *alloc,
     error *e);

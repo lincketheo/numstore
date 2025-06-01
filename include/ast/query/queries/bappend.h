@@ -5,11 +5,22 @@
 #include "mm/lalloc.h"
 
 /**
- * append 5 [a, (b, c)] DATA
+ * bappend 5 [a, (b, c)] DATA
  */
+
 typedef struct
 {
-  string vname;
+  struct
+  {
+    string *vnames;
+    u32 len;
+  } neighbors;
+  u32 nlen;
+} bappend_vars;
+
+typedef struct
+{
+  bappend_vars vars;
   b_size nelem;
 
   u8 _input[10];

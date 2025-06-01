@@ -11,6 +11,10 @@ typedef struct
   string vname; // Variable name to create
   type type;    // Type of [vname]
 
+  /**
+   * Space to store variable name and
+   * dynamically allocated type
+   */
   lalloc query_allocator;
   u8 _query_space[2048];
 } create_query;
