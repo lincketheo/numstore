@@ -1,5 +1,6 @@
 #pragma once
 
+#include "intf/types.h"
 #include "paging/file_pager.h"   // file_pager
 #include "paging/memory_pager.h" // memory_pager
 #include "paging/page.h"         // page
@@ -15,6 +16,8 @@ typedef struct pager_s pager;
  */
 pager *pgr_open (const string fname, error *e);
 err_t pgr_close (pager *p, error *e);
+
+p_size pgr_get_npages (const pager *p);
 
 /**
  * Fetch a page, expect it to be any of the unioned types in [type]

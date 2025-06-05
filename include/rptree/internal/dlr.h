@@ -21,3 +21,5 @@ typedef struct
   const page *start; // Starting page
   pager *pager;      // for getting pages
 } dlr_params;
+
+sb_size _rpt_dlr (dlr_params p, error *e);

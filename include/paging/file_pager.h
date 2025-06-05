@@ -17,6 +17,8 @@ typedef struct file_pager_s file_pager;
 file_pager *fpgr_open (const string fname, error *e);
 err_t fpgr_close (file_pager *f, error *e);
 
+p_size fpgr_get_npages (const file_pager *fp);
+
 /**
  * Creates a new page and stores the result in [pgno_dest]
  *

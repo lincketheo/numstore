@@ -1,8 +1,9 @@
 #include "database.h"
 
 #include "ast/query/query_provider.h"
-#include "dev/assert.h"              // DEFINE_DBG_ASSERT_I
-#include "intf/io.h"                 // i_touch
+#include "dev/assert.h" // DEFINE_DBG_ASSERT_I
+#include "intf/io.h"    // i_touch
+#include "paging/pager.h"
 #include "variables/vfile_hashmap.h" // vfile_hashmap
 
 DEFINE_DBG_ASSERT_I (database, database, d)
@@ -28,7 +29,7 @@ db_create (const string fname, error *e)
   err_t_wrap (i_touch (fname, e), e);
 
   // Wrap it in a pager
-  pager *p = pgr_create (fname, e);
+  pager *p = pgr_open (fname, e);
   if (p == NULL)
     {
       goto failed_rm_file;

@@ -123,6 +123,13 @@ pgr_close (pager *p, error *e)
   return err_t_from (e);
 }
 
+p_size
+pgr_get_npages (const pager *p)
+{
+  pager_assert (p);
+  return fpgr_get_npages (p->fp);
+}
+
 const page *
 pgr_get (int type, pgno pg, pager *p, error *e)
 {

@@ -8,7 +8,7 @@
 // Stateful
 typedef struct
 {
-  u8 temp_buf[PAGE_SIZE]; // Stores the right half of the current node
+  u8 temp_buf[PAGE_SIZE]; // Stores the right half of the first node
   p_size tbl;             // The length of temp_buf
   mem_inner_node out;     // The output internal node
   page *page;             // Starting page
@@ -21,7 +21,7 @@ DEFINE_DBG_ASSERT_I (dli_s, dli_s, d)
   ASSERT (d->page->type == PG_DATA_LIST);
 }
 
-// Save right half of [d] current page to tempbuf
+// Save right half of [d] first page to tempbuf
 static inline void
 dli_s_save_right (dli_s *d, p_size idx0)
 {
@@ -46,7 +46,7 @@ dli_s_create (dli_s *dest, dli_params p)
   ASSERT (dest);
   ASSERT (p.start->type == PG_DATA_LIST);
 
-  page *page = pgr_get_w (p.pager, p.start);
+  page *page = pgr_make_writable (p.pager, p.start);
 
   *dest = (dli_s){
     // temp_buf, tbl = dli_save_right
@@ -84,7 +84,7 @@ dli_s_write_once (
         {
           return NULL;
         }
-      page *next = pgr_get_w (r->pager, _next);
+      page *next = pgr_make_writable (r->pager, _next);
 
       // Link current node to it
       dl_set_next (&cur->dl, next->pg);

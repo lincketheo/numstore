@@ -27,16 +27,20 @@ typedef struct
 } var_hash_entry;
 
 /**
+ * Converts a [variable] into a [var_hash_entry]
+ * by serializing the type string
+ *
  * Errors:
  *   - ERR_NOMEM - if [alloc] can't fit tstr
  *
  * Allocations:
  *   - Allocates the serialized type string
+ *   - Allocates memory for the string variable name
  */
 err_t var_hash_entry_create (
     var_hash_entry *dest, // The var hash entry we want to convert into
     const variable *src,  // The variable to convert
-    lalloc *alloc,        // The allocator for the type string
+    lalloc *alloc,        // The allocator for the strings
     error *e              // Error accumulator
 );
 
@@ -48,7 +52,7 @@ err_t var_hash_entry_create (
  *
  * Allocations:
  *   - Type data structures from [type_deserialize]
- *     Doesn't copy strings
+ *   - Copy string over
  */
 err_t var_hash_entry_deserialize (
     variable *dest,            // Destination variable to write into

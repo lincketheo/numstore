@@ -1,5 +1,7 @@
 #include "variables/variable.h"
 #include "dev/assert.h"
+#include "errors/error.h"
+#include "intf/stdlib.h"
 
 DEFINE_DBG_ASSERT_I (var_hash_entry, var_hash_entry, v)
 {
@@ -10,6 +12,8 @@ DEFINE_DBG_ASSERT_I (var_hash_entry, var_hash_entry, v)
   ASSERT (v->vstr);
   ASSERT (v->pg0 != 0);
 }
+
+static const char *TAG = "Variable";
 
 err_t
 var_hash_entry_create (
@@ -23,27 +27,28 @@ var_hash_entry_create (
   ASSERT (src->vname.len > 0);
   ASSERT (src->vname.data);
 
-  /**
-   * Get the output buffer size for
-   * type string
-   */
+  // Get the output buffer size for type string
   u32 tlen = type_get_serial_size (&src->type);
   ASSERT (tlen > 0);
 
-  void *tstr = lmalloc (alloc, tlen, 1);
-  if (tstr == NULL)
+  u8 *str = lmalloc (alloc, tlen + src->vname.len, 1);
+  if (str == NULL)
     {
       return error_causef (
           e, ERR_NOMEM,
-          "Failed to allocate type string");
+          "%s: Failed to allocate memory for var_hash_entry", TAG);
     }
 
-  serializer s = srlizr_create (tstr, tlen);
+  // Create the serialized data
+  serializer s = srlizr_create (str, tlen);
   type_serialize (&s, &src->type);
 
-  dest->vstr = src->vname.data;
+  // Copy the variable string name
+  i_memcpy (str + tlen, src->vname.data, src->vname.len);
+
+  dest->vstr = (char *)(str + tlen); // TODO - alignment check
   dest->vlen = src->vname.len;
-  dest->tstr = tstr;
+  dest->tstr = str;
   dest->tlen = tlen;
   dest->pg0 = src->pg0;
 
@@ -61,14 +66,25 @@ var_hash_entry_deserialize (
 {
   var_hash_entry_assert (src);
 
+  // Allocate type
   type t;
   deserializer d = dsrlizr_create (src->tstr, src->tlen);
   err_t_wrap (type_deserialize (&t, &d, alloc, e), e);
 
+  // Copy over variable name
+  char *vname = lmalloc (alloc, src->vlen, 1);
+  if (vname == NULL)
+    {
+      return error_causef (
+          e, ERR_NOMEM,
+          "%s Failed to allocate memory for variable name", TAG);
+    }
+
+  // Set attributes
   dest->pg0 = src->pg0;
   dest->type = t;
   dest->vname = (string){
-    .data = src->vstr,
+    .data = vname,
     .len = src->vlen,
   };
 

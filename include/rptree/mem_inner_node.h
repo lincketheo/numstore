@@ -4,10 +4,7 @@
 #include "paging/types/inner_node.h"
 
 /**
- * Represents an internal node in memory
- *
- * To emulate len(leafs) == len(keys) + 1, I just save first_leaf
- * and then a list of structs (less allocations)
+ * Represents an internal node but in memory
  */
 typedef struct
 {
@@ -15,8 +12,8 @@ typedef struct
    *        keys[0]       keys[1]
    * values[0]    values[1]     values[2]
    */
-  p_size keys[50];
-  pgno values[51];
+  p_size keys[IN_MAX_KEYS];
+  pgno values[IN_MAX_KEYS + 1];
   u32 klen;
 } mem_inner_node;
 

@@ -126,6 +126,13 @@ fpgr_close (file_pager *f, error *e)
   return SUCCESS;
 }
 
+p_size
+fpgr_get_npages (const file_pager *fp)
+{
+  file_pager_assert (fp);
+  return fp->npages;
+}
+
 err_t
 fpgr_new (file_pager *p, u64 *dest, error *e)
 {
