@@ -59,10 +59,10 @@ rpt_open (spgno pg0, pager *p, error *e)
 {
   rptree *ret = i_malloc (1, sizeof *ret);
   if (ret == NULL)
-    {
-      error_causef (e, ERR_NOMEM, "Failed to allocate rptree");
-      return NULL;
-    }
+  {
+    error_causef (e, ERR_NOMEM, "Failed to allocate rptree");
+    return NULL;
+  }
 
   ret->gidx = 0;
   ret->lidx = 0;
@@ -70,20 +70,20 @@ rpt_open (spgno pg0, pager *p, error *e)
   const page *pg;
 
   if (pg0 < 0)
-    {
-      // Create a new page
-      pg = pgr_new (p, PG_DATA_LIST, e);
-    }
+  {
+    // Create a new page
+    pg = pgr_new (p, PG_DATA_LIST, e);
+  }
   else
-    {
-      // Get existing page
-      pg = pgr_get (PG_DATA_LIST | PG_INNER_NODE, pg0, p, e);
-    }
+{
+    // Get existing page
+    pg = pgr_get (PG_DATA_LIST | PG_INNER_NODE, pg0, p, e);
+  }
 
   if (pg == NULL)
-    {
-      goto failed;
-    }
+  {
+    goto failed;
+  }
 
   ret->writing = false;
   ret->cur_r = pg;
@@ -149,37 +149,37 @@ rpt_read_contiguous (u8 *dest, b_size bytes, rptree *r, error *e)
   b_size read = 0;
 
   while (read < bytes)
+  {
+    if (dl_used (&r->cur_r->dl) == r->lidx)
     {
-      if (dl_used (&r->cur_r->dl) == r->lidx)
-        {
-          pgno _next = dl_get_next (&r->cur_r->dl);
+      pgno _next = dl_get_next (&r->cur_r->dl);
 
-          // We are at the end
-          if (_next == 0)
-            {
-              return read;
-            }
+      // We are at the end
+      if (_next == 0)
+      {
+        return read;
+      }
 
-          // Fetch the next page
-          const page *next = pgr_get (PG_DATA_LIST, _next, r->pager, e);
-          if (next == NULL)
-            {
-              return err_t_from (e);
-            }
-          r->cur_r = next;
+      // Fetch the next page
+      const page *next = pgr_get (PG_DATA_LIST, _next, r->pager, e);
+      if (next == NULL)
+      {
+        return err_t_from (e);
+      }
+      r->cur_r = next;
 
-          r->lidx = 0;
-        }
-
-      p_size _read = dl_read (
-          &r->cur_r->dl,
-          dest ? dest + read : NULL,
-          r->lidx,
-          bytes - read);
-
-      read += _read;
-      r->lidx += _read;
+      r->lidx = 0;
     }
+
+    p_size _read = dl_read (
+      &r->cur_r->dl,
+      dest ? dest + read : NULL,
+      r->lidx,
+      bytes - read);
+
+    read += _read;
+    r->lidx += _read;
+  }
 
   ASSERT (read == bytes);
 
@@ -188,8 +188,8 @@ rpt_read_contiguous (u8 *dest, b_size bytes, rptree *r, error *e)
 
 sb_size
 rpt_read (
-    u8 *dest, t_size size, b_size n, b_size nskip,
-    rptree *r, error *e)
+  u8 *dest, t_size size, b_size n, b_size nskip,
+  rptree *r, error *e)
 {
   ASSERT (dest);
   ASSERT (size > 0);
@@ -200,85 +200,85 @@ rpt_read (
   b_size toread = size * n;
 
   if (nskip == 1)
+  {
+    p_size nbytes = rpt_read_contiguous (dest, toread, r, e);
+
+    if (nbytes < 0)
     {
-      p_size nbytes = rpt_read_contiguous (dest, toread, r, e);
+      return toread;
+    }
 
-      if (nbytes < 0)
-        {
-          return toread;
-        }
-
-      /**
+    /**
        * Next should either == 0 or 1 * size
        */
-      ASSERT (nbytes <= size * n);
-      if (nbytes % size != 0)
-        {
-          return error_causef (
-              e, ERR_CORRUPT,
-              "%s: Premature EOF", TAG);
-        }
-
-      ASSERT (nbytes % size == 0);
-      return nbytes / size;
+    ASSERT (nbytes <= size * n);
+    if (nbytes % size != 0)
+    {
+      return error_causef (
+        e, ERR_CORRUPT,
+        "%s: Premature EOF", TAG);
     }
+
+    ASSERT (nbytes % size == 0);
+    return nbytes / size;
+  }
 
   b_size read = 0;
   b_size next;
 
   while (read < toread)
-    {
-      next = rpt_read_contiguous (dest + read, size, r, e);
+  {
+    next = rpt_read_contiguous (dest + read, size, r, e);
 
-      read += next;
+    read += next;
 
-      /**
+    /**
        * Next should either == 0 or 1 * size
        */
-      if (next == 0)
-        {
-          ASSERT (read % size == 0);
-          return read / size;
-        }
-      else if (next != size)
-        {
-          return error_causef (
-              e, ERR_CORRUPT,
-              "%s: Premature EOF", TAG);
-        }
-
-      // Skip values
-      next = rpt_read_contiguous (NULL, size * (nskip - 1), r, e);
-      if (next < 0)
-        {
-          return err_t_from (e);
-        }
-
-      ASSERT (next <= size * (nskip - 1));
-      if (next < size * (nskip - 1))
-        {
-          if (next % size != 0)
-            {
-              // TODO - better error message
-              return error_causef (
-                  e, ERR_CORRUPT,
-                  "%s Premature EOF", TAG);
-            }
-
-          // We've reached the end
-          ASSERT (read % size == 0);
-          return read / size;
-          return SUCCESS;
-        }
+    if (next == 0)
+    {
+      ASSERT (read % size == 0);
+      return read / size;
     }
+    else if (next != size)
+    {
+      return error_causef (
+        e, ERR_CORRUPT,
+        "%s: Premature EOF", TAG);
+    }
+
+    // Skip values
+    next = rpt_read_contiguous (NULL, size * (nskip - 1), r, e);
+    if (next < 0)
+    {
+      return err_t_from (e);
+    }
+
+    ASSERT (next <= size * (nskip - 1));
+    if (next < size * (nskip - 1))
+    {
+      if (next % size != 0)
+      {
+        // TODO - better error message
+        return error_causef (
+          e, ERR_CORRUPT,
+          "%s Premature EOF", TAG);
+      }
+
+      // We've reached the end
+      ASSERT (read % size == 0);
+      return read / size;
+      return SUCCESS;
+    }
+  }
 
   return SUCCESS;
 }
 
 sb_size
 rpt_delete (
-    u8 *dest, t_size size, b_size n, b_size nskip,
-    rptree *r, error *e)
+  u8 *dest, t_size size, b_size n, b_size nskip,
+  rptree *r, error *e)
 {
   (void)dest;
   rptree_assert (r);
@@ -298,8 +298,8 @@ rpt_delete (
 
 sb_size
 rpt_take (
-    u8 *dest, t_size size, b_size n, b_size nskip,
-    rptree *r, error *e)
+  u8 *dest, t_size size, b_size n, b_size nskip,
+  rptree *r, error *e)
 {
   rptree_assert (r);
 
@@ -318,8 +318,8 @@ rpt_take (
 
 sb_size
 rpt_insert (
-    const u8 *src, t_size size, b_size n,
-    rptree *r, error *e)
+  const u8 *src, t_size size, b_size n,
+  rptree *r, error *e)
 {
   ASSERT (src);
   ASSERT (size > 0);
@@ -327,9 +327,9 @@ rpt_insert (
   rptree_assert (r);
 
   if (!r->is_seeked)
-    {
-      err_t_wrap (rpt_seek (r, 0, e), e);
-    }
+  {
+    err_t_wrap (rpt_seek (r, 0, e), e);
+  }
 
   /**
    * Step 1
@@ -339,21 +339,21 @@ rpt_insert (
    */
   b_size btotal = n * size;
   for (u32 i = 0; i < r->seek.sp; ++i)
+  {
+    seek_v next = r->seek.stack[i];
+
+    const page *cur_r = pgr_get (
+      PG_INNER_NODE, next.pg, r->pager, e);
+    if (cur_r == NULL)
     {
-      seek_v next = r->seek.stack[i];
-
-      const page *cur_r = pgr_get (
-          PG_INNER_NODE, next.pg, r->pager, e);
-      if (cur_r == NULL)
-        {
-          return err_t_from (e);
-        }
-
-      // TODO - Optimization - on far right nodes, I don't think
-      // you need to write them
-      page *cur = pgr_get_w (r->pager, cur_r);
-      in_add_right (&cur->in, next.lidx, btotal);
+      return err_t_from (e);
     }
+
+    // TODO - Optimization - on far right nodes, I don't think
+    // you need to write them
+    page *cur = pgr_get_w (r->pager, cur_r);
+    in_add_right (&cur->in, next.lidx, btotal);
+  }
 
   /**
    * Step 2 Create the first overflow buffer by writing out last
@@ -374,10 +374,10 @@ rpt_insert (
   // This is the return value because it's the bottom layer
   sb_size written = _rpt_dli (&out, params, e);
   if (written < 0)
-    {
-      // TODO - rollback
-      return err_t_from (e);
-    }
+  {
+    // TODO - rollback
+    return err_t_from (e);
+  }
 
   /**
    * Step 3 - While we still have overflow, move up the stack
@@ -387,62 +387,62 @@ rpt_insert (
   mem_inner_node input = out; // Will swap on each loop
 
   if (input.klen > 0)
-    {
-      const page *cur;
-      p_size from;
+  {
+    const page *cur;
+    p_size from;
 
-      if (sp == 0)
-        {
-          /**
+    if (sp == 0)
+    {
+      /**
            * We are at the base of the stack and we
            * need more room, create a new root node and push it
            * onto the stack
            */
-          cur = pgr_new (r->pager, PG_INNER_NODE, e);
-          if (cur == NULL)
-            {
-              return err_t_from (e);
-            }
+      cur = pgr_new (r->pager, PG_INNER_NODE, e);
+      if (cur == NULL)
+      {
+        return err_t_from (e);
+      }
 
-          // Push this new node to the bottom of the stack
-          err_t_wrap (_rpt_seek_r_push_bottom (&r->seek, cur, 0, e), e);
+      // Push this new node to the bottom of the stack
+      err_t_wrap (_rpt_seek_r_push_bottom (&r->seek, cur, 0, e), e);
 
-          // New page size has 0 size so
-          // start at 0 key
-          from = 0;
-        }
-      else
-        {
-          /**
+      // New page size has 0 size so
+      // start at 0 key
+      from = 0;
+    }
+    else
+  {
+      /**
            * We are at an inner node, fetch that node
            */
-          seek_v v = r->seek.stack[--sp];
-          cur = pgr_get (PG_INNER_NODE, v.pg, r->pager, e);
-          if (cur == NULL)
-            {
-              return err_t_from (e);
-            }
+      seek_v v = r->seek.stack[--sp];
+      cur = pgr_get (PG_INNER_NODE, v.pg, r->pager, e);
+      if (cur == NULL)
+      {
+        return err_t_from (e);
+      }
 
-          from = v.lidx;
-        }
-
-      ini_params iparams = {
-        .idx0 = from,
-        .start = cur,
-        .pager = r->pager,
-        .input = input,
-        .fill_factor = 0.5,
-      };
-      err_t_wrap (_rpt_ini (&out, iparams, e), e);
+      from = v.lidx;
     }
+
+    ini_params iparams = {
+      .idx0 = from,
+      .start = cur,
+      .pager = r->pager,
+      .input = input,
+      .fill_factor = 0.5,
+    };
+    err_t_wrap (_rpt_ini (&out, iparams, e), e);
+  }
 
   return written;
 }
 
 sb_size
 rpt_write (
-    const u8 *src, t_size size, b_size n, b_size nskip,
-    rptree *r, error *e)
+  const u8 *src, t_size size, b_size n, b_size nskip,
+  rptree *r, error *e)
 {
   rptree_assert (r);
 

@@ -5,11 +5,7 @@
 #include "intf/io.h"      // i_file
 #include "intf/types.h"   // pgno
 
-typedef struct
-{
-  pgno npages; // Cached so you don't need to call fsize a ton
-  i_file f;    // The file we're working with
-} file_pager;
+typedef struct file_pager_s file_pager;
 
 /**
  * Opens [fname] as a file pager, or creates a new file with size = 0
@@ -18,8 +14,8 @@ typedef struct
  *    - ERR_IO - fstat failure
  *    - ERR_CORRUPT - If the file is found in a bad spot on initial open
  */
-err_t fpgr_create (file_pager *dest, const string fname, error *e);
-void fpgr_close (file_pager *f);
+file_pager *fpgr_open (const string fname, error *e);
+err_t fpgr_close (file_pager *f, error *e);
 
 /**
  * Creates a new page and stores the result in [pgno_dest]
@@ -37,16 +33,7 @@ err_t fpgr_new (file_pager *p, pgno *pgno_dest, error *e);
  *    - ERR_IO - pread fail
  *    - ERR_CORRUPT - empty read - (page doesn't exist)
  */
-err_t fpgr_get_expect (
-    file_pager *p,
-    u8 dest[PAGE_SIZE],
-    pgno pgno,
-    error *e);
-
-/**
- * Doesn't do anything yet
- */
-err_t fpgr_delete (file_pager *p, pgno pgno, error *e);
+err_t fpgr_read (file_pager *p, u8 dest[PAGE_SIZE], pgno pgno, error *e);
 
 /**
  * Writes a page back to disk
@@ -54,8 +41,11 @@ err_t fpgr_delete (file_pager *p, pgno pgno, error *e);
  * Errors:
  *    - ERR_IO - pwrite error on page write
  */
-err_t fpgr_write (
-    file_pager *p,
-    const u8 src[PAGE_SIZE],
-    pgno pgno,
-    error *e);
+err_t fpgr_write (file_pager *p, const u8 src[PAGE_SIZE], pgno pgno, error *e);
+
+/**
+ * Deletes a page
+ *
+ * But it doesn't do anything yet
+ */
+err_t fpgr_delete (file_pager *p, pgno pgno, error *e);

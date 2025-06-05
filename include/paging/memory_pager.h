@@ -4,19 +4,16 @@
 #include "intf/types.h"  // bool
 #include "paging/page.h" // page
 
-typedef struct
-{
-  page page;
-  bool is_present;
-} page_wrapper;
+typedef struct memory_pager_s memory_pager;
 
-typedef struct
-{
-  page_wrapper pages[MEMORY_PAGE_LEN];
-  u32 idx; // A rolling index - not very sophisticated yet
-} memory_pager;
-
-void mpgr_create (memory_pager *dest);
+/**
+ * Creates a new memory pager
+ *
+ * Returns:
+ *    - ERR_NOMEM - Fails to allocate data structures
+ */
+memory_pager *mpgr_open (error *e);
+void mpgr_close (memory_pager *mp);
 
 /**
  * Creates a new page if there's room. Doesn't
@@ -27,27 +24,29 @@ void mpgr_create (memory_pager *dest);
  * page type on return is PG_UNKNOWN
  *
  * Returns:
- *   - NULL if the memory_pager is full
+ *   - NULL if the memory_pager is full, sets
+ *    [evictable] to the next evictable page
+ *
+ * TODO - what if evictable is being used
  */
-page *mpgr_new (memory_pager *p, pgno pgno);
+page *mpgr_new (memory_pager *p, pgno pg, pgno *evictable);
 
-bool mpgr_is_full (const memory_pager *p);
+/**
+ * Iterates through pages in memory_pager and removes is_present
+ */
+page *mpgr_pop (memory_pager *p);
 
 /**
  * Gets page [pgno]
- * Returns:
- *   - NULL if the page doesn't exist
+ *
+ * If no such page exists, returns NULL,
+ *
+ * - if no page exists and there's room for
+ *   a new page, evictable gets -1
+ * - if no page exists and there's no room for
+ *   a new page, evictable is the next evictable page
  */
-page *mpgr_get_rw (memory_pager *p, pgno pgno);
-const page *mpgr_get_r (const memory_pager *p, pgno pgno);
-
-/**
- * Gets the next evictable page. [p] must be full
- * Always succeeds
- */
-pgno mpgr_get_evictable (const memory_pager *p);
-
-bool mpgr_get_next (pgno *dest, const memory_pager *p);
+page *mpgr_get (memory_pager *p, pgno pg, spgno *evictable);
 
 /**
  * Evicts the page pgno. [pgno] must be in the pool

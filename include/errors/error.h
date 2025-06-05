@@ -47,6 +47,18 @@ typedef struct
     }                                                               \
   while (0)
 
+#define err_t_wrap_null(expr, e)                             \
+  do                                                         \
+    {                                                        \
+      err_t __ret = (err_t)expr;                             \
+      if (__ret < SUCCESS)                                   \
+        {                                                    \
+          error_trailf_dbg (e, "In function: %s", __func__); \
+          return NULL;                                       \
+        }                                                    \
+    }                                                        \
+  while (0)
+
 #define err_t_log_swallow(expr, ename)   \
   do                                     \
     {                                    \

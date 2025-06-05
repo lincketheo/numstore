@@ -7,9 +7,17 @@
 
 ///////////////////////////// PAGER
 
+struct pager_s
+{
+  file_pager *fp;
+  memory_pager *mp;
+};
+
 DEFINE_DBG_ASSERT_I (pager, pager, p)
 {
   ASSERT (p);
+  ASSERT (p->fp);
+  ASSERT (p->mp);
 }
 
 static const char *TAG = "Pager";
@@ -21,109 +29,132 @@ pgr_create (const string fname, error *e)
     {
       error_causef (
           e, ERR_DOESNT_EXIST,
-          "Database file: %.*s doesn't exist",
-          fname.len, fname.data);
+          "%s Database file: %.*s doesn't exist",
+          TAG, fname.len, fname.data);
       return NULL;
     }
 
   pager *ret = i_calloc (1, sizeof *ret);
+  file_pager *fpgr = fpgr_open (fname, e);
+  memory_pager *mpgr = mpgr_open (e);
+
   if (ret == NULL)
     {
       error_causef (
           e, ERR_NOMEM,
           "%s: Failed to allocate pager", TAG);
-      return NULL;
+      goto failed;
     }
 
-  if (fpgr_create (&ret->fpager, fname, e))
+  if (fpgr == NULL || mpgr == NULL)
     {
-      i_free (ret);
-      return NULL;
+      goto failed;
     }
-
-  mpgr_create (&ret->mpager);
 
   pager_assert (ret);
 
   return ret;
-}
 
-static void
-pgr_save_all (pager *pg)
-{
-  pgno next;
-  while (mpgr_get_next (&next, &pg->mpager))
+failed:
+  if (ret)
     {
-      page *p = mpgr_get_rw (&pg->mpager, next);
-      err_t_log_swallow (fpgr_save (&pg->fpager, p->raw, next, &e), e);
-      mpgr_evict (&pg->mpager, next);
+      i_free (ret);
     }
+  if (fpgr)
+    {
+      // Swallow errors on close
+      err_t_log_swallow (fpgr_close (fpgr, &_e), _e);
+    }
+  if (mpgr)
+    {
+      mpgr_close (mpgr);
+    }
+
+  return NULL;
 }
 
-void
-pgr_close (pager *p)
+// Returns the last error
+static err_t
+pgr_save_all (pager *pg, error *e)
 {
+  const page *cur = mpgr_pop (pg->mp);
+  const page *next;
+
+  if (cur == NULL)
+    {
+      return SUCCESS;
+    }
+
+  next = mpgr_pop (pg->mp);
+
+  while (cur != NULL)
+    {
+      if (fpgr_write (pg->fp, cur->raw, cur->pg, e))
+        {
+          if (next != NULL)
+            {
+              error_log_consume (e);
+            }
+        }
+
+      cur = next;
+      next = mpgr_pop (pg->mp);
+    }
+
+  return e->cause_code;
+}
+
+err_t
+pgr_close (pager *p, error *e)
+{
+  // TODO - manage errors
   pager_assert (p);
-  pgr_save_all (p);
-  fpgr_close (&p->fpager);
+
+  // Save all in memory pages
+  err_t_wrap (pgr_save_all (p, e), e);
+
+  // Close resources
+  err_t_wrap (fpgr_close (p->fp, e), e);
+  mpgr_close (p->mp);
+
+  // Free resources
   i_free (p);
+
+  return err_t_from (e);
 }
 
-static inline err_t
-pgr_evict (pager *p, error *e)
-{
-  // Find the next evictable target
-  pgno evict = mpgr_get_evictable (&p->mpager);
-
-  // Commit that page
-  const page *evict_page = mpgr_get_r (&p->mpager, evict);
-  ASSERT (evict_page);
-
-  err_t_wrap (pgr_save (p, evict_page, e), e);
-
-  // Then evict that page
-  mpgr_evict (&p->mpager, evict);
-  return SUCCESS;
-}
-
-page *
-pgr_get_expect_rw (int type, pgno pgno, pager *p, error *e)
+const page *
+pgr_get (int type, pgno pg, pager *p, error *e)
 {
   pager_assert (p);
-  page *pg = mpgr_get_rw (&p->mpager, pgno);
+  spgno evictable;
+  page *epg = mpgr_get (p->mp, pg, &evictable);
 
   // Cache miss
-  if (pg == NULL)
+  if (epg == NULL)
     {
-      if (mpgr_is_full (&p->mpager) && pgr_evict (p, e))
+      if (evictable >= 0)
         {
-          return NULL;
+          mpgr_evict (p->mp, evictable);
         }
-      ASSERT (!mpgr_is_full (&p->mpager));
 
       // Then create a new in memory page
-      pg = mpgr_new (&p->mpager, pgno);
+      epg = mpgr_new (p->mp, pg, NULL);
       ASSERT (pg); // Should be present
 
       // And read it into the actual page
-      if (fpgr_get_expect (&p->fpager, pg->raw, pgno, e))
+      if (fpgr_read (p->fp, epg->raw, pg, e))
         {
           return NULL;
         }
     }
 
-  if (page_set_ptrs_expect_type (pg, type, e))
+  if (page_set_ptrs_expect_type (epg, type, e))
     {
       return NULL;
     }
 
-  return pg;
-}
-
-const page *
-pgr_get_expect_r (int type, pgno pgno, pager *p, error *e)
-{
-  return pgr_get_expect_rw (type, pgno, p, e);
+  return epg;
 }
 
 const page *
@@ -132,36 +163,39 @@ pgr_new (pager *p, page_type type, error *e)
   pager_assert (p);
 
   // Create new page in file system
-  pgno pgno = 0;
-  if (fpgr_new (&p->fpager, &pgno, e))
+  pgno pg = 0;
+  if (fpgr_new (p->fp, &pg, e))
     {
       return NULL;
     }
 
   // Create room in memory to hold it
-  page *pg = mpgr_new (&p->mpager, pgno);
-  if (pg == NULL)
+  pgno evictable;
+  page *pge = mpgr_new (p->mp, pg, &evictable);
+  if (pge == NULL)
     {
       // Evict a page if no room
-      if (pgr_evict (p, e))
-        {
-          return NULL;
-        }
+      const page *epg = mpgr_get (p->mp, evictable, NULL);
+      err_t_wrap_null (pgr_save (p, epg, e), e);
+
+      // Then evict that page
+      mpgr_evict (p->mp, evictable);
 
       // Try again
-      pg = mpgr_new (&p->mpager, pgno);
+      pge = mpgr_new (p->mp, pg, NULL);
       ASSERT (pg);
     }
 
   // And read it into the actual page
-  if (fpgr_get_expect (&p->fpager, pg->raw, pgno, e))
+  if (fpgr_read (p->fp, pge->raw, pg, e))
     {
       return NULL;
     }
 
-  page_init (pg, type);
+  // Initialize that page
+  page_init (pge, type);
 
-  return pg;
+  return pge;
 }
 
 err_t
@@ -169,7 +203,7 @@ pgr_save (pager *p, const page *pg, error *e)
 {
   pager_assert (p);
 
-  err_t_wrap (fpgr_save (&p->fpager, pg->raw, pg->pg, e), e);
+  err_t_wrap (fpgr_write (p->fp, pg->raw, pg->pg, e), e);
 
   return SUCCESS;
 }

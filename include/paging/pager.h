@@ -4,11 +4,8 @@
 #include "paging/memory_pager.h" // memory_pager
 #include "paging/page.h"         // page
 
-typedef struct
-{
-  memory_pager mpager;
-  file_pager fpager;
-} pager;
+// An opaque pager type
+typedef struct pager_s pager;
 
 /**
  * Errors (on return NULL):
@@ -17,7 +14,7 @@ typedef struct
  *    - ERR_CORRUPT - If the file is found in a bad spot on initial open
  */
 pager *pgr_open (const string fname, error *e);
-void pgr_close (pager *p);
+err_t pgr_close (pager *p, error *e);
 
 /**
  * Fetch a page, expect it to be any of the unioned types in [type]
@@ -44,8 +41,11 @@ const page *pgr_new (pager *p, page_type type, error *e);
 
 /**
  * Converts a constant read only page to a writable page
+ *
+ * Errors (on return NULL)
+ *    - TODO
  */
-page *pgr_get_w (pager *p, const page *pg);
+page *pgr_make_writable (pager *p, const page *pg);
 
 /**
  * Releases page
@@ -56,4 +56,4 @@ void pgr_release (pager *p, const page *pg);
  * Errors:
  *    - ERR_IO - pwrite error on page write
  */
-err_t pgr_save (pager *p, page *pg, error *e);
+err_t pgr_save (pager *p, const page *pg, error *e);
