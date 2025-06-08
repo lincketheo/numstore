@@ -7,3 +7,4 @@ tags
 *.bin
 *node_modules*
 *dist*
+history.txt
