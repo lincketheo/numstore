@@ -201,7 +201,7 @@ rpt_read (
 
   if (nskip == 1)
     {
-      p_size nbytes = rpt_read_contiguous (dest, toread, r, e);
+      sb_size nbytes = rpt_read_contiguous (dest, toread, r, e);
 
       if (nbytes < 0)
         {
@@ -211,7 +211,7 @@ rpt_read (
       /**
        * Next should either == 0 or 1 * size
        */
-      ASSERT (nbytes <= size * n);
+      ASSERT ((b_size)nbytes <= size * n);
       if (nbytes % size != 0)
         {
           return error_causef (
@@ -224,7 +224,7 @@ rpt_read (
     }
 
   b_size read = 0;
-  b_size next;
+  sb_size next;
 
   while (read < toread)
     {
@@ -254,8 +254,8 @@ rpt_read (
           return err_t_from (e);
         }
 
-      ASSERT (next <= size * (nskip - 1));
-      if (next < size * (nskip - 1))
+      ASSERT ((b_size)next <= size * (nskip - 1));
+      if ((b_size)next < size * (nskip - 1))
         {
           if (next % size != 0)
             {

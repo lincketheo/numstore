@@ -138,7 +138,7 @@ ini_s_consume (ini_s *r, error *e)
 }
 
 err_t
-ini (mem_inner_node *dest, ini_params p, error *e)
+_rpt_ini (mem_inner_node *dest, ini_params p, error *e)
 {
   ini_s d;
   ini_s_create (&d, p);

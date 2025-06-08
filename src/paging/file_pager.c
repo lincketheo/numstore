@@ -55,7 +55,10 @@ fpgr_open (const string fname, error *e)
   file_pager *ret = i_malloc (1, sizeof *ret);
   if (ret == NULL)
     {
-      error_causef (e, ERR_NOMEM, "Failed to allocate memory for file pager");
+      error_causef (
+          e,
+          ERR_NOMEM,
+          "Failed to allocate memory for file pager");
       return ret;
     }
 
@@ -69,7 +72,7 @@ fpgr_open (const string fname, error *e)
 
 TEST (fpgr_open)
 {
-  _Static_assert (PAGE_SIZE > 2, "PAGE_SIZE should be > 2 for file_pager test");
+  _Static_assert(PAGE_SIZE > 2, "PAGE_SIZE should be > 2 for file_pager test");
 
   // The temp file name
   char _tmpl[] = "/tmp/fpgr_testXXXXXX";

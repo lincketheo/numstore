@@ -1,17 +1,10 @@
 #pragma once
 
-#include "ast/query/query_provider.h" // query_provider
-#include "errors/error.h"             // err_t
-#include "paging/pager.h"             // pager
+#include "ds/strings.h"   // string
+#include "errors/error.h" // err_t
 
-typedef struct
-{
-  pager *pager;
-  query_provider *qspce;
-} database;
+typedef struct database_s database;
 
-err_t db_create (const string fname, error *e);
+database *db_open (const string fname, error *e);
 
-err_t db_open (database *dest, const string fname, error *e);
-
-void db_close (database *d);
+void db_close (database *db);

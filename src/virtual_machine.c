@@ -3,7 +3,40 @@
 #include "ast/query/queries/delete.h"
 #include "cursor/cursor.h"
 #include "dev/assert.h" // ASSERT
+#include "errors/error.h"
 
+struct vm_s
+{
+  cursor *c;
+  cbuffer *query_input;
+  cbuffer *output;
+};
+
+static const char *TAG = "Virtual Machine";
+
+vm *
+vm_create (pager *p, error *e)
+{
+  vm *ret = i_malloc (1, sizeof *ret);
+  if (ret == NULL)
+    {
+      error_causef (
+          e, ERR_NOMEM,
+          "%s Failed to allocate virtual machine", TAG);
+      return NULL;
+    }
+
+  cursor *c = cursor_open (p, e);
+  if (c == NULL)
+    {
+      return NULL;
+    }
+
+  ret->c = c;
+  return ret;
+}
+
+/**
 static inline err_t
 create_query_execute (pager *p, create_query *q, error *e)
 {
@@ -18,6 +51,7 @@ create_query_execute (pager *p, create_query *q, error *e)
 theend:
   return err_t_from (e);
 }
+*/
 
 static inline err_t
 delete_query_execute (pager *p, delete_query *q, error *e)
@@ -39,7 +73,8 @@ query_execute (pager *p, query *q, error *e)
     {
     case QT_CREATE:
       {
-        return create_query_execute (p, q->create, e);
+        panic ();
+        // return create_query_execute (p, q->create, e);
       }
     case QT_DELETE:
       {

@@ -5,10 +5,7 @@
 #include "errors/error.h" // err_t
 #include "paging/pager.h" // pager
 
-typedef struct
-{
-  cbuffer *query_input;
-  cbuffer *output;
-} vm;
+typedef struct vm_s vm;
 
-err_t query_execute (pager *p, query *q, error *e);
+vm *vm_create (pager *p, error *e);
+err_t vm_execute_one_query (vm *v, query *q, error *e);

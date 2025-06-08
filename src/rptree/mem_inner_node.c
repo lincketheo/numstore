@@ -157,7 +157,7 @@ meminode_pop_left (mem_inner_node *r, pgno exp)
 }
 
 void
-meminode_write_max_into_in (inner_node *dest, mem_inner_node *m)
+meminode_write_max (inner_node *dest, mem_inner_node *m)
 {
   mem_inner_node_assert (m);
   ASSERT (m->klen > 0);

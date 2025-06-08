@@ -9,6 +9,7 @@
 int
 main ()
 {
+  /*
   struct_t st;
   st.len = 4;
   st.keys = (string[]){
@@ -52,11 +53,17 @@ main ()
     .type = T_STRUCT,
     .st = st,
   };
+  */
 
-  database db;
   error e = error_create (NULL);
-  err_t_wrap (db_open (&db, unsafe_cstrfrom ("test.db"), &e), &e);
+  database *db = db_open (unsafe_cstrfrom ("test.db"), &e);
+  if (db == NULL)
+    {
+      error_log_consume (&e);
+      return -1;
+    }
 
+  /**
   create_query c1;
 
   query q1 = create_query_create (&c1);
@@ -66,8 +73,9 @@ main ()
     .len = 3,
   };
   c1.type = t1;
+  */
 
-  err_t_log_swallow (query_execute (db.pager, &q1, &e), e);
+  // err_t_log_swallow (query_execute (db.pager, &q1, &e), e);
 
-  db_close (&db);
+  db_close (db);
 }

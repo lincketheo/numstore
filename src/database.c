@@ -1,10 +1,15 @@
 #include "database.h"
 
-#include "ast/query/query_provider.h"
-#include "dev/assert.h" // DEFINE_DBG_ASSERT_I
-#include "intf/io.h"    // i_touch
-#include "paging/pager.h"
-#include "variables/vfile_hashmap.h" // vfile_hashmap
+#include "ast/query/query_provider.h" // qspce
+#include "dev/assert.h"               // DEFINE_DBG_ASSERT_I
+#include "intf/io.h"                  // i_touch
+#include "paging/pager.h"             // pager
+
+struct database_s
+{
+  pager *pager;
+  query_provider *qspce;
+};
 
 DEFINE_DBG_ASSERT_I (database, database, d)
 {
@@ -13,74 +18,48 @@ DEFINE_DBG_ASSERT_I (database, database, d)
   ASSERT (d->qspce);
 }
 
-err_t
-db_create (const string fname, error *e)
+static const char *TAG = "Database";
+
+database *
+db_open (const string fname, error *e)
 {
-  if (i_exists_rw (fname))
+
+  database *ret = i_malloc (1, sizeof *ret);
+  if (ret == NULL)
     {
-      return error_causef (
-          e, ERR_ALREADY_EXISTS,
-          "Trying to create a database: %.*s "
-          "but that file already exists",
-          fname.len, fname.data);
+      error_causef (
+          e, ERR_NOMEM,
+          "%s Failed to allocate database", TAG);
+      return NULL;
     }
 
-  // Create the file
-  err_t_wrap (i_touch (fname, e), e);
-
-  // Wrap it in a pager
+  // Build pager
   pager *p = pgr_open (fname, e);
   if (p == NULL)
     {
-      goto failed_rm_file;
+      i_free (ret);
+      return NULL;
     }
 
-  // Create the first hash page
-  vfile_hashmap hm = vfhm_create (p);
-  if (vfhm_create_hashmap (&hm, e))
-    {
-      goto failed_rm_file;
-    }
-
-  pgr_close (p);
-
-  return SUCCESS;
-
-failed_rm_file:
-  err_t_log_swallow (i_remove_quiet (fname, &tempe), tempe);
-  return err_t_from (e);
-}
-
-err_t
-db_open (database *dest, const string fname, error *e)
-{
-  ASSERT (dest);
-  ASSERT (fname.data);
-  ASSERT (fname.len > 0);
-
-  pager *p = pgr_create (fname, e);
-  if (p == NULL)
-    {
-      return err_t_from (e);
-    }
-
+  // Build query space provider
   query_provider *qspce = query_provider_create (e);
   if (qspce == NULL)
     {
-      pgr_close (p);
-      return err_t_from (e);
+      i_free (ret);
+      err_t_log_swallow (pgr_close (p, &_e), _e);
+      return NULL;
     }
 
-  dest->qspce = qspce;
-  dest->pager = p;
+  ret->pager = p;
+  ret->qspce = qspce;
 
-  return SUCCESS;
+  return ret;
 }
 
 void
 db_close (database *d)
 {
   database_assert (d);
-  pgr_close (d->pager);
+  err_t_log_swallow (pgr_close (d->pager, &_e), _e);
   query_provider_free (d->qspce);
 }

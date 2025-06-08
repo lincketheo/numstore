@@ -23,54 +23,41 @@ DEFINE_DBG_ASSERT_I (pager, pager, p)
 static const char *TAG = "Pager";
 
 pager *
-pgr_create (const string fname, error *e)
+pgr_open (const string fname, error *e)
 {
-  if (!i_exists_rw (fname))
-    {
-      error_causef (
-          e, ERR_DOESNT_EXIST,
-          "%s Database file: %.*s doesn't exist",
-          TAG, fname.len, fname.data);
-      return NULL;
-    }
-
+  // Allocate pager
   pager *ret = i_calloc (1, sizeof *ret);
-  file_pager *fpgr = fpgr_open (fname, e);
-  memory_pager *mpgr = mpgr_open (e);
-
   if (ret == NULL)
     {
       error_causef (
           e, ERR_NOMEM,
           "%s: Failed to allocate pager", TAG);
-      goto failed;
+      return NULL;
     }
 
-  if (fpgr == NULL || mpgr == NULL)
+  // Create the file pager
+  file_pager *fpgr = fpgr_open (fname, e);
+  if (fpgr == NULL)
     {
-      goto failed;
+      i_free (ret);
+      return NULL;
     }
+
+  // Create the memory pager
+  memory_pager *mpgr = mpgr_open (e);
+  if (mpgr == NULL)
+    {
+      i_free (ret);
+      err_t_log_swallow (fpgr_close (fpgr, &_e), _e);
+      return NULL;
+    }
+
+  ret->fp = fpgr;
+  ret->mp = mpgr;
 
   pager_assert (ret);
 
   return ret;
-
-failed:
-  if (ret)
-    {
-      i_free (ret);
-    }
-  if (fpgr)
-    {
-      // Swallow errors on close
-      err_t_log_swallow (fpgr_close (fpgr, &_e), _e);
-    }
-  if (mpgr)
-    {
-      mpgr_close (mpgr);
-    }
-
-  return NULL;
 }
 
 // Returns the last error
@@ -107,7 +94,7 @@ pgr_save_all (pager *pg, error *e)
 err_t
 pgr_close (pager *p, error *e)
 {
-  // TODO - manage errors
+  // manage errors
   pager_assert (p);
 
   // Save all in memory pages
@@ -203,6 +190,14 @@ pgr_new (pager *p, page_type type, error *e)
   page_init (pge, type);
 
   return pge;
+}
+
+page *
+pgr_make_writable (pager *p, const page *pg)
+{
+  pager_assert (p);
+  // TODO
+  return (page *)pg;
 }
 
 err_t

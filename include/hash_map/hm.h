@@ -14,6 +14,13 @@ typedef struct hm_s hm;
  */
 hm *hm_open (pager *p, error *e);
 
+err_t hm_get (
+    hm *h,
+    variable *dest,   // Destination variable - has it's own memory
+    lalloc *alloc,    // Allocates variable string and type for [dest]
+    const string key, // Key to search for
+    error *e);
+
 /**
  * Inserts [var] into the hash map
  *
@@ -27,11 +34,4 @@ hm *hm_open (pager *p, error *e);
 err_t hm_insert (
     hm *h,
     const variable var,
-    error *e);
-
-err_t hm_get (
-    hm *h,
-    variable *dest,   // Destination variable - has it's own memory
-    lalloc *alloc,    // Allocates variable string and type for [dest]
-    const string key, // Key to search for
     error *e);

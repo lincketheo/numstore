@@ -1,5 +1,6 @@
 #include "hash_map/hm.h"
 #include "errors/error.h"
+#include "mm/lalloc.h"
 #include "paging/page.h"
 #include "paging/pager.h"
 #include "paging/types/hash_page.h"
@@ -41,10 +42,13 @@ hm_create_first_page (hm *h, error *e)
 hm *
 hm_open (pager *p, error *e)
 {
+  // Allocate hash map
   hm *ret = i_malloc (1, sizeof *ret);
   if (ret == NULL)
     {
-      error_causef (e, ERR_NOMEM, "%s: Failed to allocate memory for hash map", TAG);
+      error_causef (
+          e, ERR_NOMEM,
+          "%s: Failed to allocate memory for hash map", TAG);
       return NULL;
     }
 
@@ -62,7 +66,10 @@ hm_open (pager *p, error *e)
 
 /**
  * Finds the starting leaf for the variable
- * with key name [key]
+ * with key name [key].
+ *
+ * Expects that the value should exist (e.g. you're calling get)
+ *
  * Errors:
  *    - ERR_IO / ERR_CORRUPT (pgr_get_expect) - e.g. leaf page
  *      says it exists on page 0 but doesn't or page 0 doesn't
@@ -70,11 +77,13 @@ hm_open (pager *p, error *e)
  *    - ERR_DOESNT_EXIST - Leaf doesn't exist
  */
 static const page *
-hm_fetch_starting_leaf (
+hm_fetch_existing_starting_leaf (
     hm *h,
     const string key,
     error *e)
 {
+  hm_assert (h);
+
   p_size hpos; // hash index in the hash page
   pgno lpg;    // leaf page number
 
@@ -214,11 +223,12 @@ err_t
 hm_get (
     hm *h,
     variable *dest,
+    lalloc *alloc,
     const string key,
     error *e)
 {
   // Center yourself on the starting leaf node
-  const page *cur = hm_fetch_starting_leaf (h, key, e);
+  const page *cur = hm_fetch_existing_starting_leaf (h, key, e);
   if (cur == NULL)
     {
       return err_t_from (e);
@@ -234,7 +244,7 @@ hm_get (
   var_hash_entry result = vrhfmt_consume (&entry);
 
   // Convert to a variable meta data object
-  err_t ret = var_hash_entry_deserialize (dest, &result, e);
+  err_t ret = var_hash_entry_deserialize (dest, &result, alloc, e);
   if (ret == ERR_TYPE_DESER)
     {
       // Treat invalid serialize methods as corrupt
@@ -250,24 +260,28 @@ hm_get (
 
 /**
  * "Centers" [hl] onto the starting hash leaf page
+ *
+ * The page doesn't have to exist (e.g. you're calling insert)
+ *
+ * Errors:
+ *    - ERR_IO
+ *    - ERR_
  */
-static page *
-vfhmi_fetch_starting_leaf (
-    vfile_hashmap *h,
+static const page *
+hm_fetch_starting_leaf (
+    hm *h,
     const string key,
     error *e)
 {
-  vfile_hashmap_assert (h);
+  hm_assert (h);
 
-  page *hp;    // First Hash page
-  page *leaf;  // Leaf for traversing
   p_size hpos; // Hash index
   pgno lpg;    // Leaf page
 
   /**
    * Fetch the first hash page
    */
-  hp = pgr_get_expect_rw (PG_HASH_PAGE, 0, h->pager, e);
+  const page *hp = pgr_get (PG_HASH_PAGE, 0, h->pager, e);
   if (hp == NULL)
     {
       return NULL;
@@ -279,6 +293,8 @@ vfhmi_fetch_starting_leaf (
   hpos = hp_get_hash_pos (&hp->hp, key);
   lpg = hp_get_pgno (&hp->hp, hpos);
 
+  const page *leaf;
+
   if (lpg == 0)
     {
       /**
@@ -289,8 +305,9 @@ vfhmi_fetch_starting_leaf (
       /**
        * Save the starting node of the hash page
        */
-      hp_set_hash (&hp->hp, hpos, leaf->pg);
-      if (pgr_write (h->pager, hp, e), e)
+      page *hpw = pgr_make_writable (h->pager, hp);
+      hp_set_hash (&hpw->hp, hpos, leaf->pg);
+      if (pgr_save (h->pager, hp, e), e)
         {
           return NULL;
         }
@@ -300,7 +317,7 @@ vfhmi_fetch_starting_leaf (
       /**
        * Otherwise fetch the first page
        */
-      leaf = pgr_get_expect_rw (PG_HASH_LEAF, lpg, h->pager, e);
+      leaf = pgr_get (PG_HASH_LEAF, lpg, h->pager, e);
       if (leaf == NULL)
         {
           return NULL;
@@ -315,7 +332,7 @@ vfhmi_fetch_starting_leaf (
  */
 static err_t
 vfhmi_scroll_to_eof (
-    page *leaf,        // The starting leaf
+    const page *leaf,  // The starting leaf
     p_size *dest_ppos, // The local page pos at the end
     pager *p,          // Used to fetch pages
     const string key,  // Used to check for dupes
@@ -394,7 +411,7 @@ vfhmi_scroll_to_eof (
                         "Hash Leaf expecting next page");
                   }
 
-                leaf = pgr_get_expect_rw (PG_HASH_LEAF, next, p, e);
+                leaf = pgr_get (PG_HASH_LEAF, next, p, e);
                 pos = 0; // Reset to the start of the page
               }
 
@@ -425,9 +442,9 @@ vfhmi_scroll_to_eof (
 
 static err_t
 vfhmi_write_variable_here (
-    pager *p,
+    hm *h,
     var_hash_entry entry, // The entry to write
-    page *leaf,           // Starting leaf page
+    const page *leaf,     // Starting leaf page
     p_size starting_pos,  // Starting position on that page
     error *e)
 {
@@ -449,24 +466,27 @@ vfhmi_write_variable_here (
       if (pos == HL_DATA_LEN)
         {
           pgno next = hl_get_next (&leaf->hl);
+
+          // No next, need to create a new page
           if (next == 0)
             {
-              page *nextp = pgr_new (p, PG_HASH_LEAF, e);
+              const page *nextp = pgr_new (h->pager, PG_HASH_LEAF, e);
               if (nextp == NULL)
                 {
                   return err_t_from (e);
                 }
 
-              hl_set_next (&leaf->hl, nextp->pg);
-              err_t_wrap (pgr_write (p, leaf, e), e);
+              page *leafw = pgr_make_writable (h->pager, leaf);
+              hl_set_next (&leafw->hl, nextp->pg);
+              err_t_wrap (pgr_save (h->pager, leaf, e), e);
 
               leaf = nextp;
               pos = 0;
             }
           else
             {
-              err_t_wrap (pgr_write (p, leaf, e), e);
-              leaf = pgr_get_expect_rw (PG_HASH_LEAF, next, p, e);
+              err_t_wrap (pgr_save (h->pager, leaf, e), e);
+              leaf = pgr_get (PG_HASH_LEAF, next, h->pager, e);
               if (leaf == NULL)
                 {
                   return err_t_from (e);
@@ -477,7 +497,9 @@ vfhmi_write_variable_here (
         }
 
       p_size nbytes = HL_DATA_LEN - pos;
-      err_t_wrap (vwhfmt_write_out (leaf->hl.data + pos, &nbytes, &vw, e), e);
+      err_t_wrap (vwhfmt_write_out (
+                      leaf->hl.data + pos, &nbytes, &vw, e),
+                  e);
 
       pos += nbytes;
     }
@@ -486,51 +508,32 @@ vfhmi_write_variable_here (
 }
 
 err_t
-vfhm_insert (
-    vfile_hashmap *h,
+hm_insert (
+    hm *h,
     const variable var,
-    lalloc *alloc,
     error *e)
 {
   var_hash_entry entry;
 
-  u32 alloc_state = lalloc_get_state (alloc); // to reset at the end
+  u8 data[2048];
+  lalloc alloc = lalloc_create (data, sizeof (data));
 
-  /**
-   * First, Convert the variable into a var hash entry
-   */
-  if (var_hash_entry_create (&entry, &var, alloc, e))
-    {
-      goto theend;
-    }
+  // First, Convert the variable into a var hash entry
+  err_t_wrap (var_hash_entry_create (&entry, &var, &alloc, e), e);
 
-  /**
-   * Then create or get the starting hash leaf page for this key
-   */
-  page *leaf = vfhmi_fetch_starting_leaf (h, var.vname, e);
+  // Then create or get the starting hash leaf page for this key
+  const page *leaf = hm_fetch_starting_leaf (h, var.vname, e);
   if (leaf == NULL)
     {
-      goto theend;
+      return err_t_from (e);
     }
 
-  /**
-   * Scroll to the end of the variable entries
-   */
-  p_size pos;
-  if (vfhmi_scroll_to_eof (leaf, &pos, h->pager, var.vname, e))
-    {
-      goto theend;
-    }
+  // Scroll to the end of the variable entries
+  p_size pos; // The local position within the page
+  err_t_wrap (vfhmi_scroll_to_eof (leaf, &pos, h->pager, var.vname, e), e);
 
-  /**
-   * Write the variable to the end
-   */
-  if (vfhmi_write_variable_here (h->pager, entry, leaf, pos, e))
-    {
-      goto theend;
-    }
+  // Write the variable to the end
+  err_t_wrap (vfhmi_write_variable_here (h, entry, leaf, pos, e), e);
 
-theend:
-  lalloc_reset_to_state (alloc, alloc_state);
-  return err_t_from (e);
+  return SUCCESS;
 }
