@@ -1,12 +1,20 @@
 #pragma once
 
-#include "dev/assert.h"
-#include "intf/types.h"
+#include "dev/assert.h"  // ASSERT
+#include "intf/stdlib.h" // i_unsafe_strlen
+#include "intf/types.h"  // u32
 
 typedef void (*test_func) (void);
-extern u64 ntests;
-extern test_func tests[2048];
-extern int test_ret;
+typedef struct
+{
+  test_func test;
+  const char *test_name;
+  u32 nlen;
+} test;
+
+extern u64 ntests;       // Number of tests
+extern test tests[2048]; // The actual tests
+extern int test_ret;     // The return value of all tests
 
 #define TEST(name)                                                   \
   static void test_##name (void);                                    \
@@ -30,7 +38,12 @@ extern int test_ret;
   __attribute__ ((constructor)) static void register_##name (void)   \
   {                                                                  \
     ASSERT (ntests < 2048);                                          \
-    tests[ntests++] = wrapper_test_##name;                           \
+    test next = {                                                    \
+      .test = wrapper_test_##name,                                   \
+      .test_name = #name,                                            \
+      .nlen = i_unsafe_strlen (#name),                               \
+    };                                                               \
+    tests[ntests++] = next;                                          \
   }                                                                  \
   static void test_##name (void)
 

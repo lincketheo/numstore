@@ -72,7 +72,7 @@ fpgr_open (const string fname, error *e)
 
 TEST (fpgr_open)
 {
-  _Static_assert(PAGE_SIZE > 2, "PAGE_SIZE should be > 2 for file_pager test");
+  _Static_assert (PAGE_SIZE > 2, "PAGE_SIZE should be > 2 for file_pager test");
 
   // The temp file name
   char _tmpl[] = "/tmp/fpgr_testXXXXXX";
@@ -201,7 +201,10 @@ fpgr_read (file_pager *p, u8 dest[PAGE_SIZE], u64 pgno, error *e)
 {
   file_pager_assert (p);
   ASSERT (dest);
-  ASSERT (pgno < p->npages);
+  if (pgno > p->npages)
+    {
+      return error_causef (e, ERR_CORRUPT, "File Pager: Invalid page index");
+    }
 
   // Read all from file
   i64 nread = i_pread_all (&p->f, dest, PAGE_SIZE, pgno * PAGE_SIZE, e);

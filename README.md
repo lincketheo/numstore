@@ -1,6 +1,9 @@
+# This is a Work in Progress.
+
 # Getting Started:
 ```
 make
+./test
 make host-docs 
 ```
 

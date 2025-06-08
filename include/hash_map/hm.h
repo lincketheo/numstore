@@ -4,6 +4,11 @@
 #include "paging/pager.h"
 #include "variables/variable.h"
 
+/**
+ * The File base hash map. Wraps a pager
+ * and uses the first page as hash indexes, which
+ * link to pages of hash "leaf" data
+ */
 typedef struct hm_s hm;
 
 /**

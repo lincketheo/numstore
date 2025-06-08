@@ -5,6 +5,8 @@
 
 /////////////////////// Linear Allocator
 
+// TODO - fix allignment - dish out blocks later on -
+// works for most modern compilers - but undefined per ISO
 typedef struct lalloc_s
 {
   u32 used;

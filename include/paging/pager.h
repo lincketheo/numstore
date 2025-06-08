@@ -1,9 +1,8 @@
 #pragma once
 
 #include "intf/types.h"
-#include "paging/file_pager.h"   // file_pager
-#include "paging/memory_pager.h" // memory_pager
-#include "paging/page.h"         // page
+#include "paging/file_pager.h" // file_pager
+#include "paging/page.h"       // page
 
 // An opaque pager type
 typedef struct pager_s pager;

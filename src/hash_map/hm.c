@@ -1,4 +1,7 @@
 #include "hash_map/hm.h"
+#include "ast/type/types.h"
+#include "dev/testing.h"
+#include "ds/strings.h"
 #include "errors/error.h"
 #include "mm/lalloc.h"
 #include "paging/page.h"
@@ -536,4 +539,59 @@ hm_insert (
   err_t_wrap (vfhmi_write_variable_here (h, entry, leaf, pos, e), e);
 
   return SUCCESS;
+}
+
+TEST (hash_map)
+{
+  error e = error_create (NULL);
+  pager *p = pgr_open (unsafe_cstrfrom ("test.db"), &e);
+  test_fail_if_null (p);
+
+  hm *h = hm_open (p, &e);
+  test_fail_if_null (h);
+
+  const variable foo = {
+    .pg0 = 123,
+    .type = (type){
+        .type = T_STRUCT,
+        .st = (struct_t){
+            .types = (type[]){
+                (type){
+                    .type = T_PRIM,
+                    .p = U64,
+                },
+                (type){
+                    .type = T_PRIM,
+                    .p = U32,
+                },
+                (type){
+                    .type = T_PRIM,
+                    .p = U8,
+                },
+            },
+            .keys = (string[]){
+                (string){
+                    .data = "foo",
+                    .len = 3,
+                },
+                (string){
+                    .data = "bar",
+                    .len = 3,
+                },
+                (string){
+                    .data = "biz",
+                    .len = 3,
+                },
+            },
+            .len = 3,
+        },
+    },
+    .vname = (string){
+        .data = "a",
+        .len = 1,
+    },
+  };
+
+  (void)foo;
+  // test_assert_equal (hm_insert (h, foo, &e), SUCCESS); - TODO
 }
