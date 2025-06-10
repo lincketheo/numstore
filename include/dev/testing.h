@@ -59,7 +59,20 @@ extern int test_ret;     // The return value of all tests
     }                                                  \
   while (0)
 
-#define test_assert_int_equal(left, right) test_assert_equal ((int)(left), (int)(right))
+#define test_assert_int_equal(left, right)                          \
+  do                                                                \
+    {                                                               \
+      int _left = left;                                             \
+      int _right = right;                                           \
+      if ((_left) != (_right))                                      \
+        {                                                           \
+          i_log_failure ("%d %s != %s\n", __LINE__, #left, #right); \
+          i_log_failure ("(%d) != (%d)\n", _left, _right);          \
+          test_ret = -1;                                            \
+          return;                                                   \
+        }                                                           \
+    }                                                               \
+  while (0)
 
 #define test_assert_ptr_equal(left, right) test_assert_equal ((void *)left, (void *)right)
 

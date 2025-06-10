@@ -491,22 +491,25 @@ struct_t_deserialize (
   for (u32 i = 0; i < len; ++i)
     {
       string key;
+
+      // Read the string key length
       if (!dsrlizr_read_u16 (&key.len, src))
         {
           goto early_termination;
         }
 
+      // Read the string data
       key.data = lmalloc (a, key.len, 1);
       if (key.data == NULL)
         {
           return struct_t_nomem ("Allocating key", e);
         }
-
       if (!dsrlizr_read ((u8 *)key.data, key.len, src))
         {
           goto early_termination;
         }
 
+      // Deserialize sub type
       type t;
       err_t_wrap (type_deserialize (&t, src, a, e), e);
 
@@ -577,8 +580,8 @@ TEST (struct_t_deserialize_green_path)
 
 TEST (struct_t_deserialize_red_path)
 {
-  u8 data[] = { 0, 0,
-                0, 0, 'f', 'o', 'o', (u8)T_PRIM, (u8)U32,
+  u8 data[] = { 0, 0,                                     // Total length (4)
+                0, 0, 'f', 'o', 'o', (u8)T_PRIM, (u8)U32, // STRLEN STRING (sub) TYPE
                 0, 0, 'f', 'o', 'o', (u8)T_PRIM, (u8)U8,
                 0, 0, 'b', 'a', 'r', 'o', (u8)T_PRIM, (u8)U16,
                 0, 0, 'b', 'a', 'z', 'b', 'i', (u8)T_PRIM, (u8)CF128 };

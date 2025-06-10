@@ -211,6 +211,7 @@ type_deserialize (type *dest, deserializer *src, lalloc *alloc, error *e)
 {
   u8 type;
   bool ret = dsrlizr_read_u8 (&type, src);
+  dest->type = (type_t)type;
   switch (type)
     {
     case T_PRIM:
