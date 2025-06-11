@@ -17,13 +17,9 @@ typedef struct
 } union_t;
 
 err_t union_t_validate (const union_t *t, error *e);
-
-int union_t_snprintf (char *str, u32 size, const union_t *p);
-
+i32 union_t_snprintf (char *str, u32 size, const union_t *p);
 u32 union_t_byte_size (const union_t *t);
-
 u32 union_t_get_serial_size (const union_t *t);
-
 void union_t_serialize (serializer *dest, const union_t *src);
-
 err_t union_t_deserialize (union_t *dest, deserializer *src, lalloc *a, error *e);
+err_t union_t_random (union_t *un, lalloc *alloc, u32 depth, error *e);

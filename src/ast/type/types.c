@@ -1,6 +1,10 @@
 #include "ast/type/types.h"
 
 #include "dev/assert.h"
+#include "errors/error.h"
+#include "intf/io.h"
+#include "intf/logging.h"
+#include "math/random.h"
 
 DEFINE_DBG_ASSERT_I (type, unchecked_type, t)
 {
@@ -47,7 +51,7 @@ type_validate (const type *t, error *e)
     }
 }
 
-int
+i32
 type_snprintf (char *str, u32 size, type *t)
 {
   valid_type_assert (t);
@@ -241,4 +245,91 @@ type_deserialize (type *dest, deserializer *src, lalloc *alloc, error *e)
             "Unknown type code: %d", ret);
       }
     }
+}
+
+err_t
+type_random (type *dest, lalloc *alloc, u32 depth, error *e)
+{
+  ASSERT (dest);
+
+  if (depth == 0)
+    {
+      dest->type = T_PRIM;
+      dest->p = prim_t_random ();
+      return SUCCESS;
+    }
+
+  static const type_t weighted[] = {
+    T_PRIM, T_PRIM, T_PRIM, T_PRIM,
+    T_ENUM, T_STRUCT, T_UNION, T_SARRAY
+  };
+
+  dest->type = weighted[randu32 (0, sizeof (weighted) / sizeof (weighted[0]))];
+
+  switch (dest->type)
+    {
+    case T_PRIM:
+      {
+        dest->p = prim_t_random ();
+        return SUCCESS;
+      }
+
+    case T_ENUM:
+      {
+        return enum_t_random (&dest->en, alloc, e);
+      }
+
+    case T_STRUCT:
+      {
+        return struct_t_random (&dest->st, alloc, depth - 1, e);
+      }
+
+    case T_UNION:
+      {
+        return union_t_random (&dest->un, alloc, depth - 1, e);
+      }
+
+    case T_SARRAY:
+      {
+        return sarray_t_random (&dest->sa, alloc, depth - 1, e);
+      }
+
+    case T_VARRAY:
+      {
+        return error_causef (e, ERR_NOMEM, "VARRAY not implemented");
+      }
+
+    default:
+      {
+        return error_causef (e, ERR_NOMEM, "Invalid type tag");
+      }
+    }
+}
+
+err_t
+i_log_type (type t, error *e)
+{
+  i32 len = type_snprintf (NULL, 0, &t);
+  if (len < 0)
+    {
+      return error_causef (e, ERR_IO, "Failed to call snprintf\n");
+    }
+
+  char *dest = i_malloc (len + 1, sizeof *dest);
+  if (dest == NULL)
+    {
+      return error_causef (e, ERR_NOMEM, "Failed to allocate dest for log type\n");
+    }
+
+  len = type_snprintf (dest, len + 1, &t);
+  if (len < 0)
+    {
+      i_free (dest);
+      return error_causef (e, ERR_IO, "Failed to call snprintf\n");
+    }
+
+  i_log_info ("%.*s\n", len, dest);
+  i_free (dest);
+
+  return SUCCESS;
 }

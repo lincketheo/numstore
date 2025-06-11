@@ -20,6 +20,7 @@
  * ==================== Header
  * VSTRLEN [2 bytes]        - Length of the variable name
  * TSTRLEN [2 bytes]        - Length of the type string
+ * ISTOMB  [1 byte]         - Is tombstone
  * PGO     [sizeof(pgno)]   - Starting pgno
  * ==================== Data
  * VSTR    [VSTRLEN bytes]  - Variable name string

@@ -8,6 +8,8 @@
 #include "utils/hashing.h"
 #include "variables/vhash_fmt.h"
 
+#include <ctype.h> // isprint
+
 DEFINE_DBG_ASSERT_I (hash_leaf, unchecked_hash_leaf, d)
 {
   ASSERT (d);
@@ -78,4 +80,41 @@ hl_set_next (hash_leaf *hl, pgno next)
 {
   valid_hash_leaf_assert (hl);
   *hl->next = next;
+}
+
+void
+i_log_hl (const hash_leaf *hl)
+{
+  valid_hash_leaf_assert (hl);
+
+  i_log_info ("=== HASH LEAF PAGE START ===\n");
+
+  i_log_info ("HEADER    : %" PRpgh "\n", *hl->header);
+  i_log_info ("NEXT_PAGE : %" PRpgno "\n", *hl->next);
+
+  u8 *bytes = (u8 *)hl->header;
+  p_size offset = HL_DATA_OFST;
+
+  i_log_info ("DATA (offset %u to %u):\n", HL_DATA_OFST, PAGE_SIZE);
+
+  while (offset < PAGE_SIZE)
+    {
+      u32 remain = PAGE_SIZE - offset;
+      u32 chunk = remain < 16 ? remain : 16;
+
+      char hex[3 * 16 + 1] = { 0 };
+      char asc[16 + 1] = { 0 };
+
+      for (u32 i = 0; i < chunk; ++i)
+        {
+          u8 b = bytes[offset + i];
+          sprintf (&hex[i * 3], "%02x ", b);
+          asc[i] = isprint (b) ? b : '.';
+        }
+
+      i_log_info ("%04x : %-48s | %s\n", offset, hex, asc);
+      offset += chunk;
+    }
+
+  i_log_info ("=== HASH LEAF PAGE END ===\n");
 }

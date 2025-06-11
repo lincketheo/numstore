@@ -99,8 +99,6 @@ ini_s_alloc_then_write_once (ini_s *r, const page *cur, error *e)
       meminode_kv kv = meminode_pop_left (&r->input, cur->pg);
       meminode_push_right (&r->out, kv.key, next->pg);
 
-      // Commit and swap
-      err_t_wrap (pgr_save (r->pager, cur, e), e);
       cur = next;
     }
 
@@ -127,12 +125,6 @@ ini_s_consume (ini_s *r, error *e)
     {
       err_t_wrap (ini_s_alloc_then_write_once (r, cur, e), e);
     }
-
-  /**
-   * Finally,
-   * Link and Commit the current page
-   */
-  err_t_wrap (pgr_save (r->pager, cur, e), e);
 
   return SUCCESS;
 }

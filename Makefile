@@ -41,6 +41,7 @@ clean:
 	rm -rf $(OBJ)
 	rm -f $(addprefix apps/,$(APP_BIN:=.o))
 	rm -f $(APP_BIN)
+	rm -f *.db
 
 host-docs:
 	cd docs && npm run dev

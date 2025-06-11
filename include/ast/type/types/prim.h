@@ -51,13 +51,9 @@ typedef enum
 } lub_prim_t;
 
 const char *prim_to_str (prim_t p);
-
 err_t prim_t_validate (const prim_t *t, error *e);
-
-int prim_t_snprintf (char *str, u32 size, const prim_t *p);
-
+i32 prim_t_snprintf (char *str, u32 size, const prim_t *p);
 u32 prim_t_byte_size (const prim_t *t);
-
 void prim_t_serialize (serializer *dest, const prim_t *src);
-
 err_t prim_t_deserialize (prim_t *dest, deserializer *src, error *e);
+prim_t prim_t_random (void);

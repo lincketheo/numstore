@@ -21,25 +21,28 @@ DEFINE_DBG_ASSERT_I (vread_hash_fmt, vread_hash_fmt, v)
       }
     case VHFMT_SCANNING:
       {
-        ASSERT (v->pos > VHFMT_HDR_LEN + 1);
-        ASSERT (v->pos < VHFMT_HDR_LEN + 1 + v->vstrlen + v->tstrlen);
+        ASSERT (v->pos > 0);
+        ASSERT (v->pos - 1 <= VHFMT_HDR_LEN + v->vstrlen + v->tstrlen);
         ASSERT (v->vidx <= v->vstrlen);
         ASSERT (v->tidx <= v->tstrlen);
-        if (v->vidx < v->vstrlen)
+        if (v->pos - 1 >= VHFMT_HDR_LEN)
           {
-            ASSERT (v->tidx == 0);
-          }
-        if (v->is_tombstone)
-          {
-            ASSERT (v->raw == NULL);
-            ASSERT (v->vstr == NULL);
-            ASSERT (v->tstr == NULL);
-          }
-        else
-          {
-            ASSERT (v->raw);
-            ASSERT (v->vstr);
-            ASSERT (v->tstr);
+            if (v->vidx < v->vstrlen)
+              {
+                ASSERT (v->tidx == 0);
+              }
+            if (v->is_tombstone)
+              {
+                ASSERT (v->raw == NULL);
+                ASSERT (v->vstr == NULL);
+                ASSERT (v->tstr == NULL);
+              }
+            else if (v->pos >= VHFMT_HDR_LEN + 1)
+              {
+                ASSERT (v->raw);
+                ASSERT (v->vstr);
+                ASSERT (v->tstr);
+              }
           }
         break;
       }
@@ -72,7 +75,7 @@ vrhfmt_create (void)
 static err_t
 vrhfmt_parse_header (vread_hash_fmt *v, error *e)
 {
-  vread_hash_fmt_assert (v);
+
   ASSERT (v->pos == VHFMT_HDR_LEN + 1);
   ASSERT (v->state == VHFMT_SCANNING);
 
@@ -126,6 +129,8 @@ vrhfmt_parse_header (vread_hash_fmt *v, error *e)
       v->vstr = (char *)v->raw;
       v->tstr = v->raw + vstrlen;
     }
+
+  vread_hash_fmt_assert (v);
 
   return SUCCESS;
 }
@@ -194,15 +199,15 @@ vrhfmt_read_in (
    * 1 plus because header only includes the stuff after
    * the type byte
    */
-  if (dest->pos < 1 + VHFMT_HDR_LEN)
+  if (dest->pos - 1 < VHFMT_HDR_LEN)
     {
       /**
        * Read maximum into header
        */
-      next = MIN (VHFMT_HDR_LEN + 1 - dest->pos, toread);
+      next = MIN (VHFMT_HDR_LEN - (dest->pos - 1), toread);
       if (next > 0)
         {
-          i_memcpy (dest->header + dest->pos - 1, src + read, next);
+          i_memcpy (dest->header + (dest->pos - 1), src + read, next);
           dest->pos += next;
 
           read += next;

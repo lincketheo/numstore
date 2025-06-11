@@ -4,12 +4,12 @@
 #include "dev/testing.h"
 #include "errors/error.h"
 #include "intf/io.h"
+#include "intf/logging.h"
 #include <strings.h>
 
 DEFINE_DBG_ASSERT_I (hash_table, hash_table, h)
 {
   ASSERT (h);
-  ASSERT (h->len <= h->cap);
   ASSERT (h->cap > 0);
 }
 
@@ -27,7 +27,6 @@ ht_open (u32 nelem, error *e)
     }
 
   ret->cap = nelem;
-  ret->len = 0;
 
   return ret;
 }
@@ -263,4 +262,21 @@ TEST (robin_hood_ht)
 
   ht_close (tiny);
   ht_close (ht);
+}
+
+void
+i_log_ht (const hash_table *ht)
+{
+  hash_table_assert (ht);
+  i_log_info ("========= HASH TABLE START ========\n");
+  for (u32 i = 0; i < ht->cap; ++i)
+    {
+      if (ht->elems[i].present)
+        {
+          i_log_info ("[%d] %u %" PRpgno "\n", i,
+                      ht->elems[i].data.index,
+                      ht->elems[i].data.key);
+        }
+    }
+  i_log_info ("========= HASH TABLE END ========\n");
 }

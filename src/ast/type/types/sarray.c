@@ -4,6 +4,7 @@
 #include "dev/assert.h"     // DEFINE_DBG_ASSERT_I
 #include "dev/testing.h"    // TEST
 #include "intf/stdlib.h"    // i_snprintf
+#include "math/random.h"    // randu32
 
 DEFINE_DBG_ASSERT_I (sarray_t, unchecked_sarray_t, s)
 {
@@ -65,7 +66,7 @@ sarray_t_validate (const sarray_t *t, error *e)
   return SUCCESS;
 }
 
-int
+i32
 sarray_t_snprintf (char *str, u32 size, const sarray_t *p)
 {
   valid_sarray_t_assert (p);
@@ -370,4 +371,33 @@ TEST (sarray_t_deserialize_red_path)
   err_t ret = sarray_t_deserialize (&eret, &d, &alloc, &e);
 
   test_assert_int_equal (ret, ERR_INVALID_ARGUMENT); // 0 value
+}
+
+err_t
+sarray_t_random (sarray_t *sa, lalloc *alloc, u32 depth, error *e)
+{
+  ASSERT (sa);
+
+  sa->rank = (u16)randu32 (1, 4);
+
+  sa->dims = (u32 *)lmalloc (alloc, sa->rank, sizeof (u32));
+  if (!sa->dims)
+    {
+      return error_causef (e, ERR_NOMEM, "Sarray dims");
+    }
+
+  for (u16 i = 0; i < sa->rank; ++i)
+    {
+      sa->dims[i] = randu32 (1, 11);
+    }
+
+  sa->t = (type *)lmalloc (alloc, 1, sizeof (type));
+  if (!sa->t)
+    {
+      return error_causef (e, ERR_NOMEM, "Sarray sub-type");
+    }
+
+  err_t_wrap (type_random (sa->t, alloc, depth - 1, e), e);
+
+  return SUCCESS;
 }

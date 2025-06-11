@@ -126,3 +126,36 @@ page_init (page *p, page_type type)
       }
     }
 }
+
+void
+i_log_page (const page *p)
+{
+  page_assert (p);
+  switch (p->type)
+    {
+    case PG_HASH_PAGE:
+      {
+        i_log_hp (&p->hp);
+        return;
+      }
+    case PG_DATA_LIST:
+      {
+        i_log_dl (&p->dl);
+        return;
+      }
+    case PG_INNER_NODE:
+      {
+        i_log_in (&p->in);
+        return;
+      }
+    case PG_HASH_LEAF:
+      {
+        i_log_hl (&p->hl);
+        return;
+      }
+    default:
+      {
+        UNREACHABLE ();
+      }
+    }
+}

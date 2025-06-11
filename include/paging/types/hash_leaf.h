@@ -46,3 +46,4 @@ void hl_set_ptrs (hash_leaf *hl, u8 raw[PAGE_SIZE]);
 void hl_init_empty (hash_leaf *hl);
 pgno hl_get_next (const hash_leaf *hl);
 void hl_set_next (hash_leaf *hl, pgno next);
+void i_log_hl (const hash_leaf *hl);

@@ -14,13 +14,9 @@ typedef struct
 } enum_t;
 
 err_t enum_t_validate (const enum_t *t, error *e);
-
-int enum_t_snprintf (char *str, u32 size, const enum_t *st);
-
+i32 enum_t_snprintf (char *str, u32 size, const enum_t *st);
 #define enum_t_byte_size(e) sizeof (u8)
-
 u32 enum_t_get_serial_size (const enum_t *t);
-
 void enum_t_serialize (serializer *dest, const enum_t *src);
-
 err_t enum_t_deserialize (enum_t *dest, deserializer *src, lalloc *a, error *e);
+err_t enum_t_random (enum_t *en, lalloc *alloc, error *e);

@@ -5,6 +5,7 @@
 #include "ds/robin_hood_ht.h"
 #include "errors/error.h"
 #include "intf/io.h" // i_malloc
+#include "intf/logging.h"
 #include "intf/types.h"
 #include "paging/file_pager.h"
 #include "paging/page.h"
@@ -84,12 +85,17 @@ pgr_save_all (pager *pg, error *e)
   for (u32 i = 0; i < MEMORY_PAGE_LEN; ++i)
     {
       page_wrapper *mp = &pg->pages[pg->clock];
+      pg->clock = (pg->clock + 1) % MEMORY_PAGE_LEN;
 
       if (mp->present)
         {
           // Write data out
-          ret = fpgr_write (pg->fp, mp->page.raw, mp->page.pg, e);
-          e->cause_code = SUCCESS;
+          err_t _ret = pgr_save (pg, &mp->page, e);
+          if (_ret != SUCCESS)
+            {
+              ret = _ret;
+              error_log_consume (e);
+            }
 
           // Delete from in memory pool
           mp->present = false;
@@ -97,11 +103,9 @@ pgr_save_all (pager *pg, error *e)
           // Delete from hash table
           hta_res r = ht_delete (pg->pgno_to_index, mp->page.pg);
           ASSERT (r == HTAR_SUCCESS);
-
-          // Use this newly opened spot
-          break;
         }
     }
+
   return ret;
 }
 
@@ -217,6 +221,7 @@ pgr_load (pager *p, pgno pg, error *e)
 
   mp->access_bit = 0;
   mp->present = true;
+  mp->page.pg = pg;
 
   // Insert into the hash table
   hti_res res = ht_insert (
@@ -252,9 +257,6 @@ pgr_new (pager *p, page_type type, error *e)
 {
   pager_assert (p);
 
-  // Make room in memory
-  err_t_wrap_null (pgr_reserve (p, e), e);
-
   // Create new page in file system
   pgno pg = 0;
   if (fpgr_new (p->fp, &pg, e))
@@ -286,6 +288,7 @@ pgr_save (pager *p, const page *pg, error *e)
 {
   pager_assert (p);
 
+  i_log_trace ("Saving page: %" PRpgno "\n", pg->pg);
   err_t_wrap (fpgr_write (p->fp, pg->raw, pg->pg, e), e);
 
   return SUCCESS;

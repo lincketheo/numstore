@@ -167,3 +167,8 @@ pgno in_get_right_most_leaf (const inner_node *in);
  * Get's the right most key
  */
 b_size in_get_right_most_key (const inner_node *in);
+
+/**
+ * Log an inner node
+ */
+void i_log_in (const inner_node *in);

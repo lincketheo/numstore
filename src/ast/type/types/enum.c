@@ -3,6 +3,7 @@
 #include "dev/assert.h"  // DEFINE_DBG_ASSERT_I
 #include "dev/testing.h" // TEST
 #include "intf/stdlib.h" // i_snprintf
+#include "math/random.h" // randu32
 
 DEFINE_DBG_ASSERT_I (enum_t, unchecked_enum_t, e)
 {
@@ -60,7 +61,7 @@ enum_t_validate (const enum_t *en, error *e)
   return SUCCESS;
 }
 
-int
+i32
 enum_t_snprintf (char *str, u32 size, const enum_t *st)
 {
   valid_enum_t_assert (st);
@@ -425,4 +426,25 @@ TEST (enum_t_deserialize_red_path)
   err_t ret = enum_t_deserialize (&eret, &d, &alloc, &e);
 
   test_assert_int_equal (ret, ERR_INVALID_ARGUMENT); // Duplicate
+}
+
+err_t
+enum_t_random (enum_t *en, lalloc *alloc, error *e)
+{
+  ASSERT (en);
+
+  en->len = (u16)randu32 (1, 5);
+
+  en->keys = (string *)lmalloc (alloc, en->len, sizeof (string));
+  if (!en->keys)
+    {
+      return error_causef (e, ERR_NOMEM, "Enum keys");
+    }
+
+  for (u16 i = 0; i < en->len; ++i)
+    {
+      err_t_wrap (rand_str (&en->keys[i], alloc, 5, 11, e), e);
+    }
+
+  return SUCCESS;
 }

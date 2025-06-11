@@ -2,6 +2,7 @@
 
 #include "dev/assert.h"  // DEFINE_DBG_ASSERT_I
 #include "intf/stdlib.h" // i_snprintf
+#include "math/random.h"
 
 DEFINE_DBG_ASSERT_I (prim_t, prim_t, s)
 {
@@ -90,7 +91,7 @@ prim_to_str (prim_t p)
   return "";
 }
 
-int
+i32
 prim_t_snprintf (char *str, u32 size, const prim_t *p)
 {
   prim_t_assert (p);
@@ -208,4 +209,10 @@ prim_t_deserialize (prim_t *dest, deserializer *src, error *e)
   *dest = _p;
 
   return SUCCESS;
+}
+
+prim_t
+prim_t_random (void)
+{
+  return (prim_t)randu32 (U8, CU128 + 1);
 }

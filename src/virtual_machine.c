@@ -52,10 +52,8 @@ vm_close (vm *v)
 static inline err_t
 create_query_execute (vm *v, create_query *q, error *e)
 {
-  (void)v;
-  (void)e;
   i_log_create (q);
-  return SUCCESS;
+  return cursor_create_var (v->c, q, e);
 }
 
 static inline err_t

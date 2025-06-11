@@ -8,9 +8,8 @@
  * DATA LIST
  * ============ PAGE START
  * HEADER
- * NKEYS
- * LENN (numerator)
- * LEND (denominator)
+ * NEXT_PAGE
+ * BYTE_LEN
  * DATA0
  * DATA1
  * DATA2
@@ -72,3 +71,5 @@ p_size dl_used (const data_list *d);
  */
 pgno dl_get_next (const data_list *d);
 void dl_set_next (data_list *d, pgno next);
+
+void i_log_dl (const data_list *d);

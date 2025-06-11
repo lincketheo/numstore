@@ -38,3 +38,4 @@ void hp_set_ptrs (hash_page *hp, u8 raw[PAGE_SIZE]);
 p_size hp_get_hash_pos (const hash_page *p, const string str);
 pgno hp_get_pgno (const hash_page *p, p_size pos);
 void hp_set_hash (hash_page *p, p_size pos, pgno pg);
+void i_log_hp (const hash_page *hp);

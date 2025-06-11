@@ -16,13 +16,9 @@ typedef struct
 } sarray_t;
 
 err_t sarray_t_validate (const sarray_t *t, error *e);
-
-int sarray_t_snprintf (char *str, u32 size, const sarray_t *p);
-
+i32 sarray_t_snprintf (char *str, u32 size, const sarray_t *p);
 u32 sarray_t_byte_size (const sarray_t *t);
-
 u32 sarray_t_get_serial_size (const sarray_t *t);
-
 void sarray_t_serialize (serializer *dest, const sarray_t *src);
-
 err_t sarray_t_deserialize (sarray_t *dest, deserializer *src, lalloc *a, error *e);
+err_t sarray_t_random (sarray_t *sa, lalloc *alloc, u32 depth, error *e);

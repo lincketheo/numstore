@@ -272,3 +272,29 @@ in_get_right_most_key (const inner_node *in)
 
   return in->keys[0];
 }
+
+void
+i_log_in (const inner_node *in)
+{
+  valid_inner_node_assert (in);
+
+  i_log_info ("=== INNER NODE PAGE START ===\n");
+
+  i_log_info ("HEADER : %" PRpgh "\n", *in->header);
+  i_log_info ("NKEYS  : %u\n", *in->nkeys);
+
+  // Log leaf pointers
+  for (u32 i = 0; i <= *in->nkeys; ++i)
+    {
+      i_log_info ("LEAF[%u] = %" PRpgno "\n", i, in_get_leaf (in, i));
+    }
+
+  // Log keys in forward logical order (which is reverse in memory)
+  for (u32 i = 0; i < *in->nkeys; ++i)
+    {
+      u32 rev = (*in->nkeys - 1) - i;
+      i_log_info ("KEY[%u]  = %" PRb_size "\n", i, in_get_key (in, rev));
+    }
+
+  i_log_info ("=== INNER NODE PAGE END ===\n");
+}

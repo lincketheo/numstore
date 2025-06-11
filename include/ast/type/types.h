@@ -54,7 +54,7 @@ err_t type_validate (const type *t, error *e);
 /**
  * Cleanly print to string
  */
-int type_snprintf (char *str, u32 size, type *t);
+i32 type_snprintf (char *str, u32 size, type *t);
 
 /**
  * Get the size in bytes
@@ -76,3 +76,20 @@ void type_serialize (serializer *dest, const type *src);
  * Used by user
  */
 err_t type_deserialize (type *dest, deserializer *src, lalloc *alloc, error *e);
+
+/**
+ * Creates a random type
+ *
+ * Errors:
+ *   - ERR_NOMEM - allocation exceeded
+ */
+err_t type_random (type *dest, lalloc *alloc, u32 depth, error *e);
+
+/**
+ * Logs type - Allocates memory under the hood - no lalloc
+ *
+ *
+ * Errors:
+ *  - ERR_NOMEM
+ */
+err_t i_log_type (type t, error *e);

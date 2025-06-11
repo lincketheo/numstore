@@ -22,6 +22,8 @@ typedef enum
   PG_UNKNOWN = (1 << 4),
 } page_type;
 
+#define PG_ANY (PG_DATA_LIST | PG_INNER_NODE | PG_HASH_LEAF | PG_HASH_PAGE)
+
 ///////////// Generic Page type
 typedef struct page_s
 {
@@ -56,3 +58,8 @@ err_t page_set_ptrs_expect_type (
  * the desired page type
  */
 void page_init (page *p, page_type type);
+
+/**
+ * Log a friendly version of page
+ */
+void i_log_page (const page *p);

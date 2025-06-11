@@ -20,7 +20,6 @@ typedef struct
 
 typedef struct
 {
-  u32 len;
   u32 cap;
   hentry elems[];
 } hash_table;
@@ -46,3 +45,4 @@ typedef enum
 hti_res ht_insert (hash_table *ht, hdata data);
 hta_res ht_get (const hash_table *ht, hdata *dest, hkey key);
 hta_res ht_delete (hash_table *ht, hkey key);
+void i_log_ht (const hash_table *ht);

@@ -76,3 +76,31 @@ hp_set_hash (hash_page *p, p_size pos, pgno pg)
   ASSERT (pos < HP_NHASHES);
   p->hashes[pos] = pg;
 }
+
+void
+i_log_hp (const hash_page *hp)
+{
+  valid_hash_page_assert (hp);
+
+  i_log_info ("=== HASH PAGE START ===\n");
+
+  i_log_info ("HEADER : %" PRpgh "\n", *hp->header);
+  i_log_info ("LEN    : %u\n", HP_NHASHES);
+
+  for (u32 i = 0; i < HP_NHASHES; ++i)
+    {
+      if (hp->hashes[i])
+        {
+          char line[128] = { 0 };
+          int pos = 0;
+          pos += snprintf (
+              &line[pos], sizeof (line) - pos,
+              "[%03u] = %" PRpgno "  ",
+              i,
+              hp->hashes[i]);
+          i_log_info ("%s\n", line);
+        }
+    }
+
+  i_log_info ("=== HASH PAGE END ===\n");
+}

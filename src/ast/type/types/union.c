@@ -4,6 +4,7 @@
 #include "dev/assert.h"            // DEFINE_DBG_ASSERT_I
 #include "dev/testing.h"           // TEST
 #include "intf/stdlib.h"           // i_strncmp
+#include "math/random.h"
 
 DEFINE_DBG_ASSERT_I (union_t, unchecked_union_t, s)
 {
@@ -80,7 +81,7 @@ union_t_validate (const union_t *s, error *e)
   return true;
 }
 
-int
+i32
 union_t_snprintf (char *str, u32 size, const union_t *st)
 {
   valid_union_t_assert (st);
@@ -603,4 +604,32 @@ TEST (union_t_deserialize_red_path)
   err_t ret = union_t_deserialize (&sret, &d, &alloc, &e);
 
   test_assert_int_equal (ret, ERR_INVALID_ARGUMENT); // Duplicate
+}
+
+err_t
+union_t_random (union_t *un, lalloc *alloc, u32 depth, error *e)
+{
+  ASSERT (un);
+
+  un->len = (u16)randu32 (1, 5);
+
+  un->keys = (string *)lmalloc (alloc, un->len, sizeof (string));
+  if (!un->keys)
+    {
+      return error_causef (e, ERR_NOMEM, "Union keys");
+    }
+
+  un->types = (type *)lmalloc (alloc, un->len, sizeof (type));
+  if (!un->types)
+    {
+      return error_causef (e, ERR_NOMEM, "Union types");
+    }
+
+  for (u16 i = 0; i < un->len; ++i)
+    {
+      err_t_wrap (rand_str (&un->keys[i], alloc, 5, 11, e), e);
+      err_t_wrap (type_random (&un->types[i], alloc, depth - 1, e), e);
+    }
+
+  return SUCCESS;
 }

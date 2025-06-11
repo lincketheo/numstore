@@ -129,7 +129,10 @@ error_log_consume (error *e)
   ASSERT (e->cause_code != SUCCESS);
 
   i_log_error ("%.*s\n", e->cmlen, e->cause_msg);
-  lalloc_reset (e->alloc);
+  if (e->alloc)
+    {
+      lalloc_reset (e->alloc);
+    }
 
   for (u32 i = 0; i < e->elen; ++i)
     {

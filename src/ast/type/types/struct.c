@@ -3,7 +3,9 @@
 #include "ast/type/builders/kvt.h" // kvt_builder
 #include "dev/assert.h"            // DEFINE_DBG_ASSERT_I
 #include "dev/testing.h"           // TEST
-#include "intf/stdlib.h"           // i_strncmp
+#include "errors/error.h"
+#include "intf/stdlib.h" // i_strncmp
+#include "math/random.h"
 
 DEFINE_DBG_ASSERT_I (struct_t, unchecked_struct_t, s)
 {
@@ -80,7 +82,7 @@ struct_t_validate (const struct_t *s, error *e)
   return true;
 }
 
-int
+i32
 struct_t_snprintf (char *str, u32 size, const struct_t *st)
 {
   valid_struct_t_assert (st);
@@ -605,4 +607,32 @@ TEST (struct_t_deserialize_red_path)
   err_t ret = struct_t_deserialize (&sret, &d, &alloc, &e);
 
   test_assert_int_equal (ret, ERR_INVALID_ARGUMENT); // Duplicate
+}
+
+err_t
+struct_t_random (struct_t *st, lalloc *alloc, u32 depth, error *e)
+{
+  ASSERT (st);
+
+  st->len = (u16)randu32 (1, 5);
+
+  st->keys = (string *)lmalloc (alloc, st->len, sizeof (string));
+  if (!st->keys)
+    {
+      return error_causef (e, ERR_NOMEM, "Struct keys");
+    }
+
+  st->types = (type *)lmalloc (alloc, st->len, sizeof (type));
+  if (!st->types)
+    {
+      return error_causef (e, ERR_NOMEM, "Struct types");
+    }
+
+  for (u16 i = 0; i < st->len; ++i)
+    {
+      err_t_wrap (rand_str (&st->keys[i], alloc, 5, 11, e), e);
+      err_t_wrap (type_random (&st->types[i], alloc, depth - 1, e), e);
+    }
+
+  return SUCCESS;
 }

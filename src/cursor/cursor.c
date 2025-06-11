@@ -1,6 +1,7 @@
 #include "cursor/cursor.h"
 
-#include "hash_map/hm.h"   // hm
+#include "hash_map/hm.h" // hm
+#include "intf/types.h"
 #include "rptree/rptree.h" // rptree
 
 DEFINE_DBG_ASSERT_I (cursor, cursor, c)
@@ -56,23 +57,22 @@ cursor_create_var (cursor *c, create_query *create, error *e)
   err_t ret = SUCCESS;
 
   // Create a new rptree
-  spgno pg0 = -1;
   c->r = rpt_open (-1, c->p, e);
   if (c->r == NULL)
     {
       return err_t_from (e);
     }
+  pgno pg0 = rpt_pg0 (c->r);
   ASSERT (pg0 > 0);
 
   /**
    * Insert it into the variable hash table
    */
-  variable var
-      = {
-          .pg0 = pg0,
-          .type = create->type,
-          .vname = create->vname,
-        };
+  variable var = {
+    .pg0 = pg0,
+    .type = create->type,
+    .vname = create->vname,
+  };
 
   err_t_wrap (hm_insert (c->h, var, e), e);
 

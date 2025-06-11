@@ -95,12 +95,6 @@ dli_s_write_once (
        */
       meminode_push_right (&r->out, dl_used (&cur->dl), next->pg);
 
-      // Commit so that we can swap it
-      if (pgr_save (r->pager, cur, e))
-        {
-          return NULL;
-        }
-
       // Swap it
       cur = next;
     }
@@ -185,7 +179,6 @@ dli_s_write (
    * Link and Commit the current page
    */
   dl_set_next (&cur->dl, last_link);
-  err_t_wrap (pgr_save (r->pager, cur, e), e);
 
   return written;
 }

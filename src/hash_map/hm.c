@@ -37,7 +37,6 @@ hm_create_first_page (hm *h, error *e)
   ASSERT (root->pg == 0);
 
   page_init (root, PG_HASH_PAGE);
-  err_t_wrap (pgr_save (h->pager, root, e), e);
 
   return SUCCESS;
 }
@@ -310,10 +309,6 @@ hm_fetch_starting_leaf (
        */
       page *hpw = pgr_make_writable (h->pager, hp);
       hp_set_hash (&hpw->hp, hpos, leaf->pg);
-      if (pgr_save (h->pager, hp, e), e)
-        {
-          return NULL;
-        }
     }
   else
     {
@@ -481,14 +476,12 @@ vfhmi_write_variable_here (
 
               page *leafw = pgr_make_writable (h->pager, leaf);
               hl_set_next (&leafw->hl, nextp->pg);
-              err_t_wrap (pgr_save (h->pager, leaf, e), e);
 
               leaf = nextp;
               pos = 0;
             }
           else
             {
-              err_t_wrap (pgr_save (h->pager, leaf, e), e);
               leaf = pgr_get (PG_HASH_LEAF, next, h->pager, e);
               if (leaf == NULL)
                 {

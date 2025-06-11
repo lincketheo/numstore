@@ -178,3 +178,22 @@ dl_used (const data_list *d)
 {
   return *d->blen;
 }
+
+void
+i_log_dl (const data_list *dl)
+{
+  valid_data_list_assert (dl);
+
+  i_log_info ("=== DATA LIST PAGE START ===\n");
+
+  i_log_info ("HEADER     : %" PRpgh "\n", *dl->header);
+  i_log_info ("NEXT_PAGE  : %" PRpgno "\n", *dl->next);
+  i_log_info ("BYTE_LEN   : %" PRp_size "\n", *dl->blen);
+
+  for (u32 i = 0; i < *dl->blen; ++i)
+    {
+      i_log_info ("  DATA[%u] = 0x%02x\n", i, dl->data[i]);
+    }
+
+  i_log_info ("=== DATA LIST PAGE END ===\n");
+}
