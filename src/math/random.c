@@ -1,6 +1,20 @@
 #include "math/random.h"
 #include "dev/assert.h"
+
 #include <stdlib.h>
+#include <time.h>
+
+void
+rand_seed ()
+{
+  srand (time (NULL));
+}
+
+void
+rand_seed_with (u32 seed)
+{
+  srand (seed);
+}
 
 u32
 randu32 (u32 lower, u32 upper)
