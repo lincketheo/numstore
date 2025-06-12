@@ -3,6 +3,7 @@
 #include "dev/testing.h"
 #include "ds/strings.h"
 #include "errors/error.h"
+#include "intf/io.h"
 #include "mm/lalloc.h"
 #include "paging/page.h"
 #include "paging/pager.h"
@@ -537,6 +538,7 @@ hm_insert (
 TEST (hash_map)
 {
   error e = error_create (NULL);
+  test_fail_if (i_remove_quiet (unsafe_cstrfrom ("test.db"), &e));
   pager *p = pgr_open (unsafe_cstrfrom ("test.db"), &e);
   test_fail_if_null (p);
 
@@ -586,5 +588,5 @@ TEST (hash_map)
   };
 
   (void)foo;
-  // test_assert_equal (hm_insert (h, foo, &e), SUCCESS); - TODO
+  test_assert_equal (hm_insert (h, foo, &e), SUCCESS);
 }

@@ -28,8 +28,4 @@ sarray_builder sab_create (
 err_t sab_accept_dim (sarray_builder *eb, u32 dim, error *e);
 err_t sab_accept_type (sarray_builder *eb, type type, error *e);
 
-err_t sab_build (
-    sarray_t *dest,
-    sarray_builder *eb,
-    lalloc *destination,
-    error *e);
+err_t sab_build (sarray_t *dest, sarray_builder *eb, error *e);

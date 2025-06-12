@@ -3,6 +3,7 @@
 #include "compiler/tokens.h"        
 #include "ast/type/builders/enum.h"
 #include "ast/type/builders/kvt.h"
+#include "ast/type/builders/sarray.h"
 #include "ast/type/types.h"      
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
@@ -41,16 +42,16 @@
 %type type_spec          {type}
 
 %type enum_decl          {enum_builder}
-%type enum_items_opt     {enum_builder}
 %type enum_items         {enum_builder}
 
 %type struct_decl        {kvt_builder}
-%type struct_items_opt   {kvt_builder}
 %type struct_items       {kvt_builder}
 
 %type union_decl         {kvt_builder}
-%type union_items_opt    {kvt_builder}
 %type union_items        {kvt_builder}
+
+%type sarray_decl        {sarray_builder}
+%type sarray_dims        {sarray_builder}
 
 /* -------------------------------------------------------------------
    Error Handling
@@ -98,6 +99,12 @@ type(A) ::= union_decl(B). {
     A = tmp;
 }
 
+type(A) ::= sarray_decl(B). {
+    type tmp = { .type = T_SARRAY };
+    err_t_wrap(sab_build(&tmp.sa, &B, ctxt->e), ctxt->e);
+    A = tmp;
+}
+
 type(A) ::= prim(B). {
   A = (type){ 
     .type = T_PRIM,
@@ -108,14 +115,9 @@ type(A) ::= prim(B). {
 /* -------------------------------------------------------------------
    Enum: enum { A, B, C }
 ------------------------------------------------------------------- */
-enum_decl(A) ::= ENUM LEFT_BRACE enum_items_opt(B) RIGHT_BRACE. { A = B; }
+enum_decl(A) ::= ENUM LEFT_BRACE enum_items(B) RIGHT_BRACE. { A = B; }
 
-enum_items_opt(A) ::= .                         /* empty enum */
-{ A = enb_create(ctxt->work, ctxt->dest); }
-
-enum_items_opt(A) ::= enum_items(B).            { A = B; }
-
-enum_items(A) ::= IDENTIFIER(tok).              /* 1st enumerator */
+enum_items(A) ::= IDENTIFIER(tok).
 {
     A = enb_create(ctxt->work, ctxt->dest);
     err_t_wrap(enb_accept_key(&A, tok.str, ctxt->e), ctxt->e);
@@ -130,12 +132,7 @@ enum_items(A) ::= enum_items(B) COMMA IDENTIFIER(tok).   /* more */
 /* -------------------------------------------------------------------
    Struct: struct { field type, … }   (fixed first-field rule)
 ------------------------------------------------------------------- */
-struct_decl(A) ::= STRUCT LEFT_BRACE struct_items_opt(B) RIGHT_BRACE. { A = B; }
-
-struct_items_opt(A) ::= .                        /* empty struct */
-{ A = kvb_create(ctxt->work, ctxt->dest); }
-
-struct_items_opt(A) ::= struct_items(B).         { A = B; }
+struct_decl(A) ::= STRUCT LEFT_BRACE struct_items(B) RIGHT_BRACE. { A = B; }
 
 /* 1st field  ——  create builder here */
 struct_items(A) ::= IDENTIFIER(tok) type_spec(t).          
@@ -156,12 +153,7 @@ struct_items(A) ::= struct_items(B) COMMA IDENTIFIER(tok) type_spec(t).
 /* -------------------------------------------------------------------
    Union: union { tag type, … }
 ------------------------------------------------------------------- */
-union_decl(A) ::= UNION LEFT_BRACE union_items_opt(B) RIGHT_BRACE. { A = B; }
-
-union_items_opt(A) ::= .                         /* empty union */
-{ A = kvb_create(ctxt->work, ctxt->dest); }
-
-union_items_opt(A) ::= union_items(B).           { A = B; }
+union_decl(A) ::= UNION LEFT_BRACE union_items(B) RIGHT_BRACE. { A = B; }
 
 /* 1st variant */
 union_items(A) ::= IDENTIFIER(tok) type_spec(t).
@@ -179,8 +171,27 @@ union_items(A) ::= union_items(B) COMMA IDENTIFIER(tok) type_spec(t).
     err_t_wrap(kvb_accept_type(&A, t,       ctxt->e), ctxt->e);
 }
 
-%code {
-# pragma GCC diagnostic pop
+/* -------------------------------------------------------------------
+   Sarray: [NUM][NUM]....[NUM] type 
+
+SARRAY  -> SAD TYPE 
+SAD     -> [NUM] | [NUM] SAD
+------------------------------------------------------------------- */
+sarray_decl(A) ::= sarray_dims(B) type(C). {  
+  err_t_wrap(sab_accept_type(&B, C, ctxt->e), ctxt->e);
+  A = B; 
+}
+
+sarray_dims(A) ::= LEFT_BRACKET INTEGER(B) RIGHT_BRACKET. 
+{ 
+  A = sab_create(ctxt->work, ctxt->dest);
+  err_t_wrap(sab_accept_dim(&A, B.integer, ctxt->e), ctxt->e);
+}
+
+sarray_dims(A) ::= LEFT_BRACKET INTEGER(C) RIGHT_BRACKET sarray_dims(B). 
+{
+  err_t_wrap(sab_accept_dim(&B, C.integer, ctxt->e), ctxt->e);
+  A = B;
 }
  
 /* -------------------------------------------------------------------

@@ -84,7 +84,7 @@ sab_accept_type (sarray_builder *eb, type t, error *e)
 }
 
 err_t
-sab_build (sarray_t *dest, sarray_builder *eb, lalloc *destination, error *e)
+sab_build (sarray_t *dest, sarray_builder *eb, error *e)
 {
   sarray_builder_assert (eb);
   ASSERT (dest);
@@ -104,7 +104,7 @@ sab_build (sarray_t *dest, sarray_builder *eb, lalloc *destination, error *e)
           "%s: no dims to build", TAG);
     }
 
-  u32 *dims = lmalloc (destination, rank, sizeof *dims);
+  u32 *dims = lmalloc (eb->dest, rank, sizeof *dims);
   if (!dims)
     {
       return error_causef (

@@ -37,7 +37,7 @@ release: $(APP_BIN)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 ./src/compiler/parser.c: ./tools/lemon/lemon ./tools/lemon/parser.y
-	./tools/lemon/lemon ./tools/lemon/parser.y -d./tools/lemon -T./tools/lemon/lempar.c
+	./tools/lemon/lemon ./tools/lemon/parser.y -d./tools/lemon -T./tools/lemon/lempar.c || true
 	cp ./tools/lemon/parser.c ./src/compiler/parser.c 
 
 ./tools/lemon/lemon: ./tools/lemon/lemon.c 

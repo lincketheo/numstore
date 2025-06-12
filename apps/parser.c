@@ -59,6 +59,24 @@ main (void)
     tt_prim (U64),
     quick_tok (TT_RIGHT_BRACE),
     quick_tok (TT_RIGHT_BRACE),
+    quick_tok (TT_COMMA),
+
+    // baz [10][20][30] struct { i i32 }
+    tt_ident (unsafe_cstrfrom ("baz")),
+    quick_tok (TT_LEFT_BRACKET),
+    tt_integer (10),
+    quick_tok (TT_RIGHT_BRACKET),
+    quick_tok (TT_LEFT_BRACKET),
+    tt_integer (20),
+    quick_tok (TT_RIGHT_BRACKET),
+    quick_tok (TT_LEFT_BRACKET),
+    tt_integer (30),
+    quick_tok (TT_RIGHT_BRACKET),
+    quick_tok (TT_STRUCT),
+    quick_tok (TT_LEFT_BRACE),
+    tt_ident (unsafe_cstrfrom ("i")),
+    tt_prim (I32),
+    quick_tok (TT_RIGHT_BRACE),
 
     // }
     quick_tok (TT_RIGHT_BRACE),
