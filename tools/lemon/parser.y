@@ -19,7 +19,7 @@
 %extra_argument { parser_ctxt *ctxt }
 
 /* -------------------------------------------------------------------
-   Tokens
+   Tokens - Ordering 
 ------------------------------------------------------------------- */
 %token  CREATE DELETE APPEND INSERT UPDATE READ TAKE.
 

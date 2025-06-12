@@ -5,7 +5,7 @@
 #include <time.h>
 
 void
-rand_seed ()
+rand_seed (void)
 {
   srand (time (NULL));
 }

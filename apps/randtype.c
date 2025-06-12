@@ -10,7 +10,7 @@
 #include <time.h>
 
 int
-main ()
+main (void)
 {
   srand (time (NULL));
   type t;

@@ -9,7 +9,7 @@
 #include <stdlib.h>
 
 int
-main ()
+main (void)
 {
   void *p = parse_alloc ();
 
