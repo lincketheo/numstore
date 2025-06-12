@@ -18,7 +18,7 @@ APP_BIN := $(patsubst apps/%.c,%,$(SRC_APPS))
 FORMAT_FILES := $(shell find . -type f \( -name "*.c" -o -name "*.h" \))
 
 # Default: debug build
-all: debug
+all: ./src/compiler/parser.c debug 
 
 # Debug build target
 debug: CFLAGS := $(BASE_CFLAGS) -O0 -g
@@ -36,12 +36,25 @@ release: $(APP_BIN)
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
+./src/compiler/parser.c: ./tools/lemon/lemon ./tools/lemon/parser.y
+	./tools/lemon/lemon ./tools/lemon/parser.y -d./tools/lemon -T./tools/lemon/lempar.c
+	mv ./tools/lemon/parser.c ./src/compiler/parser.c 
+	rm ./tools/lemon/parser.h
+
+./tools/lemon/lemon: ./tools/lemon/lemon.c 
+	gcc -o $@ $^
+
 # Utility targets
 clean:
 	rm -rf $(OBJ)
 	rm -f $(addprefix apps/,$(APP_BIN:=.o))
 	rm -f $(APP_BIN)
 	rm -f *.db
+	rm -f ./src/compiler/parser.c
+	rm -f ./tools/lemon/lemon
+	rm -f ./tools/lemon/parser.c
+	rm -f ./tools/lemon/parser.h
+	rm -f ./tools/lemon/parser.out
 
 host-docs:
 	cd docs && npm run dev

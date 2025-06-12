@@ -10,12 +10,13 @@ DEFINE_DBG_ASSERT_I (sarray_builder, sarray_builder, s)
 static const char *TAG = "Strict Array Builder";
 
 sarray_builder
-sab_create (lalloc *alloc)
+sab_create (lalloc *alloc, lalloc *dest)
 {
   sarray_builder builder = {
     .head = NULL,
     .type = NULL,
     .alloc = alloc,
+    .dest = dest,
   };
   return builder;
 }

@@ -479,7 +479,7 @@ struct_t_deserialize (
 
   u8 working[2048];
   lalloc balloc = lalloc_create (working, sizeof (working));
-  kvt_builder unb = kvb_create (&balloc);
+  kvt_builder unb = kvb_create (&balloc, a);
 
   /**
    * LEN
@@ -519,7 +519,7 @@ struct_t_deserialize (
       err_t_wrap (kvb_accept_type (&unb, t, e), e);
     }
 
-  err_t_wrap (kvb_struct_t_build (dest, &unb, a, e), e);
+  err_t_wrap (kvb_struct_t_build (dest, &unb, e), e);
 
   return SUCCESS;
 

@@ -1,5 +1,6 @@
 #include "compiler/compiler.h"
 
+#include "compiler/tokens.h"
 #include "dev/assert.h"    // DEFINE_DBG_ASSERT_I
 #include "ds/cbuffer.h"    // cbuffer
 #include "errors/error.h"  // err_t
@@ -116,281 +117,6 @@ static err_t steady_state_ident (compiler *s, error *e);
 static err_t steady_state_string (compiler *s, error *e);
 static err_t steady_state_number (compiler *s, error *e);
 static err_t steady_state_dec (compiler *s, error *e);
-
-//////////////////////////////////////////// PARSER UTILS
-
-/**
- * Pops the top ast_parser off the stack
- * and builds it. Returns error if build fails
- *
- * Error:
- *  - SPR_SYNTAX_ERROR (ERR_SYNTAX)
- *  - SPR_MALLOC_ERROR (ERR_NOMEM)
- *
- * Does not return SPR_CONTINUE
- */
-static inline ast_result
-compiler_pop (compiler *sp)
-{
-  compiler_assert (sp);
-  ASSERT (sp->sp > 0);
-
-  // Pop the top off the stack
-  ast_parser top = sp->parser_stack[--sp->sp];
-
-  // Build the top
-  ast_result ret = ast_parser_to_result (&top);
-
-  // Reset the allocator (free all the scratch work)
-  lalloc_reset_to_state (&sp->parser_work, top.alloc_start);
-
-  // Return a result, not parser
-  return ret;
-}
-
-/**
- * Gets just the reference to the top most parser
- */
-static inline ast_parser *
-compiler_top_ref (compiler *sp)
-{
-  compiler_assert (sp);
-  ASSERT (sp->sp > 0);
-
-  return &sp->parser_stack[sp->sp - 1];
-}
-
-static inline void
-push_parser_expect (compiler *p, ast_parser value)
-{
-  compiler_assert (p);
-  ASSERT (p->sp < 20);
-  p->parser_stack[p->sp++] = value;
-}
-
-/**
- * Pushes a new parser to the top of the stack
- */
-static err_t
-push_parser (compiler *p, ast_parser value, error *e)
-{
-  compiler_assert (p);
-
-  if (p->sp == 20)
-    {
-      return error_causef (
-          e, ERR_NOMEM,
-          "Parser: parser_stack overflow");
-    }
-
-  push_parser_expect (p, value);
-
-  return SUCCESS;
-}
-
-/**
- * Pushes a type parser to the stack
- * Basically just a wrapper around push_parser
- * with type_parser constructor
- */
-static inline err_t
-push_type_parser (compiler *p, query cur, error *e)
-{
-  compiler_assert (p);
-
-  ast_parser value = {
-    .tb = (type_parser){
-        .state = TB_UNKNOWN,
-    },
-    .type = SBBT_TYPE,
-    .cur = cur,
-    .alloc_start = lalloc_get_state (&p->parser_work),
-  };
-
-  return push_parser (p, value, e);
-}
-
-/**
- * Pushes a type parser to the stack
- * Basically just a wrapper around push_parser
- * with query_parser constructor
- */
-static inline void
-push_query_parser_start (compiler *sp)
-{
-  compiler_assert (sp);
-
-  ast_parser top = {
-    .qb = (query_parser){
-        .state = QP_UNKNOWN,
-    },
-    .type = SBBT_QUERY,
-    .cur = (query){ 0 },
-    .alloc_start = lalloc_get_state (&sp->parser_work),
-  };
-  ASSERT (sp->sp == 0);
-
-  push_parser_expect (sp, top);
-}
-
-//////////////////////////////////////////// Parser Main
-
-/**
- * Pushes a new token onto the parser stack
- *
- * Returns result of that feed for the top most
- * element of the stack
- *
- * Note, the return value is SPR_DONE iff the
- * stack is size 1 and the bottom (top) element is done
- */
-static stackp_result
-parser_feed_token (compiler *tp, token t, error *e)
-{
-  compiler_assert (tp);
-  ASSERT (tp->sp > 0);
-
-  /**
-   * First, get the top ast compiler from the
-   * parser_stack - and ask: "Hey compiler, do you
-   * want a token or a type next?"
-   */
-  ast_parser *top = compiler_top_ref (tp);
-  sb_feed_t exp = ast_parser_expect_next (top, t);
-
-  /**
-   * Top Parser wants a type, we push a new
-   * type_parser onto the top of the parser_stack
-   */
-  if (exp == SBFT_TYPE)
-    {
-      // Push a new type parser
-      err_t ret = push_type_parser (tp, top->cur, e);
-      if (ret < 0)
-        {
-          return (stackp_result)ret;
-        }
-
-      // Get the new top
-      top = compiler_top_ref (tp);
-
-      // All type parser accept a token next
-      // This could change
-      ASSERT (ast_parser_expect_next (top, t) == SBFT_TOKEN);
-    }
-
-  // Give the top a token
-  stackp_result ret = ast_parser_accept_token (
-      top, t, &tp->parser_work, e);
-
-  if (ret < 0)
-    {
-      return ret;
-    }
-
-  /**
-   * If we just finished the top compiler,
-   * we loop and build each item on the
-   * parser_stack then feed it to the compiler
-   * beneath it
-   *
-   * sp == 1 is done because we've reached the base
-   */
-  while (tp->sp > 1 && ret == SPR_DONE)
-    {
-      // Pop the top off the parser_stack
-      ast_result top = compiler_pop (tp);
-
-      // compiler_pop only returns DONE or ERROR, not CONTINUE
-      ASSERT (ret == SPR_DONE);
-
-      /**
-       * Merge whatever we just built
-       * into the next element
-       */
-      switch (top.type)
-        {
-        case SBBT_TYPE:
-          {
-            ret = ast_parser_accept_type (
-                &tp->parser_stack[tp->sp - 1], top.t, e);
-            break;
-          }
-        case SBBT_QUERY:
-          {
-            // Don't support recursive queries yet
-            panic ();
-            break;
-          }
-        }
-
-      if (ret < 0)
-        {
-          return ret;
-        }
-      continue;
-    }
-
-  return ret;
-}
-
-/**
- * The parser_stack is one element high
- * and the only element that lives on it is
- * done and valid
- */
-static inline query
-compiler_get (compiler *sp)
-{
-  compiler_assert (sp);
-  ASSERT (sp->sp == 1);
-
-  /**
-   * Pop the last element off the parser_stack -
-   * it should be a query
-   */
-  ast_result top = compiler_pop (sp);
-  ASSERT (top.type == SBBT_QUERY);
-
-  return top.q;
-}
-
-static inline void
-compiler_write_out (compiler *p)
-{
-  compiler_result res = {
-    .ok = true,
-    .query = compiler_get (p),
-  };
-
-  push_query_parser_start (p);
-
-  u32 written = cbuffer_write (&res, sizeof res, 1, &p->output);
-  ASSERT (written == 1);
-}
-
-static err_t
-compiler_feed_and_translate_token (compiler *p, token tok, error *e)
-{
-  switch (parser_feed_token (p, tok, e))
-    {
-    case SPR_DONE:
-      {
-        compiler_write_out (p);
-        return SUCCESS;
-      }
-    case SPR_CONTINUE:
-      {
-        return SUCCESS; // Do nothing
-      }
-    case SPR_NOMEM:
-    case SPR_SYNTAX_ERROR:
-      {
-        return err_t_from (e);
-      }
-    }
-  UNREACHABLE ();
-}
 
 /////////////////////////////////// UTILS
 /// Some simple tools to help scanning like special
@@ -530,7 +256,8 @@ compiler_process_token (compiler *s, token t, error *e)
 {
   compiler_assert (s);
 
-  err_t_wrap (compiler_feed_and_translate_token (s, t, e), e);
+  (void)e;
+  // err_t_wrap (compiler_feed_and_translate_token (s, t, e), e);
 
   ASSERT (cbuffer_avail (&s->output) >= sizeof (token));
   u32 ret = cbuffer_write (&t, sizeof t, 1, &s->output);
@@ -908,7 +635,7 @@ compiler_create (compiler *dest, query_provider *qp)
   dest->input = cbuffer_create_from (dest->_input);
   dest->output = cbuffer_create_from (dest->_output);
   dest->slen = 0;
-  dest->sp = 0;
+  // dest->sp = 0;
   dest->parser_work = lalloc_create_from (dest->_parser_work);
   dest->qp = qp;
 

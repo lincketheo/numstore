@@ -25,9 +25,12 @@ typedef struct
   u16 tlen;
 
   lalloc *alloc; // For growing types and keys arrays
+  lalloc *dest;  // The destination allocator
 } kvt_builder;
 
-kvt_builder kvb_create (lalloc *alloc);
+kvt_builder kvb_create (
+    lalloc *alloc,
+    lalloc *dest);
 
 /**
  * Allocates a new node if klen < len(head)
@@ -60,10 +63,9 @@ err_t kvb_accept_type (kvt_builder *eb, type t, error *e);
  *          - takes klen * sizeof(string) + tlen * sizeof(type) bytes
  */
 err_t kvb_union_t_build (
-    union_t *dest,       // The destination union type
-    kvt_builder *eb,     // The completed builder
-    lalloc *destination, // Where to allocate the destination data onto
-    error *e             // Compilation errors go here
+    union_t *dest,   // The destination union type
+    kvt_builder *eb, // The completed builder
+    error *e         // Compilation errors go here
 );
 
 // Same as [kvb_union_t_build],
@@ -71,5 +73,4 @@ err_t kvb_union_t_build (
 err_t kvb_struct_t_build (
     struct_t *dest,
     kvt_builder *eb,
-    lalloc *destination,
     error *e);

@@ -13,13 +13,14 @@ DEFINE_DBG_ASSERT_I (kvt_builder, kvt_builder, s)
 static const char *TAG = "Key Value Type Builder";
 
 kvt_builder
-kvb_create (lalloc *alloc)
+kvb_create (lalloc *alloc, lalloc *dest)
 {
   kvt_builder builder = {
     .head = NULL,
     .klen = 0,
     .tlen = 0,
     .alloc = alloc,
+    .dest = dest,
   };
   kvt_builder_assert (&builder);
   return builder;
@@ -165,13 +166,13 @@ kvb_build_common (
 }
 
 err_t
-kvb_union_t_build (union_t *dest, kvt_builder *ub, lalloc *onto, error *e)
+kvb_union_t_build (union_t *dest, kvt_builder *ub, error *e)
 {
   string *keys;
   type *types;
   u16 len;
 
-  err_t_wrap (kvb_build_common (&keys, &types, &len, ub, onto, e), e);
+  err_t_wrap (kvb_build_common (&keys, &types, &len, ub, ub->dest, e), e);
 
   dest->keys = keys;
   dest->types = types;
@@ -180,13 +181,13 @@ kvb_union_t_build (union_t *dest, kvt_builder *ub, lalloc *onto, error *e)
 }
 
 err_t
-kvb_struct_t_build (struct_t *dest, kvt_builder *ub, lalloc *onto, error *e)
+kvb_struct_t_build (struct_t *dest, kvt_builder *ub, error *e)
 {
   string *keys;
   type *types;
   u16 len;
 
-  err_t_wrap (kvb_build_common (&keys, &types, &len, ub, onto, e), e);
+  err_t_wrap (kvb_build_common (&keys, &types, &len, ub, ub->dest, e), e);
 
   dest->keys = keys;
   dest->types = types;

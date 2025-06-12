@@ -10,11 +10,14 @@ DEFINE_DBG_ASSERT_I (enum_builder, enum_builder, s)
 static const char *TAG = "Enum Builder";
 
 enum_builder
-enb_create (lalloc *alloc)
+enb_create (
+    lalloc *alloc,
+    lalloc *dest)
 {
   enum_builder builder = {
     .head = NULL,
     .alloc = alloc,
+    .dest = dest,
   };
   return builder;
 }
@@ -84,7 +87,10 @@ enb_accept_key (enum_builder *eb, const string key, error *e)
 }
 
 err_t
-enb_build (enum_t *dest, enum_builder *eb, lalloc *destination, error *e)
+enb_build (
+    enum_t *dest,
+    enum_builder *eb,
+    error *e)
 {
   enum_builder_assert (eb);
   ASSERT (dest);
@@ -97,7 +103,7 @@ enb_build (enum_t *dest, enum_builder *eb, lalloc *destination, error *e)
           "%s: no keys to build", TAG);
     }
 
-  string *keys = lmalloc (destination, len, sizeof *keys);
+  string *keys = lmalloc (eb->dest, len, sizeof *keys);
   if (!keys)
     {
       return error_causef (
