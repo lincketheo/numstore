@@ -21,6 +21,17 @@
 /* -------------------------------------------------------------------
    Tokens
 ------------------------------------------------------------------- */
+%token  CREATE DELETE APPEND INSERT UPDATE READ TAKE.
+
+%token  BCREATE BDELETE BAPPEND BINSERT BUPDATE BREAD BTAKE.
+
+%token  STRUCT UNION ENUM PRIM.
+
+%token  IDENTIFIER STRING.
+
+%token  INTEGER FLOAT.
+
+%token  SEMICOLON LEFT_BRACKET RIGHT_BRACKET LEFT_BRACE RIGHT_BRACE LEFT_PAREN RIGHT_PAREN COMMA.
 
 
 /* -------------------------------------------------------------------
@@ -28,20 +39,44 @@
 ------------------------------------------------------------------- */
 %type type               {type}
 %type type_spec          {type}
+
 %type enum_decl          {enum_builder}
-%type struct_decl        {kvt_builder}
-%type union_decl         {kvt_builder}
 %type enum_items_opt     {enum_builder}
 %type enum_items         {enum_builder}
+
+%type struct_decl        {kvt_builder}
 %type struct_items_opt   {kvt_builder}
 %type struct_items       {kvt_builder}
+
+%type union_decl         {kvt_builder}
 %type union_items_opt    {kvt_builder}
 %type union_items        {kvt_builder}
 
 /* -------------------------------------------------------------------
+   Error Handling
+------------------------------------------------------------------- */
+%syntax_error {
+  error_causef(
+    ctxt->e, 
+    ERR_SYNTAX, 
+    "Syntax error at token: %s at index: %d", 
+    tt_tostr(yyminor.type), ctxt->tnum);
+}
+
+%parse_failure {
+  error_causef(
+    ctxt->e, 
+    ERR_SYNTAX, 
+    "Parser error at index: %d\n", ctxt->tnum);
+}
+
+
+/* -------------------------------------------------------------------
    Top-level Type Parsing
 ------------------------------------------------------------------- */
-program ::= type.
+program ::= type(A). {
+  i_log_type (A, ctxt->e); 
+}
 
 type(A) ::= enum_decl(B). {
     type tmp = { .type = T_ENUM };
@@ -62,6 +97,14 @@ type(A) ::= union_decl(B). {
     err_t_wrap(kvb_union_t_build(&tmp.un, &B, ctxt->e), ctxt->e);
     A = tmp;
 }
+
+type(A) ::= prim(B). {
+  A = (type){ 
+    .type = T_PRIM,
+    .p = B.prim,
+  };
+}
+
 /* -------------------------------------------------------------------
    Enum: enum { A, B, C }
 ------------------------------------------------------------------- */
@@ -140,3 +183,7 @@ union_items(A) ::= union_items(B) COMMA IDENTIFIER(tok) type_spec(t).
 # pragma GCC diagnostic pop
 }
  
+/* -------------------------------------------------------------------
+   Prim
+------------------------------------------------------------------- */
+prim ::= PRIM.

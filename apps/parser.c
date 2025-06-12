@@ -4,6 +4,7 @@
 #include "ds/strings.h"
 #include "errors/error.h"
 #include "mm/lalloc.h"
+#include "utils/macros.h"
 
 #include <stdlib.h>
 
@@ -19,30 +20,58 @@ main ()
 
   parser_ctxt ctx = pctx_create (&alloc, &alloc);
 
-  if (parse (p, quick_tok (TT_STRUCT), &ctx, &e))
+  token tokens[] = {
+    // struct {
+    quick_tok (TT_STRUCT),
+    quick_tok (TT_LEFT_BRACE),
+
+    // foo U32,
+    tt_ident (unsafe_cstrfrom ("foo")),
+    tt_prim (U32),
+    quick_tok (TT_COMMA),
+
+    // bar enum { bar, biz, buz, }, // notice trailing comma
+    tt_ident (unsafe_cstrfrom ("bar")),
+    quick_tok (TT_ENUM),
+    quick_tok (TT_LEFT_BRACE),
+    tt_ident (unsafe_cstrfrom ("bar")),
+    quick_tok (TT_COMMA),
+    tt_ident (unsafe_cstrfrom ("biz")),
+    quick_tok (TT_COMMA),
+    tt_ident (unsafe_cstrfrom ("buz")),
+    quick_tok (TT_RIGHT_BRACE),
+    quick_tok (TT_COMMA),
+
+    // biz struct { a U32, b union { c i32, d u64 } },
+    tt_ident (unsafe_cstrfrom ("biz")),
+    quick_tok (TT_STRUCT),
+    quick_tok (TT_LEFT_BRACE),
+    tt_ident (unsafe_cstrfrom ("a")),
+    tt_prim (U32),
+    quick_tok (TT_COMMA),
+    tt_ident (unsafe_cstrfrom ("b")),
+    quick_tok (TT_UNION),
+    quick_tok (TT_LEFT_BRACE),
+    tt_ident (unsafe_cstrfrom ("c")),
+    tt_prim (I32),
+    quick_tok (TT_COMMA),
+    tt_ident (unsafe_cstrfrom ("d")),
+    tt_prim (U64),
+    quick_tok (TT_RIGHT_BRACE),
+    quick_tok (TT_RIGHT_BRACE),
+
+    // }
+    quick_tok (TT_RIGHT_BRACE),
+    quick_tok (0),
+  };
+
+  for (u32 i = 0; i < arrlen (tokens); ++i)
     {
-      error_log_consume (&e);
-      return -1;
-    }
-  if (parse (p, quick_tok (TT_LEFT_BRACE), &ctx, &e))
-    {
-      error_log_consume (&e);
-      return -1;
-    }
-  if (parse (p, tt_ident (unsafe_cstrfrom ("foo")), &ctx, &e))
-    {
-      error_log_consume (&e);
-      return -1;
-    }
-  if (parse (p, tt_prim (U32), &ctx, &e))
-    {
-      error_log_consume (&e);
-      return -1;
-    }
-  if (parse (p, quick_tok (TT_RIGHT_BRACE), &ctx, &e))
-    {
-      error_log_consume (&e);
-      return -1;
+      if (parse (p, tokens[i], &ctx, &e))
+        {
+          error_log_consume (&e);
+          return -1;
+        }
     }
 
   parse_free (p);

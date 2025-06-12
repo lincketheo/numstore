@@ -9,22 +9,22 @@ typedef enum
 {
   // Tokens that start with a letter (alpha)
   //      Json Operations
-  TT_CREATE = 0,
-  TT_DELETE = 1,
-  TT_APPEND = 2,
-  TT_INSERT = 3,
-  TT_UPDATE = 4,
-  TT_READ = 5,
-  TT_TAKE = 6,
+  TT_CREATE = 1,
+  TT_DELETE,
+  TT_APPEND,
+  TT_INSERT,
+  TT_UPDATE,
+  TT_READ,
+  TT_TAKE,
 
   //      Binary Operations
-  TT_BCREATE = 7,
-  TT_BDELETE = 8,
-  TT_BAPPEND = 9,
-  TT_BINSERT = 10,
-  TT_BUPDATE = 11,
-  TT_BREAD = 12,
-  TT_BTAKE = 13,
+  TT_BCREATE,
+  TT_BDELETE,
+  TT_BAPPEND,
+  TT_BINSERT,
+  TT_BUPDATE,
+  TT_BREAD,
+  TT_BTAKE,
 
   //      Type Utils
   TT_STRUCT,

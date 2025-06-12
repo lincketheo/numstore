@@ -15,7 +15,7 @@ SRC_APPS := $(wildcard apps/*.c)
 APP_BIN := $(patsubst apps/%.c,%,$(SRC_APPS))
 
 # Format and Lint
-FORMAT_FILES := $(shell find . -type f \( -name "*.c" -o -name "*.h" \))
+FORMAT_FILES := $(shell find src include -type f \( -name "*.c" -o -name "*.h" \))
 
 # Default: debug build
 all: ./src/compiler/parser.c debug 
@@ -38,8 +38,7 @@ release: $(APP_BIN)
 
 ./src/compiler/parser.c: ./tools/lemon/lemon ./tools/lemon/parser.y
 	./tools/lemon/lemon ./tools/lemon/parser.y -d./tools/lemon -T./tools/lemon/lempar.c
-	mv ./tools/lemon/parser.c ./src/compiler/parser.c 
-	rm ./tools/lemon/parser.h
+	cp ./tools/lemon/parser.c ./src/compiler/parser.c 
 
 ./tools/lemon/lemon: ./tools/lemon/lemon.c 
 	gcc -o $@ $^

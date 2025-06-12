@@ -9,6 +9,7 @@ typedef struct
 {
   lalloc *work; // Where to allocate work
   lalloc *dest; // Where to allocate result
+  u32 tnum;     // Token number
   error *e;     // Return status
 } parser_ctxt;
 
@@ -17,7 +18,9 @@ pctx_create (lalloc *work, lalloc *dest)
 {
   return (parser_ctxt){
     .work = work,
+    .tnum = 0,
     .dest = dest,
+    .e = NULL,
   };
 }
 
@@ -35,5 +38,10 @@ parse (void *yyp, token tok, parser_ctxt *ctxt, error *e)
 {
   ctxt->e = e;
   lemon_parse (yyp, tok.type, tok, ctxt);
-  return err_t_from (ctxt->e);
+  err_t ret = err_t_from (ctxt->e);
+  if (!ret)
+    {
+      ctxt->tnum++;
+    }
+  return ret;
 }
