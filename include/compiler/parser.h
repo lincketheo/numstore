@@ -1,16 +1,19 @@
+#include "ast/query/query_provider.h"
 #include "ast/type/types.h"
 #include "compiler/tokens.h"
 #include "errors/error.h"
 #include "intf/io.h"
+#include "mm/lalloc.h"
 
 #include <stddef.h> // size_t
 
 typedef struct
 {
-  lalloc *work; // Where to allocate work
-  lalloc *dest; // Where to allocate result
-  u32 tnum;     // Token number
-  error *e;     // Return status
+  query_provider *qpvdr; // Query Provider
+  lalloc *work;          // Where to allocate work
+  lalloc *dest;          // Where to allocate the final stuff that goes into query
+  u32 tnum;              // Token number
+  error *e;              // Return status
 } parser_ctxt;
 
 static inline parser_ctxt __attribute__ ((unused))
@@ -18,8 +21,8 @@ pctx_create (lalloc *work, lalloc *dest)
 {
   return (parser_ctxt){
     .work = work,
-    .tnum = 0,
     .dest = dest,
+    .tnum = 0,
     .e = NULL,
   };
 }

@@ -4,6 +4,8 @@
 #include "ast/type/builders/enum.h"
 #include "ast/type/builders/kvt.h"
 #include "ast/type/builders/sarray.h"
+#include "ast/query/builders/create.h"
+#include "ast/query/builders/delete.h"
 #include "ast/type/types.h"      
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
@@ -53,6 +55,10 @@
 %type sarray_decl        {sarray_builder}
 %type sarray_dims        {sarray_builder}
 
+%type query              {query}
+%type create_decl        {query}
+%type delete_decl        {query}
+
 /* -------------------------------------------------------------------
    Error Handling
 ------------------------------------------------------------------- */
@@ -75,8 +81,16 @@
 /* -------------------------------------------------------------------
    Top-level Type Parsing
 ------------------------------------------------------------------- */
-program ::= type(A). {
-  i_log_type (A, ctxt->e); 
+program ::= query(A). {
+  i_log_query(A); 
+}
+
+query(A) ::= delete_decl(B). {
+    A = B;
+}
+
+query(A) ::= create_decl(B). {
+    A = B;
 }
 
 type(A) ::= enum_decl(B). {
@@ -193,7 +207,40 @@ sarray_dims(A) ::= LEFT_BRACKET INTEGER(C) RIGHT_BRACKET sarray_dims(B).
   err_t_wrap(sab_accept_dim(&B, C.integer, ctxt->e), ctxt->e);
   A = B;
 }
- 
+
+/* -------------------------------------------------------------------
+   CREATE: create IDENT TYPE
+------------------------------------------------------------------- */
+create_decl(A) ::= CREATE(B) IDENTIFIER(I) type_spec(T). {
+    A = B.q;
+
+    // Build the builder
+    create_builder tmp = crb_create();
+
+    // Accept
+    err_t_wrap(crb_accept_string(&tmp, I.str, ctxt->e), ctxt->e);
+    err_t_wrap(crb_accept_type(&tmp, T, ctxt->e), ctxt->e);
+
+    // Build the query
+    err_t_wrap(crb_build(A.create, &tmp, ctxt->e), ctxt->e); 
+}
+
+/* -------------------------------------------------------------------
+   DELETE: delete IDENT 
+------------------------------------------------------------------- */
+delete_decl(A) ::= DELETE(B) IDENTIFIER(I). {
+    A = B.q;
+
+    // Build the builder
+    delete_builder tmp = dltb_create();
+
+    // Accept
+    err_t_wrap(dltb_accept_string(&tmp, I.str, ctxt->e), ctxt->e);
+
+    // Build the query
+    err_t_wrap(dltb_build(A.delete, &tmp, ctxt->e), ctxt->e); 
+}
+
 /* -------------------------------------------------------------------
    Prim
 ------------------------------------------------------------------- */

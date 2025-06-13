@@ -29,3 +29,5 @@ struct query_s
    */
   lalloc *qalloc;
 };
+
+void i_log_query (query q);
