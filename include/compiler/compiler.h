@@ -2,6 +2,7 @@
 
 #include "ast/query/query.h"          // query
 #include "ast/query/query_provider.h" // query_provider
+#include "compiler/parser.h"          // parser_ctxt
 #include "ds/cbuffer.h"               // cbuffer
 #include "intf/types.h"               // u32
 
@@ -53,6 +54,7 @@ typedef struct
   // Allocator for temporary variables in parser
   lalloc parser_work;
   u8 _parser_work[2048];
+  parser_ctxt ctxt;
 
   query_provider *qp;
 } compiler;

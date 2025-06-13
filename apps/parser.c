@@ -29,15 +29,37 @@ main (void)
     }
 
   query c;
-  query_provider_get (q, &c, QT_CREATE, &e);
+  /*
+  if (query_provider_get (q, &c, QT_CREATE, &e))
+    {
+      error_log_consume (&e);
+      return -1;
+    }
   token create = (token){
     .type = TT_CREATE,
+    .q = c,
+  };
+  */
+  if (query_provider_get (q, &c, QT_DELETE, &e))
+    {
+      error_log_consume (&e);
+      return -1;
+    }
+  token delete = (token){
+    .type = TT_DELETE,
     .q = c,
   };
 
   lalloc work = lalloc_create (data, 4096);
   parser_ctxt ctx = pctx_create (&work, c.qalloc);
 
+  token tokens[] = {
+    delete,
+    tt_ident (unsafe_cstrfrom ("foobar")),
+    quick_tok (0),
+  };
+
+  /**
   token tokens[] = {
     create,
     tt_ident (unsafe_cstrfrom ("a")),
@@ -103,6 +125,7 @@ main (void)
     quick_tok (TT_RIGHT_BRACE),
     quick_tok (0),
   };
+    */
 
   for (u32 i = 0; i < arrlen (tokens); ++i)
     {

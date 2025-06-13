@@ -17,7 +17,6 @@ DEFINE_DBG_ASSERT_I (compiler, compiler, s)
 static const char *TAG = "Scanner";
 
 ////////////////////////////// Premade magic strings
-//// TODO - implement a trie for faster string searches
 
 typedef struct
 {
@@ -36,6 +35,7 @@ typedef struct
     (sizeof (s) - 1), (s) \
   }
 
+//// TODO - implement a trie for faster string searches
 /**
  * Seperate because you need to create
  * a new query for each one
@@ -634,8 +634,11 @@ compiler_create (compiler *dest, query_provider *qp)
   dest->state.state = SS_START;
   dest->input = cbuffer_create_from (dest->_input);
   dest->output = cbuffer_create_from (dest->_output);
+
+  // Scanner
   dest->slen = 0;
-  // dest->sp = 0;
+
+  // Parser
   dest->parser_work = lalloc_create_from (dest->_parser_work);
   dest->qp = qp;
 
