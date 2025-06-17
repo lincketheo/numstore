@@ -15,7 +15,6 @@
 int
 main (void)
 {
-  void *p = parse_alloc ();
 
   u8 data[4096];
 
@@ -29,7 +28,6 @@ main (void)
     }
 
   query c;
-  /*
   if (query_provider_get (q, &c, QT_CREATE, &e))
     {
       error_log_consume (&e);
@@ -39,7 +37,7 @@ main (void)
     .type = TT_CREATE,
     .q = c,
   };
-  */
+  /*
   if (query_provider_get (q, &c, QT_DELETE, &e))
     {
       error_log_consume (&e);
@@ -49,17 +47,20 @@ main (void)
     .type = TT_DELETE,
     .q = c,
   };
+  */
 
   lalloc work = lalloc_create (data, 4096);
-  parser_ctxt ctx = pctx_create (&work, c.qalloc);
+  parser_result ctx;
+  err_t_wrap (parser_create (&ctx, &work, c.qalloc, &e), &e);
 
+  /*
   token tokens[] = {
     delete,
     tt_ident (unsafe_cstrfrom ("foobar")),
     quick_tok (0),
   };
+  */
 
-  /**
   token tokens[] = {
     create,
     tt_ident (unsafe_cstrfrom ("a")),
@@ -123,20 +124,25 @@ main (void)
 
     // }
     quick_tok (TT_RIGHT_BRACE),
-    quick_tok (0),
+    quick_tok (TT_SEMICOLON),
   };
-    */
 
-  for (u32 i = 0; i < arrlen (tokens); ++i)
+  u32 i = 0;
+  while (!ctx.ready)
     {
-      if (parse (p, tokens[i], &ctx, &e))
+      ASSERT (i < arrlen (tokens));
+
+      if (parser_parse (&ctx, tokens[i], &e))
         {
           error_log_consume (&e);
           return -1;
         }
+
+      i++;
     }
 
-  parse_free (p);
+  query _c = parser_consume (&ctx);
+  i_log_query (_c);
 
   return 0;
 }

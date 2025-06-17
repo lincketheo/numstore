@@ -1,12 +1,53 @@
 #include "compiler/compiler.h"
 
+#include "ast/query/query.h"
+#include "compiler/parser.h"
 #include "compiler/tokens.h"
-#include "dev/assert.h"    // DEFINE_DBG_ASSERT_I
-#include "ds/cbuffer.h"    // cbuffer
-#include "errors/error.h"  // err_t
-#include "intf/stdlib.h"   // i_memcpy
+#include "dev/assert.h"   // DEFINE_DBG_ASSERT_I
+#include "ds/cbuffer.h"   // cbuffer
+#include "errors/error.h" // err_t
+#include "intf/stdlib.h"  // i_memcpy
+#include "mm/lalloc.h"
 #include "utils/macros.h"  // is_alpha
 #include "utils/numbers.h" // parse_i32_expect
+
+typedef struct
+{
+  enum
+  {
+    SS_START,   // Start here and finish here
+    SS_IDENT,   // Parsing an identifier or magic string
+    SS_STRING,  // Parsing a "string"
+    SS_NUMBER,  // Parsing the integer part of an int or float
+    SS_DECIMAL, // Parsing the right half of a dec
+  } state;
+} compiler_state;
+
+struct compiler_s
+{
+  compiler_state state;
+
+  // Input and outputs
+  cbuffer input;
+  cbuffer output;
+
+  char _input[10];
+  compiler_result _output[10];
+
+  /////////// SCANNER
+  // Internal room to grow strings for tokens
+  char str[512];
+  u32 slen;
+
+  /////////// PARSER
+  // Allocator for temporary variables in parser
+  parser_result parser;
+  lalloc parser_work;
+  u8 _parser_work[2048];
+  error e;
+
+  query_provider *qp;
+};
 
 DEFINE_DBG_ASSERT_I (compiler, compiler, s)
 {
@@ -14,7 +55,7 @@ DEFINE_DBG_ASSERT_I (compiler, compiler, s)
   ASSERT (s->slen <= 512);
 }
 
-static const char *TAG = "Scanner";
+static const char *TAG = "Compiler";
 
 ////////////////////////////// Premade magic strings
 
@@ -256,12 +297,38 @@ compiler_process_token (compiler *s, token t, error *e)
 {
   compiler_assert (s);
 
-  (void)e;
-  // err_t_wrap (compiler_feed_and_translate_token (s, t, e), e);
+  // Parse this token
+  if (parser_parse (&s->parser, t, e))
+    {
+      panic ();
+    }
 
-  ASSERT (cbuffer_avail (&s->output) >= sizeof (token));
-  u32 ret = cbuffer_write (&t, sizeof t, 1, &s->output);
-  ASSERT (ret == 1);
+  // Check parser state
+  if (s->parser.ready)
+    {
+      if (parser_parse (&s->parser, quick_tok (0), e))
+        {
+          panic ();
+        }
+
+      // Consume query
+      query next = parser_consume (&s->parser);
+
+      // Reset allocator
+      lalloc_reset (&s->parser_work);
+
+      // Execute
+      i_log_query (next);
+
+      // Write to output buffer
+      compiler_result res = {
+        .query = next,
+        .ok = true,
+      };
+      ASSERT (cbuffer_avail (&s->output) >= sizeof (res));
+      u32 ret = cbuffer_write (&res, sizeof res, 1, &s->output);
+      ASSERT (ret == 1);
+    }
 
   s->state.state = SS_START;
 
@@ -367,10 +434,10 @@ process_maybe_ident (compiler *s, error *e)
 
           // Allocate query space for downstream
           query q;
-          err_t_wrap (query_provider_get (
-                          s->qp, &q,
-                          tt_to_qt (t.type), e),
-                      e);
+          err_t_wrap (query_provider_get (s->qp, &q, tt_to_qt (t.type), e), e);
+
+          // Initialize the parser
+          err_t_wrap (parser_create (&s->parser, &s->parser_work, q.qalloc, e), e);
 
           t.q = q;
 
@@ -628,25 +695,50 @@ steady_state_start (compiler *s, error *e)
 }
 
 ////////////////////////////// Main Functions
-void
-compiler_create (compiler *dest, query_provider *qp)
+
+compiler *
+compiler_create (query_provider *qp, error *e)
 {
-  dest->state.state = SS_START;
-  dest->input = cbuffer_create_from (dest->_input);
-  dest->output = cbuffer_create_from (dest->_output);
+  compiler *ret = i_malloc (1, sizeof *ret);
+  if (ret == NULL)
+    {
+      error_causef (e, ERR_NOMEM, "%s Failed to allocate compiler", TAG);
+      return NULL;
+    }
+
+  ret->state.state = SS_START;
+  ret->input = cbuffer_create_from (ret->_input);
+  ret->output = cbuffer_create_from (ret->_output);
 
   // Scanner
-  dest->slen = 0;
+  ret->slen = 0;
 
   // Parser
-  dest->parser_work = lalloc_create_from (dest->_parser_work);
-  dest->qp = qp;
+  ret->parser_work = lalloc_create_from (ret->_parser_work);
+  ret->qp = qp;
+  ret->e = error_create (NULL);
 
-  compiler_assert (dest);
+  compiler_assert (ret);
+
+  return ret;
+}
+
+cbuffer *
+compiler_get_input (compiler *c)
+{
+  compiler_assert (c);
+  return &c->input;
+}
+
+cbuffer *
+compiler_get_output (compiler *c)
+{
+  compiler_assert (c);
+  return &c->output;
 }
 
 void
-compiler_execute_all (compiler *s)
+compiler_execute (compiler *s)
 {
   compiler_assert (s);
 
@@ -672,10 +764,9 @@ compiler_execute_all (compiler *s)
        * Write a maximum of 1 token
        * or else handle error
        */
-      if (steady_state_execute (s, NULL))
+      if (steady_state_execute (s, &s->e))
         {
-          // TODO - handle errors
-          panic ();
+          error_log_consume (&s->e);
         }
     }
 }

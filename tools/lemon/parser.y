@@ -19,7 +19,7 @@
 %token_type   {token}
 
 /* Allow access to allocator + error object */
-%extra_argument { parser_ctxt *ctxt }
+%extra_argument { parser_result *res }
 
 /* -------------------------------------------------------------------
    Tokens - Ordering 
@@ -64,25 +64,30 @@
 ------------------------------------------------------------------- */
 %syntax_error {
   error_causef(
-    ctxt->e, 
+    res->e, 
     ERR_SYNTAX, 
     "Syntax error at token: %s at index: %d", 
-    tt_tostr(yyminor.type), ctxt->tnum);
+    tt_tostr(yyminor.type), res->tnum);
 }
 
 %parse_failure {
   error_causef(
-    ctxt->e, 
+    res->e, 
     ERR_SYNTAX, 
-    "Parser error at index: %d\n", ctxt->tnum);
+    "Parser error at index: %d\n", res->tnum);
 }
 
 
 /* -------------------------------------------------------------------
    Top-level Type Parsing
 ------------------------------------------------------------------- */
-program ::= query(A). {
-  i_log_query(A); 
+main ::= in. 
+in ::= .
+in ::= in state SEMICOLON.
+
+state ::= query(A). {
+    res->result = A;
+    res->ready = true;
 }
 
 query(A) ::= delete_decl(B). {
@@ -93,33 +98,29 @@ query(A) ::= create_decl(B). {
     A = B;
 }
 
-type(A) ::= enum_decl(B). {
-    type tmp = { .type = T_ENUM };
-    err_t_wrap(enb_build(&tmp.en, &B, ctxt->e), ctxt->e);
-    A = tmp;
-}
-
 type_spec(A) ::= type(B). { A = B; }
 
+type(A) ::= enum_decl(B). {
+    A = (type){ .type = T_ENUM };
+    if (enb_build(&A.en, &B, res->e) != 0) break;
+}
+
 type(A) ::= struct_decl(B). {
-    type tmp = { .type = T_STRUCT };
-    err_t_wrap(kvb_struct_t_build(&tmp.st, &B, ctxt->e), ctxt->e);
-    A = tmp;
+    A = (type){ .type = T_STRUCT };
+    if (kvb_struct_t_build(&A.st, &B, res->e) != 0) break;
 }
 
 type(A) ::= union_decl(B). {
-    type tmp = { .type = T_UNION };
-    err_t_wrap(kvb_union_t_build(&tmp.un, &B, ctxt->e), ctxt->e);
-    A = tmp;
+    A = (type){ .type = T_UNION };
+    if (kvb_union_t_build(&A.un, &B, res->e) != 0) break;
 }
 
 type(A) ::= sarray_decl(B). {
-    type tmp = { .type = T_SARRAY };
-    err_t_wrap(sab_build(&tmp.sa, &B, ctxt->e), ctxt->e);
-    A = tmp;
+    A = (type){ .type = T_SARRAY };
+    if (sab_build(&A.sa, &B, res->e) != 0) break;
 }
 
-type(A) ::= prim(B). {
+type(A) ::= PRIM(B). {
   A = (type){ 
     .type = T_PRIM,
     .p = B.prim,
@@ -133,14 +134,14 @@ enum_decl(A) ::= ENUM LEFT_BRACE enum_items(B) RIGHT_BRACE. { A = B; }
 
 enum_items(A) ::= IDENTIFIER(tok).
 {
-    A = enb_create(ctxt->work, ctxt->dest);
-    err_t_wrap(enb_accept_key(&A, tok.str, ctxt->e), ctxt->e);
+    A = enb_create(res->work, res->dest);
+    if (enb_accept_key(&A, tok.str, res->e) != 0) break;
 }
 
 enum_items(A) ::= enum_items(B) COMMA IDENTIFIER(tok).   /* more */
 {
     A = B;
-    err_t_wrap(enb_accept_key(&A, tok.str, ctxt->e), ctxt->e);
+    if (enb_accept_key(&A, tok.str, res->e) != 0) break;
 }
 
 /* -------------------------------------------------------------------
@@ -151,17 +152,17 @@ struct_decl(A) ::= STRUCT LEFT_BRACE struct_items(B) RIGHT_BRACE. { A = B; }
 /* 1st field  ——  create builder here */
 struct_items(A) ::= IDENTIFIER(tok) type_spec(t).          
 {
-    A = kvb_create(ctxt->work, ctxt->dest);                 /* <-- was “A = B;” (undefined) */
-    err_t_wrap(kvb_accept_key (&A, tok.str, ctxt->e), ctxt->e);
-    err_t_wrap(kvb_accept_type(&A, t,       ctxt->e), ctxt->e);
+    A = kvb_create(res->work, res->dest);                 /* <-- was “A = B;” (undefined) */
+    if (kvb_accept_key (&A, tok.str, res->e) != 0) break;
+    if (kvb_accept_type(&A, t,       res->e) != 0) break;
 }
 
 /* subsequent fields —— propagate builder */
 struct_items(A) ::= struct_items(B) COMMA IDENTIFIER(tok) type_spec(t).
 {
     A = B;
-    err_t_wrap(kvb_accept_key (&A, tok.str, ctxt->e), ctxt->e);
-    err_t_wrap(kvb_accept_type(&A, t,       ctxt->e), ctxt->e);
+    if (kvb_accept_key (&A, tok.str, res->e) != 0) break;
+    if (kvb_accept_type(&A, t,       res->e) != 0) break;
 }
 
 /* -------------------------------------------------------------------
@@ -172,17 +173,17 @@ union_decl(A) ::= UNION LEFT_BRACE union_items(B) RIGHT_BRACE. { A = B; }
 /* 1st variant */
 union_items(A) ::= IDENTIFIER(tok) type_spec(t).
 {
-    A = kvb_create(ctxt->work, ctxt->dest);
-    err_t_wrap(kvb_accept_key (&A, tok.str, ctxt->e), ctxt->e);
-    err_t_wrap(kvb_accept_type(&A, t,       ctxt->e), ctxt->e);
+    A = kvb_create(res->work, res->dest);
+    if (kvb_accept_key (&A, tok.str, res->e) != 0) break;
+    if (kvb_accept_type(&A, t,       res->e) != 0) break;
 }
 
 /* subsequent variants */
 union_items(A) ::= union_items(B) COMMA IDENTIFIER(tok) type_spec(t).
 {
     A = B;
-    err_t_wrap(kvb_accept_key (&A, tok.str, ctxt->e), ctxt->e);
-    err_t_wrap(kvb_accept_type(&A, t,       ctxt->e), ctxt->e);
+    if (kvb_accept_key (&A, tok.str, res->e) != 0) break;
+    if (kvb_accept_type(&A, t,       res->e) != 0) break;
 }
 
 /* -------------------------------------------------------------------
@@ -192,19 +193,19 @@ SARRAY  -> SAD TYPE
 SAD     -> [NUM] | [NUM] SAD
 ------------------------------------------------------------------- */
 sarray_decl(A) ::= sarray_dims(B) type(C). {  
-  err_t_wrap(sab_accept_type(&B, C, ctxt->e), ctxt->e);
+  if (sab_accept_type(&B, C, res->e) != 0) break;
   A = B; 
 }
 
 sarray_dims(A) ::= LEFT_BRACKET INTEGER(B) RIGHT_BRACKET. 
 { 
-  A = sab_create(ctxt->work, ctxt->dest);
-  err_t_wrap(sab_accept_dim(&A, B.integer, ctxt->e), ctxt->e);
+  A = sab_create(res->work, res->dest);
+  if (sab_accept_dim(&A, B.integer, res->e) != 0) break;
 }
 
 sarray_dims(A) ::= LEFT_BRACKET INTEGER(C) RIGHT_BRACKET sarray_dims(B). 
 {
-  err_t_wrap(sab_accept_dim(&B, C.integer, ctxt->e), ctxt->e);
+  if (sab_accept_dim(&B, C.integer, res->e) != 0) break;
   A = B;
 }
 
@@ -218,11 +219,11 @@ create_decl(A) ::= CREATE(B) IDENTIFIER(I) type_spec(T). {
     create_builder tmp = crb_create();
 
     // Accept
-    err_t_wrap(crb_accept_string(&tmp, I.str, ctxt->e), ctxt->e);
-    err_t_wrap(crb_accept_type(&tmp, T, ctxt->e), ctxt->e);
+    if (crb_accept_string(&tmp, I.str, res->e) != 0) break;
+    if (crb_accept_type(&tmp, T, res->e) != 0) break;
 
     // Build the query
-    err_t_wrap(crb_build(A.create, &tmp, ctxt->e), ctxt->e); 
+    if (crb_build(A.create, &tmp, res->e) != 0) break; 
 }
 
 /* -------------------------------------------------------------------
@@ -235,13 +236,9 @@ delete_decl(A) ::= DELETE(B) IDENTIFIER(I). {
     delete_builder tmp = dltb_create();
 
     // Accept
-    err_t_wrap(dltb_accept_string(&tmp, I.str, ctxt->e), ctxt->e);
+    if (dltb_accept_string(&tmp, I.str, res->e) != 0) break;
 
     // Build the query
-    err_t_wrap(dltb_build(A.delete, &tmp, ctxt->e), ctxt->e); 
+    if (dltb_build(A.delete, &tmp, res->e) != 0) break; 
 }
 
-/* -------------------------------------------------------------------
-   Prim
-------------------------------------------------------------------- */
-prim ::= PRIM.

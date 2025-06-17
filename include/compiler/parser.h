@@ -1,3 +1,5 @@
+#pragma once
+
 #include "ast/query/query_provider.h"
 #include "ast/type/types.h"
 #include "compiler/tokens.h"
@@ -9,42 +11,16 @@
 
 typedef struct
 {
-  query_provider *qpvdr; // Query Provider
-  lalloc *work;          // Where to allocate work
-  lalloc *dest;          // Where to allocate the final stuff that goes into query
-  u32 tnum;              // Token number
-  error *e;              // Return status
-} parser_ctxt;
+  void *yyp;    // The lemon parser
+  lalloc *work; // Where to allocate work
+  lalloc *dest; // Allocate the final stuff
+  u32 tnum;     // Token number
+  error *e;     // Return status
+  query result; // Result query
+  bool ready;   // Done parsing this query
+} parser_result;
 
-static inline parser_ctxt __attribute__ ((unused))
-pctx_create (lalloc *work, lalloc *dest)
-{
-  return (parser_ctxt){
-    .work = work,
-    .dest = dest,
-    .tnum = 0,
-    .e = NULL,
-  };
-}
-
-void *lemon_parseAlloc (void *(*mallocProc) (size_t));
-
-void lemon_parseFree (void *p, void (*freeProc) (void *));
-
-void lemon_parse (void *yyp, int yymajor, token yyminor, parser_ctxt *ctxt);
-
-#define parse_alloc() lemon_parseAlloc (malloc)
-#define parse_free(p) lemon_parseFree (p, free)
-
-static inline err_t
-parse (void *yyp, token tok, parser_ctxt *ctxt, error *e)
-{
-  ctxt->e = e;
-  lemon_parse (yyp, tok.type, tok, ctxt);
-  err_t ret = err_t_from (ctxt->e);
-  if (!ret)
-    {
-      ctxt->tnum++;
-    }
-  return ret;
-}
+// Create a parser context
+err_t parser_create (parser_result *ret, lalloc *work, lalloc *dest, error *e);
+query parser_consume (parser_result *p);
+err_t parser_parse (parser_result *res, token tok, error *e);

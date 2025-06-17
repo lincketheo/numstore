@@ -41,7 +41,7 @@ kvt_builder kvb_create (
  *   - ERR_NOMEM:
  *      - No memory to allocate a new node (sizeof(kv_llnode))
  */
-err_t kvb_accept_key (kvt_builder *eb, string key, error *e);
+err_t kvb_accept_key (kvt_builder *ub, const string key, error *e);
 
 /**
  * Allocates a new node if klen < len(head)

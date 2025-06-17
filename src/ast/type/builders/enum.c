@@ -1,6 +1,8 @@
 #include "ast/type/builders/enum.h"
 
 #include "dev/assert.h" // DEFINE_DBG_ASSERT_I
+#include "errors/error.h"
+#include "intf/stdlib.h"
 
 DEFINE_DBG_ASSERT_I (enum_builder, enum_builder, s)
 {
@@ -82,7 +84,18 @@ enb_accept_key (enum_builder *eb, const string key, error *e)
           list_append (&eb->head, &node->link);
         }
     }
-  node->key = key;
+
+  char *dest = lmalloc (eb->dest, key.len, 1);
+  if (dest == NULL)
+    {
+      return error_causef (e, ERR_NOMEM, "%s Failed to copy enum string", TAG);
+    }
+  i_memcpy (dest, key.data, key.len);
+
+  node->key = (string){
+    .data = dest,
+    .len = key.len,
+  };
   return SUCCESS;
 }
 

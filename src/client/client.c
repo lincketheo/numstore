@@ -12,10 +12,24 @@
 #include <string.h>
 #include <unistd.h>
 
+struct client_s
+{
+  i_file sfd;                     // -1 if disconnected
+  struct sockaddr_in server_addr; // meaningless if disconnected
+
+  cbuffer send;
+  cbuffer recv;
+
+  u8 _send[10];
+  u8 _recv[10];
+};
+
 DEFINE_DBG_ASSERT_I (client, client, c)
 {
   ASSERT (c);
 }
+
+static const char *TAG = "Client";
 
 static err_t
 client_connect (client *c, const char *ipaddr, u16 port, error *e)
@@ -28,8 +42,8 @@ client_connect (client *c, const char *ipaddr, u16 port, error *e)
     {
       return error_causef (
           e, ERR_IO,
-          "socket: %s",
-          strerror (errno));
+          "%s socket: %s",
+          TAG, strerror (errno));
     }
 
   // Create the ip address
@@ -41,8 +55,8 @@ client_connect (client *c, const char *ipaddr, u16 port, error *e)
       close (sock);
       return error_causef (
           e, ERR_IO,
-          "inet_pton: %s",
-          strerror (errno));
+          "%s inet_pton: %s",
+          TAG, strerror (errno));
     }
 
   // Connect
@@ -51,8 +65,8 @@ client_connect (client *c, const char *ipaddr, u16 port, error *e)
       close (sock);
       return error_causef (
           e, ERR_IO,
-          "Connect (%s:%d): %s",
-          ipaddr, port, strerror (errno));
+          "%s Connect (%s:%d): %s",
+          TAG, ipaddr, port, strerror (errno));
     }
 
   c->server_addr = saddr;
@@ -61,24 +75,33 @@ client_connect (client *c, const char *ipaddr, u16 port, error *e)
   return SUCCESS;
 }
 
-err_t
-client_create (
-    client *dest,
-    const char *ipaddr,
-    u16 port,
-    error *e)
+client *
+client_open (const char *ipaddr, u16 port, error *e)
 {
-  ASSERT (dest);
+  client *ret = i_malloc (1, sizeof *ret);
+  if (ret == NULL)
+    {
+      error_causef (e, ERR_NOMEM, "%s Failed to allocate client", TAG);
+      return NULL;
+    }
 
-  dest->sfd = (i_file){ .fd = -1 };
-  dest->send = cbuffer_create_from (dest->_send);
-  dest->recv = cbuffer_create_from (dest->_recv);
+  // Initialize internal buffers
+  ret->sfd = (i_file){ .fd = -1 };
+  ret->send = cbuffer_create_from (ret->_send);
+  ret->recv = cbuffer_create_from (ret->_recv);
 
-  return client_connect (dest, ipaddr, port, e);
+  // Immediately connect
+  if (client_connect (ret, ipaddr, port, e))
+    {
+      i_free (ret);
+      return NULL;
+    }
+
+  return ret;
 }
 
 void
-client_disconnect (client *c)
+client_close (client *c)
 {
   client_assert (c);
   ASSERT (c->sfd.fd >= 0);

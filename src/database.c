@@ -10,13 +10,6 @@
 #include "paging/pager.h"    // pager
 #include "virtual_machine.h" // vm
 
-struct database_s
-{
-  pager *pager;
-  query_provider *qspce;
-  vm *vm;
-};
-
 DEFINE_DBG_ASSERT_I (database, database, d)
 {
   ASSERT (d);

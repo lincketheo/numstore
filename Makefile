@@ -15,7 +15,7 @@ SRC_APPS := $(wildcard apps/*.c)
 APP_BIN := $(patsubst apps/%.c,%,$(SRC_APPS))
 
 # Format and Lint
-FORMAT_FILES := $(shell find src include -type f \( -name "*.c" -o -name "*.h" \))
+FORMAT_FILES := $(shell find ./src ./include -type f \( -name "*.c" -o -name "*.h" \))
 
 # Default: debug build
 all: ./src/compiler/parser.c debug 

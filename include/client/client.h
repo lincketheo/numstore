@@ -7,33 +7,17 @@
 
 #include <netinet/in.h> // sockaddr_in
 
-typedef struct
-{
-  i_file sfd;                     // -1 if disconnected
-  struct sockaddr_in server_addr; // meaningless if disconnected
-
-  cbuffer send;
-  cbuffer recv;
-
-  u8 _send[10];
-  u8 _recv[10];
-} client;
+typedef struct client_s client;
 
 /**
- * Creates a "Disconnected client" and initializes buffers.
- * Careful about copying etc, the cbuffer points to this instance's
- * _send / _recv buffers
+ * Creates a client and immediately connects to [ipaddr]
  */
-err_t client_create (
-    client *dest,
-    const char *ipaddr,
-    u16 port,
-    error *e);
+client *client_open (const char *ipaddr, u16 port, error *e);
 
 /**
  * Disconnects. Client must be connected
  */
-void client_disconnect (client *c);
+void client_close (client *c);
 
 /**
  * Writes the entire contents of string

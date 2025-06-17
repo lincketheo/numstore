@@ -2,6 +2,8 @@
 
 #include "ast/type/types.h"
 #include "dev/assert.h"
+#include "errors/error.h"
+#include "intf/stdlib.h"
 
 DEFINE_DBG_ASSERT_I (kvt_builder, kvt_builder, s)
 {
@@ -41,10 +43,11 @@ kvt_has_key_been_used (const kvt_builder *ub, string key)
 }
 
 err_t
-kvb_accept_key (kvt_builder *ub, string key, error *e)
+kvb_accept_key (kvt_builder *ub, const string key, error *e)
 {
   kvt_builder_assert (ub);
 
+  // Check for duplicate keys
   if (kvt_has_key_been_used (ub, key))
     {
       return error_causef (
@@ -53,6 +56,7 @@ kvb_accept_key (kvt_builder *ub, string key, error *e)
           TAG, key.len, key.data);
     }
 
+  // Find where to insert this new key in the linked list
   llnode *slot = llnode_get_n (ub->head, ub->klen);
   kv_llnode *node;
   if (slot)
@@ -61,6 +65,7 @@ kvb_accept_key (kvt_builder *ub, string key, error *e)
     }
   else
     {
+      // Allocate new node onto allocator
       node = lmalloc (ub->alloc, 1, sizeof *node);
       if (!node)
         {
@@ -70,18 +75,37 @@ kvb_accept_key (kvt_builder *ub, string key, error *e)
         }
       llnode_init (&node->link);
       node->value = (type){ 0 };
+
+      // Set the head if it doesn't exist
       if (!ub->head)
         {
           ub->head = &node->link;
         }
+
+      // Otherwise, append to the list
       else
         {
           list_append (&ub->head, &node->link);
         }
     }
 
-  node->key = key;
+  // Copy data onto dest allocator
+  char *data = lmalloc (ub->dest, key.len, 1);
+  if (data == NULL)
+    {
+      return error_causef (
+          e, ERR_NOMEM,
+          "%s Failed to allocate key onto destination", TAG);
+    }
+  i_memcpy (data, key.data, key.len);
+
+  // Create the node
+  node->key = (string){
+    .data = data,
+    .len = key.len,
+  };
   ub->klen++;
+
   return SUCCESS;
 }
 

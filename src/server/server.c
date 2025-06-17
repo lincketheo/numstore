@@ -1,4 +1,5 @@
 #include "server/server.h"
+
 #include "database.h"
 #include "errors/error.h"
 #include "intf/io.h"
@@ -13,13 +14,25 @@
 #include <string.h>
 #include <unistd.h>
 
+struct server_s
+{
+  i_file fd;                 // Server listening socket
+  connection *cons[40];      // NULL if not connected
+  struct pollfd pollfds[20]; // Poll list for connections
+  u32 pfdlen;                // Length of pollfds
+
+  database *db;
+};
+
 DEFINE_DBG_ASSERT_I (server, server, s)
 {
   ASSERT (s);
 }
 
+static const char *TAG = "Server";
+
 static inline err_t
-server_connect (server *s, u16 port, error *e)
+server_bind (server *s, u16 port, error *e)
 {
   int fd;
   struct sockaddr_in addr;
@@ -56,40 +69,31 @@ server_connect (server *s, u16 port, error *e)
   return SUCCESS;
 }
 
-err_t
-server_create (
-    server *dest,
-    u16 port,
-    const string dbname,
-    error *e)
+server *
+server_open (u16 port, const string dbname, error *e)
 {
-  ASSERT (dest);
-
-  err_t_wrap (server_connect (dest, port, e), e);
-
-  // Create database if it doesn't exist
-  if (!i_exists_rw (dbname))
+  server *ret = i_malloc (1, sizeof *ret);
+  if (ret == NULL)
     {
-      /*
-        if (db_create (dbname, e))
-          {
-            goto close_and_fail;
-          }
-          */
+      error_causef (e, ERR_NOMEM, "%s Failed to allocate server", TAG);
+      return NULL;
     }
-  /*
-  if (db_open (&dest->db, dbname, e))
+
+  if (server_bind (ret, port, e))
     {
-      goto close_and_fail;
+      i_free (ret);
     }
-    */
 
-  return SUCCESS;
+  ret->db = db_open (dbname, e);
+  if (ret->db == NULL)
+    {
+      err_t_log_swallow (i_close (&ret->fd, &_e), _e);
+      i_free (ret);
+    }
 
-  // close_and_fail:
+  server_assert (ret);
 
-  server_close (dest);
-  return err_t_from (e);
+  return ret;
 }
 
 static inline err_t
@@ -116,12 +120,11 @@ server_accept (server *s, error *e)
     .cfd = (i_file){
         .fd = cfd,
     },
-    //
-    //.db = &s->db,
+    .db = s->db,
     .caddr = client_addr,
   };
 
-  connection *c = con_create (params, e);
+  connection *c = con_open (params, e);
   if (c == NULL)
     {
       return err_t_from (e);
@@ -185,7 +188,7 @@ server_execute_connections (server *s)
       /**
         if (con_is_done (con))
           {
-            con_free (con);
+            con_close (con);
             s->cons[pfd.fd] = NULL;
           }
          */
@@ -237,6 +240,13 @@ server_execute (server *s)
   server_execute_connections (s);
 }
 
+bool
+server_is_done (server *s)
+{
+  server_assert (s);
+  return false;
+}
+
 void
 server_close (server *s)
 {
@@ -245,8 +255,10 @@ server_close (server *s)
     {
       if (s->cons[i])
         {
-          con_free (s->cons[i]);
+          con_close (s->cons[i]);
           s->cons[i] = NULL;
         }
     }
+  err_t_log_swallow (i_close (&s->fd, &_e), _e);
+  i_free (s);
 }

@@ -12,6 +12,19 @@
 #include <stdlib.h> // free
 #include <string.h>
 
+struct repl_s
+{
+  char *buffer; // A buffer to send over the socket
+  u32 blen;     // length of buffer
+
+  const char *ip_addr; // Ip address of server
+  const u16 port;      // port of server
+
+  client *client; // On going client object
+
+  bool running;
+};
+
 DEFINE_DBG_ASSERT_I (repl, repl, r)
 {
   ASSERT (r);
@@ -24,6 +37,8 @@ DEFINE_DBG_ASSERT_I (repl, repl, r)
       ASSERT (r->buffer);
     }
 }
+
+static const char *TAG = "Repl";
 
 //////////////////////////////// LINENOISE
 static void
@@ -88,12 +103,18 @@ linenoise_config (void)
 }
 
 //////////////////////////////// REPL
-err_t
-repl_create (repl *dest, repl_params params, error *e)
-{
-  ASSERT (dest);
 
-  repl ret = {
+repl *
+repl_open (repl_params params, error *e)
+{
+  repl *ret = i_malloc (1, sizeof *ret);
+  if (ret == NULL)
+    {
+      error_causef (e, ERR_NOMEM, "%s Failed to allocate repl", TAG);
+      return NULL;
+    }
+
+  repl _ret = {
     .buffer = NULL,
     .blen = 0,
     .ip_addr = params.ip_addr,
@@ -101,17 +122,25 @@ repl_create (repl *dest, repl_params params, error *e)
     .running = true,
   };
 
-  i_memcpy (dest, &ret, sizeof ret);
+  i_memcpy (ret, &_ret, sizeof _ret);
 
-  err_t_wrap (client_create (
-                  &dest->client,
-                  params.ip_addr,
-                  params.port, e),
-              e);
+  ret->client = client_open (params.ip_addr, params.port, e);
+  if (ret->client == NULL)
+    {
+      i_free (ret);
+      return NULL;
+    }
 
   linenoise_config ();
 
-  return SUCCESS;
+  return ret;
+}
+
+bool
+repl_is_running (repl *r)
+{
+  repl_assert (r);
+  return r->running;
 }
 
 typedef struct
@@ -216,7 +245,7 @@ repl_execute (repl *r, error *e)
   if (r->buffer)
     {
       const string send = (string){ .data = r->buffer, .len = r->blen };
-      err_t_wrap (client_send (&r->client, send, e), e);
+      err_t_wrap (client_send (r->client, send, e), e);
       fprintf (stdout, "Sending: %.*s\n", send.len, send.data);
     }
 
@@ -224,11 +253,11 @@ repl_execute (repl *r, error *e)
 }
 
 void
-repl_release (repl *r)
+repl_close (repl *r)
 {
   repl_assert (r);
 
-  client_disconnect (&r->client);
+  client_close (r->client);
   if (r->buffer)
     {
       free (r->buffer);
