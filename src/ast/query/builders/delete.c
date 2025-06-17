@@ -1,8 +1,9 @@
 #include "ast/query/builders/delete.h"
 
-#include "ast/query/queries/delete.h"
-#include "dev/assert.h"
-#include "errors/error.h"
+#include "ast/query/queries/delete.h" // delete
+#include "dev/assert.h"               // ASSERT
+#include "dev/testing.h"              // TEST
+#include "errors/error.h"             // err_t
 
 DEFINE_DBG_ASSERT_I (delete_builder, delete_builder, c)
 {
@@ -65,4 +66,36 @@ dltb_build (delete_query *dest, delete_builder *b, error *e)
   dest->vname = b->vname;
 
   return SUCCESS;
+}
+
+TEST (delete_builder)
+{
+  error err = error_create (NULL);
+
+  /* 0. freshly‑created builder must be clean */
+  delete_builder b = dltb_create ();
+  test_fail_if (b.got_vname);
+
+  // 1. rejecting empty variable names
+  test_assert_int_equal (dltb_accept_string (&b, (string){ 0 }, &err), ERR_INVALID_ARGUMENT);
+  err.cause_code = SUCCESS;
+
+  // 2. first, accept a variable name
+  string name = unsafe_cstrfrom ("foo");
+  test_assert_int_equal (dltb_accept_string (&b, name, &err), SUCCESS);
+  test_fail_if (!b.got_vname);
+
+  // 3. duplicate name must fail
+  test_assert_int_equal (dltb_accept_string (&b, name, &err), ERR_INVALID_ARGUMENT);
+  err.cause_code = SUCCESS;
+
+  // 4. build now that the piece is present
+  delete_query q = { 0 };
+  test_assert_int_equal (dltb_build (&q, &b, &err), SUCCESS);
+  test_fail_if (q.vname.len != name.len);
+
+  // 5. build with *missing vname* must fail
+  delete_builder missing_name = dltb_create ();
+  test_assert_int_equal (dltb_build (&q, &missing_name, &err), ERR_INVALID_ARGUMENT);
+  err.cause_code = SUCCESS;
 }

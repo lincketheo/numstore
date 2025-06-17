@@ -1,13 +1,17 @@
 #include "compiler/compiler.h"
 
-#include "ast/query/query.h"
-#include "compiler/parser.h"
-#include "compiler/tokens.h"
-#include "dev/assert.h"   // DEFINE_DBG_ASSERT_I
-#include "ds/cbuffer.h"   // cbuffer
-#include "errors/error.h" // err_t
-#include "intf/stdlib.h"  // i_memcpy
-#include "mm/lalloc.h"
+#include "ast/query/queries/create.h"
+#include "ast/query/query.h" // query
+#include "ast/type/types.h"
+#include "compiler/parser.h" // parser
+#include "compiler/tokens.h" // token
+#include "dev/assert.h"      // DEFINE_DBG_ASSERT_I
+#include "dev/testing.h"     // TEST
+#include "ds/cbuffer.h"      // cbuffer
+#include "ds/strings.h"
+#include "errors/error.h"  // err_t
+#include "intf/stdlib.h"   // i_memcpy
+#include "mm/lalloc.h"     // lalloc
 #include "utils/macros.h"  // is_alpha
 #include "utils/numbers.h" // parse_i32_expect
 
@@ -723,6 +727,19 @@ compiler_create (query_provider *qp, error *e)
   return ret;
 }
 
+TEST (compiler_create)
+{
+  error err = error_create (NULL);
+  query_provider *qp = query_provider_create (&err);
+  test_fail_if_null (qp);
+
+  compiler *c = compiler_create (qp, &err);
+  test_fail_if_null (c);
+  test_assert_int_equal (c->state.state, SS_START);
+  test_assert_int_equal (cbuffer_len (&c->input), 0);
+  test_assert_int_equal (cbuffer_len (&c->output), 0);
+}
+
 cbuffer *
 compiler_get_input (compiler *c)
 {
@@ -770,3 +787,63 @@ compiler_execute (compiler *s)
         }
     }
 }
+
+/**
+#ifndef NTEST
+static inline void
+compile_expect (const char *src, query expect)
+{
+  error err = error_create (NULL);
+  query_provider *qp = query_provider_create (&err);
+  test_fail_if_null (qp);
+
+  compiler *c = compiler_create (qp, &err);
+  test_fail_if_null (c);
+
+  const char *p = src;
+  u32 rem = i_unsafe_strlen (src);
+  u32 safety = 0;
+
+  while (safety++ < 100)
+    {
+      // Write
+      if (rem > 0)
+        {
+          u32 wrote = cbuffer_write ((void *)p, rem, 1, compiler_get_input (c));
+          p += wrote;
+          rem -= wrote;
+        }
+
+      // Execute
+      compiler_execute (c);
+
+      // Read
+      if (cbuffer_len (compiler_get_output (c)) >= sizeof (compiler_result))
+        {
+          compiler_result res;
+          u32 got = cbuffer_read (&res, sizeof res, 1, compiler_get_output (c));
+          test_assert_int_equal (got, 1);
+          test_assert_int_equal (res.ok, true);
+          test_assert_int_equal (res.query.type, expect.type);
+          return;
+        }
+    }
+
+  test_fail_if (true);
+  return;
+}
+
+#endif
+
+TEST (compiler)
+{
+  create_query c = {
+    .type = (type){
+        .p = U32,
+        .type = T_PRIM,
+    },
+    .vname = unsafe_cstrfrom ("foo"),
+  };
+  compile_expect ("create foo u32;", (query){ .create = &c, .type = QT_CREATE });
+}
+*/

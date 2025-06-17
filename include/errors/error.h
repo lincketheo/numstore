@@ -42,8 +42,6 @@ typedef struct
       err_t __ret = (err_t)expr;                                    \
       if (__ret < SUCCESS)                                          \
         {                                                           \
-          error_log_consume (e);                                    \
-          ASSERT (0);                                               \
           return error_trailf_dbg (e, "In function: %s", __func__); \
         }                                                           \
     }                                                               \

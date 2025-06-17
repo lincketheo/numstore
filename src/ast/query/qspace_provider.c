@@ -4,6 +4,7 @@
 #include "ast/query/queries/delete.h"
 #include "ast/query/query.h"
 #include "dev/assert.h"
+#include "dev/testing.h"
 #include "errors/error.h"
 #include "intf/io.h"
 #include "intf/stdlib.h"
@@ -121,4 +122,53 @@ query_provider_free (query_provider *q)
 {
   query_provider_assert (q);
   i_free (q);
+}
+
+TEST (query_provider)
+{
+  error err = error_create (NULL);
+
+  /* 0. create and basic sanity */
+  query_provider *qp = query_provider_create (&err);
+  test_fail_if_null (qp);
+
+  // 1. first QT_CREATE slot should be available
+  query q = { 0 };
+  test_assert_int_equal (query_provider_get (qp, &q, QT_CREATE, &err), SUCCESS);
+  test_assert_int_equal (q.type, QT_CREATE);
+  test_fail_if_null (q.create);
+
+  // 2. release that slot and grab again (should recycle)
+  query_provider_release (qp, &q);
+  test_assert_int_equal (query_provider_get (qp, &q, QT_CREATE, &err), SUCCESS);
+  test_assert_int_equal (q.type, QT_CREATE);
+  query_provider_release (qp, &q);
+
+  // 3. fill all 20 CREATE slots, next one must fail with ERR_NOMEM
+  query create_slots[20] = { 0 };
+  for (u32 i = 0; i < 20; ++i)
+    {
+      test_assert_int_equal (query_provider_get (qp, &create_slots[i], QT_CREATE, &err), SUCCESS);
+    }
+  test_assert_int_equal (query_provider_get (qp, &q, QT_CREATE, &err), ERR_NOMEM);
+  err.cause_code = SUCCESS;
+
+  // 4. release one slot, then get succeeds again
+  query_provider_release (qp, &create_slots[0]);
+  test_assert_int_equal (query_provider_get (qp, &q, QT_CREATE, &err), SUCCESS);
+
+  // 5. same capacity test for DELETE queries
+  query delete_slots[20] = { 0 };
+  for (u32 i = 0; i < 20; ++i)
+    {
+      test_assert_int_equal (query_provider_get (qp, &delete_slots[i], QT_DELETE, &err), SUCCESS);
+    }
+  test_assert_int_equal (query_provider_get (qp, &q, QT_DELETE, &err), ERR_NOMEM);
+  err.cause_code = SUCCESS;
+
+  // 6. mixed release and re‑acquire for DELETE
+  query_provider_release (qp, &delete_slots[5]);
+  test_assert_int_equal (query_provider_get (qp, &q, QT_DELETE, &err), SUCCESS);
+
+  query_provider_free (qp);
 }

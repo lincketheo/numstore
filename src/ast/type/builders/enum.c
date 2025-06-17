@@ -1,8 +1,10 @@
 #include "ast/type/builders/enum.h"
 
-#include "dev/assert.h" // DEFINE_DBG_ASSERT_I
-#include "errors/error.h"
-#include "intf/stdlib.h"
+#include "dev/assert.h"   // DEFINE_DBG_ASSERT_I
+#include "dev/testing.h"  // TEST
+#include "errors/error.h" // err_t
+#include "intf/stdlib.h"  // i_memcpy
+#include "mm/lalloc.h"
 
 DEFINE_DBG_ASSERT_I (enum_builder, enum_builder, s)
 {
@@ -49,6 +51,14 @@ enb_accept_key (enum_builder *eb, const string key, error *e)
           e, ERR_INVALID_ARGUMENT,
           "%s: Key length must be > 0", TAG);
     }
+
+  char *dest = lmalloc (eb->dest, key.len, 1);
+  if (dest == NULL)
+    {
+      return error_causef (e, ERR_NOMEM, "%s Failed to copy enum string", TAG);
+    }
+  i_memcpy (dest, key.data, key.len);
+
   if (enb_has_key_been_used (eb, key))
     {
       return error_causef (
@@ -84,13 +94,6 @@ enb_accept_key (enum_builder *eb, const string key, error *e)
           list_append (&eb->head, &node->link);
         }
     }
-
-  char *dest = lmalloc (eb->dest, key.len, 1);
-  if (dest == NULL)
-    {
-      return error_causef (e, ERR_NOMEM, "%s Failed to copy enum string", TAG);
-    }
-  i_memcpy (dest, key.data, key.len);
 
   node->key = (string){
     .data = dest,
@@ -134,4 +137,57 @@ enb_build (
   dest->len = len;
   dest->keys = keys;
   return SUCCESS;
+}
+
+TEST (enum_builder)
+{
+  error err = error_create (NULL);
+  u8 _alloc[2048];
+  u8 _dest[2048];
+
+  /* provide two simple heap allocators for builder + strings */
+  lalloc alloc = lalloc_create_from (_alloc);
+  lalloc dest = lalloc_create_from (_dest);
+
+  /* 0. freshly‑created builder must be clean */
+  enum_builder eb = enb_create (&alloc, &dest);
+  test_fail_if (eb.head != NULL);
+
+  // 1. rejecting empty key
+  test_assert_int_equal (enb_accept_key (&eb, (string){ 0 }, &err), ERR_INVALID_ARGUMENT);
+  err.cause_code = SUCCESS;
+
+  // 2. accept first key "A"
+  string A = unsafe_cstrfrom ("A");
+  test_assert_int_equal (enb_accept_key (&eb, A, &err), SUCCESS);
+
+  // 3. duplicate key "A" must fail
+  test_assert_int_equal (enb_accept_key (&eb, A, &err), ERR_INVALID_ARGUMENT);
+  err.cause_code = SUCCESS;
+
+  // 4. accept a second key "B"
+  string B = unsafe_cstrfrom ("B");
+  test_assert_int_equal (enb_accept_key (&eb, B, &err), SUCCESS);
+
+  // 5. Memory limit
+  string C = (string){ .len = 2048 + 1, .data = "foo" };
+  test_assert_int_equal (enb_accept_key (&eb, C, &err), ERR_NOMEM);
+  err.cause_code = SUCCESS;
+
+  // 5. build now that we have two keys
+  enum_t en = { 0 };
+  test_assert_int_equal (enb_build (&en, &eb, &err), SUCCESS);
+  test_assert_int_equal (en.len, 2);
+  test_fail_if_null (en.keys);
+  test_assert_int_equal (string_equal (en.keys[0], A) || string_equal (en.keys[1], A), true);
+  test_assert_int_equal (string_equal (en.keys[0], B) || string_equal (en.keys[1], B), true);
+
+  lalloc_reset (&alloc);
+  lalloc_reset (&dest);
+
+  // 6. build with empty builder must fail
+  enum_builder empty = enb_create (&alloc, &dest);
+  enum_t en2 = { 0 };
+  test_assert_int_equal (enb_build (&en2, &empty, &err), ERR_INVALID_ARGUMENT);
+  err.cause_code = SUCCESS;
 }

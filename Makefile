@@ -1,70 +1,63 @@
-UNAME_S := $(shell uname -s)
-
-CC := gcc
-BASE_CFLAGS := -I./include -Wall -Wextra -Werror -pedantic
-
-ifeq ($(UNAME_S), Darwin)
-	BASE_CFLAGS += -D_DARWIN_C_SOURCE
+CC            := gcc
+CFLAGS.base   := -I./include -Wall -Wextra -pedantic
+ifeq ($(shell uname -s),Darwin)
+CFLAGS.base  += -D_DARWIN_C_SOURCE
 endif
 
-# Source files
-SRC := $(shell find ./src -type f -name "*.c")
-OBJ := $(SRC:.c=.o)
+LEMON        := ./tools/lemon/lemon
+LEMON_SRC    := ./tools/lemon/lemon.c
+GRAMMAR      := ./tools/lemon/parser.y
+LEMPAR       := ./tools/lemon/lempar.c
+PARSER_C     := ./src/compiler/parser.c
 
-SRC_APPS := $(wildcard apps/*.c)
-APP_BIN := $(patsubst apps/%.c,%,$(SRC_APPS))
+SRC          := $(shell find src -type f -name '*.c') $(PARSER_C)
+OBJ          := $(SRC:.c=.o)
 
-# Format and Lint
-FORMAT_FILES := $(shell find ./src ./include -type f \( -name "*.c" -o -name "*.h" \))
+APP_SRC      := $(wildcard apps/*.c)
+APP_OBJ      := $(APP_SRC:.c=.o)
+APP_BIN      := $(patsubst apps/%.c,%,$(APP_SRC))
 
-# Default: debug build
-all: ./src/compiler/parser.c debug 
+all: debug
 
-# Debug build target
-debug: CFLAGS := $(BASE_CFLAGS) -O0 -g
+debug: CFLAGS := $(CFLAGS.base) -O0 -g
 debug: $(APP_BIN)
 
-# Release build target
-release: CFLAGS := $(BASE_CFLAGS) -O3 -DNDEBUG
+release: CFLAGS := $(CFLAGS.base) -O3 -DNDEBUG
 release: $(APP_BIN)
 
-# Rule to build each app binary
-%: $(OBJ) apps/%.o
-	$(CC) $(CFLAGS) -o $@ $^
+$(LEMON): $(LEMON_SRC)
+	@echo "  CC      $@"
+	@$(CC) -o $@ $<
 
-# Generic object compilation
+$(PARSER_C): $(LEMON) $(GRAMMAR) $(LEMPAR)
+	@echo "  LEMON   $(notdir $@)"
+	@$(LEMON) $(GRAMMAR) -T$(LEMPAR) -d./tools/lemon || true
+	@cp tools/lemon/parser.c $@
+
 %.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
+	@echo "  CC      $<"
+	@$(CC) $(CFLAGS) -c $< -o $@
 
-./src/compiler/parser.c: ./tools/lemon/lemon ./tools/lemon/parser.y
-	./tools/lemon/lemon ./tools/lemon/parser.y -d./tools/lemon -T./tools/lemon/lempar.c || true
-	cp ./tools/lemon/parser.c ./src/compiler/parser.c 
+apps/%.o: apps/%.c
+	@echo "  CC      $<"
+	@$(CC) $(CFLAGS) -c $< -o $@
 
-./tools/lemon/lemon: ./tools/lemon/lemon.c 
-	gcc -o $@ $^
+%: $(OBJ) apps/%.o
+	@echo "  LD      $@"
+	@$(CC) $(CFLAGS) -o $@ $^
 
-# Utility targets
 clean:
-	rm -rf $(OBJ)
-	rm -f $(addprefix apps/,$(APP_BIN:=.o))
-	rm -f $(APP_BIN)
-	rm -f *.db
-	rm -f ./src/compiler/parser.c
-	rm -f ./tools/lemon/lemon
-	rm -f ./tools/lemon/parser.c
-	rm -f ./tools/lemon/parser.h
-	rm -f ./tools/lemon/parser.out
-
-host-docs:
-	cd docs && npm run dev
+	@echo "  CLEAN"
+	rm -f $(OBJ) $(APP_OBJ) $(APP_BIN) $(PARSER_C) $(LEMON) 
+	rm -f tools/lemon/parser.c
+	rm -f tools/lemon/parser.h
+	rm -f tools/lemon/parser.out
 
 format:
-	clang-format -i $(FORMAT_FILES)
+	clang-format -i $(shell find src include -name '*.c' -o -name '*.h')
 
 lint:
-	clang-tidy --warnings-as-errors=* --quiet \
-	  $(shell find ./src -name '*.c') -- \
-	  $(BASE_CFLAGS)
+	clang-tidy --warnings-as-errors=* --quiet $(filter-out $(PARSER_C),$(SRC)) -- $(CFLAGS.base)
 
-.PHONY: all clean format lint debug release
+.PHONY: all debug release clean format lint
 

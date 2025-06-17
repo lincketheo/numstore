@@ -61,6 +61,22 @@ enum_t_validate (const enum_t *en, error *e)
   return SUCCESS;
 }
 
+TEST (enum_t_validate)
+{
+  error err = error_create (NULL);
+
+  // 1.1 happy path – two unique keys
+  string keys_ok[2] = { unsafe_cstrfrom ("FOO"), unsafe_cstrfrom ("BAR") };
+  enum_t en_ok = { .keys = keys_ok, .len = 2 };
+  test_assert_int_equal (enum_t_validate (&en_ok, &err), SUCCESS);
+
+  // 1.3 duplicate key - ERR_INVALID_ARGUMENT
+  string keys_dup[2] = { unsafe_cstrfrom ("FOO"), unsafe_cstrfrom ("FOO") };
+  enum_t en_dup = { .keys = keys_dup, .len = 2 };
+  test_assert_int_equal (enum_t_validate (&en_dup, &err), ERR_INVALID_ARGUMENT);
+  err.cause_code = SUCCESS;
+}
+
 i32
 enum_t_snprintf (char *str, u32 size, const enum_t *st)
 {
@@ -447,4 +463,16 @@ enum_t_random (enum_t *en, lalloc *alloc, error *e)
     }
 
   return SUCCESS;
+}
+
+TEST (enum_t_random)
+{
+  error err = error_create (NULL);
+  char backing[512];
+  lalloc arena = lalloc_create ((u8 *)backing, sizeof backing);
+
+  enum_t en;
+  test_assert_int_equal (enum_t_random (&en, &arena, &err), SUCCESS);
+  // Generated enum must be valid according to enum_t_validate
+  test_assert_int_equal (enum_t_validate (&en, &err), SUCCESS);
 }
