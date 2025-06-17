@@ -247,7 +247,7 @@ TEST (robin_hood_ht)
       HTAR_SUCCESS);
 
   // Full table
-  hash_table *tiny = ht_open (4, &e);
+  hash_table *tiny = ht_open (4, &e); // TODO - this test is failing only on github
   test_fail_if_null (tiny);
   for (u32 k = 0; k < 4; ++k)
     {
