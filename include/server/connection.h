@@ -1,14 +1,11 @@
 #pragma once
 
 #include "ast/query/query_provider.h" // qspce_prvdr
-#include "compiler/compiler.h"        // compiler
 #include "database.h"                 // database
 #include "errors/error.h"             // error
 #include "intf/io.h"                  // i_file
 
 #include <netinet/in.h> // sockaddr_in
-
-#define CMD_HDR_LEN 2
 
 typedef struct connection_s connection;
 

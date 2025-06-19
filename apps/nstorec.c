@@ -2,7 +2,7 @@
 #include "errors/error.h"
 
 int
-main ()
+main (void)
 {
   error e = error_create (NULL);
 

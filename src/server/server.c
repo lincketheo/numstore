@@ -6,7 +6,6 @@
 #include "intf/logging.h"
 #include "intf/stdlib.h"
 #include "server/connection.h"
-#include "utils/bounds.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -44,9 +43,7 @@ server_bind (server *s, u16 port, error *e)
   addr.sin_addr.s_addr = INADDR_ANY;
   addr.sin_port = htons (port);
 
-  /**
-   * Allow socket to be
-   */
+  // Allow socket to be reused in less than the timeout period
   int prop = 1;
   setsockopt (fd, SOL_SOCKET, SO_REUSEADDR, &prop, sizeof (prop));
 
@@ -124,6 +121,7 @@ server_accept (server *s, error *e)
     .caddr = client_addr,
   };
 
+  // Open a new connection
   connection *c = con_open (params, e);
   if (c == NULL)
     {
@@ -168,7 +166,6 @@ server_execute_connections (server *s)
 
       /**
        * TODO - figure out what to do with errors:
-       * https://github.com/lincketheo/numstore/issues/13
        */
       // READ
       if (ready & POLLIN)
@@ -184,14 +181,6 @@ server_execute_connections (server *s)
         {
           err_t_log_swallow (con_write (con, &e), e);
         }
-
-      /**
-        if (con_is_done (con))
-          {
-            con_close (con);
-            s->cons[pfd.fd] = NULL;
-          }
-         */
     }
 }
 
@@ -220,7 +209,9 @@ server_execute (server *s)
   }
 
   // Execute Poll
+  i_log_trace ("Calling poll...\n");
   int rv = poll (s->pollfds, (nfds_t)s->pfdlen, -1);
+  i_log_trace ("Poll returned: %d\n", rv);
   if (rv < 0 && errno == EINTR)
     {
       // Nothing to do

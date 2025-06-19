@@ -2,15 +2,13 @@
 
 #include "ast/query/queries/create.h"
 #include "ast/query/query.h" // query
-#include "ast/type/types.h"
 #include "compiler/parser.h" // parser
 #include "compiler/tokens.h" // token
 #include "dev/assert.h"      // DEFINE_DBG_ASSERT_I
 #include "dev/testing.h"     // TEST
 #include "ds/cbuffer.h"      // cbuffer
-#include "ds/strings.h"
-#include "errors/error.h"  // err_t
-#include "intf/stdlib.h"   // i_memcpy
+#include "errors/error.h"    // err_t
+#include "intf/logging.h"
 #include "mm/lalloc.h"     // lalloc
 #include "utils/macros.h"  // is_alpha
 #include "utils/numbers.h" // parse_i32_expect
@@ -24,7 +22,18 @@ typedef struct
     SS_STRING,  // Parsing a "string"
     SS_NUMBER,  // Parsing the integer part of an int or float
     SS_DECIMAL, // Parsing the right half of a dec
+    SS_ERR,     // Rewinding to next TT_SEMICOLON
   } state;
+
+  union
+  {
+    // SS_IDENT, SS_STRING, SS_INTEGER, SS_DECIMAL
+    struct
+    {
+      u32 slen;
+      char str[512];
+    };
+  };
 } compiler_state;
 
 struct compiler_s
@@ -38,25 +47,19 @@ struct compiler_s
   char _input[10];
   compiler_result _output[10];
 
-  /////////// SCANNER
-  // Internal room to grow strings for tokens
-  char str[512];
-  u32 slen;
-
   /////////// PARSER
   // Allocator for temporary variables in parser
-  parser_result parser;
   lalloc parser_work;
   u8 _parser_work[2048];
-  error e;
+  parser_result parser;
 
+  error e;
   query_provider *qp;
 };
 
 DEFINE_DBG_ASSERT_I (compiler, compiler, s)
 {
   ASSERT (s);
-  ASSERT (s->slen <= 512);
 }
 
 static const char *TAG = "Compiler";
@@ -141,7 +144,7 @@ static const magic_token magic_tokens[] = {
 
 /**
  * Usage:
- * steady_state_STATE is the function to call during
+ * steady_state_execute_max_STATE is the function to call during
  * steady state of a token scanning step. Some tokens
  * have special behavior on the first character (e.g.
  * identifiers can start with alpha, then later on
@@ -156,16 +159,49 @@ static const magic_token magic_tokens[] = {
  * calling ss_execute until your input buffer is empty
  */
 // Picks which function below to execute
-static err_t steady_state_execute (compiler *s, error *e);
-static err_t steady_state_start (compiler *s, error *e);
-static err_t steady_state_ident (compiler *s, error *e);
-static err_t steady_state_string (compiler *s, error *e);
-static err_t steady_state_number (compiler *s, error *e);
-static err_t steady_state_dec (compiler *s, error *e);
+static err_t steady_state_execute_max (compiler *s);
+static err_t steady_state_execute_max_start (compiler *s);
+static err_t steady_state_execute_max_ident (compiler *s);
+static err_t steady_state_execute_max_string (compiler *s);
+static err_t steady_state_execute_max_number (compiler *s);
+static err_t steady_state_execute_max_dec (compiler *s);
+static void steady_state_execute_max_err (compiler *s);
 
 /////////////////////////////////// UTILS
 /// Some simple tools to help scanning like special
 /// advance functions etc.
+
+#define compiler_err_t_wrap(expr, c)                         \
+  do                                                         \
+    {                                                        \
+      err_t __ret = (err_t)expr;                             \
+      i_log_trace ("%s: %s\n", #expr, err_t_to_str (__ret)); \
+      if (__ret < SUCCESS)                                   \
+        {                                                    \
+          if (c->state.state != SS_ERR)                      \
+            {                                                \
+              c->state.state = SS_ERR;                       \
+              compiler_process_error (c);                    \
+            }                                                \
+          return __ret;                                      \
+        }                                                    \
+    }                                                        \
+  while (0)
+
+#define compiler_err_t_pass(expr, c)      \
+  do                                      \
+    {                                     \
+      err_t __ret = (err_t)expr;          \
+      if (__ret < SUCCESS)                \
+        {                                 \
+          if (c->state.state != SS_ERR)   \
+            {                             \
+              c->state.state = SS_ERR;    \
+              compiler_process_error (c); \
+            }                             \
+        }                                 \
+    }                                     \
+  while (0)
 
 const char *
 compiler_state_to_str (compiler_state state)
@@ -192,8 +228,38 @@ compiler_state_to_str (compiler_state state)
       {
         return "SS_DECIMAL";
       }
+    case SS_ERR:
+      {
+        return "SS_ERR";
+      }
     }
   UNREACHABLE ();
+}
+
+static inline void
+compiler_write_result (compiler *s, compiler_result res)
+{
+  i_log_trace ("Compiler writing result ok: %d\n", res.ok);
+  ASSERT (cbuffer_avail (&s->output) >= sizeof (res));
+  u32 ret = cbuffer_write (&res, sizeof res, 1, &s->output);
+  ASSERT (ret == 1);
+}
+
+static inline void
+compiler_process_error (compiler *s)
+{
+  compiler_assert (s);
+
+  ASSERT (s->state.state == SS_ERR);
+
+  // Write to output buffer
+  compiler_write_result (
+      s, (compiler_result){
+             .error = s->e,
+             .ok = false,
+         });
+
+  s->e = error_create (NULL);
 }
 
 /**
@@ -204,19 +270,22 @@ compiler_state_to_str (compiler_state state)
  *    - ERR_NOMEM - internal parser_stack overflows
  */
 static inline err_t
-compiler_push_char (compiler *s, char next, error *e)
+compiler_push_char (compiler *s, char next)
 {
   compiler_assert (s);
 
-  if (s->slen == 512)
+  if (s->state.slen == 512)
     {
-      return error_causef (
-          e, ERR_NOMEM,
-          "%s: internal buffer overflow",
-          TAG);
+      compiler_err_t_wrap (
+          error_causef (
+              &s->e, ERR_NOMEM,
+              "%s: internal buffer overflow",
+              TAG),
+          s);
+      UNREACHABLE ();
     }
 
-  s->str[s->slen++] = next;
+  s->state.str[s->state.slen++] = next;
 
   return SUCCESS;
 }
@@ -246,7 +315,7 @@ compiler_advance_expect (compiler *s)
  *    - ERR_NOMEM - Can't push char to the internal string
  */
 static inline err_t
-compiler_cpy_advance_expect (compiler *s, error *e)
+compiler_cpy_advance_expect (compiler *s)
 {
   compiler_assert (s);
 
@@ -255,7 +324,7 @@ compiler_cpy_advance_expect (compiler *s, error *e)
   bool more = cbuffer_dequeue (&next, &s->input);
   ASSERT (more);
 
-  err_t_wrap (compiler_push_char (s, next, e), e);
+  compiler_err_t_wrap (compiler_push_char (s, next), s);
 
   return SUCCESS;
 }
@@ -297,23 +366,17 @@ consume_whitespace (compiler *s)
 }
 
 static inline err_t
-compiler_process_token (compiler *s, token t, error *e)
+compiler_process_token (compiler *s, token t)
 {
   compiler_assert (s);
 
   // Parse this token
-  if (parser_parse (&s->parser, t, e))
-    {
-      panic ();
-    }
+  compiler_err_t_wrap (parser_parse (&s->parser, t, &s->e), s);
 
   // Check parser state
   if (s->parser.ready)
     {
-      if (parser_parse (&s->parser, quick_tok (0), e))
-        {
-          panic ();
-        }
+      compiler_err_t_wrap (parser_parse (&s->parser, quick_tok (0), &s->e), s);
 
       // Consume query
       query next = parser_consume (&s->parser);
@@ -325,13 +388,11 @@ compiler_process_token (compiler *s, token t, error *e)
       i_log_query (next);
 
       // Write to output buffer
-      compiler_result res = {
-        .query = next,
-        .ok = true,
-      };
-      ASSERT (cbuffer_avail (&s->output) >= sizeof (res));
-      u32 ret = cbuffer_write (&res, sizeof res, 1, &s->output);
-      ASSERT (ret == 1);
+      compiler_write_result (
+          s, (compiler_result){
+                 .query = next,
+                 .ok = true,
+             });
     }
 
   s->state.state = SS_START;
@@ -341,7 +402,7 @@ compiler_process_token (compiler *s, token t, error *e)
 
 ////////////////////////////// State Machine Functions
 static err_t
-steady_state_execute (compiler *s, error *e)
+steady_state_execute_max (compiler *s)
 {
   compiler_assert (s);
 
@@ -350,23 +411,28 @@ steady_state_execute (compiler *s, error *e)
     {
     case SS_START:
       {
-        return steady_state_start (s, e);
+        return steady_state_execute_max_start (s);
       }
     case SS_IDENT:
       {
-        return steady_state_ident (s, e);
+        return steady_state_execute_max_ident (s);
       }
     case SS_NUMBER:
       {
-        return steady_state_number (s, e);
+        return steady_state_execute_max_number (s);
       }
     case SS_DECIMAL:
       {
-        return steady_state_dec (s, e);
+        return steady_state_execute_max_dec (s);
       }
     case SS_STRING:
       {
-        return steady_state_string (s, e);
+        return steady_state_execute_max_string (s);
+      }
+    case SS_ERR:
+      {
+        steady_state_execute_max_err (s);
+        return SUCCESS;
       }
     default:
       {
@@ -376,16 +442,16 @@ steady_state_execute (compiler *s, error *e)
 }
 
 static err_t
-process_string_or_ident (compiler *s, token_t type, error *e)
+process_string_or_ident (compiler *s, token_t type)
 {
   compiler_assert (s);
   ASSERT (type == TT_STRING || type == TT_IDENTIFIER);
 
   string literal = (string){
-    .data = s->str,
-    .len = s->slen,
+    .data = s->state.str,
+    .len = s->state.slen,
   };
-  s->slen = 0; // len is captured in literal, safe to reset
+  s->state.slen = 0; // len is captured in literal, safe to reset
 
   // Process the token
   token t = (token){
@@ -393,7 +459,7 @@ process_string_or_ident (compiler *s, token_t type, error *e)
     .str = literal,
   };
 
-  return compiler_process_token (s, t, e);
+  return compiler_process_token (s, t);
 }
 
 /**
@@ -404,15 +470,15 @@ process_string_or_ident (compiler *s, token_t type, error *e)
  *  3. String ("foobar")
  */
 static err_t
-process_maybe_ident (compiler *s, error *e)
+process_maybe_ident (compiler *s)
 {
   compiler_assert (s);
 
-  ASSERT (s->slen > 0);
+  ASSERT (s->state.slen > 0);
 
   string literal = (string){
-    .data = s->str,
-    .len = s->slen,
+    .data = s->state.str,
+    .len = s->state.slen,
   };
 
   // Check for magic tokens
@@ -421,8 +487,8 @@ process_maybe_ident (compiler *s, error *e)
       if (string_equal (literal, magic_tokens[i].token))
         {
           // reset (literal is useless)
-          s->slen = 0;
-          return compiler_process_token (s, magic_tokens[i].t, e);
+          s->state.slen = 0;
+          return compiler_process_token (s, magic_tokens[i].t);
         }
     }
 
@@ -434,27 +500,27 @@ process_maybe_ident (compiler *s, error *e)
           token t = op_codes[i].t;
 
           // reset (literal is useless)
-          s->slen = 0;
+          s->state.slen = 0;
 
           // Allocate query space for downstream
           query q;
-          err_t_wrap (query_provider_get (s->qp, &q, tt_to_qt (t.type), e), e);
+          compiler_err_t_wrap (query_provider_get (s->qp, &q, tt_to_qt (t.type), &s->e), s);
 
           // Initialize the parser
-          err_t_wrap (parser_create (&s->parser, &s->parser_work, q.qalloc, e), e);
+          compiler_err_t_wrap (parser_create (&s->parser, &s->parser_work, q.qalloc, &s->e), s);
 
           t.q = q;
 
-          return compiler_process_token (s, t, e);
+          return compiler_process_token (s, t);
         }
     }
 
   // Otherwise it's an TT_IDENTIFIER
-  return process_string_or_ident (s, TT_IDENTIFIER, e);
+  return process_string_or_ident (s, TT_IDENTIFIER);
 }
 
 static err_t
-steady_state_ident (compiler *s, error *e)
+steady_state_execute_max_ident (compiler *s)
 {
   compiler_assert (s);
   ASSERT (s->state.state == SS_IDENT);
@@ -465,17 +531,17 @@ steady_state_ident (compiler *s, error *e)
     {
       if (!is_alpha_num (c))
         {
-          return process_maybe_ident (s, e);
+          return process_maybe_ident (s);
         }
 
-      err_t_wrap (compiler_cpy_advance_expect (s, e), e);
+      compiler_err_t_wrap (compiler_cpy_advance_expect (s), s);
     }
 
   return SUCCESS; // no more chars to consume
 }
 
 static err_t
-steady_state_string (compiler *s, error *e)
+steady_state_execute_max_string (compiler *s)
 {
   compiler_assert (s);
   ASSERT (s->state.state == SS_STRING);
@@ -487,37 +553,37 @@ steady_state_string (compiler *s, error *e)
       if (c == '"')
         {
           compiler_advance_expect (s); // Skip over (last) quote
-          return process_string_or_ident (s, TT_STRING, e);
+          return process_string_or_ident (s, TT_STRING);
         }
 
-      err_t_wrap (compiler_cpy_advance_expect (s, e), e);
+      compiler_err_t_wrap (compiler_cpy_advance_expect (s), s);
     }
 
   return SUCCESS;
 }
 
 static inline err_t
-process_dec (compiler *s, error *e)
+process_dec (compiler *s)
 {
   compiler_assert (s);
 
   const string literal = (string){
-    .data = s->str,
-    .len = s->slen,
+    .data = s->state.str,
+    .len = s->state.slen,
   };
-  s->slen = 0;
+  s->state.slen = 0;
 
   // Parse the float
   f32 dest;
-  err_t_wrap (parse_f32_expect (&dest, literal, e), e);
+  compiler_err_t_wrap (parse_f32_expect (&dest, literal, &s->e), s);
 
-  err_t_wrap (compiler_process_token (s, tt_float (dest), e), e);
+  compiler_err_t_wrap (compiler_process_token (s, tt_float (dest)), s);
 
   return SUCCESS;
 }
 
 static err_t
-steady_state_dec (compiler *s, error *e)
+steady_state_execute_max_dec (compiler *s)
 {
   compiler_assert (s);
   ASSERT (s->state.state == SS_DECIMAL);
@@ -527,36 +593,54 @@ steady_state_dec (compiler *s, error *e)
     {
       if (!is_num (c))
         {
-          return process_dec (s, e);
+          return process_dec (s);
         }
-      err_t_wrap (compiler_cpy_advance_expect (s, e), e);
+      compiler_err_t_wrap (compiler_cpy_advance_expect (s), s);
     }
 
   return SUCCESS;
 }
 
+static void
+steady_state_execute_max_err (compiler *s)
+{
+  compiler_assert (s);
+  ASSERT (s->state.state == SS_ERR);
+
+  u8 c;
+  while (compiler_peek (&c, s))
+    {
+      if (c == ';')
+        {
+          compiler_advance_expect (s); // Skip over the ;
+          s->state.state = SS_START;
+          return;
+        }
+    }
+}
+
 static inline err_t
-process_int (compiler *s, error *e)
+process_int (compiler *s)
 {
   compiler_assert (s);
 
   const string literal = (string){
-    .data = s->str,
-    .len = s->slen,
+    .data = s->state.str,
+    .len = s->state.slen,
   };
-  s->slen = 0;
+  s->state.slen = 0;
 
   // Parse the int
   i32 dest;
-  err_t_wrap (parse_i32_expect (&dest, literal, e), e);
+  compiler_err_t_wrap (parse_i32_expect (&dest, literal, &s->e), s);
 
-  err_t_wrap (compiler_process_token (s, tt_integer (dest), e), e);
+  compiler_err_t_wrap (compiler_process_token (s, tt_integer (dest)), s);
 
   return SUCCESS;
 }
 
 static err_t
-steady_state_number (compiler *s, error *e)
+steady_state_execute_max_number (compiler *s)
 {
   compiler_assert (s);
   ASSERT (s->state.state == SS_NUMBER);
@@ -570,22 +654,22 @@ steady_state_number (compiler *s, error *e)
           if (c == '.')
             {
               s->state.state = SS_DECIMAL;
-              err_t_wrap (compiler_cpy_advance_expect (s, e), e);
-              return steady_state_dec (s, e);
+              compiler_err_t_wrap (compiler_cpy_advance_expect (s), s);
+              return steady_state_execute_max_dec (s);
             }
           else
             {
-              return process_int (s, e);
+              return process_int (s);
             }
         }
-      err_t_wrap (compiler_cpy_advance_expect (s, e), e);
+      compiler_err_t_wrap (compiler_cpy_advance_expect (s), s);
     }
 
   return SUCCESS;
 }
 
 static err_t
-steady_state_start (compiler *s, error *e)
+steady_state_execute_max_start (compiler *s)
 {
   compiler_assert (s);
   ASSERT (s->state.state == SS_START);
@@ -607,54 +691,54 @@ steady_state_start (compiler *s, error *e)
     case ';':
       {
         compiler_advance_expect (s);
-        err_t_wrap (compiler_process_token (s, quick_tok (TT_SEMICOLON), e), e);
+        compiler_err_t_wrap (compiler_process_token (s, quick_tok (TT_SEMICOLON)), s);
         break;
       }
     case '[':
       {
         compiler_advance_expect (s);
-        err_t_wrap (compiler_process_token (s, quick_tok (TT_LEFT_BRACKET), e), e);
+        compiler_err_t_wrap (compiler_process_token (s, quick_tok (TT_LEFT_BRACKET)), s);
         break;
       }
     case ']':
       {
         compiler_advance_expect (s);
-        err_t_wrap (compiler_process_token (s, quick_tok (TT_RIGHT_BRACKET), e), e);
+        compiler_err_t_wrap (compiler_process_token (s, quick_tok (TT_RIGHT_BRACKET)), s);
         break;
       }
     case '{':
       {
         compiler_advance_expect (s);
-        err_t_wrap (compiler_process_token (s, quick_tok (TT_LEFT_BRACE), e), e);
+        compiler_err_t_wrap (compiler_process_token (s, quick_tok (TT_LEFT_BRACE)), s);
         break;
       }
     case '}':
       {
         compiler_advance_expect (s);
-        err_t_wrap (compiler_process_token (s, quick_tok (TT_RIGHT_BRACE), e), e);
+        compiler_err_t_wrap (compiler_process_token (s, quick_tok (TT_RIGHT_BRACE)), s);
         break;
       }
     case '(':
       {
         compiler_advance_expect (s);
-        err_t_wrap (compiler_process_token (s, quick_tok (TT_LEFT_PAREN), e), e);
+        compiler_err_t_wrap (compiler_process_token (s, quick_tok (TT_LEFT_PAREN)), s);
         break;
       }
     case ')':
       {
         compiler_advance_expect (s);
-        err_t_wrap (compiler_process_token (s, quick_tok (TT_RIGHT_PAREN), e), e);
+        compiler_err_t_wrap (compiler_process_token (s, quick_tok (TT_RIGHT_PAREN)), s);
         break;
       }
     case ',':
       {
         compiler_advance_expect (s);
-        err_t_wrap (compiler_process_token (s, quick_tok (TT_COMMA), e), e);
+        compiler_err_t_wrap (compiler_process_token (s, quick_tok (TT_COMMA)), s);
         break;
       }
     case '"':
       {
-        s->slen = 0;
+        s->state.slen = 0;
         compiler_advance_expect (s); // Skip the '"'
         s->state.state = SS_STRING;
         break;
@@ -670,8 +754,8 @@ steady_state_start (compiler *s, error *e)
              * Advance forward once - because strings can start with
              * alpha, then steady state processes alpha numeric
              */
-            s->slen = 0;
-            err_t_wrap (compiler_cpy_advance_expect (s, e), e);
+            s->state.slen = 0;
+            compiler_err_t_wrap (compiler_cpy_advance_expect (s), s);
             s->state.state = SS_IDENT;
             break;
           }
@@ -681,17 +765,20 @@ steady_state_start (compiler *s, error *e)
              * Advance forward once because steady state doesn't
              * account for + or -
              */
-            s->slen = 0;
-            err_t_wrap (compiler_cpy_advance_expect (s, e), e);
+            s->state.slen = 0;
+            compiler_err_t_wrap (compiler_cpy_advance_expect (s), s);
             s->state.state = SS_NUMBER;
             break;
           }
         else
           {
-            return error_causef (
-                e, ERR_SYNTAX,
-                "%s: Unexpected char: %c",
-                TAG, next);
+            compiler_err_t_wrap (
+                error_causef (
+                    &s->e, ERR_SYNTAX,
+                    "%s: Unexpected char: %c",
+                    TAG, next),
+                s);
+            UNREACHABLE ();
           }
       }
     }
@@ -703,6 +790,7 @@ steady_state_start (compiler *s, error *e)
 compiler *
 compiler_create (query_provider *qp, error *e)
 {
+  // Allocate compiler
   compiler *ret = i_malloc (1, sizeof *ret);
   if (ret == NULL)
     {
@@ -710,17 +798,20 @@ compiler_create (query_provider *qp, error *e)
       return NULL;
     }
 
-  ret->state.state = SS_START;
-  ret->input = cbuffer_create_from (ret->_input);
-  ret->output = cbuffer_create_from (ret->_output);
+  *ret = (compiler){
+    .state = {
+        .state = SS_START,
+        .slen = 0,
+    },
+    .input = cbuffer_create_from (ret->_input),
+    .output = cbuffer_create_from (ret->_output),
 
-  // Scanner
-  ret->slen = 0;
+    .parser_work = lalloc_create_from (ret->_parser_work),
+    // parser gets initialized on op codes
 
-  // Parser
-  ret->parser_work = lalloc_create_from (ret->_parser_work);
-  ret->qp = qp;
-  ret->e = error_create (NULL);
+    .qp = qp,
+    .e = error_create (NULL),
+  };
 
   compiler_assert (ret);
 
@@ -777,14 +868,7 @@ compiler_execute (compiler *s)
           return;
         }
 
-      /**
-       * Write a maximum of 1 token
-       * or else handle error
-       */
-      if (steady_state_execute (s, &s->e))
-        {
-          error_log_consume (&s->e);
-        }
+      compiler_err_t_pass (steady_state_execute_max (s), s);
     }
 }
 

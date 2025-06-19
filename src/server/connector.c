@@ -1,4 +1,4 @@
-#include "intf/stdlib.h"
+#include "dev/assert.h"
 #include "server/connection.h"
 
 #include "compiler/compiler.h" // scanner
@@ -6,38 +6,76 @@
 #include "ds/cbuffer.h"        // cbuffer
 #include "errors/error.h"      // err_t
 #include "intf/io.h"           // i_file
-#include "sckctrl.h"           // sckctrl
-#include "virtual_machine.h"   // vm
+#include "intf/stdlib.h"       // i_memcpy
 
 #include <stdlib.h>   // malloc / free
 #include <sys/poll.h> // pollfd
 
+/**
+ * A connection is in three states:
+ * 1. Reading the header (tells the number of bytes to expect)
+ * 2. Reading bytes
+ * 3. Writing out data
+ */
 struct connection_s
 {
   enum
   {
-    CX_START,   // Reading the header
-    CX_READING, // Reading data
-    CX_WRITING, // Writing to output socket
+    CX_READ_START,  // Reading the header for how much to read
+    CX_READING,     // Reading data
+    CX_WRITE_START, // Reading the header for how much to write
+    CX_WRITING,     // Writing to output socket
   } state;
 
-  u16 pos; // Where in the current header or packet we are
-  union
+  // The header and meta information for read / write
+  struct
   {
-    u8 header[CMD_HDR_LEN]; // The buffered header
-    u16 len;                // The actual header
+    u16 pos; // Where in the current header or packet we are
+    union
+    {
+      u8 header[sizeof (u16)]; // The buffered header
+      u16 len;                 // The actual header
+    };
   };
 
   i_file cfd;              // The file descriptor of this connection
   struct sockaddr_in addr; // The address of this connection
 
+  // Reads directly into the compiler cbuffer
   compiler *compiler;
+
+  // The database to execute on
   database *db;
+
+  // The output that the vm writes to
+  cbuffer *output; // TODO - will probably be in the vm
 };
 
 DEFINE_DBG_ASSERT_I (connection, connection, c)
 {
   ASSERT (c);
+  ASSERT (c->compiler);
+  ASSERT (c->db);
+
+  switch (c->state)
+    {
+    case CX_WRITE_START:
+    case CX_READ_START:
+      {
+        ASSERT (c->pos < sizeof (u16));
+        break;
+      }
+    case CX_WRITING:
+    case CX_READING:
+      {
+        ASSERT (c->pos < c->len);
+        break;
+      }
+    default:
+      {
+        UNREACHABLE ();
+      }
+    }
 }
 
 connection *
@@ -60,7 +98,7 @@ con_open (connection_params params, error *e)
     }
 
   *ret = (connection){
-    .state = CX_START,
+    .state = CX_READ_START,
     .pos = 0,
 
     // header
@@ -94,12 +132,13 @@ con_to_pollfd (const connection *src)
   switch (src->state)
     {
     case CX_WRITING:
+    case CX_WRITE_START:
       {
-        // ret.events |= POLLOUT;
+        ret.events |= POLLOUT;
         break;
       }
     case CX_READING:
-    case CX_START:
+    case CX_READ_START:
       {
         ret.events |= POLLIN;
         break;
@@ -114,28 +153,32 @@ con_read (connection *c, error *e)
 {
   connection_assert (c);
 
-  ASSERT (c->state != CX_WRITING);
+  ASSERT (c->state == CX_READING || c->state == CX_READ_START);
 
   cbuffer *input = compiler_get_input (c->compiler);
 
   // Make an upfront hungry read
-  err_t_wrap (cbuffer_write_some_from_file (&c->cfd, input, e), e);
+  i32 nread = cbuffer_write_some_from_file (&c->cfd, input, e);
+  if (nread < 0)
+    {
+      return (err_t)nread;
+    }
 
   // Read the header if needed
-  if (c->state == CX_START)
+  if (c->state == CX_READ_START)
     {
-      ASSERT (c->pos < CMD_HDR_LEN);
-      u16 toread = CMD_HDR_LEN - c->pos;
+      ASSERT (c->pos < sizeof (u16));
+      u16 toread = sizeof (u16) - c->pos;
 
       // Read into the header
       c->pos += (u16)cbuffer_read (c->header, 1, toread, input);
-      ASSERT (c->pos <= CMD_HDR_LEN);
+      ASSERT (c->pos <= sizeof (u16));
 
       // Transition
-      if (c->pos == CMD_HDR_LEN)
+      if (c->pos == sizeof (u16))
         {
           u16 len;
-          i_memcpy (&len, c->header, sizeof (len));
+          i_memcpy (&len, c->header, sizeof (len)); // TODO - network endianness
           c->len = len;
           c->state = CX_READING;
         }
@@ -147,8 +190,6 @@ con_read (connection *c, error *e)
       ASSERT (c->len > c->pos);
       u16 remaining = c->len - c->pos;
 
-      // TODO - I think you probably want
-      // to only read required amount
       if (cbuffer_len (input) > remaining)
         {
           return error_causef (
@@ -160,7 +201,7 @@ con_read (connection *c, error *e)
       // We read all we needed - transition to writing
       if (cbuffer_len (input) == remaining)
         {
-          c->state = CX_WRITING;
+          c->state = CX_WRITE_START;
           c->pos = 0;
         }
     }
@@ -176,6 +217,8 @@ con_execute (connection *c, error *e)
   compiler_execute (c->compiler);
   cbuffer *output = compiler_get_output (c->compiler);
 
+  i_log_info ("%d\n", cbuffer_len (output));
+
   // Execute all queries
   while (cbuffer_len (output) > 0)
     {
@@ -183,7 +226,11 @@ con_execute (connection *c, error *e)
       u32 read = cbuffer_read (&q, sizeof q, 1, output);
       ASSERT (read == 1);
 
-      // err_t_wrap (query_execute (c->db->pager, &q.query, e), e);
+      if (!q.ok)
+        {
+          error_log_consume (&q.error);
+          panic ();
+        }
     }
 
   return SUCCESS;
@@ -193,8 +240,60 @@ err_t
 con_write (connection *c, error *e)
 {
   connection_assert (c);
-  ASSERT (c->state == CX_WRITING);
-  (void)e;
-  panic ();
-  // return sckctrl_write (&c, e);
+
+  ASSERT (c->state == CX_WRITING || c->state == CX_WRITE_START);
+
+  cbuffer *output = c->output;
+
+  // Read the header if needed
+  if (c->state == CX_WRITE_START)
+    {
+      ASSERT (c->pos < sizeof (u16));
+      u16 toread = sizeof (u16) - c->pos;
+
+      // Read into the header
+      c->pos += (u16)cbuffer_read (c->header, 1, toread, output);
+      ASSERT (c->pos <= sizeof (u16));
+
+      // Transition
+      if (c->pos == sizeof (u16))
+        {
+          u16 len;
+          i_memcpy (&len, c->header, sizeof (len)); // TODO - network endianness
+          c->len = len;
+          c->state = CX_WRITING;
+        }
+    }
+
+  // Check read buffer
+  if (c->state == CX_WRITING)
+    {
+      // TODO - you can clean this up when your brain is fresh
+      ASSERT (c->len > c->pos);
+      u16 remaining = c->len - c->pos;
+
+      // Write out to the socket
+      i32 nwritten = cbuffer_read_some_to_file (&c->cfd, output, e);
+      if (nwritten < 0)
+        {
+          return (err_t)nwritten;
+        }
+
+      /**
+       * TODO - I made this an assertion because it's
+       * controlled by me, but should it be?
+       */
+      ASSERT (nwritten <= remaining);
+      ASSERT (nwritten <= c->pos);
+      c->pos -= nwritten;
+
+      // We read all we needed - transition to writing
+      if (nwritten == remaining)
+        {
+          c->state = CX_READ_START;
+          c->pos = 0;
+        }
+    }
+
+  return SUCCESS;
 }

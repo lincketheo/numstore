@@ -3,7 +3,7 @@
 #include "server/server.h"
 
 int
-main ()
+main (void)
 {
   error e = error_create (NULL);
 

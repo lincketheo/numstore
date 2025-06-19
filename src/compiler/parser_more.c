@@ -61,7 +61,6 @@ parser_consume (parser_result *p)
 err_t
 parser_parse (parser_result *res, token tok, error *e)
 {
-  lemon_parseTrace (stdout, "");
   res->e = e;
   lemon_parse (res->yyp, tok.type, tok, res);
   err_t ret = err_t_from (res->e);

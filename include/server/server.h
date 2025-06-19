@@ -1,10 +1,8 @@
 #pragma once
 
-#include "database.h"          // database
-#include "intf/io.h"           // i_file
-#include "mm/lalloc.h"         // lalloc
-#include "paging/pager.h"      // pager
-#include "server/connection.h" // connection
+#include "ds/strings.h"
+#include "errors/error.h"
+#include "intf/types.h"
 
 #include <poll.h> // struct pollfd
 
