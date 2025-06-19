@@ -147,8 +147,8 @@ con_to_pollfd (const connection *src)
         if (cbuffer_len (vm_get_output (src->vm)) > 0)
           {
             ret.events |= POLLOUT;
-            break;
           }
+        break;
       }
     case CX_READING:
     case CX_READ_START:
@@ -210,6 +210,9 @@ con_read (connection *c, error *e)
               "Socket read more bytes "
               "than header specified");
         }
+
+      compiler_execute (c->compiler);
+      vm_execute (c->vm);
 
       // We read all we needed - transition to writing
       if (cbuffer_len (input) == remaining)

@@ -106,7 +106,7 @@ create_query_execute (vm *v)
       const char *head = resp + (v->pos - sizeof v->len);
       u32 remaining = i_unsafe_strlen (resp) - (v->pos - sizeof v->len);
       v->pos += cbuffer_write (head, 1, remaining, &v->output);
-      ASSERT (v->pos <= v->active.e.cmlen + sizeof v->len);
+      ASSERT (v->pos <= i_unsafe_strlen (resp) + sizeof v->len);
 
       if (v->pos == i_unsafe_strlen (resp) + sizeof v->len)
         {
@@ -147,7 +147,7 @@ delete_query_execute (vm *v)
       const char *head = resp + (v->pos - sizeof v->len);
       u32 remaining = i_unsafe_strlen (resp) - (v->pos - sizeof v->len);
       v->pos += cbuffer_write (head, 1, remaining, &v->output);
-      ASSERT (v->pos <= v->active.e.cmlen + sizeof v->len);
+      ASSERT (v->pos <= i_unsafe_strlen (resp) + sizeof v->len);
 
       if (v->pos == i_unsafe_strlen (resp) + sizeof v->len)
         {
@@ -252,7 +252,7 @@ vm_execute (vm *v)
         }
 
       // Block on upstream
-      if (cbuffer_avail (v->input) < sizeof (query))
+      if (cbuffer_len (v->input) < sizeof (query))
         {
           return;
         }
