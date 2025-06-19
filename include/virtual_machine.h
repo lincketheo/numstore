@@ -1,7 +1,6 @@
 #pragma once
 
-#include "ast/query/query.h" // query
-#include "ds/cbuffer.h"
+#include "ds/cbuffer.h"   // cbuffer
 #include "errors/error.h" // err_t
 #include "paging/pager.h" // pager
 

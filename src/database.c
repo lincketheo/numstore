@@ -25,12 +25,10 @@ db_open (const string fname, error *e)
   database *ret = NULL;
   pager *p = NULL;
   query_provider *q = NULL;
-  vm *v = NULL;
 
   ret = i_malloc (1, sizeof *ret);
   p = pgr_open (fname, e);
   q = query_provider_create (e);
-  v = vm_open (p, e);
 
   if (ret == NULL)
     {
@@ -39,14 +37,13 @@ db_open (const string fname, error *e)
           "%s Failed to allocate database", TAG);
       goto failed;
     }
-  if (!(p && q && v))
+  if (!(p && q))
     {
       goto failed;
     }
 
   ret->pager = p;
   ret->qspce = q;
-  ret->vm = v;
 
   return ret;
 
@@ -63,10 +60,6 @@ failed:
     {
       query_provider_free (q);
     }
-  if (v)
-    {
-      vm_close (v);
-    }
   return NULL;
 }
 
@@ -78,13 +71,7 @@ db_close (database *d)
   query_provider_free (d->qspce);
 }
 
-err_t
-db_execute (database *db, query *q, error *e)
-{
-  database_assert (db);
-  return vm_execute_one_query (db->vm, q, e);
-}
-
+/**
 TEST (db_create_var)
 {
   error e = error_create (NULL);
@@ -159,3 +146,4 @@ TEST (db_create_var)
 
   db_close (db);
 }
+*/

@@ -824,6 +824,13 @@ TEST (compiler_create)
   test_assert_int_equal (cbuffer_len (&c->output), 0);
 }
 
+void
+compiler_free (compiler *c)
+{
+  compiler_assert (c);
+  i_free (c);
+}
+
 cbuffer *
 compiler_get_input (compiler *c)
 {

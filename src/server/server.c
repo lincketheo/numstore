@@ -174,7 +174,7 @@ server_execute_connections (server *s)
         }
 
       // EXECUTE
-      err_t_log_swallow (con_execute (con, &e), e);
+      con_execute (con);
 
       // WRITE
       if (ready & POLLOUT)

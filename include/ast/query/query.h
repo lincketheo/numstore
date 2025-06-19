@@ -32,6 +32,7 @@ struct query_s
   // One error per query
   bool ok;
   error e;
+  bool done;
 };
 
 void i_log_query (query q);

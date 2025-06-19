@@ -7,6 +7,7 @@
 #include "errors/error.h"      // err_t
 #include "intf/io.h"           // i_file
 #include "intf/stdlib.h"       // i_memcpy
+#include "virtual_machine.h"
 
 #include <stdlib.h>   // malloc / free
 #include <sys/poll.h> // pollfd
@@ -47,8 +48,8 @@ struct connection_s
   // The database to execute on
   database *db;
 
-  // The output that the vm writes to
-  cbuffer *output; // TODO - will probably be in the vm
+  // Write directly out of the virtual machine
+  vm *vm;
 };
 
 DEFINE_DBG_ASSERT_I (connection, connection, c)
@@ -97,6 +98,14 @@ con_open (connection_params params, error *e)
       return NULL;
     }
 
+  vm *v = vm_open (params.db->pager, compiler_get_output (c), e);
+  if (v == NULL)
+    {
+      i_free (ret);
+      compiler_free (c);
+      return NULL;
+    }
+
   *ret = (connection){
     .state = CX_READ_START,
     .pos = 0,
@@ -108,6 +117,7 @@ con_open (connection_params params, error *e)
 
     .compiler = c,
     .db = params.db,
+    .vm = v,
   };
 
   connection_assert (ret);
@@ -134,8 +144,11 @@ con_to_pollfd (const connection *src)
     case CX_WRITING:
     case CX_WRITE_START:
       {
-        ret.events |= POLLOUT;
-        break;
+        if (cbuffer_len (vm_get_output (src->vm)) > 0)
+          {
+            ret.events |= POLLOUT;
+            break;
+          }
       }
     case CX_READING:
     case CX_READ_START:
@@ -209,31 +222,13 @@ con_read (connection *c, error *e)
   return SUCCESS;
 }
 
-err_t
-con_execute (connection *c, error *e)
+void
+con_execute (connection *c)
 {
   connection_assert (c);
-  (void)e;
+
   compiler_execute (c->compiler);
-  cbuffer *output = compiler_get_output (c->compiler);
-
-  i_log_info ("%d\n", cbuffer_len (output));
-
-  // Execute all queries
-  while (cbuffer_len (output) > 0)
-    {
-      query q;
-      u32 read = cbuffer_read (&q, sizeof q, 1, output);
-      ASSERT (read == 1);
-
-      if (!q.ok)
-        {
-          error_log_consume (&q.e);
-          panic ();
-        }
-    }
-
-  return SUCCESS;
+  vm_execute (c->vm);
 }
 
 err_t
@@ -243,7 +238,7 @@ con_write (connection *c, error *e)
 
   ASSERT (c->state == CX_WRITING || c->state == CX_WRITE_START);
 
-  cbuffer *output = c->output;
+  cbuffer *output = vm_get_output (c->vm);
 
   // Read the header if needed
   if (c->state == CX_WRITE_START)

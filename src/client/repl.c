@@ -1,12 +1,12 @@
 #include "client/repl.h"
 
-#include "client/client.h"    // client
-#include "dev/assert.h"       // DEFINE_DBG_ASSERT_I
-#include "errors/error.h"     // err_t
+#include "client/client.h" // client
+#include "dev/assert.h"    // DEFINE_DBG_ASSERT_I
+#include "errors/error.h"  // err_t
+#include "intf/io.h"
 #include "intf/stdlib.h"      // i_memcpy
 #include "thirdp/linenoise.h" // linenoise
 #include "utils/macros.h"     // arrlen
-#include "utils/strings.h"    // line_length
 
 #include <errno.h>  // strerror
 #include <stdlib.h> // free
@@ -247,6 +247,20 @@ repl_execute (repl *r, error *e)
       const string send = (string){ .data = r->buffer, .len = r->blen };
       err_t_wrap (client_send (r->client, send, e), e);
       fprintf (stdout, "Sending: %.*s\n", send.len, send.data);
+    }
+
+  /**
+   * Recieve it
+   */
+  string recv = client_recv (r->client, e);
+  if (recv.data)
+    {
+      fprintf (stdout, "Got: %.*s\n", recv.len, recv.data);
+      free (recv.data);
+    }
+  else
+    {
+      return err_t_from (e);
     }
 
   return SUCCESS;

@@ -1,9 +1,7 @@
 #pragma once
 
-#include "ds/cbuffer.h" //cbuffer
-#include "intf/io.h"    // i_file
+#include "errors/error.h"
 #include "intf/types.h" // u16
-#include "mm/lalloc.h"  // lalloc
 
 #include <netinet/in.h> // sockaddr_in
 
@@ -24,3 +22,9 @@ void client_close (client *c);
  * (many write system calls)
  */
 err_t client_send (client *c, const string str, error *e);
+
+/**
+ * Reads into [dest] mallocs return
+ * reads the first two bytes as length
+ */
+string client_recv (client *c, error *e);

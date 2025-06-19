@@ -28,6 +28,7 @@
 typedef struct compiler_s compiler;
 
 compiler *compiler_create (query_provider *qp, error *e);
+void compiler_free (compiler *c);
 cbuffer *compiler_get_input (compiler *c);
 cbuffer *compiler_get_output (compiler *c);
 void compiler_execute (compiler *s);

@@ -1,9 +1,10 @@
 #include "client/client.h"
+
 #include "dev/assert.h"
 #include "ds/cbuffer.h"
 #include "errors/error.h"
+#include "intf/io.h"
 #include "intf/stdlib.h"
-#include "mm/lalloc.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -168,4 +169,59 @@ client_send (client *c, const string str, error *e)
 theend:
   i_free (newstr.data);
   return err_t_from (e);
+}
+
+static err_t
+client_recv_some (client *c, error *e)
+{
+  client_assert (c);
+  i32 read = cbuffer_write_some_from_file (&c->sfd, &c->recv, e);
+  if (read < 0)
+    {
+      return err_t_from (e);
+    }
+  return SUCCESS;
+}
+
+string
+client_recv (client *c, error *e)
+{
+  client_assert (c);
+
+  u16 header;
+  u32 read = 0;
+  while (cbuffer_len (&c->recv) < sizeof (header))
+    {
+      if (client_recv_some (c, e))
+        {
+          return (string){
+            .len = 0,
+            .data = NULL,
+          };
+        }
+    }
+
+  read = cbuffer_read (&header, 2, 1, &c->recv);
+  ASSERT (read == 1);
+
+  char *ret = i_malloc (1, header);
+  if (ret == NULL)
+    {
+      return (string){
+        .len = 0,
+        .data = NULL,
+      };
+    }
+
+  for (u32 i = sizeof (header); i < header; i += read)
+    {
+      u32 toread = header - i;
+      char *offset = ret + (i - sizeof (header));
+      read = cbuffer_read (offset, 1, toread, &c->recv);
+    }
+
+  return (string){
+    .data = ret,
+    .len = header - sizeof (header),
+  };
 }

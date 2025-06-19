@@ -32,5 +32,5 @@ struct pollfd con_to_pollfd (const connection *src);
 
 // Main methods
 err_t con_read (connection *c, error *e);
-err_t con_execute (connection *c, error *e);
+void con_execute (connection *c);
 err_t con_write (connection *c, error *e);

@@ -6,6 +6,8 @@
 #include "dev/assert.h" // ASSERT
 #include "ds/cbuffer.h"
 #include "errors/error.h"
+#include "intf/logging.h"
+#include "intf/stdlib.h"
 
 struct vm_s
 {
@@ -15,9 +17,14 @@ struct vm_s
   cbuffer output;
   char _output[256];
 
-  u16 eidx;
+  struct
+  {
+    u16 pos;
+    u16 len;
+  };
+
   bool is_active;
-  query active; // Current query
+  query active;
 };
 
 DEFINE_DBG_ASSERT_I (vm, vm, v)
@@ -68,20 +75,122 @@ vm_close (vm *v)
   vm_assert (v);
 }
 
-static inline err_t
-create_query_execute (vm *v, create_query *q, error *e)
+static inline void
+create_query_execute (vm *v)
 {
-  i_log_create (q);
-  return cursor_create_var (v->c, q, e);
+  vm_assert (v);
+  ASSERT (v->is_active);
+  ASSERT (v->active.type == QT_CREATE);
+
+  i_log_create (v->active.create);
+  const char *resp = "OK";
+
+  if (v->pos == 0)
+    {
+      i_log_delete (v->active.delete);
+      v->len = i_unsafe_strlen (resp) + sizeof v->len;
+    }
+
+  // Write header
+  if (v->pos < sizeof v->len)
+    {
+      ASSERT (v->output.cap >= sizeof (v->len)); // Assumes buffer can hold a u16
+      u32 written = cbuffer_write (&v->len, sizeof v->len, 1, &v->output);
+      v->pos += written * sizeof v->len;
+      ASSERT (v->pos <= sizeof (v->len));
+    }
+
+  // Write body
+  if (v->pos >= sizeof v->len)
+    {
+      const char *head = resp + (v->pos - sizeof v->len);
+      u32 remaining = i_unsafe_strlen (resp) - (v->pos - sizeof v->len);
+      v->pos += cbuffer_write (head, 1, remaining, &v->output);
+      ASSERT (v->pos <= v->active.e.cmlen + sizeof v->len);
+
+      if (v->pos == i_unsafe_strlen (resp) + sizeof v->len)
+        {
+          v->pos = 0;
+          v->is_active = false;
+          return;
+        }
+    }
 }
 
-static inline err_t
-delete_query_execute (vm *v, delete_query *q, error *e)
+static inline void
+delete_query_execute (vm *v)
 {
-  (void)v;
-  (void)e;
-  i_log_delete (q);
-  return SUCCESS;
+  vm_assert (v);
+  ASSERT (v->is_active);
+  ASSERT (v->active.type == QT_DELETE);
+
+  const char *resp = "OK";
+
+  if (v->pos == 0)
+    {
+      i_log_delete (v->active.delete);
+      v->len = i_unsafe_strlen (resp) + sizeof v->len;
+    }
+
+  // Write header
+  if (v->pos < sizeof v->len)
+    {
+      ASSERT (v->output.cap >= sizeof (v->len)); // Assumes buffer can hold a u16
+      u32 written = cbuffer_write (&v->len, sizeof v->len, 1, &v->output);
+      v->pos += written * sizeof v->len;
+      ASSERT (v->pos <= sizeof (v->len));
+    }
+
+  // Write body
+  if (v->pos >= sizeof v->len)
+    {
+      const char *head = resp + (v->pos - sizeof v->len);
+      u32 remaining = i_unsafe_strlen (resp) - (v->pos - sizeof v->len);
+      v->pos += cbuffer_write (head, 1, remaining, &v->output);
+      ASSERT (v->pos <= v->active.e.cmlen + sizeof v->len);
+
+      if (v->pos == i_unsafe_strlen (resp) + sizeof v->len)
+        {
+          v->pos = 0;
+          v->is_active = false;
+          return;
+        }
+    }
+  return;
+}
+
+static inline void
+error_query_execute (vm *v)
+{
+  vm_assert (v);
+  ASSERT (v->is_active);
+  ASSERT (!v->active.ok);
+
+  // Write header
+  if (v->pos < sizeof v->len)
+    {
+      ASSERT (v->output.cap >= sizeof (v->len)); // Assumes buffer can hold a u16
+      u32 written = cbuffer_write (&v->len, sizeof v->len, 1, &v->output);
+      v->pos += written * sizeof v->len;
+      ASSERT (v->pos <= sizeof (v->len));
+    }
+
+  // Write body
+  if (v->pos >= sizeof v->len)
+    {
+      char *head = v->active.e.cause_msg + (v->pos - sizeof v->len);
+      u32 remaining = v->active.e.cmlen - (v->pos - sizeof v->len);
+      v->pos += cbuffer_write (head, 1, remaining, &v->output);
+      ASSERT (v->pos <= v->active.e.cmlen + sizeof v->len);
+
+      if (v->pos == v->active.e.cmlen + sizeof v->len)
+        {
+          v->pos = 0;
+          v->is_active = false;
+          return;
+        }
+    }
+  return;
 }
 
 cbuffer *
@@ -91,21 +200,29 @@ vm_get_output (vm *v)
   return &v->output;
 }
 
-err_t
-vm_execute_one_query (vm *v, query *q, error *e)
+void
+vm_execute_one_query (vm *v)
 {
   vm_assert (v);
-  ASSERT (q);
+  ASSERT (v->is_active);
 
-  switch (q->type)
+  if (!v->active.ok)
+    {
+      error_query_execute (v);
+      return;
+    }
+
+  switch (v->active.type)
     {
     case QT_CREATE:
       {
-        return create_query_execute (v, q->create, e);
+        create_query_execute (v);
+        break;
       }
     case QT_DELETE:
       {
-        return delete_query_execute (v, q->delete, e);
+        delete_query_execute (v);
+        break;
       }
     default:
       {
@@ -119,25 +236,34 @@ vm_execute (vm *v)
 {
   vm_assert (v);
 
-  // Try to finish this query
-  if (v->is_active)
+  while (true)
     {
-      if (!v->active.ok)
+      // Execute active query
+      if (v->is_active)
         {
-          ASSERT (v->eidx < v->active.e.cmlen);
-          u32 remainder = v->active.e.cmlen - v->eidx;
-          u32 written = cbuffer_write (v->active.e.cause_msg, 1, remainder, &v->output);
-          v->eidx += written;
-          ASSERT (v->eidx <= v->active.e.cmlen);
-          if (v->eidx == v->active.e.cmlen)
-            {
-              v->eidx = 0;
-              v->is_active = false;
-            }
+          vm_execute_one_query (v);
+          v->is_active = false;
         }
-    }
 
-  if (!v->is_active)
-    {
+      // Block on downstream
+      if (cbuffer_avail (&v->output) < 1)
+        {
+          return;
+        }
+
+      // Block on upstream
+      if (cbuffer_avail (v->input) < sizeof (query))
+        {
+          return;
+        }
+
+      // Read the next query
+      if (!v->is_active)
+        {
+          u32 read = cbuffer_read (&v->active, sizeof (v->active), 1, v->input);
+          i_log_info ("%u\n", read);
+          ASSERT (read == 1);
+          v->is_active = true;
+        }
     }
 }
