@@ -71,6 +71,10 @@ query_provider_get (
               }
             break;
           }
+        case QT_EMPTY:
+          {
+            UNREACHABLE ();
+          }
         }
     }
 

@@ -45,7 +45,7 @@ struct compiler_s
   cbuffer output;
 
   char _input[10];
-  compiler_result _output[10];
+  query _output[10];
 
   /////////// PARSER
   // Allocator for temporary variables in parser
@@ -188,19 +188,20 @@ static void steady_state_execute_max_err (compiler *s);
     }                                                        \
   while (0)
 
-#define compiler_err_t_pass(expr, c)      \
-  do                                      \
-    {                                     \
-      err_t __ret = (err_t)expr;          \
-      if (__ret < SUCCESS)                \
-        {                                 \
-          if (c->state.state != SS_ERR)   \
-            {                             \
-              c->state.state = SS_ERR;    \
-              compiler_process_error (c); \
-            }                             \
-        }                                 \
-    }                                     \
+#define compiler_err_t_pass(expr, c)                         \
+  do                                                         \
+    {                                                        \
+      err_t __ret = (err_t)expr;                             \
+      i_log_trace ("%s: %s\n", #expr, err_t_to_str (__ret)); \
+      if (__ret < SUCCESS)                                   \
+        {                                                    \
+          if (c->state.state != SS_ERR)                      \
+            {                                                \
+              c->state.state = SS_ERR;                       \
+              compiler_process_error (c);                    \
+            }                                                \
+        }                                                    \
+    }                                                        \
   while (0)
 
 const char *
@@ -237,9 +238,8 @@ compiler_state_to_str (compiler_state state)
 }
 
 static inline void
-compiler_write_result (compiler *s, compiler_result res)
+compiler_write_result (compiler *s, query res)
 {
-  i_log_trace ("Compiler writing result ok: %d\n", res.ok);
   ASSERT (cbuffer_avail (&s->output) >= sizeof (res));
   u32 ret = cbuffer_write (&res, sizeof res, 1, &s->output);
   ASSERT (ret == 1);
@@ -253,11 +253,7 @@ compiler_process_error (compiler *s)
   ASSERT (s->state.state == SS_ERR);
 
   // Write to output buffer
-  compiler_write_result (
-      s, (compiler_result){
-             .error = s->e,
-             .ok = false,
-         });
+  compiler_write_result (s, query_error_create (s->e));
 
   s->e = error_create (NULL);
 }
@@ -388,11 +384,7 @@ compiler_process_token (compiler *s, token t)
       i_log_query (next);
 
       // Write to output buffer
-      compiler_write_result (
-          s, (compiler_result){
-                 .query = next,
-                 .ok = true,
-             });
+      compiler_write_result (s, next);
     }
 
   s->state.state = SS_START;
@@ -772,6 +764,7 @@ steady_state_execute_max_start (compiler *s)
           }
         else
           {
+            compiler_advance_expect (s);
             compiler_err_t_wrap (
                 error_causef (
                     &s->e, ERR_SYNTAX,

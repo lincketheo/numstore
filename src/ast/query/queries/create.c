@@ -50,6 +50,8 @@ create_query_create (create_query *q)
     .type = QT_CREATE,
     .qalloc = &q->query_allocator,
     .create = q,
+    .ok = true,
+    .e = error_create (NULL),
   };
 }
 

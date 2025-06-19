@@ -28,6 +28,11 @@ struct query_s
    * allocated.
    */
   lalloc *qalloc;
+
+  // One error per query
+  bool ok;
+  error e;
 };
 
 void i_log_query (query q);
+struct query_s query_error_create (error e);

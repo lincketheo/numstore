@@ -30,6 +30,8 @@ delete_query_create (delete_query *q)
     .type = QT_DELETE,
     .qalloc = &q->query_allocator,
     .delete = q,
+    .ok = true,
+    .e = error_create (NULL),
   };
 }
 

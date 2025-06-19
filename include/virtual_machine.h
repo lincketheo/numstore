@@ -7,6 +7,9 @@
 
 typedef struct vm_s vm;
 
-vm *vm_open (pager *p, error *e);
+vm *vm_open (pager *p, cbuffer *input, error *e);
 void vm_close (vm *vm);
-err_t vm_execute_one_query (vm *v, query *q, error *e);
+
+cbuffer *vm_get_output (vm *v);
+
+void vm_execute (vm *v);

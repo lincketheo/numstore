@@ -40,6 +40,7 @@ typedef struct
   do                                                                \
     {                                                               \
       err_t __ret = (err_t)expr;                                    \
+      i_log_trace ("%s: %s\n", #expr, err_t_to_str (__ret));        \
       if (__ret < SUCCESS)                                          \
         {                                                           \
           return error_trailf_dbg (e, "In function: %s", __func__); \
@@ -51,6 +52,7 @@ typedef struct
   do                                                         \
     {                                                        \
       err_t __ret = (err_t)expr;                             \
+      i_log_trace ("%s: %s\n", #expr, err_t_to_str (__ret)); \
       if (__ret < SUCCESS)                                   \
         {                                                    \
           error_trailf_dbg (e, "In function: %s", __func__); \

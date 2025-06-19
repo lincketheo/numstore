@@ -222,13 +222,13 @@ con_execute (connection *c, error *e)
   // Execute all queries
   while (cbuffer_len (output) > 0)
     {
-      compiler_result q;
+      query q;
       u32 read = cbuffer_read (&q, sizeof q, 1, output);
       ASSERT (read == 1);
 
       if (!q.ok)
         {
-          error_log_consume (&q.error);
+          error_log_consume (&q.e);
           panic ();
         }
     }

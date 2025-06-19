@@ -2,6 +2,7 @@
 
 #include "ast/query/queries/create.h" // i_log_create
 #include "ast/query/queries/delete.h" // i_log_delete
+#include "intf/logging.h"
 
 void
 i_log_query (query q)
@@ -19,4 +20,13 @@ i_log_query (query q)
         break;
       }
     }
+}
+
+struct query_s
+query_error_create (error e)
+{
+  return (query){
+    .ok = false,
+    .e = e,
+  };
 }

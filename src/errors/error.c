@@ -70,6 +70,7 @@ err_t_to_str (err_t e)
     case ERR_FALLBACK:
       return "ERR_FALLBACK";
     }
+  UNREACHABLE ();
 }
 
 error
