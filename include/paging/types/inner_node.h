@@ -46,11 +46,11 @@ typedef struct
  * N * (sizeof(key) + sizeof(pgno)) + sizeof(pgno) <= nbytes
  * N <= (nbytes - sizeof(value))/(sizeof(key) + sizeof(value))
  */
-_Static_assert(PAGE_SIZE > IN_LEAF_OFST + 5 * sizeof (b_size) + 6 * sizeof (pgno),
-               "Inner Node: PAGE_SIZE must be > IN_LEAF_OFST plus at least 5 keys");
+_Static_assert (PAGE_SIZE > IN_LEAF_OFST + 5 * sizeof (b_size) + 6 * sizeof (pgno),
+                "Inner Node: PAGE_SIZE must be > IN_LEAF_OFST plus at least 5 keys");
 #define IN_MAX_KEYS ((p_size)(((PAGE_SIZE - IN_LEAF_OFST) - sizeof (pgno)) \
                               / (sizeof (pgno) + sizeof (p_size))))
-_Static_assert(IN_MAX_KEYS > 5, "Inner Node: IN_MAX_KEYS must be > 5");
+_Static_assert (IN_MAX_KEYS > 5, "Inner Node: IN_MAX_KEYS must be > 5");
 
 err_t in_validate (const inner_node *in, error *e);
 

@@ -20,6 +20,7 @@ struct server_s
   struct pollfd pollfds[20]; // Poll list for connections
   u32 pfdlen;                // Length of pollfds
 
+  // 1 Database per server
   database *db;
 };
 
@@ -30,8 +31,15 @@ DEFINE_DBG_ASSERT_I (server, server, s)
 
 static const char *TAG = "Server";
 
+/**
+ * does the standard:
+ *  - socket
+ *  - bind
+ *  - listen
+ * subroutine for s->fd
+ */
 static inline err_t
-server_bind (server *s, u16 port, error *e)
+server_init_fd (server *s, u16 port, error *e)
 {
   int fd;
   struct sockaddr_in addr;
@@ -76,7 +84,7 @@ server_open (u16 port, const string dbname, error *e)
       return NULL;
     }
 
-  if (server_bind (ret, port, e))
+  if (server_init_fd (ret, port, e))
     {
       i_free (ret);
     }
@@ -107,6 +115,12 @@ server_accept (server *s, error *e)
       return error_causef (e, ERR_IO, "accept: %s", strerror (errno));
     }
 
+  if (cfd > 40)
+    {
+      i_log_warn ("Cfd: %d > 40, refusing to accept this many clients\n", cfd);
+      panic (); // TODO - figure out what to do on overflow. Maybe I need to respond to the client?
+    }
+
   /**
    * Set to non blocking
    * I don't think this can fail
@@ -133,7 +147,7 @@ server_accept (server *s, error *e)
 }
 
 static inline void
-server_execute_server (server *s)
+check_server_pollfd (server *s)
 {
   server_assert (s);
 
@@ -155,6 +169,15 @@ server_execute_connections (server *s)
 {
   server_assert (s);
 
+  /**
+   * Iterate through each poll fd connection
+   *
+   * Note that pollfds is densly packed, so any
+   * pfd in pollfds is necessarily "active". You can
+   * get the connection associated with that pollfd
+   * by indexing into cons[fd] where fd is the fd associated
+   * with the struct pollfd
+   */
   for (u32 i = 1; i < s->pfdlen; ++i)
     {
       struct pollfd pfd = s->pollfds[i];
@@ -189,16 +212,19 @@ server_execute (server *s)
 {
   server_assert (s);
 
-  // Create poll fd's
+  /**
+   * Create the struct pollfd data structures by iterating through
+   * the connection array and converting them to struct pollfd (if they are present)
+   */
   {
     i_memset (&s->pollfds, 0, sizeof (s->pollfds));
     s->pfdlen = 0;
 
-    // Add (my) socket to the first index
+    // The first pollfd in the array is the server socket fd for calls to accept
     struct pollfd myfd = { s->fd.fd, POLLIN, 0 };
     s->pollfds[s->pfdlen++] = myfd;
 
-    // Add all the clients to the list
+    // The remaining pollfd's are all the open connections
     for (u32 i = 0; i < 40; ++i)
       {
         if (s->cons[i])
@@ -209,32 +235,39 @@ server_execute (server *s)
   }
 
   // Execute Poll
-  i_log_trace ("Calling poll...\n");
-  int rv = poll (s->pollfds, (nfds_t)s->pfdlen, -1);
-  i_log_trace ("Poll returned: %d\n", rv);
-  if (rv < 0 && errno == EINTR)
-    {
-      // Nothing to do
-      return;
-    }
+  {
+    i_log_trace ("Calling poll...\n");
+    int rv = poll (s->pollfds, (nfds_t)s->pfdlen, -1);
+    i_log_trace ("Poll returned: %d\n", rv);
+    if (rv < 0 && errno == EINTR)
+      {
+        // Nothing to do
+        return;
+      }
 
-  if (rv < 0)
-    {
-      i_log_error ("Poll: %s\n", strerror (errno));
-      return;
-    }
+    if (rv < 0)
+      {
+        i_log_error ("Poll: %s\n", strerror (errno));
+        return;
+      }
+  }
 
-  // Listens for connections
-  server_execute_server (s);
+  // Execute business logic
+  {
+    // Listens for connections
+    check_server_pollfd (s);
 
-  // Executes code
-  server_execute_connections (s);
+    // Executes code
+    server_execute_connections (s);
+  }
 }
 
 bool
 server_is_done (server *s)
 {
   server_assert (s);
+  // TODO - I haven't figured out the logic for this function
+  // Saving this for later when everything else works
   return false;
 }
 

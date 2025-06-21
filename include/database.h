@@ -6,11 +6,16 @@
 #include "paging/pager.h"
 #include "virtual_machine.h"
 
+/**
+ * A database holds the primary resources
+ * used by the database including
+ * 1. The pager   - holds pages in memory and reads from disk
+ * 2. qspce       - memory management for queries
+ */
 typedef struct
 {
   pager *pager;
   query_provider *qspce;
-  vm *vm;
 } database;
 
 database *db_open (const string fname, error *e);

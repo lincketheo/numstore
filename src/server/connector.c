@@ -1,8 +1,8 @@
-#include "dev/assert.h"
 #include "server/connection.h"
 
 #include "compiler/compiler.h" // scanner
 #include "database.h"          // database
+#include "dev/assert.h"        // DEFINE_DBG_ASSERT_I
 #include "ds/cbuffer.h"        // cbuffer
 #include "errors/error.h"      // err_t
 #include "intf/io.h"           // i_file
@@ -144,10 +144,7 @@ con_to_pollfd (const connection *src)
     case CX_WRITING:
     case CX_WRITE_START:
       {
-        if (cbuffer_len (vm_get_output (src->vm)) > 0)
-          {
-            ret.events |= POLLOUT;
-          }
+        ret.events |= POLLOUT;
         break;
       }
     case CX_READING:
@@ -166,7 +163,16 @@ con_read (connection *c, error *e)
 {
   connection_assert (c);
 
-  ASSERT (c->state == CX_READING || c->state == CX_READ_START);
+  // Validate correct state
+  if (!(c->state == CX_READING || c->state == CX_READ_START))
+    {
+      return SUCCESS;
+    }
+
+  /**
+   * TODO - prove that you can't get here without being in these states:
+   * ASSERT (c->state == CX_READING || c->state == CX_READ_START);
+   */
 
   cbuffer *input = compiler_get_input (c->compiler);
 
@@ -239,7 +245,15 @@ con_write (connection *c, error *e)
 {
   connection_assert (c);
 
-  ASSERT (c->state == CX_WRITING || c->state == CX_WRITE_START);
+  if (!(c->state == CX_WRITE_START || c->state == CX_WRITING))
+    {
+      return SUCCESS;
+    }
+
+  /**
+   * TODO - prove that you can't get here without being in these states:
+   * ASSERT (c->state == CX_WRITING || c->state == CX_WRITE_START);
+   */
 
   cbuffer *output = vm_get_output (c->vm);
 

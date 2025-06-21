@@ -32,9 +32,9 @@ typedef struct
 #define DL_BLEN_OFST ((p_size)(DL_NEXT_OFST + sizeof (pgno)))
 #define DL_DATA_OFST ((p_size)(DL_BLEN_OFST + sizeof (p_size)))
 
-_Static_assert(PAGE_SIZE > DL_DATA_OFST + 10,
-               "Data List: PAGE_SIZE must be > DL_DATA_OFST "
-               "plus at least 10 extra bytes of data");
+_Static_assert (PAGE_SIZE > DL_DATA_OFST + 10,
+                "Data List: PAGE_SIZE must be > DL_DATA_OFST "
+                "plus at least 10 extra bytes of data");
 #define DL_DATA_SIZE ((p_size)(PAGE_SIZE - DL_DATA_OFST))
 
 err_t dl_validate (const data_list *d, error *e);

@@ -41,6 +41,21 @@ lalloc_reset_to_state (lalloc *l, u32 state)
   l->used = state;
 }
 
+// Round x up to the next multiple of a (a must be a power of two)
+static inline u32
+align_forward (u32 x, u32 a)
+{
+  return (x + (a - 1)) & ~(a - 1);
+}
+
+#if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L)
+#include <stdalign.h>
+#include <stddef.h>
+#define LALLOC_ALIGN ((u32)alignof (max_align_t))
+#else
+#define LALLOC_ALIGN ((u32)sizeof (void *))
+#endif
+
 void *
 lmalloc (lalloc *a, u32 req, u32 size)
 {
@@ -54,14 +69,22 @@ lmalloc (lalloc *a, u32 req, u32 size)
       return NULL;
     }
 
-  u32 avail = a->limit - a->used;
+  u32 start = align_forward (a->used, LALLOC_ALIGN);
+
+  // Edge case used < limit < start
+  if (start > a->limit)
+    {
+      return NULL;
+    }
+
+  u32 avail = a->limit - start;
   if (avail <= total)
     {
       return NULL;
     }
 
   void *ret = &a->data[a->used];
-  a->used += total;
+  a->used = start + total;
 
   return ret;
 }
@@ -85,4 +108,54 @@ lalloc_reset (lalloc *a)
 {
   lalloc_assert (a);
   a->used = 0;
+}
+
+TEST (lalloc_edge_cases)
+{
+  u8 mem[64];
+  lalloc a = lalloc_create (mem, sizeof (mem));
+
+  test_assert_int_equal (lalloc_get_state (&a), 0);
+  test_assert_int_equal (a.limit, sizeof (mem));
+
+  // first allocation (1 byte) must succeed and be correctly aligned
+  void *p1 = lmalloc (&a, 1, 1);
+  test_fail_if_null (p1);
+  size_t align = sizeof (void *);
+  test_assert_int_equal (((uintptr_t)p1) % align, 0);
+
+  u32 s1 = lalloc_get_state (&a);
+
+  // lcalloc must zero the returned memory
+  int *p2 = lcalloc (&a, 4, sizeof (int));
+  test_fail_if_null (p2);
+  for (int i = 0; i < 4; ++i)
+    {
+      test_assert_int_equal (p2[i], 0);
+    }
+
+  // rewind with lalloc_reset_to_state
+  lalloc_reset_to_state (&a, s1);
+  test_assert_int_equal (lalloc_get_state (&a), s1);
+
+  // allocate until only one byte is left - should still succeed
+  u32 left = a.limit - a.used;
+  void *p3 = lmalloc (&a, left - 1, 1);
+  test_fail_if_null (p3);
+
+  // allocator now “full” – further request must fail AND keep state
+  u32 before_fail = lalloc_get_state (&a);
+  void *p_fail = lmalloc (&a, 2, 1);
+  test_assert_int_equal (p_fail == NULL, true);
+  test_assert_int_equal (lalloc_get_state (&a), before_fail);
+
+  // overflow protection: extremely large request must return NULL
+  before_fail = lalloc_get_state (&a);
+  void *p_over = lmalloc (&a, UINT32_MAX, 16);
+  test_assert_int_equal (p_over == NULL, true);
+  test_assert_int_equal (lalloc_get_state (&a), before_fail);
+
+  // lalloc_reset should clear all usage
+  lalloc_reset (&a);
+  test_assert_int_equal (lalloc_get_state (&a), 0);
 }
