@@ -22,7 +22,7 @@ main (void)
 theend:
   if (s)
     {
-      server_close (s);
+      err_t_log_swallow (server_close (s, &_e), _e);
     }
   if (e.cause_code)
     {

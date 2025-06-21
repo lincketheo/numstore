@@ -73,6 +73,7 @@ void
 vm_close (vm *v)
 {
   vm_assert (v);
+  i_free (v);
 }
 
 static inline void

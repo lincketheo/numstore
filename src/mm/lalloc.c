@@ -41,21 +41,6 @@ lalloc_reset_to_state (lalloc *l, u32 state)
   l->used = state;
 }
 
-// Round x up to the next multiple of a (a must be a power of two)
-static inline u32
-align_forward (u32 x, u32 a)
-{
-  return (x + (a - 1)) & ~(a - 1);
-}
-
-#if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L)
-#include <stdalign.h>
-#include <stddef.h>
-#define LALLOC_ALIGN ((u32)alignof (max_align_t))
-#else
-#define LALLOC_ALIGN ((u32)sizeof (void *))
-#endif
-
 void *
 lmalloc (lalloc *a, u32 req, u32 size)
 {
@@ -69,22 +54,14 @@ lmalloc (lalloc *a, u32 req, u32 size)
       return NULL;
     }
 
-  u32 start = align_forward (a->used, LALLOC_ALIGN);
-
-  // Edge case used < limit < start
-  if (start > a->limit)
-    {
-      return NULL;
-    }
-
-  u32 avail = a->limit - start;
+  u32 avail = a->limit - a->used;
   if (avail <= total)
     {
       return NULL;
     }
 
   void *ret = &a->data[a->used];
-  a->used = start + total;
+  a->used = a->used + total;
 
   return ret;
 }

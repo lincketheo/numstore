@@ -50,6 +50,14 @@ cursor_open (pager *p, error *e)
   return ret;
 }
 
+void
+cursor_close (cursor *c)
+{
+  cursor_assert (c);
+  hm_close (c->h);
+  i_free (c);
+}
+
 err_t
 cursor_create_var (cursor *c, create_query *create, error *e)
 {

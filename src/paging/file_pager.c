@@ -62,8 +62,17 @@ fpgr_open (const string fname, error *e)
       return ret;
     }
 
-  err_t_wrap_null (i_open_rw (&ret->f, fname, e), e);
-  err_t_wrap_null (fpgr_set_len (ret, e), e);
+  if (i_open_rw (&ret->f, fname, e))
+    {
+      i_free (ret);
+      return NULL;
+    }
+  if (fpgr_set_len (ret, e))
+    {
+      err_t_log_swallow (i_close (&ret->f, &_e), _e);
+      i_free (ret);
+      return NULL;
+    }
 
   file_pager_assert (ret);
 
@@ -72,13 +81,13 @@ fpgr_open (const string fname, error *e)
 
 TEST (fpgr_open)
 {
-  _Static_assert (PAGE_SIZE > 2, "PAGE_SIZE should be > 2 for file_pager test");
+  error e = error_create (NULL);
+  _Static_assert(PAGE_SIZE > 2, "PAGE_SIZE should be > 2 for file_pager test");
 
   // The temp file name
   char _tmpl[] = "/tmp/fpgr_testXXXXXX";
   string tmpl = unsafe_cstrfrom (_tmpl);
   i_file fp;
-  error e = error_create (NULL);
   test_fail_if (i_mkstemp (&fp, tmpl, &e));
 
   // edge case: file shorter than header

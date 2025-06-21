@@ -30,4 +30,4 @@ bool server_is_done (server *s);
 /**
  * Free's and disconnects stuff
  */
-void server_close (server *s);
+err_t server_close (server *s, error *e);

@@ -67,6 +67,13 @@ hm_open (pager *p, error *e)
   return ret;
 }
 
+void
+hm_close (hm *h)
+{
+  hm_assert (h);
+  i_free (h);
+}
+
 /**
  * Finds the starting leaf for the variable
  * with key name [key].
@@ -537,11 +544,15 @@ hm_insert (
 
 TEST (hash_map)
 {
+  // Initialization
   error e = error_create (NULL);
   test_fail_if (i_remove_quiet (unsafe_cstrfrom ("test.db"), &e));
+
+  // Create the pager
   pager *p = pgr_open (unsafe_cstrfrom ("test.db"), &e);
   test_fail_if_null (p);
 
+  // Create the hash table
   hm *h = hm_open (p, &e);
   test_fail_if_null (h);
 
@@ -589,4 +600,15 @@ TEST (hash_map)
 
   (void)foo;
   test_assert_equal (hm_insert (h, foo, &e), SUCCESS);
+
+  // Clean up
+  test_fail_if (i_remove_quiet (unsafe_cstrfrom ("test.db"), &e));
+
+  // Create the pager
+  test_fail_if (pgr_close (p, &e));
+
+  // Create the hash table
+  hm_close (h);
+
+  test_fail_if_null (h);
 }

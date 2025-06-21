@@ -125,11 +125,20 @@ con_open (connection_params params, error *e)
   return ret;
 }
 
-void
-con_close (connection *c)
+err_t
+con_close (connection *c, error *e)
 {
   connection_assert (c);
+  compiler_free (c->compiler);
+  vm_close (c->vm);
+
+  /**
+   * NOTE: Server was the one that opened the socket
+   * connection closes it. This isn't ideal. Maybe rethink
+   */
+  i_close (&c->cfd, e);
   i_free (c);
+  return SUCCESS;
 }
 
 struct pollfd
@@ -159,7 +168,7 @@ con_to_pollfd (const connection *src)
 }
 
 err_t
-con_read (connection *c, error *e)
+con_read_max (connection *c, error *e)
 {
   connection_assert (c);
 
@@ -232,7 +241,7 @@ con_read (connection *c, error *e)
 }
 
 void
-con_execute (connection *c)
+con_execute_all (connection *c)
 {
   connection_assert (c);
 
@@ -241,7 +250,7 @@ con_execute (connection *c)
 }
 
 err_t
-con_write (connection *c, error *e)
+con_write_max (connection *c, error *e)
 {
   connection_assert (c);
 

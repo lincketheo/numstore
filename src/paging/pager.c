@@ -3,6 +3,7 @@
 #include "config.h"
 #include "dev/testing.h"
 #include "ds/robin_hood_ht.h"
+#include "ds/strings.h"
 #include "errors/error.h"
 #include "intf/io.h" // i_malloc
 #include "intf/logging.h"
@@ -116,15 +117,31 @@ pgr_close (pager *p, error *e)
   pager_assert (p);
 
   // Save all in memory pages
-  err_t_wrap (pgr_save_all (p, e), e);
+  err_t_continue (pgr_save_all (p, e), e);
 
-  // Close resources
-  err_t_wrap (fpgr_close (p->fp, e), e);
+  // Close file pager
+  err_t_continue (fpgr_close (p->fp, e), e);
+
+  // Close hash table
+  ht_close (p->pgno_to_index);
 
   // Free resources
   i_free (p);
 
   return err_t_from (e);
+}
+
+TEST (pgr_close_success)
+{
+  error e = error_create (NULL);
+  test_fail_if (i_remove_quiet (unsafe_cstrfrom ("foo.db"), &e));
+
+  pager *p = pgr_open (unsafe_cstrfrom ("foo.db"), &e);
+  test_fail_if_null (p);
+
+  // Delete file i_close should fail
+  test_assert_equal (pgr_close (p, &e), SUCCESS);
+  test_fail_if (i_remove_quiet (unsafe_cstrfrom ("foo.db"), &e));
 }
 
 p_size
@@ -296,11 +313,14 @@ pgr_save (pager *p, const page *pg, error *e)
 
 TEST (pgr_open_basic)
 {
+  error e = error_create (NULL);
+
+  // Create a temp file
   char _tmpl[] = "/tmp/pgr_testXXXXXX";
   string tmpl = unsafe_cstrfrom (_tmpl);
   i_file fp;
-  error e = error_create (NULL);
   test_fail_if (i_mkstemp (&fp, tmpl, &e));
+
   pager *p;
 
   // File is shorter than page size
@@ -370,12 +390,15 @@ TEST (pgr_new_get_save)
 
 TEST (pgr_corrupt_fetch)
 {
+  error e = error_create (NULL);
+
+  // Create a temporary file
   char _tmpl[] = "/tmp/pgr_corruptXXXXXX";
   string tmpl = unsafe_cstrfrom (_tmpl);
   i_file fp;
-  error e = error_create (NULL);
   test_fail_if (i_mkstemp (&fp, tmpl, &e));
 
+  // Open pager
   pager *p = pgr_open (tmpl, &e);
   test_fail_if_null (p);
 

@@ -63,12 +63,14 @@ failed:
   return NULL;
 }
 
-void
-db_close (database *d)
+err_t
+db_close (database *d, error *e)
 {
   database_assert (d);
-  err_t_log_swallow (pgr_close (d->pager, &_e), _e);
   query_provider_free (d->qspce);
+  pgr_close (d->pager, e);
+  i_free (d);
+  return err_t_from (e);
 }
 
 /**

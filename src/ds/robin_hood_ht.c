@@ -18,7 +18,7 @@ static const char *TAG = "Hash Table";
 hash_table *
 ht_open (u32 nelem, error *e)
 {
-  hash_table *ret = i_malloc (1, sizeof *ret + nelem * sizeof *ret->elems);
+  hash_table *ret = i_calloc (1, sizeof *ret + nelem * sizeof *ret->elems);
 
   if (ret == NULL)
     {

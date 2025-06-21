@@ -18,6 +18,7 @@ typedef struct hm_s hm;
  *   - ERR_NOMEM - no memory to allocate [hm]
  */
 hm *hm_open (pager *p, error *e);
+void hm_close (hm *h);
 
 err_t hm_get (
     hm *h,

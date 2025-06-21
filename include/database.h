@@ -19,4 +19,4 @@ typedef struct
 } database;
 
 database *db_open (const string fname, error *e);
-void db_close (database *db);
+err_t db_close (database *d, error *e);

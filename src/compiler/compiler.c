@@ -2,6 +2,7 @@
 
 #include "ast/query/queries/create.h"
 #include "ast/query/query.h" // query
+#include "ast/query/query_provider.h"
 #include "compiler/parser.h" // parser
 #include "compiler/tokens.h" // token
 #include "dev/assert.h"      // DEFINE_DBG_ASSERT_I
@@ -813,15 +814,21 @@ compiler_create (query_provider *qp, error *e)
 
 TEST (compiler_create)
 {
+  // Create Stuff
   error err = error_create (NULL);
   query_provider *qp = query_provider_create (&err);
   test_fail_if_null (qp);
-
   compiler *c = compiler_create (qp, &err);
   test_fail_if_null (c);
+
+  // Test
   test_assert_int_equal (c->state.state, SS_START);
   test_assert_int_equal (cbuffer_len (&c->input), 0);
   test_assert_int_equal (cbuffer_len (&c->output), 0);
+
+  // Cleanup
+  compiler_free (c);
+  query_provider_free (qp);
 }
 
 void

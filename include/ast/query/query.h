@@ -8,6 +8,7 @@ typedef enum
 {
   QT_CREATE,
   QT_DELETE,
+  QT_APPEND,
 } query_t;
 
 ///// QUERY

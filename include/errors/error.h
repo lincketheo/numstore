@@ -72,6 +72,26 @@ typedef struct
     }                                    \
   while (0)
 
+#define err_t_continue(expr, ename)           \
+  do                                          \
+    {                                         \
+      /* If already error, log swallow */     \
+      if (err_t_from (ename))                 \
+        {                                     \
+          error _ename = error_create (NULL); \
+          if (expr)                           \
+            {                                 \
+              error_log_consume (&_ename);    \
+            }                                 \
+        }                                     \
+      /* Otherwise, run normally */           \
+      else                                    \
+        {                                     \
+          expr;                               \
+        }                                     \
+    }                                         \
+  while (0)
+
 error error_create (struct lalloc_s *alloc);
 
 #define err_t_from(eptr) (eptr)->cause_code

@@ -77,23 +77,28 @@ server_init_fd (server *s, u16 port, error *e)
 server *
 server_open (u16 port, const string dbname, error *e)
 {
-  server *ret = i_malloc (1, sizeof *ret);
+  // Allocate the server struct
+  server *ret = i_calloc (1, sizeof *ret);
   if (ret == NULL)
     {
       error_causef (e, ERR_NOMEM, "%s Failed to allocate server", TAG);
       return NULL;
     }
 
+  // create/bind/listen
   if (server_init_fd (ret, port, e))
     {
       i_free (ret);
+      return NULL;
     }
 
+  // Open a new database
   ret->db = db_open (dbname, e);
   if (ret->db == NULL)
     {
       err_t_log_swallow (i_close (&ret->fd, &_e), _e);
       i_free (ret);
+      return NULL;
     }
 
   server_assert (ret);
@@ -135,6 +140,10 @@ server_accept (server *s, error *e)
     .caddr = client_addr,
   };
 
+  /**
+   * NOTE: Server was the one that opened the socket
+   * connection closes it. This isn't ideal. Maybe rethink
+   */
   // Open a new connection
   connection *c = con_open (params, e);
   if (c == NULL)
@@ -188,21 +197,33 @@ server_execute_connections (server *s)
       ASSERT (con);
 
       /**
-       * TODO - figure out what to do with errors:
+       * Read the maximum amount that the connection can handle
        */
-      // READ
       if (ready & POLLIN)
         {
-          err_t_log_swallow (con_read (con, &e), e);
+          err_t_log_swallow (con_read_max (con, &e), e);
         }
 
-      // EXECUTE
-      con_execute (con);
+      /**
+       * Fully execute everything that was just read
+       * Note, if you don't fully execute everything, and
+       * keep this part way done, you could risk causing a
+       * block. Less risk because most likely you execute
+       * at least 1 char so next poll will read more
+       */
+      con_execute_all (con);
 
       // WRITE
       if (ready & POLLOUT)
         {
-          err_t_log_swallow (con_write (con, &e), e);
+          err_t_log_swallow (con_write_max (con, &e), e);
+        }
+
+      // Check for close - TODO
+      if (false) // con_is_done (con))
+        {
+          err_t_log_swallow (con_close (con, &e), e);
+          s->cons[pfd.fd] = NULL;
         }
     }
 }
@@ -271,18 +292,29 @@ server_is_done (server *s)
   return false;
 }
 
-void
-server_close (server *s)
+err_t
+server_close (server *s, error *e)
 {
   server_assert (s);
+  err_t ret = SUCCESS;
+
   for (u32 i = 0; i < 40; ++i)
     {
       if (s->cons[i])
         {
-          con_close (s->cons[i]);
+          // If there's already been an error,
+          // just blindly close
+          err_t_continue (con_close (s->cons[i], e), e);
           s->cons[i] = NULL;
         }
     }
-  err_t_log_swallow (i_close (&s->fd, &_e), _e);
+
+  // Close the server file descriptor
+  err_t_continue (i_close (&s->fd, e), e);
+
+  // Close the database
+  err_t_continue (db_close (s->db, e), e);
   i_free (s);
+
+  return ret;
 }

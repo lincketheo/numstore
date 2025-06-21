@@ -10,18 +10,33 @@ jobs:
   build-and-test:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest]  # Valgrind is not available on macOS runners
     runs-on: ${{ matrix.os }}
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
 
+      - name: Install Valgrind
+        run: sudo apt-get update && sudo apt-get install -y valgrind
+
+        # Debug build to include all asserts
       - name: Debug build
         run: make debug
 
-      - name: Run tests (debug)
-        run: ./test
+      - name: Run test with Valgrind
+        run: |
+          valgrind \
+            --tool=memcheck \
+            --leak-check=full \
+            --show-leak-kinds=all \
+            --track-origins=yes \
+            --undef-value-errors=yes \
+            --expensive-definedness-checks=yes \
+            --malloc-fill=0xAA \
+            --free-fill=0xFF \
+            --error-exitcode=1 \
+            ./test
 
       - name: Clean build
         run: make clean

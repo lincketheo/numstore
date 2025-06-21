@@ -35,7 +35,7 @@ void i_log_internal (
     __attribute__ ((format (printf, 3, 4)));
 
 // Log macros
-#define i_log_trace(...) i_log_internal ("TRACE", BOLD_WHITE, __VA_ARGS__)
+#define i_log_trace(...) // i_log_internal ("TRACE", BOLD_WHITE, __VA_ARGS__)
 #define i_log_debug(...) i_log_internal ("DEBUG", BLUE, __VA_ARGS__)
 #define i_log_info(...) i_log_internal ("INFO", GREEN, __VA_ARGS__)
 #define i_log_warn(...) i_log_internal ("WARN", YELLOW, __VA_ARGS__)
