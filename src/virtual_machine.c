@@ -73,6 +73,7 @@ void
 vm_close (vm *v)
 {
   vm_assert (v);
+  cursor_close (v->c);
   i_free (v);
 }
 

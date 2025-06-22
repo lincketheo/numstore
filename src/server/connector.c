@@ -138,9 +138,9 @@ con_close (connection *c, error *e)
    * NOTE: Server was the one that opened the socket
    * connection closes it. This isn't ideal. Maybe rethink
    */
-  i_close (&c->cfd, e);
+  err_t_continue (i_close (&c->cfd, e), e);
   i_free (c);
-  return SUCCESS;
+  return err_t_from (e);
 }
 
 struct pollfd

@@ -103,6 +103,7 @@ client_close (client *c, error *e)
   err_t_continue (i_close (&c->sfd, e), e);
 
   c->sfd = (i_file){ .fd = -1 };
+  i_free (c);
   return SUCCESS;
 }
 
