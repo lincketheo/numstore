@@ -147,7 +147,6 @@ server_accept (server *s, error *e)
    * connection closes it. This isn't ideal. Maybe rethink
    */
   // Open a new connection
-  i_log_error ("OPENING: %d\n", cfd);
   connection *c = con_open (params, e);
   if (c == NULL)
     {

@@ -69,6 +69,7 @@ hm_open (pager *p, error *e)
     }
 
   // Assign variables
+  ret->hl = hl;
   ret->pager = p;
 
   // Create first page if non existant

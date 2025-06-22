@@ -20,6 +20,7 @@ struct vm_s
 
   struct
   {
+    const char *data;
     u16 pos;
     u16 len;
   };
@@ -27,6 +28,9 @@ struct vm_s
   bool is_active;
   query active;
 };
+
+static const char *good = "OK";
+static const char *bad = "ERROR";
 
 DEFINE_DBG_ASSERT_I (vm, vm, v)
 {
@@ -85,12 +89,22 @@ create_query_execute (vm *v)
   ASSERT (v->is_active);
   ASSERT (v->active.type == QT_CREATE);
 
-  const char *resp = "OK";
-
   if (v->pos == 0)
     {
       i_log_create (v->active.create);
-      v->len = i_unsafe_strlen (resp) + sizeof v->len;
+      error e = error_create (NULL);
+      err_t ret = cursor_create_var (v->c, v->active.create, &e);
+      if (ret)
+        {
+          error_log_consume (&e);
+          v->len = i_unsafe_strlen (bad) + sizeof v->len;
+          v->data = bad;
+        }
+      else
+        {
+          v->len = i_unsafe_strlen (good) + sizeof v->len;
+          v->data = good;
+        }
     }
 
   // Write header
@@ -98,19 +112,21 @@ create_query_execute (vm *v)
     {
       ASSERT (v->output.cap >= sizeof (v->len)); // Assumes buffer can hold a u16
       u32 written = cbuffer_write (&v->len, sizeof v->len, 1, &v->output);
-      v->pos += written * sizeof v->len;
-      ASSERT (v->pos <= sizeof (v->len));
+      ASSERT (written == 1);
+      v->pos = sizeof (v->len);
     }
 
   // Write body
   if (v->pos >= sizeof v->len)
     {
-      const char *head = resp + (v->pos - sizeof v->len);
-      u32 remaining = i_unsafe_strlen (resp) - (v->pos - sizeof v->len);
-      v->pos += cbuffer_write (head, 1, remaining, &v->output);
-      ASSERT (v->pos <= i_unsafe_strlen (resp) + sizeof v->len);
+      const char *head = v->data + (v->pos - sizeof v->len);
 
-      if (v->pos == i_unsafe_strlen (resp) + sizeof v->len)
+      u32 remaining = i_unsafe_strlen (v->data) - (v->pos - sizeof v->len);
+
+      v->pos += cbuffer_write (head, 1, remaining, &v->output);
+      ASSERT (v->pos <= i_unsafe_strlen (v->data) + sizeof v->len);
+
+      if (v->pos == i_unsafe_strlen (v->data) + sizeof v->len)
         {
           v->pos = 0;
           v->is_active = false;
@@ -126,12 +142,22 @@ delete_query_execute (vm *v)
   ASSERT (v->is_active);
   ASSERT (v->active.type == QT_DELETE);
 
-  const char *resp = "OK";
-
   if (v->pos == 0)
     {
       i_log_delete (v->active.delete);
-      v->len = i_unsafe_strlen (resp) + sizeof v->len;
+      error e = error_create (NULL);
+      err_t ret = cursor_delete_var (v->c, v->active.delete, &e);
+      if (ret)
+        {
+          error_log_consume (&e);
+          v->len = i_unsafe_strlen (bad) + sizeof v->len;
+          v->data = bad;
+        }
+      else
+        {
+          v->len = i_unsafe_strlen (good) + sizeof v->len;
+          v->data = good;
+        }
     }
 
   // Write header
@@ -139,26 +165,27 @@ delete_query_execute (vm *v)
     {
       ASSERT (v->output.cap >= sizeof (v->len)); // Assumes buffer can hold a u16
       u32 written = cbuffer_write (&v->len, sizeof v->len, 1, &v->output);
-      v->pos += written * sizeof v->len;
-      ASSERT (v->pos <= sizeof (v->len));
+      ASSERT (written == 1);
+      v->pos = sizeof (v->len);
     }
 
   // Write body
   if (v->pos >= sizeof v->len)
     {
-      const char *head = resp + (v->pos - sizeof v->len);
-      u32 remaining = i_unsafe_strlen (resp) - (v->pos - sizeof v->len);
-      v->pos += cbuffer_write (head, 1, remaining, &v->output);
-      ASSERT (v->pos <= i_unsafe_strlen (resp) + sizeof v->len);
+      const char *head = v->data + (v->pos - sizeof v->len);
 
-      if (v->pos == i_unsafe_strlen (resp) + sizeof v->len)
+      u32 remaining = i_unsafe_strlen (v->data) - (v->pos - sizeof v->len);
+
+      v->pos += cbuffer_write (head, 1, remaining, &v->output);
+      ASSERT (v->pos <= i_unsafe_strlen (v->data) + sizeof v->len);
+
+      if (v->pos == i_unsafe_strlen (v->data) + sizeof v->len)
         {
           v->pos = 0;
           v->is_active = false;
           return;
         }
     }
-  return;
 }
 
 static inline void
