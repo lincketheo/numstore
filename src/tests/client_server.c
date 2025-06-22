@@ -38,12 +38,10 @@ __test_client_server (char *cmnd, u32 niters)
 TEST (client_server)
 {
   __test_client_server ("create a u32;", 4);
-  /**
   __test_client_server ("create a struct { i i32, b u32 };", 6);
   __test_client_server ("create a struct { i i32, b u32, c f16 };", 7);
   __test_client_server ("create a union { i i32, b u32 };", 6);
   __test_client_server ("create a enum { foo, bar };", 5);
   __test_client_server ("create a [10][9][8] i32;", 5);
   __test_client_server ("create a union{i enum{foo, bar,     biz } , c struct { i i32, asdf [10][9][8] union { a i32, b u32 }, b cf128, d i8, e    f16 } };", 16);
-  */
 }

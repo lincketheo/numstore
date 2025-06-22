@@ -1,5 +1,5 @@
 CC            := gcc
-CFLAGS.base   := -I./include -Wall -Wextra -pedantic
+CFLAGS.base   := -I./include -Wall -Wextra -pedantic -Werror
 ifeq ($(shell uname -s),Darwin)
 CFLAGS.base  += -D_DARWIN_C_SOURCE
 endif

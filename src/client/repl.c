@@ -278,4 +278,6 @@ repl_close (repl *r, error *e)
       r->buffer = NULL;
       r->blen = 0;
     }
+
+  return SUCCESS;
 }
