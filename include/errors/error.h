@@ -93,12 +93,6 @@ typedef struct
     }                                         \
   while (0)
 
-#define err_t_arith(expr) \
-  do                      \
-    {                     \
-    }                     \
-  while (0)
-
 error error_create (struct lalloc_s *alloc);
 
 #define err_t_from(eptr) (eptr)->cause_code
