@@ -1,5 +1,6 @@
 #include "cursor/cursor.h"
 
+#include "errors/error.h"
 #include "hash_map/hm.h" // hm
 #include "intf/types.h"
 #include "rptree/rptree.h" // rptree
@@ -59,10 +60,9 @@ cursor_close (cursor *c)
 }
 
 err_t
-cursor_create_var (cursor *c, create_query *create, error *e)
+cursor_create_var (cursor *c, create_query *q, error *e)
 {
   cursor_assert (c);
-  err_t ret = SUCCESS;
 
   // Create a new rptree
   c->r = rpt_open (-1, c->p, e);
@@ -78,11 +78,23 @@ cursor_create_var (cursor *c, create_query *create, error *e)
    */
   variable var = {
     .pg0 = pg0,
-    .type = create->type,
-    .vname = create->vname,
+    .type = q->type,
+    .vname = q->vname,
   };
 
   err_t_wrap (hm_insert (c->h, var, e), e);
 
-  return ret;
+  return err_t_from (e);
+}
+
+err_t
+cursor_delete_var (cursor *c, delete_query *q, error *e)
+{
+  cursor_assert (c);
+
+  // TODO - delete rptree
+
+  err_t_wrap (hm_delete (c->h, q->vname, e), e);
+
+  return err_t_from (e);
 }

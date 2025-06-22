@@ -37,7 +37,6 @@ err_t hm_get (
  *      - pgr_new
  *      - pgr_write
  */
-err_t hm_insert (
-    hm *h,
-    const variable var,
-    error *e);
+err_t hm_insert (hm *h, const variable var, error *e);
+
+err_t hm_delete (hm *h, const string vname, error *e);

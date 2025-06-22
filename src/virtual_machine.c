@@ -1,5 +1,6 @@
 #include "virtual_machine.h"
 
+#include "ast/query/queries/create.h"
 #include "ast/query/queries/delete.h"
 #include "ast/query/query.h"
 #include "cursor/cursor.h"
@@ -84,12 +85,11 @@ create_query_execute (vm *v)
   ASSERT (v->is_active);
   ASSERT (v->active.type == QT_CREATE);
 
-  i_log_create (v->active.create);
   const char *resp = "OK";
 
   if (v->pos == 0)
     {
-      i_log_delete (v->active.delete);
+      i_log_create (v->active.create);
       v->len = i_unsafe_strlen (resp) + sizeof v->len;
     }
 

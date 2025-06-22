@@ -6,10 +6,10 @@
 DEFINE_DBG_ASSERT_I (var_hash_entry, var_hash_entry, v)
 {
   ASSERT (v);
-  ASSERT (v->vlen > 0);
+  ASSERT (v->vstr.len > 0);
   ASSERT (v->tlen > 0);
   ASSERT (v->tstr);
-  ASSERT (v->vstr);
+  ASSERT (v->vstr.data);
   ASSERT (v->pg0 != 0);
 }
 
@@ -46,8 +46,8 @@ var_hash_entry_create (
   // Copy the variable string name
   i_memcpy (str + tlen, src->vname.data, src->vname.len);
 
-  dest->vstr = (char *)(str + tlen); // TODO - alignment check
-  dest->vlen = src->vname.len;
+  dest->vstr.data = (char *)(str + tlen);
+  dest->vstr.len = src->vname.len;
   dest->tstr = str;
   dest->tlen = tlen;
   dest->pg0 = src->pg0;
@@ -72,20 +72,21 @@ var_hash_entry_deserialize (
   err_t_wrap (type_deserialize (&t, &d, alloc, e), e);
 
   // Copy over variable name
-  char *vname = lmalloc (alloc, src->vlen, 1);
+  char *vname = lmalloc (alloc, src->vstr.len, 1);
   if (vname == NULL)
     {
       return error_causef (
           e, ERR_NOMEM,
           "%s Failed to allocate memory for variable name", TAG);
     }
+  i_memcpy (vname, src->vstr.data, src->vstr.len);
 
   // Set attributes
   dest->pg0 = src->pg0;
   dest->type = t;
   dest->vname = (string){
     .data = vname,
-    .len = src->vlen,
+    .len = src->vstr.len,
   };
 
   return SUCCESS;

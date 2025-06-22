@@ -1,24 +1,29 @@
 #include "hash_map/hm.h"
+
 #include "ast/type/types.h"
 #include "dev/testing.h"
 #include "ds/strings.h"
 #include "errors/error.h"
+#include "hash_map/hl.h"
 #include "intf/io.h"
+#include "intf/stdlib.h"
 #include "mm/lalloc.h"
 #include "paging/page.h"
 #include "paging/pager.h"
 #include "paging/types/hash_page.h"
-#include "variables/vhash_fmt.h"
+#include "variables/variable.h"
 
 struct hm_s
 {
   pager *pager;
+  hl *hl;
 };
 
 DEFINE_DBG_ASSERT_I (hm, hm, v)
 {
   ASSERT (v);
   ASSERT (v->pager);
+  ASSERT (v->hl);
 }
 
 static const char *TAG = "Hash Map";
@@ -55,6 +60,14 @@ hm_open (pager *p, error *e)
       return NULL;
     }
 
+  hl *hl = hl_open (p, e);
+  if (hl == NULL)
+    {
+      ASSERT (e->cause_code);
+      i_free (ret);
+      return NULL;
+    }
+
   // Assign variables
   ret->pager = p;
 
@@ -71,6 +84,7 @@ void
 hm_close (hm *h)
 {
   hm_assert (h);
+  hl_free (h->hl);
   i_free (h);
 }
 
@@ -86,7 +100,7 @@ hm_close (hm *h)
  *      exist
  *    - ERR_DOESNT_EXIST - Leaf doesn't exist
  */
-static const page *
+static spgno
 hm_fetch_existing_starting_leaf (
     hm *h,
     const string key,
@@ -103,7 +117,8 @@ hm_fetch_existing_starting_leaf (
   const page *cur = pgr_get (PG_HASH_PAGE, 0, h->pager, e);
   if (cur == NULL)
     {
-      return NULL;
+      ASSERT (e->cause_code);
+      return err_t_from (e);
     }
 
   /**
@@ -118,115 +133,13 @@ hm_fetch_existing_starting_leaf (
    */
   if (lpg == 0)
     {
-      error_causef (
+      return error_causef (
           e, ERR_DOESNT_EXIST,
           "Key: %.*s does not exist in the hash table",
           key.len, key.data);
-      return NULL;
     }
 
-  /**
-   * Fetch the first leaf page
-   */
-  return pgr_get (PG_HASH_LEAF, lpg, h->pager, e);
-}
-
-static err_t
-hm_scroll_and_find_key (
-    hm *h,
-    vread_hash_fmt *dest, // result
-    const page *start,    // Starting page
-    const string key,     // Key we're looking for
-    error *e              // Any errors along the way
-)
-{
-  p_size pos = 0; // The byte position in the current hash list
-  const page *cur = start;
-
-  /**
-   * TODO - what if you have a cycle in the linked list?
-   * (it would be invalid)
-   */
-  while (true)
-    {
-      ASSERT (pos <= HL_DATA_LEN);
-
-      switch (dest->state)
-        {
-
-        case VHFMT_CORRUPT:
-          {
-            /**
-             * You can't get here
-             * because putting it in an invalid
-             * state would be caught by our previous
-             * error handlers inside vrhfmt
-             */
-            UNREACHABLE ();
-          }
-
-        case VHFMT_EOF:
-          {
-            return error_causef (
-                e, ERR_DOESNT_EXIST,
-                "Variable: %.*s doesn't exist",
-                key.len, key.data);
-          }
-
-        case VHFMT_DONE:
-          {
-            if (!dest->is_tombstone)
-              {
-                string vstr = (string){
-                  .data = dest->vstr,
-                  .len = dest->vstrlen,
-                };
-                if (string_equal (vstr, key))
-                  {
-                    return SUCCESS;
-                  }
-              }
-            break;
-          }
-
-        default:
-          {
-            /**
-             * We need to fetch a new page
-             */
-            if (pos == HL_DATA_LEN)
-              {
-                pgno next = hl_get_next (&cur->hl);
-                if (next == 0)
-                  {
-                    /*
-                     * Deserializer handles EOF, not paging
-                     * so this is corrupt because there should be
-                     * more
-                     */
-                    return error_causef (
-                        e, ERR_CORRUPT,
-                        "Hash Leaf expecting next page");
-                  }
-
-                cur = pgr_get (PG_HASH_LEAF, next, h->pager, e);
-                if (cur == NULL)
-                  {
-                    return err_t_from (e);
-                  }
-
-                pos = 0;
-              }
-
-            // Do the read
-            p_size nbytes = HL_DATA_LEN - pos;
-            err_t_wrap (vrhfmt_read_in (cur->hl.data + pos, &nbytes, dest, e), e);
-            pos += nbytes;
-
-            ASSERT (nbytes > 0); // infinite loops are impossible
-          }
-        }
-    }
+  return lpg;
 }
 
 err_t
@@ -238,34 +151,46 @@ hm_get (
     error *e)
 {
   // Center yourself on the starting leaf node
-  const page *cur = hm_fetch_existing_starting_leaf (h, key, e);
-  if (cur == NULL)
+  spgno start = hm_fetch_existing_starting_leaf (h, key, e);
+  if (start < 0)
     {
-      return err_t_from (e);
+      return (err_t)start;
     }
 
-  // Scroll leafs until you find yours
-  vread_hash_fmt entry = vrhfmt_create ();
-  err_t_wrap (hm_scroll_and_find_key (h, &entry, cur, key, e), e);
+  var_hash_entry result;
 
-  ASSERT (entry.state == VHFMT_DONE);
+  err_t_wrap (hl_seek (h->hl, &result, start, e), e);
 
-  // Convert to a more friendly format
-  var_hash_entry result = vrhfmt_consume (&entry);
-
-  // Convert to a variable meta data object
-  err_t ret = var_hash_entry_deserialize (dest, &result, alloc, e);
-  if (ret == ERR_TYPE_DESER)
+  while (true)
     {
-      // Treat invalid serialize methods as corrupt
-      return error_change_causef (
-          e, ERR_CORRUPT,
-          "VHash Map: "
-          "Failed to deserialize type "
-          "for variable: %.*s",
-          key.len, key.data);
+      // Check if we're at the end of the list
+      if (hl_eof (h->hl))
+        {
+          return error_causef (
+              e, ERR_DOESNT_EXIST,
+              "%s Variable: %.*s doesn't exist",
+              TAG, key.len, key.data);
+        }
+
+      if (!result.is_tombstone && string_equal (result.vstr, key))
+        {
+          // Convert to a variable meta data object
+          err_t ret = var_hash_entry_deserialize (dest, &result, alloc, e);
+          if (ret == ERR_TYPE_DESER)
+            {
+              // Treat invalid serialize methods as corrupt
+              return error_change_causef (
+                  e, ERR_CORRUPT,
+                  "%s: "
+                  "Failed to deserialize type "
+                  "for variable: %.*s",
+                  TAG, key.len, key.data);
+            }
+        }
+
+      // Read next
+      err_t_wrap (hl_read (h->hl, &result, e), e);
     }
-  return ret;
 }
 
 /**
@@ -277,7 +202,7 @@ hm_get (
  *    - ERR_IO
  *    - ERR_
  */
-static const page *
+static spgno
 hm_fetch_starting_leaf (
     hm *h,
     const string key,
@@ -294,7 +219,8 @@ hm_fetch_starting_leaf (
   const page *hp = pgr_get (PG_HASH_PAGE, 0, h->pager, e);
   if (hp == NULL)
     {
-      return NULL;
+      ASSERT (e->cause_code);
+      return err_t_from (e);
     }
 
   /**
@@ -317,195 +243,13 @@ hm_fetch_starting_leaf (
        */
       page *hpw = pgr_make_writable (h->pager, hp);
       hp_set_hash (&hpw->hp, hpos, leaf->pg);
+
+      return leaf->pg;
     }
   else
     {
-      /**
-       * Otherwise fetch the first page
-       */
-      leaf = pgr_get (PG_HASH_LEAF, lpg, h->pager, e);
-      if (leaf == NULL)
-        {
-          return NULL;
-        }
+      return lpg;
     }
-
-  return leaf;
-}
-
-/**
- * Scrolls to the end of this variable hash leaf page
- */
-static err_t
-vfhmi_scroll_to_eof (
-    const page *leaf,  // The starting leaf
-    p_size *dest_ppos, // The local page pos at the end
-    pager *p,          // Used to fetch pages
-    const string key,  // Used to check for dupes
-    error *e)
-{
-  ASSERT (leaf->type == PG_HASH_LEAF);
-
-  /**
-   * Create a deserializer to scan the variables
-   * first to find duplicates or the end (very similar
-   * to the get routine)
-   */
-  vread_hash_fmt v = vrhfmt_create (); // The reader
-  p_size pos = 0;                      // Local position on page
-
-  while (v.state != VHFMT_EOF)
-    {
-      ASSERT (pos <= HL_DATA_LEN);
-
-      switch (v.state)
-        {
-
-        case VHFMT_CORRUPT:
-          {
-            UNREACHABLE ();
-            return ERR_FALLBACK;
-          }
-        case VHFMT_EOF:
-          {
-            UNREACHABLE (); // Checked in loop condition
-            break;
-          }
-        case VHFMT_DONE:
-          {
-            if (!v.is_tombstone)
-              {
-                /**
-                 * Compare strings to see if there's
-                 * already a match
-                 */
-                string vstr = (string){
-                  .data = v.vstr,
-                  .len = v.vstrlen,
-                };
-                bool equal = string_equal (vstr, key);
-
-                if (equal)
-                  {
-                    return error_causef (
-                        e, ERR_ALREADY_EXISTS,
-                        "Variable: "
-                        "%.*s already exists",
-                        key.len, key.data);
-                  }
-              }
-            break;
-          }
-        default:
-          {
-            /**
-             * Reached the end of this page,
-             * read the next page
-             */
-            if (pos == HL_DATA_LEN)
-              {
-                pgno next = hl_get_next (&leaf->hl);
-                if (next == 0)
-                  {
-                    /**
-                     * Deserializer handles EOF, not paging
-                     * so this is corrupt because there should be
-                     * more
-                     */
-                    return error_causef (
-                        e, ERR_CORRUPT,
-                        "Hash Leaf expecting next page");
-                  }
-
-                leaf = pgr_get (PG_HASH_LEAF, next, p, e);
-                pos = 0; // Reset to the start of the page
-              }
-
-            /**
-             * Read into vrhfmt
-             */
-            p_size nbytes = HL_DATA_LEN - pos;
-            err_t_wrap (vrhfmt_read_in (
-                            leaf->hl.data + pos,
-                            &nbytes, &v, e),
-                        e);
-            pos += nbytes;
-
-            ASSERT (nbytes > 0); // Avoid infinite loops
-          }
-        }
-    }
-
-  ASSERT (v.state == VHFMT_EOF);
-  ASSERT (v.pos == 1); // vrhfmt reads the first byte to determine eof
-  ASSERT (pos > 0);
-
-  pos -= 1; // Scroll back to type header, we'll write over when we write
-  *dest_ppos = pos;
-
-  return SUCCESS;
-}
-
-static err_t
-vfhmi_write_variable_here (
-    hm *h,
-    var_hash_entry entry, // The entry to write
-    const page *leaf,     // Starting leaf page
-    p_size starting_pos,  // Starting position on that page
-    error *e)
-{
-  /**
-   * Create a deserializer to scan the variables
-   * first to find duplicates or the end (very similar
-   * to the get routine)
-   */
-  p_size pos = starting_pos;
-  vwrite_hash_fmt vw = vwhfmt_create (entry);
-
-  while (!vw.done)
-    {
-      ASSERT (pos <= HL_DATA_LEN);
-
-      /**
-       * If we're at the end, grab a new page and reset
-       */
-      if (pos == HL_DATA_LEN)
-        {
-          pgno next = hl_get_next (&leaf->hl);
-
-          // No next, need to create a new page
-          if (next == 0)
-            {
-              const page *nextp = pgr_new (h->pager, PG_HASH_LEAF, e);
-              if (nextp == NULL)
-                {
-                  return err_t_from (e);
-                }
-
-              page *leafw = pgr_make_writable (h->pager, leaf);
-              hl_set_next (&leafw->hl, nextp->pg);
-
-              leaf = nextp;
-            }
-          else
-            {
-              leaf = pgr_get (PG_HASH_LEAF, next, h->pager, e);
-              if (leaf == NULL)
-                {
-                  return err_t_from (e);
-                }
-            }
-
-          pos = 0;
-        }
-
-      p_size nbytes = HL_DATA_LEN - pos;
-      err_t_wrap (vwhfmt_write_out (leaf->hl.data + pos, &nbytes, &vw, e), e);
-
-      pos += nbytes;
-    }
-
-  return SUCCESS;
 }
 
 err_t
@@ -514,27 +258,81 @@ hm_insert (
     const variable var,
     error *e)
 {
-  var_hash_entry entry;
-
-  u8 data[2048];
-  lalloc alloc = lalloc_create (data, sizeof (data));
-
-  // First, Convert the variable into a var hash entry
-  err_t_wrap (var_hash_entry_create (&entry, &var, &alloc, e), e);
+  hm_assert (h);
 
   // Then create or get the starting hash leaf page for this key
-  const page *leaf = hm_fetch_starting_leaf (h, var.vname, e);
-  if (leaf == NULL)
+  spgno pg0 = hm_fetch_starting_leaf (h, var.vname, e);
+  if (pg0 < 0)
     {
-      return err_t_from (e);
+      return (err_t)pg0;
     }
 
-  // Scroll to the end of the variable entries
-  p_size pos = 0; // The local position within the page
-  err_t_wrap (vfhmi_scroll_to_eof (leaf, &pos, h->pager, var.vname, e), e);
+  var_hash_entry result;
 
-  // Write the variable to the end
-  err_t_wrap (vfhmi_write_variable_here (h, entry, leaf, pos, e), e);
+  err_t_wrap (hl_seek (h->hl, &result, pg0, e), e);
+
+  while (true)
+    {
+      // Check if we're at the end of the list
+      if (hl_eof (h->hl))
+        {
+          err_t_wrap (hl_append (h->hl, var, e), e);
+          return SUCCESS;
+        }
+
+      if (!result.is_tombstone && string_equal (result.vstr, var.vname))
+        {
+
+          return error_change_causef (
+              e, ERR_ALREADY_EXISTS,
+              "%s "
+              "Variable: %.*s already exists",
+              TAG, var.vname.len, var.vname.data);
+        }
+
+      // Read next
+      err_t_wrap (hl_read (h->hl, &result, e), e);
+    }
+
+  return SUCCESS;
+}
+
+err_t
+hm_delete (hm *h, const string vname, error *e)
+{
+  hm_assert (h);
+
+  spgno pg0 = hm_fetch_existing_starting_leaf (h, vname, e);
+  if (pg0 < 0)
+    {
+      return (err_t)pg0;
+    }
+
+  var_hash_entry result;
+
+  err_t_wrap (hl_seek (h->hl, &result, pg0, e), e);
+
+  while (true)
+    {
+      // Check if we're at the end of the list
+      if (hl_eof (h->hl))
+        {
+          return error_causef (
+              e, ERR_DOESNT_EXIST,
+              "%s Variable: %.*s doesn't exist",
+              TAG, vname.len, vname.data);
+          return SUCCESS;
+        }
+
+      if (!result.is_tombstone && string_equal (result.vstr, vname))
+        {
+          hl_set_tombstone (h->hl);
+          return SUCCESS;
+        }
+
+      // Read next
+      err_t_wrap (hl_read (h->hl, &result, e), e);
+    }
 
   return SUCCESS;
 }

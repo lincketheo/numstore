@@ -6,7 +6,6 @@
 #include "paging/page.h"
 #include "paging/types/inner_node.h"
 #include "utils/hashing.h"
-#include "variables/vhash_fmt.h"
 
 #include <ctype.h> // isprint
 
@@ -53,7 +52,7 @@ hl_init_empty (hash_leaf *hl)
    */
   unchecked_hash_leaf_assert (hl);
   *hl->header = PG_HASH_LEAF;
-  hl->data[0] = VHFMT_TYPE_EOF;
+  hl->data[0] = 1;
   valid_hash_leaf_assert (hl);
 }
 

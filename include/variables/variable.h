@@ -19,11 +19,11 @@ typedef struct
  */
 typedef struct
 {
-  char *vstr; // Variable name
-  u8 *tstr;   // Serialized type string
-  u16 vlen;   // Length of [vstr]
-  u16 tlen;   // Length of [tstr]
-  pgno pg0;   // The starting page
+  string vstr;       // Variable name
+  u8 *tstr;          // Serialized type string
+  u16 tlen;          // Length of [tstr]
+  pgno pg0;          // The starting page
+  bool is_tombstone; // Is this var deleted
 } var_hash_entry;
 
 /**
