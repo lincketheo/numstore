@@ -1,4 +1,5 @@
 *.o
+*.d
 .clang
 .cache
 compile_commands.json

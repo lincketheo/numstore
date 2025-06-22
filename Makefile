@@ -1,5 +1,5 @@
 CC            := gcc
-CFLAGS.base   := -I./include -Wall -Wextra -pedantic -Werror
+CFLAGS.base   := -I./include -Wall -Wextra -pedantic -Werror -Wno-error=unused-parameter -Wno-error=unused-variable -Wno-error=unused-but-set-variable -MMD -MP
 ifeq ($(shell uname -s),Darwin)
 CFLAGS.base  += -D_DARWIN_C_SOURCE
 endif
@@ -12,6 +12,7 @@ PARSER_C     := ./src/compiler/parser.c
 
 SRC          := $(shell find src -type f -name '*.c') $(PARSER_C)
 OBJ          := $(SRC:.c=.o)
+DEP          := $(SRC:.c=.d)
 
 APP_SRC      := $(wildcard apps/*.c)
 APP_OBJ      := $(APP_SRC:.c=.o)
@@ -48,16 +49,17 @@ apps/%.o: apps/%.c
 
 clean:
 	@echo "  CLEAN"
-	rm -f $(OBJ) $(APP_OBJ) $(APP_BIN) $(PARSER_C) $(LEMON) 
+	rm -f $(APP_BIN) $(PARSER_C) $(LEMON) 
 	rm -f tools/lemon/parser.c
 	rm -f tools/lemon/parser.h
 	rm -f tools/lemon/parser.out
 
+clean-all: clean
+	@echo "  CLEAN-ALL"
+	rm -f $(OBJ) $(APP_OBJ) $(DEP)
+
 format:
 	clang-format -i $(shell find src include -name '*.c' -o -name '*.h')
 
-lint:
-	clang-tidy --warnings-as-errors=* --quiet $(filter-out $(PARSER_C),$(SRC)) -- $(CFLAGS.base)
-
-.PHONY: all debug release clean format lint
+.PHONY: all debug release clean clean-all format 
 

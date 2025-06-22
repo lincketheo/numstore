@@ -49,17 +49,17 @@ typedef struct
     }                                                               \
   while (0)
 
-#define err_t_wrap_null(expr, e)                                 \
-  do                                                             \
-    {                                                            \
-      err_t __ret = (err_t)expr;                                 \
-      /*i_log_trace ("%s: %s\n", #expr, err_t_to_str (__ret));*/ \
-      if (__ret < SUCCESS)                                       \
-        {                                                        \
-          error_trailf_dbg (e, "In function: %s", __func__);     \
-          return NULL;                                           \
-        }                                                        \
-    }                                                            \
+#define err_t_wrap_null(expr, e)                                   \
+  do                                                               \
+    {                                                              \
+      err_t __ret = (err_t)expr;                                   \
+      /*i_log_trace ("%s: %s\n", #expr, err_t_to_str (__ret));*/   \
+      if (__ret < SUCCESS)                                         \
+        {                                                          \
+          (void)error_trailf_dbg (e, "In function: %s", __func__); \
+          return NULL;                                             \
+        }                                                          \
+    }                                                              \
   while (0)
 
 #define err_t_log_swallow(expr, ename)   \

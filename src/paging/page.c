@@ -37,6 +37,7 @@ page_type_tostr (page_type t)
 
 err_t
 page_set_ptrs_expect_type (
+
     page *p,
     int type,
     error *e)

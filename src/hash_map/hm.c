@@ -486,7 +486,6 @@ vfhmi_write_variable_here (
               hl_set_next (&leafw->hl, nextp->pg);
 
               leaf = nextp;
-              pos = 0;
             }
           else
             {
@@ -501,9 +500,7 @@ vfhmi_write_variable_here (
         }
 
       p_size nbytes = HL_DATA_LEN - pos;
-      err_t_wrap (vwhfmt_write_out (
-                      leaf->hl.data + pos, &nbytes, &vw, e),
-                  e);
+      err_t_wrap (vwhfmt_write_out (leaf->hl.data + pos, &nbytes, &vw, e), e);
 
       pos += nbytes;
     }
@@ -533,7 +530,7 @@ hm_insert (
     }
 
   // Scroll to the end of the variable entries
-  p_size pos; // The local position within the page
+  p_size pos = 0; // The local position within the page
   err_t_wrap (vfhmi_scroll_to_eof (leaf, &pos, h->pager, var.vname, e), e);
 
   // Write the variable to the end

@@ -180,11 +180,15 @@ kvb_build_common (
 err_t
 kvb_union_t_build (union_t *dest, kvt_builder *ub, error *e)
 {
-  string *keys;
-  type *types;
-  u16 len;
+  string *keys = NULL;
+  type *types = NULL;
+  u16 len = 0;
 
   err_t_wrap (kvb_build_common (&keys, &types, &len, ub, ub->dest, e), e);
+
+  ASSERT (keys);
+  ASSERT (types);
+  ASSERT (len > 1);
 
   dest->keys = keys;
   dest->types = types;
@@ -195,11 +199,15 @@ kvb_union_t_build (union_t *dest, kvt_builder *ub, error *e)
 err_t
 kvb_struct_t_build (struct_t *dest, kvt_builder *ub, error *e)
 {
-  string *keys;
-  type *types;
-  u16 len;
+  string *keys = NULL;
+  type *types = NULL;
+  u16 len = 0;
 
   err_t_wrap (kvb_build_common (&keys, &types, &len, ub, ub->dest, e), e);
+
+  ASSERT (keys);
+  ASSERT (types);
+  ASSERT (len > 1);
 
   dest->keys = keys;
   dest->types = types;

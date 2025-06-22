@@ -65,7 +65,7 @@ failed:
 
 TEST (parse_i32_expect)
 {
-  i32 out;
+  i32 out = -1;
   error e = error_create (NULL);
 
   const string s1 = (string){
@@ -225,7 +225,7 @@ failed:
 
 TEST (parse_f32_expect)
 {
-  f32 out;
+  f32 out = NAN;
   error e = error_create (NULL);
 
   const string s1 = {

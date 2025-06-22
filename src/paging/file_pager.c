@@ -173,7 +173,7 @@ TEST (fpgr_new)
   test_assert_int_equal (e.cause_code, SUCCESS);
   test_fail_if_null (p);
 
-  u64 pgno;
+  u64 pgno = 0;
 
   // Create a new page
   test_fail_if (fpgr_new (p, &pgno, &e));
@@ -273,7 +273,7 @@ TEST (fpgr_read_write)
   test_fail_if_null (p);
 
   // happy path: new page, write, then read back
-  u64 pgno;
+  u64 pgno = 0;
   test_fail_if (fpgr_new (p, &pgno, &e));
 
   // Write 0 : PAGE_SIZE to each byte (overflow fine, it's just data)

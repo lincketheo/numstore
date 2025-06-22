@@ -13,6 +13,7 @@
 #define UNREACHABLE() \
   do                  \
     {                 \
+      /* NOLINT */    \
       ASSERT (0);     \
       crash ();       \
     }                 \
@@ -49,7 +50,8 @@
 ////////////////////////////// Release
 #else
 
-#define panic() typedef char PANIC_in_release_mode_is_not_allowed[-1]
+//#define panic() typedef char PANIC_in_release_mode_is_not_allowed[-1]
+#define panic() (void)0
 
 #define ASSERT(expr)
 

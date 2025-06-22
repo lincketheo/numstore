@@ -122,8 +122,10 @@ server_accept (server *s, error *e)
 
   if (cfd > 40)
     {
-      i_log_warn ("Cfd: %d > 40, refusing to accept this many clients\n", cfd);
-      panic (); // TODO - figure out what to do on overflow. Maybe I need to respond to the client?
+      return error_causef (
+          e, ERR_NOMEM,
+          "%s Cfd: %d > 40, refusing to accept this many clients\n",
+          TAG, cfd);
     }
 
   /**

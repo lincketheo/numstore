@@ -50,6 +50,7 @@ extern int test_ret;     // The return value of all tests
 #define test_assert_equal(left, right)                 \
   do                                                   \
     {                                                  \
+      /* NOLINT */                                     \
       if ((left) != (right))                           \
         {                                              \
           i_log_failure ("%s != %s\n", #left, #right); \
@@ -62,6 +63,7 @@ extern int test_ret;     // The return value of all tests
 #define test_assert_int_equal(left, right)                          \
   do                                                                \
     {                                                               \
+      /* NOLINT */                                                  \
       int _left = left;                                             \
       int _right = right;                                           \
       if ((_left) != (_right))                                      \

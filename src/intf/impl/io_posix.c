@@ -368,7 +368,7 @@ i_touch (const string fname, error *e)
   ASSERT (fname.len > 0);
   ASSERT (fname.data);
 
-  i_file fd;
+  i_file fd = { 0 };
   err_t_wrap (i_open_rw (&fd, fname, e), e);
   err_t_wrap (i_close (&fd, e), e);
 
@@ -383,7 +383,10 @@ i_malloc (u32 nelem, u32 size)
   ASSERT (size > 0);
 
   u32 bytes;
-  ASSERT (SAFE_MUL_U32 (&bytes, nelem, size));
+  if (!SAFE_MUL_U32 (&bytes, nelem, size))
+    {
+      return NULL;
+    }
   return malloc ((size_t)bytes);
 }
 
@@ -393,8 +396,14 @@ i_calloc (u32 nelem, u32 size)
   ASSERT (nelem > 0);
   ASSERT (size > 0);
 
-  u32 bytes;
-  ASSERT (SAFE_MUL_U32 (&bytes, nelem, size));
+  u32 bytes = 0;
+  if (!SAFE_MUL_U32 (&bytes, nelem, size))
+    {
+      return NULL;
+    }
+
+  ASSERT (bytes > 0);
+
   return calloc ((size_t)nelem, (size_t)size);
 }
 

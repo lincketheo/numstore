@@ -129,19 +129,6 @@ prim_t_snprintf (char *str, u32 size, const prim_t *p)
     }
   len += n;
 
-  if (out)
-    {
-      out += n;
-      if ((u32)n < avail)
-        {
-          avail -= n;
-        }
-      else
-        {
-          avail = 0;
-        }
-    }
-
   return len;
 }
 
@@ -249,7 +236,7 @@ prim_t_deserialize (prim_t *dest, deserializer *src, error *e)
   bool ret = dsrlizr_read_u8 (&p, src);
   if (!ret)
     {
-      ret = error_causef (
+      return error_causef (
           e, ERR_TYPE_DESER,
           "Prim Deserialize. Expected a length header");
     }
@@ -271,7 +258,7 @@ TEST (prim_t_deserialize)
   u8 data[] = { (u8)CI32 };
   deserializer d = dsrlizr_create (data, sizeof data);
   error err = error_create (NULL);
-  prim_t out;
+  prim_t out = 0;
 
   test_assert_int_equal (prim_t_deserialize (&out, &d, &err), SUCCESS);
   test_assert_int_equal (out, CI32);

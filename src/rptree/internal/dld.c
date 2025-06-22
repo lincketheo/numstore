@@ -6,4 +6,5 @@ _rpt_dld (dld_params params, error *e)
   (void)e;
   (void)params;
   panic ();
+  return 0;
 }

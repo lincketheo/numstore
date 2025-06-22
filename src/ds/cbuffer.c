@@ -470,7 +470,6 @@ cbuffer_cbuffer_copy (cbuffer *dest, u32 sz, u32 cnt, const cbuffer *src)
 
   // advance local cursor
   pos = (pos + first) % src->cap;
-  full = false;
   bytes -= first;
 
   // second chunk if any remains

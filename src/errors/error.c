@@ -106,8 +106,12 @@ error_causef (error *e, err_t c, const char *fmt, ...)
    */
   va_list ap;
   va_start (ap, fmt);
-  u32 cmlen = i_vsnprintf (e->cause_msg, 256, fmt, ap);
+
+  va_list ap_copy;
+  va_copy (ap_copy, ap);
+  u32 cmlen = i_vsnprintf (e->cause_msg, 256, fmt, ap_copy);
   e->cmlen = MIN (cmlen, 255);
+  va_end (ap_copy);
   va_end (ap);
 
   i_log_error ("%.*s\n", e->cmlen, e->cause_msg);
@@ -132,7 +136,7 @@ error_trailf (error *e, const char *fmt, ...)
       return err_t_from (e);
     }
 
-  va_list ap;
+  va_list ap = { 0 };
   va_start (ap, fmt);
   u32 n = i_vsnprintf (NULL, 0, fmt, ap) + 1;
   va_end (ap);
