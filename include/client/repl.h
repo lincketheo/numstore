@@ -20,4 +20,4 @@ bool repl_is_running (repl *r);
 
 err_t repl_execute (repl *r, error *e);
 
-void repl_close (repl *r);
+err_t repl_close (repl *r, error *e);

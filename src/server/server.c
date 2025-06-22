@@ -130,7 +130,7 @@ server_accept (server *s, error *e)
    * Set to non blocking
    * I don't think this can fail
    */
-  fcntl (cfd, F_SETFL, fcntl (F_GETFL, 0) | O_NONBLOCK);
+  fcntl (cfd, F_SETFL, fcntl (cfd, F_GETFL, 0) | O_NONBLOCK);
 
   connection_params params = {
     .cfd = (i_file){

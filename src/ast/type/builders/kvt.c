@@ -4,7 +4,6 @@
 #include "dev/assert.h"     // ASSERT
 #include "dev/testing.h"    // TEST
 #include "errors/error.h"   // err_t
-#include "intf/stdlib.h"    // i_memcpy
 
 DEFINE_DBG_ASSERT_I (kvt_builder, kvt_builder, s)
 {
@@ -47,6 +46,7 @@ err_t
 kvb_accept_key (kvt_builder *ub, const string key, error *e)
 {
   kvt_builder_assert (ub);
+  i_log_info ("%s Accepting key: %.*s\n", TAG, (u32)key.len, key.data);
 
   // Check for duplicate keys
   if (kvt_has_key_been_used (ub, key))
@@ -56,16 +56,6 @@ kvb_accept_key (kvt_builder *ub, const string key, error *e)
           "%s: Key: %.*s has already been used",
           TAG, key.len, key.data);
     }
-
-  // Copy data onto dest allocator
-  char *data = lmalloc (ub->dest, key.len, 1);
-  if (data == NULL)
-    {
-      return error_causef (
-          e, ERR_NOMEM,
-          "%s Failed to allocate key onto destination", TAG);
-    }
-  i_memcpy (data, key.data, key.len);
 
   // Find where to insert this new key in the linked list
   llnode *slot = llnode_get_n (ub->head, ub->klen);
@@ -101,10 +91,7 @@ kvb_accept_key (kvt_builder *ub, const string key, error *e)
     }
 
   // Create the node
-  node->key = (string){
-    .data = data,
-    .len = key.len,
-  };
+  node->key = key;
   ub->klen++;
 
   return SUCCESS;
@@ -261,11 +248,6 @@ TEST (kvt_builder)
   test_assert_int_equal (kvb_accept_key (&kb, key_name, &err), SUCCESS);
   type t_str = (type){ .type = T_PRIM, .p = I32 };
   test_assert_int_equal (kvb_accept_type (&kb, t_str, &err), SUCCESS);
-
-  // 5. Memory limit – oversize key should trigger ERR_NOMEM
-  string big_key = (string){ .len = 2048 + 1, .data = "foo" };
-  test_assert_int_equal (kvb_accept_key (&kb, big_key, &err), ERR_NOMEM);
-  err.cause_code = SUCCESS;
 
   // 6. mismatched key/type counts → build must fail
   string key_extra = unsafe_cstrfrom ("extra");

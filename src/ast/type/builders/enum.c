@@ -3,8 +3,6 @@
 #include "dev/assert.h"   // DEFINE_DBG_ASSERT_I
 #include "dev/testing.h"  // TEST
 #include "errors/error.h" // err_t
-#include "intf/stdlib.h"  // i_memcpy
-#include "mm/lalloc.h"
 
 DEFINE_DBG_ASSERT_I (enum_builder, enum_builder, s)
 {
@@ -52,13 +50,6 @@ enb_accept_key (enum_builder *eb, const string key, error *e)
           "%s: Key length must be > 0", TAG);
     }
 
-  char *dest = lmalloc (eb->dest, key.len, 1);
-  if (dest == NULL)
-    {
-      return error_causef (e, ERR_NOMEM, "%s Failed to copy enum string", TAG);
-    }
-  i_memcpy (dest, key.data, key.len);
-
   if (enb_has_key_been_used (eb, key))
     {
       return error_causef (
@@ -95,10 +86,7 @@ enb_accept_key (enum_builder *eb, const string key, error *e)
         }
     }
 
-  node->key = (string){
-    .data = dest,
-    .len = key.len,
-  };
+  node->key = key;
   return SUCCESS;
 }
 
@@ -168,11 +156,6 @@ TEST (enum_builder)
   // 4. accept a second key "B"
   string B = unsafe_cstrfrom ("B");
   test_assert_int_equal (enb_accept_key (&eb, B, &err), SUCCESS);
-
-  // 5. Memory limit
-  string C = (string){ .len = 2048 + 1, .data = "foo" };
-  test_assert_int_equal (enb_accept_key (&eb, C, &err), ERR_NOMEM);
-  err.cause_code = SUCCESS;
 
   // 5. build now that we have two keys
   enum_t en = { 0 };

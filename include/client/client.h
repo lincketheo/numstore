@@ -15,7 +15,7 @@ client *client_open (const char *ipaddr, u16 port, error *e);
 /**
  * Disconnects. Client must be connected
  */
-void client_close (client *c);
+err_t client_close (client *c, error *e);
 
 /**
  * Writes the entire contents of string

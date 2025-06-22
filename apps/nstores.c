@@ -1,33 +1,7 @@
-#include "ds/strings.h"
-#include "errors/error.h"
-#include "server/server.h"
+#include "domain/run_server.h"
 
 int
 main (void)
 {
-  error e = error_create (NULL);
-
-  server *s = server_open (8123, unsafe_cstrfrom ("test.db"), &e);
-
-  if (s == NULL)
-    {
-      goto theend;
-    }
-
-  while (!server_is_done (s))
-    {
-      server_execute (s);
-    }
-
-theend:
-  if (s)
-    {
-      err_t_log_swallow (server_close (s, &_e), _e);
-    }
-  if (e.cause_code)
-    {
-      error_log_consume (&e);
-      return -1;
-    }
-  return 0;
+  return run_server ();
 }

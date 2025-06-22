@@ -66,6 +66,8 @@ err_t_to_str (err_t e)
       return "ERR_PAGE_STACK_OVERFLOW";
     case ERR_ARITH:
       return "ERR_ARITH";
+    case ERR_UNEXPECTED:
+      return "ERR_UNEXPECTED";
 
     case ERR_FALLBACK:
       return "ERR_FALLBACK";
@@ -107,6 +109,8 @@ error_causef (error *e, err_t c, const char *fmt, ...)
   u32 cmlen = i_vsnprintf (e->cause_msg, 256, fmt, ap);
   e->cmlen = MIN (cmlen, 255);
   va_end (ap);
+
+  i_log_error ("%.*s\n", e->cmlen, e->cause_msg);
 
   return err_t_from (e);
 }

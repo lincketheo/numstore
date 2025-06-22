@@ -172,21 +172,36 @@ static void steady_state_execute_max_err (compiler *s);
 /// Some simple tools to help scanning like special
 /// advance functions etc.
 
-#define compiler_err_t_wrap(expr, c)                         \
-  do                                                         \
-    {                                                        \
-      err_t __ret = (err_t)expr;                             \
-      i_log_trace ("%s: %s\n", #expr, err_t_to_str (__ret)); \
-      if (__ret < SUCCESS)                                   \
-        {                                                    \
-          if (c->state.state != SS_ERR)                      \
-            {                                                \
-              c->state.state = SS_ERR;                       \
-              compiler_process_error (c);                    \
-            }                                                \
-          return __ret;                                      \
-        }                                                    \
-    }                                                        \
+#define compiler_err_t_wrap(expr, c)      \
+  do                                      \
+    {                                     \
+      err_t __ret = (err_t)expr;          \
+      if (__ret < SUCCESS)                \
+        {                                 \
+          if (c->state.state != SS_ERR)   \
+            {                             \
+              c->state.state = SS_ERR;    \
+              compiler_process_error (c); \
+            }                             \
+          return __ret;                   \
+        }                                 \
+    }                                     \
+  while (0)
+
+#define compiler_err_t_wrap_null(expr, c) \
+  do                                      \
+    {                                     \
+      err_t __ret = (err_t)expr;          \
+      if (__ret < SUCCESS)                \
+        {                                 \
+          if (c->state.state != SS_ERR)   \
+            {                             \
+              c->state.state = SS_ERR;    \
+              compiler_process_error (c); \
+            }                             \
+          return NULL;                    \
+        }                                 \
+    }                                     \
   while (0)
 
 #define compiler_err_t_pass(expr, c)                         \
@@ -337,6 +352,31 @@ compiler_peek (u8 *dest, compiler *s)
   return cbuffer_peek_dequeue (dest, &s->input);
 }
 
+static inline err_t
+compiler_xfer_str_onto_parser_alloc (string *dest, compiler *s)
+{
+  compiler_assert (s);
+  ASSERT (s->state.slen > 0);
+  char *ret = lmalloc (&s->parser_work, 1, s->state.slen);
+  if (ret == NULL)
+    {
+      compiler_err_t_wrap (
+          error_causef (
+              &s->e, ERR_NOMEM,
+              "%s: internal buffer overflow",
+              TAG),
+          s);
+      UNREACHABLE ();
+    }
+  i_memcpy (ret, s->state.str, s->state.slen);
+  *dest = (string){
+    .data = ret,
+    .len = s->state.slen,
+  };
+  s->state.slen = 0;
+  return SUCCESS;
+}
+
 /**
  * Skips over chars until it finds non white space
  */
@@ -368,6 +408,7 @@ compiler_process_token (compiler *s, token t)
   compiler_assert (s);
 
   // Parse this token
+
   compiler_err_t_wrap (parser_parse (&s->parser, t, &s->e), s);
 
   // Check parser state
@@ -440,11 +481,9 @@ process_string_or_ident (compiler *s, token_t type)
   compiler_assert (s);
   ASSERT (type == TT_STRING || type == TT_IDENTIFIER);
 
-  string literal = (string){
-    .data = s->state.str,
-    .len = s->state.slen,
-  };
-  s->state.slen = 0; // len is captured in literal, safe to reset
+  string literal;
+
+  compiler_err_t_wrap (compiler_xfer_str_onto_parser_alloc (&literal, s), s);
 
   // Process the token
   token t = (token){

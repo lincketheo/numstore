@@ -79,6 +79,8 @@ DEFINE_DBG_ASSERT_I (connection, connection, c)
     }
 }
 
+static const char *TAG = "Connection";
+
 connection *
 con_open (connection_params params, error *e)
 {
@@ -191,46 +193,40 @@ con_read_max (connection *c, error *e)
     {
       return (err_t)nread;
     }
+  c->pos += nread;
 
   // Read the header if needed
   if (c->state == CX_READ_START)
     {
-      ASSERT (c->pos < sizeof (u16));
-      u16 toread = sizeof (u16) - c->pos;
-
       // Read into the header
-      c->pos += (u16)cbuffer_read (c->header, 1, toread, input);
-      ASSERT (c->pos <= sizeof (u16));
-
-      // Transition
-      if (c->pos == sizeof (u16))
+      u16 header = cbuffer_read (c->header, sizeof (u16), 1, input);
+      if (header)
         {
-          u16 len;
-          i_memcpy (&len, c->header, sizeof (len)); // TODO - network endianness
-          c->len = len;
+          // Copy into actual len
+          // TODO - network endianness
+          i_memmove (&c->len, c->header, sizeof (c->len));
           c->state = CX_READING;
         }
+    }
+
+  // Check position
+  if (c->pos > c->len)
+    {
+      return error_causef (
+          e, ERR_INVALID_ARGUMENT,
+          "%s Input overflow on read, expected: %d bytes, got %d bytes",
+          TAG, c->len, c->pos);
     }
 
   // Check read buffer
   if (c->state == CX_READING)
     {
-      ASSERT (c->len > c->pos);
-      u16 remaining = c->len - c->pos;
-
-      if (cbuffer_len (input) > remaining)
-        {
-          return error_causef (
-              e, ERR_INVALID_ARGUMENT,
-              "Socket read more bytes "
-              "than header specified");
-        }
+      ASSERT (c->len >= c->pos);
 
       compiler_execute (c->compiler);
       vm_execute (c->vm);
 
-      // We read all we needed - transition to writing
-      if (cbuffer_len (input) == remaining)
+      if (c->pos == c->len)
         {
           c->state = CX_WRITE_START;
           c->pos = 0;
@@ -269,29 +265,31 @@ con_write_max (connection *c, error *e)
   // Read the header if needed
   if (c->state == CX_WRITE_START)
     {
-      ASSERT (c->pos < sizeof (u16));
-      u16 toread = sizeof (u16) - c->pos;
-
       // Read into the header
-      c->pos += (u16)cbuffer_read (c->header, 1, toread, output);
-      ASSERT (c->pos <= sizeof (u16));
-
-      // Transition
-      if (c->pos == sizeof (u16))
+      u16 header = (u16)cbuffer_read (c->header, sizeof (u16), 1, output);
+      if (header)
         {
-          u16 len;
-          i_memcpy (&len, c->header, sizeof (len)); // TODO - network endianness
-          c->len = len;
+          i_memmove (&c->len, c->header, sizeof (c->len));
+          // Write the length to the file first
+          err_t_wrap (i_write_all (&c->cfd, &c->len, sizeof (u16), e), e);
+          c->pos += sizeof (u16);
           c->state = CX_WRITING;
         }
+    }
+
+  if (c->pos > c->len)
+    {
+      return error_causef (
+          e, ERR_INVALID_ARGUMENT,
+          "%s Input overflow on write, expected: %d bytes, got %d bytes",
+          TAG, c->len, c->pos);
     }
 
   // Check read buffer
   if (c->state == CX_WRITING)
     {
       // TODO - you can clean this up when your brain is fresh
-      ASSERT (c->len > c->pos);
-      u16 remaining = c->len - c->pos;
+      ASSERT (c->len >= c->pos);
 
       // Write out to the socket
       i32 nwritten = cbuffer_read_some_to_file (&c->cfd, output, e);
@@ -304,12 +302,11 @@ con_write_max (connection *c, error *e)
        * TODO - I made this an assertion because it's
        * controlled by me, but should it be?
        */
-      ASSERT (nwritten <= remaining);
-      ASSERT (nwritten <= c->pos);
-      c->pos -= nwritten;
+      c->pos += nwritten;
+      ASSERT (c->pos <= c->len);
 
       // We read all we needed - transition to writing
-      if (nwritten == remaining)
+      if (c->pos == c->len)
         {
           c->state = CX_READ_START;
           c->pos = 0;

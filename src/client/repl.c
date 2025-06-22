@@ -266,12 +266,12 @@ repl_execute (repl *r, error *e)
   return SUCCESS;
 }
 
-void
-repl_close (repl *r)
+err_t
+repl_close (repl *r, error *e)
 {
   repl_assert (r);
 
-  client_close (r->client);
+  err_t_continue (client_close (r->client, e), e);
   if (r->buffer)
     {
       free (r->buffer);

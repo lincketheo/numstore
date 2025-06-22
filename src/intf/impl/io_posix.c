@@ -5,6 +5,7 @@
 #include "mm/lalloc.h"
 #include "utils/bounds.h"
 
+#include <asm-generic/errno.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -168,9 +169,15 @@ i_read_some (i_file *fp, void *dest, u64 nbytes, error *e)
   ASSERT (dest);
   ASSERT (nbytes > 0);
 
+  i_log_trace ("Trying to read: %llu bytes\n", nbytes);
   ssize_t ret = read (fp->fd, dest, nbytes);
-  if (ret < 0 && errno != EINTR)
+  i_log_trace ("Read: %lu bytes\n", ret);
+  if (ret < 0)
     {
+      if (errno == EINTR || errno == EWOULDBLOCK)
+        {
+          return 0;
+        }
       return error_causef (e, ERR_IO, "read: %s", strerror (errno));
     }
   return (i64)ret;
@@ -202,8 +209,12 @@ i_read_all (i_file *fp, void *dest, u64 nbytes, error *e)
         }
 
       // Error
-      if (_nread < 0 && errno != EINTR)
+      if (_nread < 0)
         {
+          if (errno == EINTR || errno == EWOULDBLOCK)
+            {
+              return 0;
+            }
           return error_causef (e, ERR_IO, "read: %s", strerror (errno));
         }
 
@@ -222,7 +233,9 @@ i_write_some (i_file *fp, const void *src, u64 nbytes, error *e)
   ASSERT (src);
   ASSERT (nbytes > 0);
 
+  i_log_trace ("Trying to write: %llu bytes\n", nbytes);
   ssize_t ret = write (fp->fd, src, nbytes);
+  i_log_trace ("Written: %lu bytes\n", ret);
   if (ret < 0 && errno != EINTR)
     {
       return error_causef (e, ERR_IO, "write: %s", strerror (errno));
