@@ -1,8 +1,8 @@
 #pragma once
 
-#include "client/client.h" // client
-#include "errors/error.h"  // error
-#include "intf/types.h"    // u32
+#include "client/client.h"     // client
+#include "core/errors/error.h" // error
+#include "core/intf/types.h"   // u32
 
 #include <netinet/in.h> // sockaddr_in
 

@@ -1,13 +1,13 @@
 #include "server/connection.h"
 
 #include "compiler/compiler.h" // scanner
-#include "database.h"          // database
-#include "dev/assert.h"        // DEFINE_DBG_ASSERT_I
-#include "ds/cbuffer.h"        // cbuffer
-#include "errors/error.h"      // err_t
-#include "intf/io.h"           // i_file
-#include "intf/stdlib.h"       // i_memcpy
-#include "virtual_machine.h"
+#include "core/dev/assert.h"   // DEFINE_DBG_ASSERT_I
+#include "core/ds/cbuffer.h"   // cbuffer
+#include "core/errors/error.h" // err_t
+#include "core/intf/io.h"      // i_file
+#include "core/intf/stdlib.h"  // i_memcpy
+#include "numstore/database.h" // database
+#include "numstore/virtual_machine.h"
 
 #include <stdlib.h>   // malloc / free
 #include <sys/poll.h> // pollfd

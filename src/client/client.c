@@ -1,11 +1,11 @@
 #include "client/client.h"
 
-#include "dev/assert.h"
-#include "ds/cbuffer.h"
-#include "errors/error.h"
-#include "intf/io.h"
-#include "intf/logging.h"
-#include "intf/stdlib.h"
+#include "core/dev/assert.h"
+#include "core/ds/cbuffer.h"
+#include "core/errors/error.h"
+#include "core/intf/io.h"
+#include "core/intf/logging.h"
+#include "core/intf/stdlib.h"
 
 #include <arpa/inet.h>
 #include <errno.h>

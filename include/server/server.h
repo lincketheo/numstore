@@ -1,8 +1,8 @@
 #pragma once
 
-#include "ds/strings.h"
-#include "errors/error.h"
-#include "intf/types.h"
+#include "core/ds/strings.h"
+#include "core/errors/error.h"
+#include "core/intf/types.h"
 
 #include <poll.h> // struct pollfd
 

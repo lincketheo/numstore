@@ -1,10 +1,10 @@
 #include "server/server.h"
 
-#include "database.h"
-#include "errors/error.h"
-#include "intf/io.h"
-#include "intf/logging.h"
-#include "intf/stdlib.h"
+#include "core/errors/error.h"
+#include "core/intf/io.h"
+#include "core/intf/logging.h"
+#include "core/intf/stdlib.h"
+#include "numstore/database.h"
 #include "server/connection.h"
 
 #include <errno.h>

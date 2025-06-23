@@ -1,7 +1,7 @@
 #pragma once
 
-#include "errors/error.h"
-#include "intf/types.h" // u16
+#include "core/errors/error.h"
+#include "core/intf/types.h" // u16
 
 #include <netinet/in.h> // sockaddr_in
 

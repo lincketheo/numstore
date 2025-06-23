@@ -1,7 +1,7 @@
-#include "dev/testing.h"
-#include "ds/strings.h"
-#include "errors/error.h"
-#include "intf/io.h"
+#include "core/dev/testing.h"
+#include "core/ds/strings.h"
+#include "core/errors/error.h"
+#include "core/intf/io.h"
 #include "server/server.h"
 
 TEST (server_open_green_path)

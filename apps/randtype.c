@@ -1,9 +1,9 @@
-#include "ast/type/types.h"
-#include "ast/type/types/prim.h"
-#include "errors/error.h"
-#include "intf/io.h"
-#include "intf/types.h"
-#include "mm/lalloc.h"
+#include "compiler/ast/type/types.h"
+#include "compiler/ast/type/types/prim.h"
+#include "core/errors/error.h"
+#include "core/intf/io.h"
+#include "core/intf/types.h"
+#include "core/mm/lalloc.h"
 
 #include <stdio.h>
 #include <stdlib.h>

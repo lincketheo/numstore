@@ -1,9 +1,9 @@
 #include "client/client.h"
-#include "dev/testing.h"
-#include "ds/strings.h"
-#include "errors/error.h"
-#include "intf/io.h"
-#include "intf/logging.h"
+#include "core/dev/testing.h"
+#include "core/ds/strings.h"
+#include "core/errors/error.h"
+#include "core/intf/io.h"
+#include "core/intf/logging.h"
 #include "server/server.h"
 
 void

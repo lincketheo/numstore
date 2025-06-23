@@ -1,14 +1,14 @@
 
 #include "compiler/parser.h"
-#include "ast/query/queries/create.h"
-#include "ast/query/query.h"
-#include "ast/query/query_provider.h"
+#include "compiler/ast/query/queries/create.h"
+#include "compiler/ast/query/query.h"
+#include "compiler/ast/query/query_provider.h"
 #include "compiler/tokens.h"
-#include "ds/strings.h"
-#include "errors/error.h"
-#include "intf/logging.h"
-#include "mm/lalloc.h"
-#include "utils/macros.h"
+#include "core/ds/strings.h"
+#include "core/errors/error.h"
+#include "core/intf/logging.h"
+#include "core/mm/lalloc.h"
+#include "core/utils/macros.h"
 
 #include <stdlib.h>
 

@@ -1,8 +1,8 @@
 
-#include "ds/strings.h"
-#include "errors/error.h"
-#include "paging/page.h"
-#include "paging/pager.h"
+#include "core/ds/strings.h"
+#include "core/errors/error.h"
+#include "numstore/paging/page.h"
+#include "numstore/paging/pager.h"
 int
 main (void)
 {

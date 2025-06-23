@@ -1,18 +1,18 @@
 #include "compiler/compiler.h"
 
-#include "ast/query/queries/create.h"
-#include "ast/query/query.h" // query
-#include "ast/query/query_provider.h"
-#include "compiler/parser.h" // parser
-#include "compiler/tokens.h" // token
-#include "dev/assert.h"      // DEFINE_DBG_ASSERT_I
-#include "dev/testing.h"     // TEST
-#include "ds/cbuffer.h"      // cbuffer
-#include "errors/error.h"    // err_t
-#include "intf/logging.h"
-#include "mm/lalloc.h"     // lalloc
-#include "utils/macros.h"  // is_alpha
-#include "utils/numbers.h" // parse_i32_expect
+#include "compiler/ast/query/queries/create.h"
+#include "compiler/ast/query/query.h" // query
+#include "compiler/ast/query/query_provider.h"
+#include "compiler/parser.h"   // parser
+#include "compiler/tokens.h"   // token
+#include "core/dev/assert.h"   // DEFINE_DBG_ASSERT_I
+#include "core/dev/testing.h"  // TEST
+#include "core/ds/cbuffer.h"   // cbuffer
+#include "core/errors/error.h" // err_t
+#include "core/intf/logging.h"
+#include "core/mm/lalloc.h"     // lalloc
+#include "core/utils/macros.h"  // is_alpha
+#include "core/utils/numbers.h" // parse_i32_expect
 
 typedef struct
 {

@@ -1,0 +1,6 @@
+-g
+-O0
+-Wall
+-Wextra
+-pedantic 
+-Werror 

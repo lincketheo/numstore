@@ -1,12 +1,12 @@
 #include "client/repl.h"
 
-#include "client/client.h" // client
-#include "dev/assert.h"    // DEFINE_DBG_ASSERT_I
-#include "errors/error.h"  // err_t
-#include "intf/io.h"
-#include "intf/stdlib.h"      // i_memcpy
-#include "thirdp/linenoise.h" // linenoise
-#include "utils/macros.h"     // arrlen
+#include "client/client.h"     // client
+#include "client/linenoise.h"  // linenoise
+#include "core/dev/assert.h"   // DEFINE_DBG_ASSERT_I
+#include "core/errors/error.h" // err_t
+#include "core/intf/io.h"
+#include "core/intf/stdlib.h"  // i_memcpy
+#include "core/utils/macros.h" // arrlen
 
 #include <errno.h>  // strerror
 #include <stdlib.h> // free

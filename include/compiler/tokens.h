@@ -1,9 +1,9 @@
 #pragma once
 
-#include "ast/query/queries/create.h"
-#include "ast/query/query.h"
-#include "ast/type/types.h"
-#include "ds/strings.h"
+#include "compiler/ast/query/queries/create.h"
+#include "compiler/ast/query/query.h"
+#include "compiler/ast/type/types.h"
+#include "core/ds/strings.h"
 
 typedef enum
 {

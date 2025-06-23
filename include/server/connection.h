@@ -1,10 +1,10 @@
 #pragma once
 
-#include "ast/query/query_provider.h" // qspce_prvdr
-#include "compiler/compiler.h"        // compiler
-#include "database.h"                 // database
-#include "errors/error.h"             // error
-#include "intf/io.h"                  // i_file
+#include "compiler/ast/query/query_provider.h" // qspce_prvdr
+#include "compiler/compiler.h"                 // compiler
+#include "core/errors/error.h"                 // error
+#include "core/intf/io.h"                      // i_file
+#include "numstore/database.h"                 // database
 
 #include <netinet/in.h> // sockaddr_in
 

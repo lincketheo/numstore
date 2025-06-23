@@ -1,0 +1,10 @@
+1. Implement Value AST 
+2. Parse Value AST from lexer and parser 
+
+3. Implement Append for value type
+4. Implement Read for value type
+6. Implement Delete for value type
+
+7. Implement other ones
+
+8. Implement socket create for read write etc.

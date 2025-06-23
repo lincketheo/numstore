@@ -1,7 +1,7 @@
-#include "dev/testing.h"
-#include "intf/io.h"
-#include "intf/stdlib.h"
-#include "utils/macros.h"
+#include "core/dev/testing.h"
+#include "core/intf/io.h"
+#include "core/intf/stdlib.h"
+#include "core/utils/macros.h"
 
 #include <stdio.h>
 #include <time.h>

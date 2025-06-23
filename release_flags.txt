@@ -1,0 +1,4 @@
+-O2
+-DNDEBUG
+-Wall
+-Wextra 

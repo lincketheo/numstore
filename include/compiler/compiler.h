@@ -1,8 +1,8 @@
 #pragma once
 
-#include "ast/query/query_provider.h" // query_provider
-#include "ds/cbuffer.h"               // cbuffer
-#include "intf/types.h"               // u32
+#include "compiler/ast/query/query_provider.h" // query_provider
+#include "core/ds/cbuffer.h"                   // cbuffer
+#include "core/intf/types.h"                   // u32
 
 /**
  * A single compiler combines both scan and parse steps

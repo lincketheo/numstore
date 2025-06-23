@@ -1,11 +1,11 @@
 #pragma once
 
-#include "ast/query/query_provider.h"
-#include "ast/type/types.h"
+#include "compiler/ast/query/query_provider.h"
+#include "compiler/ast/type/types.h"
 #include "compiler/tokens.h"
-#include "errors/error.h"
-#include "intf/io.h"
-#include "mm/lalloc.h"
+#include "core/errors/error.h"
+#include "core/intf/io.h"
+#include "core/mm/lalloc.h"
 
 #include <stddef.h> // size_t
 

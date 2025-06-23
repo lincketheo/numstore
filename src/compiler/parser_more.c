@@ -1,6 +1,6 @@
 #include "compiler/parser.h"
-#include "errors/error.h"
-#include "mm/lalloc.h"
+#include "core/errors/error.h"
+#include "core/mm/lalloc.h"
 #include <stdio.h>
 #include <stdlib.h>
 
