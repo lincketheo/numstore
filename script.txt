@@ -1,7 +1,0 @@
-
-
-begin
-create a u32 
-create d u32 
-create b { 
-create c 
