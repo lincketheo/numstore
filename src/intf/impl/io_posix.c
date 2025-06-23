@@ -171,11 +171,13 @@ i_read_some (i_file *fp, void *dest, u64 nbytes, error *e)
 
   i_log_trace ("Trying to read: %llu bytes\n", nbytes);
   ssize_t ret = read (fp->fd, dest, nbytes);
-  i_log_trace ("Read: %lu bytes\n", ret);
+  i_log_trace ("Read: %ld bytes\n", ret);
+
   if (ret < 0)
     {
       if (errno == EINTR || errno == EWOULDBLOCK)
         {
+          i_log_trace ("Read got errno: %d - ok\n", errno);
           return 0;
         }
       return error_causef (e, ERR_IO, "read: %s", strerror (errno));

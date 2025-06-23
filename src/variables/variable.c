@@ -51,6 +51,7 @@ var_hash_entry_create (
   dest->tstr = str;
   dest->tlen = tlen;
   dest->pg0 = src->pg0;
+  dest->is_tombstone = false;
 
   var_hash_entry_assert (dest);
 

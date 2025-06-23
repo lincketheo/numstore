@@ -3,6 +3,9 @@
 #include "paging/pager.h"
 #include "variables/variable.h"
 
+#define ISEOF (1 << 0)
+#define ISPREVTOMB (1 << 1)
+
 typedef struct hl_s hl;
 
 hl *hl_open (pager *p, error *e);

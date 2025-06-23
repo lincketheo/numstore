@@ -26,8 +26,6 @@
  * TSTR        [TSTRLEN bytes]  - Type name string
  * ====================
  */
-#define ISEOF (1 << 0)
-#define ISPREVTOMB (1 << 1)
 
 // iseof + vstrlen + tstrlen + pgo + istomb
 #define HL_HEADER_LEN (4 + sizeof (pgno)) // Length of upfront header
@@ -363,9 +361,9 @@ hl_read (hl *h, var_hash_entry *dest, error *e)
       return SUCCESS;
     }
 
-  // Read in the header
-  err_t_wrap (pgrst_read (h->header, HL_HEADER_LEN, &h->stream, e), e);
-  err_t_wrap (parse_and_validate_header (h, e), e);
+  err_t_wrap (pgrst_read (NULL, 1, &h->stream, e), e);                  // 1 byte header
+  err_t_wrap (pgrst_read (h->header, HL_HEADER_LEN, &h->stream, e), e); // header
+  err_t_wrap (parse_and_validate_header (h, e), e);                     // parse
 
   // Read in the data
   err_t_wrap (pgrst_read (h->raw, h->vstrlen + h->tstrlen, &h->stream, e), e);
@@ -385,6 +383,7 @@ hl_read (hl *h, var_hash_entry *dest, error *e)
     .tstr = h->tstr,
     .pg0 = h->pg0,
     .tlen = h->tstrlen,
+    .is_tombstone = h->is_tombstone,
   };
 
   return SUCCESS;
@@ -409,7 +408,7 @@ hl_append (hl *h, const variable var, error *e)
   u8 header = pgrst_peek (&h->stream);
   ASSERT (header & ISEOF);
   header &= ~ISEOF;
-  pgrst_set (&h->stream, header);
+  err_t_wrap (pgrst_write (&header, 1, &h->stream, e), e);
 
   var_hash_entry v;
   u8 raw[MAX_VSTR + MAX_TSTR];

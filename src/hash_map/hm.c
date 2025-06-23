@@ -102,7 +102,7 @@ hm_close (hm *h)
  *    - ERR_DOESNT_EXIST - Leaf doesn't exist
  */
 static spgno
-hm_fetch_existing_starting_leaf (
+fetch_existing_starting_leaf (
     hm *h,
     const string key,
     error *e)
@@ -152,7 +152,7 @@ hm_get (
     error *e)
 {
   // Center yourself on the starting leaf node
-  spgno start = hm_fetch_existing_starting_leaf (h, key, e);
+  spgno start = fetch_existing_starting_leaf (h, key, e);
   if (start < 0)
     {
       return (err_t)start;
@@ -204,7 +204,7 @@ hm_get (
  *    - ERR_
  */
 static spgno
-hm_fetch_starting_leaf (
+fetch_or_else_create_start (
     hm *h,
     const string key,
     error *e)
@@ -262,7 +262,7 @@ hm_insert (
   hm_assert (h);
 
   // Then create or get the starting hash leaf page for this key
-  spgno pg0 = hm_fetch_starting_leaf (h, var.vname, e);
+  spgno pg0 = fetch_or_else_create_start (h, var.vname, e);
   if (pg0 < 0)
     {
       return (err_t)pg0;
@@ -283,8 +283,7 @@ hm_insert (
 
       if (!result.is_tombstone && string_equal (result.vstr, var.vname))
         {
-
-          return error_change_causef (
+          return error_causef (
               e, ERR_ALREADY_EXISTS,
               "%s "
               "Variable: %.*s already exists",
@@ -303,7 +302,7 @@ hm_delete (hm *h, const string vname, error *e)
 {
   hm_assert (h);
 
-  spgno pg0 = hm_fetch_existing_starting_leaf (h, vname, e);
+  spgno pg0 = fetch_existing_starting_leaf (h, vname, e);
   if (pg0 < 0)
     {
       return (err_t)pg0;

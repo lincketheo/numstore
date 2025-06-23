@@ -1,6 +1,7 @@
 #include "paging/types/hash_leaf.h"
 #include "dev/assert.h"
 #include "ds/strings.h"
+#include "hash_map/hl.h"
 #include "intf/stdlib.h"
 #include "mm/lalloc.h"
 #include "paging/page.h"
@@ -52,7 +53,7 @@ hl_init_empty (hash_leaf *hl)
    */
   unchecked_hash_leaf_assert (hl);
   *hl->header = PG_HASH_LEAF;
-  hl->data[0] = 1;
+  hl->data[0] = 0 | ISEOF;
   valid_hash_leaf_assert (hl);
 }
 
