@@ -5,9 +5,8 @@ all: debug                     # `make` = debug build
 ###############################
 ##### Compiler & Global Flags
 CC      ?= gcc
-CFLAGS   = -I./include         # single include path for every file
+CFLAGS   = -I./include         
 
-# Build objects as PIC when SHARED=1 (default)
 SHARED ?= 1
 ifeq ($(SHARED),1)
   CFLAGS += -fPIC
@@ -19,7 +18,7 @@ LEMON        := ./tools/lemon/lemon
 LEMON_SRC    := ./tools/lemon/lemon.c
 GRAMMAR      := ./tools/lemon/parser.y
 LEMPAR       := ./tools/lemon/lempar.c
-PARSER_C     := ./src/compiler/parser.c      # generated parser
+PARSER_C     := ./src/compiler/parser.c      
 
 $(LEMON): $(LEMON_SRC)
 	@echo "  CC      $@"
@@ -36,7 +35,7 @@ SRC       := $(shell find src -type f -name '*.c') $(PARSER_C)
 OBJ       := $(SRC:.c=.o)
 
 ###############################
-##### Apps (explicit list — no wildcard)
+##### Apps 
 APPS      := nstorec nstores test
 
 APP_SRC   := $(addprefix apps/,$(addsuffix .c,$(APPS)))
@@ -48,18 +47,16 @@ debug:   CFLAGS += $(shell cat debug_flags.txt 2>/dev/null)
 release: CFLAGS += $(shell cat release_flags.txt 2>/dev/null || echo "-O2 -DNDEBUG")
 
 debug  : $(APPS)
-release: $(APPS)
+release: clean $(APPS)
 
 ###############################
 ##### Compile Rule
-# Order-only prerequisite ensures parser is generated first
 %.o: %.c | $(PARSER_C)
 	@echo "  CC      $<"
 	@$(CC) $(CFLAGS) -c $< -o $@
 
 ###############################
 ##### Link Targets
-# Each app links its own object + every object from src/
 $(APPS): %: apps/%.o $(OBJ)
 	@echo "  LD      $@"
 	@$(CC) $(CFLAGS) -o $@ $^
