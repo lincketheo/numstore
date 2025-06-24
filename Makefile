@@ -68,7 +68,7 @@ $(APPS): %: apps/%.o $(OBJ)
 ##### Utilities
 clean:
 	rm -f $(APPS) $(OBJ) $(APP_OBJ) \
-	      $(PARSER_C) $(LEMON) tools/lemon/parser.*
+	      $(PARSER_C) $(LEMON) 
 
 format:
 	clang-format -i $(shell find src include apps -name '*.c' -o -name '*.h')

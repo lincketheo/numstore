@@ -1,0 +1,392 @@
+State 0:
+          main ::= * in
+     (24) in ::= *
+          in ::= * in state SEMICOLON
+
+                          main accept
+                            in shift        7      
+                     {default} reduce       24     in ::=
+
+State 1:
+          type_spec ::= * type
+          type ::= * enum_decl
+          type ::= * struct_decl
+          type ::= * union_decl
+          type ::= * sarray_decl
+          type ::= * PRIM
+          enum_decl ::= * ENUM LEFT_BRACE enum_items RIGHT_BRACE
+          struct_decl ::= * STRUCT LEFT_BRACE struct_items RIGHT_BRACE
+          struct_items ::= IDENTIFIER * type_spec
+          union_decl ::= * UNION LEFT_BRACE union_items RIGHT_BRACE
+          sarray_decl ::= * sarray_dims type
+          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET
+          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims
+
+                        STRUCT shift        21     
+                         UNION shift        19     
+                          ENUM shift        23     
+                          PRIM shift-reduce 8      type ::= PRIM
+                  LEFT_BRACKET shift        17     
+                          type shift-reduce 3      type_spec ::= type
+                     type_spec shift-reduce 13     struct_items ::= IDENTIFIER type_spec
+                     enum_decl shift-reduce 4      type ::= enum_decl
+                   struct_decl shift-reduce 5      type ::= struct_decl
+                    union_decl shift-reduce 6      type ::= union_decl
+                   sarray_decl shift-reduce 7      type ::= sarray_decl
+                   sarray_dims shift        6      
+
+State 2:
+          type_spec ::= * type
+          type ::= * enum_decl
+          type ::= * struct_decl
+          type ::= * union_decl
+          type ::= * sarray_decl
+          type ::= * PRIM
+          enum_decl ::= * ENUM LEFT_BRACE enum_items RIGHT_BRACE
+          struct_decl ::= * STRUCT LEFT_BRACE struct_items RIGHT_BRACE
+          union_decl ::= * UNION LEFT_BRACE union_items RIGHT_BRACE
+          union_items ::= IDENTIFIER * type_spec
+          sarray_decl ::= * sarray_dims type
+          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET
+          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims
+
+                        STRUCT shift        21     
+                         UNION shift        19     
+                          ENUM shift        23     
+                          PRIM shift-reduce 8      type ::= PRIM
+                  LEFT_BRACKET shift        17     
+                          type shift-reduce 3      type_spec ::= type
+                     type_spec shift-reduce 16     union_items ::= IDENTIFIER type_spec
+                     enum_decl shift-reduce 4      type ::= enum_decl
+                   struct_decl shift-reduce 5      type ::= struct_decl
+                    union_decl shift-reduce 6      type ::= union_decl
+                   sarray_decl shift-reduce 7      type ::= sarray_decl
+                   sarray_dims shift        6      
+
+State 3:
+          type_spec ::= * type
+          type ::= * enum_decl
+          type ::= * struct_decl
+          type ::= * union_decl
+          type ::= * sarray_decl
+          type ::= * PRIM
+          enum_decl ::= * ENUM LEFT_BRACE enum_items RIGHT_BRACE
+          struct_decl ::= * STRUCT LEFT_BRACE struct_items RIGHT_BRACE
+          union_decl ::= * UNION LEFT_BRACE union_items RIGHT_BRACE
+          union_items ::= union_items COMMA IDENTIFIER * type_spec
+          sarray_decl ::= * sarray_dims type
+          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET
+          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims
+
+                        STRUCT shift        21     
+                         UNION shift        19     
+                          ENUM shift        23     
+                          PRIM shift-reduce 8      type ::= PRIM
+                  LEFT_BRACKET shift        17     
+                          type shift-reduce 3      type_spec ::= type
+                     type_spec shift-reduce 17     union_items ::= union_items COMMA IDENTIFIER type_spec
+                     enum_decl shift-reduce 4      type ::= enum_decl
+                   struct_decl shift-reduce 5      type ::= struct_decl
+                    union_decl shift-reduce 6      type ::= union_decl
+                   sarray_decl shift-reduce 7      type ::= sarray_decl
+                   sarray_dims shift        6      
+
+State 4:
+          type_spec ::= * type
+          type ::= * enum_decl
+          type ::= * struct_decl
+          type ::= * union_decl
+          type ::= * sarray_decl
+          type ::= * PRIM
+          enum_decl ::= * ENUM LEFT_BRACE enum_items RIGHT_BRACE
+          struct_decl ::= * STRUCT LEFT_BRACE struct_items RIGHT_BRACE
+          struct_items ::= struct_items COMMA IDENTIFIER * type_spec
+          union_decl ::= * UNION LEFT_BRACE union_items RIGHT_BRACE
+          sarray_decl ::= * sarray_dims type
+          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET
+          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims
+
+                        STRUCT shift        21     
+                         UNION shift        19     
+                          ENUM shift        23     
+                          PRIM shift-reduce 8      type ::= PRIM
+                  LEFT_BRACKET shift        17     
+                          type shift-reduce 3      type_spec ::= type
+                     type_spec shift-reduce 14     struct_items ::= struct_items COMMA IDENTIFIER type_spec
+                     enum_decl shift-reduce 4      type ::= enum_decl
+                   struct_decl shift-reduce 5      type ::= struct_decl
+                    union_decl shift-reduce 6      type ::= union_decl
+                   sarray_decl shift-reduce 7      type ::= sarray_decl
+                   sarray_dims shift        6      
+
+State 5:
+          type_spec ::= * type
+          type ::= * enum_decl
+          type ::= * struct_decl
+          type ::= * union_decl
+          type ::= * sarray_decl
+          type ::= * PRIM
+          enum_decl ::= * ENUM LEFT_BRACE enum_items RIGHT_BRACE
+          struct_decl ::= * STRUCT LEFT_BRACE struct_items RIGHT_BRACE
+          union_decl ::= * UNION LEFT_BRACE union_items RIGHT_BRACE
+          sarray_decl ::= * sarray_dims type
+          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET
+          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims
+          create_decl ::= CREATE IDENTIFIER * type_spec
+
+                        STRUCT shift        21     
+                         UNION shift        19     
+                          ENUM shift        23     
+                          PRIM shift-reduce 8      type ::= PRIM
+                  LEFT_BRACKET shift        17     
+                          type shift-reduce 3      type_spec ::= type
+                     type_spec shift-reduce 21     create_decl ::= CREATE IDENTIFIER type_spec
+                     enum_decl shift-reduce 4      type ::= enum_decl
+                   struct_decl shift-reduce 5      type ::= struct_decl
+                    union_decl shift-reduce 6      type ::= union_decl
+                   sarray_decl shift-reduce 7      type ::= sarray_decl
+                   sarray_dims shift        6      
+
+State 6:
+          type ::= * enum_decl
+          type ::= * struct_decl
+          type ::= * union_decl
+          type ::= * sarray_decl
+          type ::= * PRIM
+          enum_decl ::= * ENUM LEFT_BRACE enum_items RIGHT_BRACE
+          struct_decl ::= * STRUCT LEFT_BRACE struct_items RIGHT_BRACE
+          union_decl ::= * UNION LEFT_BRACE union_items RIGHT_BRACE
+          sarray_decl ::= * sarray_dims type
+          sarray_decl ::= sarray_dims * type
+          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET
+          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims
+
+                        STRUCT shift        21     
+                         UNION shift        19     
+                          ENUM shift        23     
+                          PRIM shift-reduce 8      type ::= PRIM
+                  LEFT_BRACKET shift        17     
+                          type shift-reduce 18     sarray_decl ::= sarray_dims type
+                     enum_decl shift-reduce 4      type ::= enum_decl
+                   struct_decl shift-reduce 5      type ::= struct_decl
+                    union_decl shift-reduce 6      type ::= union_decl
+                   sarray_decl shift-reduce 7      type ::= sarray_decl
+                   sarray_dims shift        6      
+
+State 7:
+     (23) main ::= in *
+          in ::= in * state SEMICOLON
+          state ::= * query
+          query ::= * delete_decl
+          query ::= * create_decl
+          create_decl ::= * CREATE IDENTIFIER type_spec
+          delete_decl ::= * DELETE IDENTIFIER
+
+                             $ reduce       23     main ::= in
+                        CREATE shift        24     
+                        DELETE shift        15     
+                         query shift-reduce 0      state ::= query
+                   create_decl shift-reduce 2      query ::= create_decl
+                   delete_decl shift-reduce 1      query ::= delete_decl
+                         state shift        25     
+
+State 8:
+          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET
+     (19) sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET *
+          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims
+          sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET * sarray_dims
+
+                  LEFT_BRACKET shift        17     
+                  LEFT_BRACKET reduce       19      ** Parsing conflict **
+                   sarray_dims shift-reduce 20     sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims
+                     {default} reduce       19     sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET
+
+State 9:
+          union_decl ::= UNION LEFT_BRACE * union_items RIGHT_BRACE
+          union_items ::= * IDENTIFIER type_spec
+          union_items ::= * union_items COMMA IDENTIFIER type_spec
+
+                    IDENTIFIER shift        2      
+                   union_items shift        12     
+
+State 10:
+          struct_decl ::= STRUCT LEFT_BRACE * struct_items RIGHT_BRACE
+          struct_items ::= * IDENTIFIER type_spec
+          struct_items ::= * struct_items COMMA IDENTIFIER type_spec
+
+                    IDENTIFIER shift        1      
+                  struct_items shift        13     
+
+State 11:
+          enum_decl ::= ENUM LEFT_BRACE * enum_items RIGHT_BRACE
+          enum_items ::= * IDENTIFIER
+          enum_items ::= * enum_items COMMA IDENTIFIER
+
+                    IDENTIFIER shift-reduce 10     enum_items ::= IDENTIFIER
+                    enum_items shift        14     
+
+State 12:
+          union_decl ::= UNION LEFT_BRACE union_items * RIGHT_BRACE
+          union_items ::= union_items * COMMA IDENTIFIER type_spec
+
+                   RIGHT_BRACE shift-reduce 15     union_decl ::= UNION LEFT_BRACE union_items RIGHT_BRACE
+                         COMMA shift        18     
+
+State 13:
+          struct_decl ::= STRUCT LEFT_BRACE struct_items * RIGHT_BRACE
+          struct_items ::= struct_items * COMMA IDENTIFIER type_spec
+
+                   RIGHT_BRACE shift-reduce 12     struct_decl ::= STRUCT LEFT_BRACE struct_items RIGHT_BRACE
+                         COMMA shift        20     
+
+State 14:
+          enum_decl ::= ENUM LEFT_BRACE enum_items * RIGHT_BRACE
+          enum_items ::= enum_items * COMMA IDENTIFIER
+
+                   RIGHT_BRACE shift-reduce 9      enum_decl ::= ENUM LEFT_BRACE enum_items RIGHT_BRACE
+                         COMMA shift        22     
+
+State 15:
+          delete_decl ::= DELETE * IDENTIFIER
+
+                    IDENTIFIER shift-reduce 22     delete_decl ::= DELETE IDENTIFIER
+
+State 16:
+          sarray_dims ::= LEFT_BRACKET INTEGER * RIGHT_BRACKET
+          sarray_dims ::= LEFT_BRACKET INTEGER * RIGHT_BRACKET sarray_dims
+
+                 RIGHT_BRACKET shift        8      
+
+State 17:
+          sarray_dims ::= LEFT_BRACKET * INTEGER RIGHT_BRACKET
+          sarray_dims ::= LEFT_BRACKET * INTEGER RIGHT_BRACKET sarray_dims
+
+                       INTEGER shift        16     
+
+State 18:
+          union_items ::= union_items COMMA * IDENTIFIER type_spec
+
+                    IDENTIFIER shift        3      
+
+State 19:
+          union_decl ::= UNION * LEFT_BRACE union_items RIGHT_BRACE
+
+                    LEFT_BRACE shift        9      
+
+State 20:
+          struct_items ::= struct_items COMMA * IDENTIFIER type_spec
+
+                    IDENTIFIER shift        4      
+
+State 21:
+          struct_decl ::= STRUCT * LEFT_BRACE struct_items RIGHT_BRACE
+
+                    LEFT_BRACE shift        10     
+
+State 22:
+          enum_items ::= enum_items COMMA * IDENTIFIER
+
+                    IDENTIFIER shift-reduce 11     enum_items ::= enum_items COMMA IDENTIFIER
+
+State 23:
+          enum_decl ::= ENUM * LEFT_BRACE enum_items RIGHT_BRACE
+
+                    LEFT_BRACE shift        11     
+
+State 24:
+          create_decl ::= CREATE * IDENTIFIER type_spec
+
+                    IDENTIFIER shift        5      
+
+State 25:
+          in ::= in state * SEMICOLON
+
+                     SEMICOLON shift-reduce 25     in ::= in state SEMICOLON
+
+----------------------------------------------------
+Symbols:
+The first-set of non-terminals is shown after the name.
+
+    0: $:
+    1: CREATE
+    2: DELETE
+    3: APPEND
+    4: INSERT
+    5: UPDATE
+    6: READ
+    7: TAKE
+    8: BCREATE
+    9: BDELETE
+   10: BAPPEND
+   11: BINSERT
+   12: BUPDATE
+   13: BREAD
+   14: BTAKE
+   15: STRUCT
+   16: UNION
+   17: ENUM
+   18: PRIM
+   19: IDENTIFIER
+   20: STRING
+   21: INTEGER
+   22: FLOAT
+   23: SEMICOLON
+   24: LEFT_BRACKET
+   25: RIGHT_BRACKET
+   26: LEFT_BRACE
+   27: RIGHT_BRACE
+   28: LEFT_PAREN
+   29: RIGHT_PAREN
+   30: COMMA
+   31: type: STRUCT UNION ENUM PRIM LEFT_BRACKET
+   32: type_spec: STRUCT UNION ENUM PRIM LEFT_BRACKET
+   33: enum_decl: ENUM
+   34: enum_items: IDENTIFIER
+   35: struct_decl: STRUCT
+   36: struct_items: IDENTIFIER
+   37: union_decl: UNION
+   38: union_items: IDENTIFIER
+   39: sarray_decl: LEFT_BRACKET
+   40: sarray_dims: LEFT_BRACKET
+   41: query: CREATE DELETE
+   42: create_decl: CREATE
+   43: delete_decl: DELETE
+   44: main: <lambda> CREATE DELETE
+   45: in: <lambda> CREATE DELETE
+   46: state: CREATE DELETE
+----------------------------------------------------
+Syntax-only Symbols:
+The following symbols never carry semantic content.
+
+$ APPEND INSERT UPDATE READ TAKE BCREATE BDELETE BAPPEND BINSERT BUPDATE
+BREAD BTAKE STRUCT UNION ENUM STRING FLOAT SEMICOLON LEFT_BRACKET
+RIGHT_BRACKET LEFT_BRACE RIGHT_BRACE LEFT_PAREN RIGHT_PAREN COMMA main in
+state
+----------------------------------------------------
+Rules:
+   0: state ::= query.
+   1: query ::= delete_decl.
+   2: query ::= create_decl.
+   3: type_spec ::= type.
+   4: type ::= enum_decl.
+   5: type ::= struct_decl.
+   6: type ::= union_decl.
+   7: type ::= sarray_decl.
+   8: type ::= PRIM.
+   9: enum_decl ::= ENUM LEFT_BRACE enum_items RIGHT_BRACE.
+  10: enum_items ::= IDENTIFIER.
+  11: enum_items ::= enum_items COMMA IDENTIFIER.
+  12: struct_decl ::= STRUCT LEFT_BRACE struct_items RIGHT_BRACE.
+  13: struct_items ::= IDENTIFIER type_spec.
+  14: struct_items ::= struct_items COMMA IDENTIFIER type_spec.
+  15: union_decl ::= UNION LEFT_BRACE union_items RIGHT_BRACE.
+  16: union_items ::= IDENTIFIER type_spec.
+  17: union_items ::= union_items COMMA IDENTIFIER type_spec.
+  18: sarray_decl ::= sarray_dims type.
+  19: sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET.
+  20: sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims.
+  21: create_decl ::= CREATE IDENTIFIER type_spec.
+  22: delete_decl ::= DELETE IDENTIFIER.
+  23: main ::= in.
+  24: in ::=.
+  25: in ::= in state SEMICOLON.

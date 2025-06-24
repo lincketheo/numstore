@@ -1,9 +1,10 @@
 #include "numstore/rptree/mem_inner_node.h"
 
-#include "core/dev/assert.h"                  // DEFINE_DBG_ASSERT_I
-#include "core/errors/error.h"                // error
-#include "core/intf/stdlib.h"                 // i_memcpy
-#include "core/mm/lalloc.h"                   // malloc
+#include "core/dev/assert.h"   // DEFINE_DBG_ASSERT_I
+#include "core/errors/error.h" // error
+#include "core/intf/stdlib.h"  // i_memcpy
+#include "core/mm/lalloc.h"    // malloc
+
 #include "numstore/paging/types/inner_node.h" // inner_node
 
 DEFINE_DBG_ASSERT_I (mem_inner_node, mem_inner_node, o)

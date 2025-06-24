@@ -1,9 +1,10 @@
 #include "compiler/ast/type/builders/kvt.h"
 
+#include "core/dev/assert.h"   // ASSERT
+#include "core/dev/testing.h"  // TEST
+#include "core/errors/error.h" // err_t
+
 #include "compiler/ast/type/types.h" // u32
-#include "core/dev/assert.h"         // ASSERT
-#include "core/dev/testing.h"        // TEST
-#include "core/errors/error.h"       // err_t
 
 DEFINE_DBG_ASSERT_I (kvt_builder, kvt_builder, s)
 {

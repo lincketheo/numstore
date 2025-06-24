@@ -1,6 +1,7 @@
 #pragma once
 
-#include "core/intf/types.h"       // pgno
+#include "core/intf/types.h" // pgno
+
 #include "numstore/paging/page.h"  // page
 #include "numstore/paging/pager.h" // pager
 

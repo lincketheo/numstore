@@ -1,8 +1,9 @@
 #include "compiler/ast/query/queries/create.h"
 
+#include "core/dev/assert.h"   // DEFINE_DBG_ASSERT_I
+#include "core/intf/logging.h" // i_log_info
+
 #include "compiler/ast/query/query.h" // query
-#include "core/dev/assert.h"          // DEFINE_DBG_ASSERT_I
-#include "core/intf/logging.h"        // i_log_info
 
 DEFINE_DBG_ASSERT_I (create_query, create_query, q)
 {

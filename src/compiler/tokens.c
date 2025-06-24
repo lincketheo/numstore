@@ -1,7 +1,8 @@
 #include "compiler/tokens.h"
 
+#include "core/dev/assert.h" // UNREACHABLE
+
 #include "compiler/ast/query/query.h" // QT_...
-#include "core/dev/assert.h"          // UNREACHABLE
 
 query_t
 tt_to_qt (token_t t)

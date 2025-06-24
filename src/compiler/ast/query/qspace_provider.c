@@ -1,14 +1,14 @@
-#include "compiler/ast/query/query_provider.h"
+#include "core/dev/assert.h"   // TODO
+#include "core/dev/testing.h"  // TODO
+#include "core/errors/error.h" // TODO
+#include "core/intf/io.h"      // TODO
+#include "core/intf/stdlib.h"  // TODO
+#include "core/mm/lalloc.h"    // TODO
 
-#include "compiler/ast/query/queries/create.h"
-#include "compiler/ast/query/queries/delete.h"
-#include "compiler/ast/query/query.h"
-#include "core/dev/assert.h"
-#include "core/dev/testing.h"
-#include "core/errors/error.h"
-#include "core/intf/io.h"
-#include "core/intf/stdlib.h"
-#include "core/mm/lalloc.h"
+#include "compiler/ast/query/queries/create.h" // TODO
+#include "compiler/ast/query/queries/delete.h" // TODO
+#include "compiler/ast/query/query.h"          // TODO
+#include "compiler/ast/query/query_provider.h" // TODO
 
 DEFINE_DBG_ASSERT_I (query_provider, query_provider, q)
 {

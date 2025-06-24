@@ -1,12 +1,14 @@
 #include "numstore/database.h"
 
+#include "core/dev/assert.h"   // DEFINE_DBG_ASSERT_I
+#include "core/dev/testing.h"  // TODO
+#include "core/ds/strings.h"   // TODO
+#include "core/errors/error.h" // TODO
+#include "core/intf/io.h"      // i_touch
+#include "core/math/random.h"  // TODO
+
 #include "compiler/ast/query/query_provider.h" // qspce
-#include "core/dev/assert.h"                   // DEFINE_DBG_ASSERT_I
-#include "core/dev/testing.h"
-#include "core/ds/strings.h"
-#include "core/errors/error.h"
-#include "core/intf/io.h" // i_touch
-#include "core/math/random.h"
+
 #include "numstore/paging/pager.h"    // pager
 #include "numstore/virtual_machine.h" // vm
 

@@ -1,10 +1,12 @@
 #pragma once
 
-#include "compiler/ast/query/query_provider.h"
 #include "core/ds/strings.h"   // string
 #include "core/errors/error.h" // err_t
-#include "numstore/paging/pager.h"
-#include "numstore/virtual_machine.h"
+
+#include "compiler/ast/query/query_provider.h" // TODO
+
+#include "numstore/paging/pager.h"    // TODO
+#include "numstore/virtual_machine.h" // TODO
 
 /**
  * A database holds the primary resources

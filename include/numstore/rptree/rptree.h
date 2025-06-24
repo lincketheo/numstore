@@ -1,10 +1,11 @@
 #pragma once
 
-#include "core/intf/types.h"
-#include "core/mm/lalloc.h"
-#include "numstore/paging/pager.h"
-#include "numstore/paging/types/hash_leaf.h"
-#include "numstore/rptree/internal/seek.h"
+#include "core/intf/types.h" // TODO
+#include "core/mm/lalloc.h"  // TODO
+
+#include "numstore/paging/pager.h"           // TODO
+#include "numstore/paging/types/hash_leaf.h" // TODO
+#include "numstore/rptree/internal/seek.h"   // TODO
 
 typedef struct rptree_s rptree;
 
@@ -17,7 +18,7 @@ typedef struct rptree_s rptree;
  *    - ERR_IO
  */
 rptree *rpt_open (spgno pg0, pager *p, error *e);
-void rptree_close (rptree *r);
+void rpt_close (rptree *r);
 
 /**
  * Seeks to byte b

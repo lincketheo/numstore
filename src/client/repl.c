@@ -1,16 +1,17 @@
 #include "client/repl.h"
 
-#include "client/client.h"     // client
-#include "client/linenoise.h"  // linenoise
+#include <errno.h>  // strerror
+#include <stdlib.h> // free
+#include <string.h> // TODO
+
 #include "core/dev/assert.h"   // DEFINE_DBG_ASSERT_I
 #include "core/errors/error.h" // err_t
-#include "core/intf/io.h"
+#include "core/intf/io.h"      // TODO
 #include "core/intf/stdlib.h"  // i_memcpy
 #include "core/utils/macros.h" // arrlen
 
-#include <errno.h>  // strerror
-#include <stdlib.h> // free
-#include <string.h>
+#include "client/client.h"    // client
+#include "client/linenoise.h" // linenoise
 
 struct repl_s
 {

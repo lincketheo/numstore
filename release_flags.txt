@@ -1,4 +1,11 @@
--O2
+-O3
 -DNDEBUG
 -Wall
 -Wextra 
+-Wall 
+-Wextra 
+-pedantic 
+-Werror 
+-Wno-error=unused-parameter 
+-Wno-error=unused-variable 
+-Wno-error=unused-but-set-variable

@@ -1,9 +1,10 @@
 #pragma once
 
+#include "core/ds/strings.h"   // string
+#include "core/errors/error.h" // err_t
+#include "core/mm/lalloc.h"    // lalloc
+
 #include "compiler/ast/value/values/struct.h" // struct_v
-#include "core/ds/strings.h"                  // string
-#include "core/errors/error.h"                // err_t
-#include "core/mm/lalloc.h"                   // lalloc
 
 typedef struct
 {

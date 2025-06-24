@@ -1,9 +1,10 @@
 #include "compiler/ast/query/builders/delete.h"
 
+#include "core/dev/assert.h"   // ASSERT
+#include "core/dev/testing.h"  // TEST
+#include "core/errors/error.h" // err_t
+
 #include "compiler/ast/query/queries/delete.h" // delete
-#include "core/dev/assert.h"                   // ASSERT
-#include "core/dev/testing.h"                  // TEST
-#include "core/errors/error.h"                 // err_t
 
 DEFINE_DBG_ASSERT_I (delete_builder, delete_builder, c)
 {

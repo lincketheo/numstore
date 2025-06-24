@@ -1,6 +1,8 @@
--g
 -O0
+-g
 -Wall
--Wextra
+-Wextra 
+-Wall 
+-Wextra 
 -pedantic 
 -Werror 

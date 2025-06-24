@@ -2,7 +2,8 @@
 
 #include "core/errors/error.h" // err_t
 #include "core/intf/types.h"   // b_size
-#include "numstore/config.h"   // PAGE_SIZE
+
+#include "numstore/config.h" // PAGE_SIZE
 
 /**
  * INNER NODE

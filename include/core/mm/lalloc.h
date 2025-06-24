@@ -1,12 +1,8 @@
 #pragma once
 
-#include "core/errors/error.h"
-#include "core/intf/types.h"
+#include "core/errors/error.h" // TODO
+#include "core/intf/types.h"   // TODO
 
-/////////////////////// Linear Allocator
-
-// TODO - fix allignment - dish out blocks later on -
-// works for most modern compilers - but undefined per ISO
 typedef struct lalloc_s
 {
   u32 used;

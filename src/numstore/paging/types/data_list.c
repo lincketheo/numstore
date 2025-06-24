@@ -1,7 +1,8 @@
 #include "numstore/paging/types/data_list.h"
 
-#include "core/dev/assert.h"      // DEFINE_DBG_ASSERT_I
-#include "core/intf/stdlib.h"     // i_memcpy
+#include "core/dev/assert.h"  // DEFINE_DBG_ASSERT_I
+#include "core/intf/stdlib.h" // i_memcpy
+
 #include "numstore/paging/page.h" // PG_DATA_LIST
 
 DEFINE_DBG_ASSERT_I (data_list, unchecked_data_list, d)

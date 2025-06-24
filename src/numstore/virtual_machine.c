@@ -1,14 +1,16 @@
 #include "numstore/virtual_machine.h"
 
-#include "compiler/ast/query/queries/create.h"
-#include "compiler/ast/query/queries/delete.h"
-#include "compiler/ast/query/query.h"
-#include "core/dev/assert.h" // ASSERT
-#include "core/ds/cbuffer.h"
-#include "core/errors/error.h"
-#include "core/intf/logging.h"
-#include "core/intf/stdlib.h"
-#include "numstore/cursor/cursor.h"
+#include "core/dev/assert.h"   // ASSERT
+#include "core/ds/cbuffer.h"   // TODO
+#include "core/errors/error.h" // TODO
+#include "core/intf/logging.h" // TODO
+#include "core/intf/stdlib.h"  // TODO
+
+#include "compiler/ast/query/queries/create.h" // TODO
+#include "compiler/ast/query/queries/delete.h" // TODO
+#include "compiler/ast/query/query.h"          // TODO
+
+#include "numstore/cursor/cursor.h" // TODO
 
 struct vm_s
 {

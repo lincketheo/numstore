@@ -1,10 +1,11 @@
 #pragma once
 
-#include "client/client.h"     // client
+#include <netinet/in.h> // sockaddr_in
+
 #include "core/errors/error.h" // error
 #include "core/intf/types.h"   // u32
 
-#include <netinet/in.h> // sockaddr_in
+#include "client/client.h" // client
 
 typedef struct repl_s repl;
 

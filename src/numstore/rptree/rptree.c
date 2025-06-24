@@ -1,18 +1,18 @@
 #include "numstore/rptree/rptree.h"
 
-#include "core/dev/assert.h" // DEFINE_DBG_ASSERT_I
-#include "core/errors/error.h"
-#include "core/intf/io.h"
-#include "numstore/paging/page.h"
-#include "numstore/paging/pager.h"
-#include "numstore/paging/types/data_list.h" // dl_get_next
+#include "core/dev/assert.h"   // DEFINE_DBG_ASSERT_I
+#include "core/errors/error.h" // TODO
+#include "core/intf/io.h"      // TODO
 
-#include "numstore/rptree/internal/dld.h"
-#include "numstore/rptree/internal/dli.h" // dli
-#include "numstore/rptree/internal/dlr.h"
-#include "numstore/rptree/internal/dlw.h"
-#include "numstore/rptree/internal/ini.h" // ini
-#include "numstore/rptree/internal/seek.h"
+#include "numstore/paging/page.h"            // TODO
+#include "numstore/paging/pager.h"           // TODO
+#include "numstore/paging/types/data_list.h" // dl_get_next
+#include "numstore/rptree/internal/dld.h"    // TODO
+#include "numstore/rptree/internal/dli.h"    // dli
+#include "numstore/rptree/internal/dlr.h"    // TODO
+#include "numstore/rptree/internal/dlw.h"    // TODO
+#include "numstore/rptree/internal/ini.h"    // ini
+#include "numstore/rptree/internal/seek.h"   // TODO
 
 DEFINE_DBG_ASSERT_I (rptree, rptree, r)
 {
@@ -97,6 +97,13 @@ rpt_open (spgno pg0, pager *p, error *e)
 failed:
   i_free (ret);
   return NULL;
+}
+
+void
+rpt_close (rptree *r)
+{
+  rptree_assert (r);
+  i_free (r);
 }
 
 err_t

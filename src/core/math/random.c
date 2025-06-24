@@ -1,8 +1,9 @@
 #include "core/math/random.h"
-#include "core/dev/assert.h"
 
-#include <stdlib.h>
-#include <time.h>
+#include <stdlib.h> // TODO
+#include <time.h>   // TODO
+
+#include "core/dev/assert.h" // TODO
 
 void
 rand_seed (void)

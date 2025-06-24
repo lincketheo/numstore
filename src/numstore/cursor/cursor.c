@@ -1,7 +1,8 @@
 #include "numstore/cursor/cursor.h"
 
-#include "core/errors/error.h"
-#include "core/intf/types.h"
+#include "core/errors/error.h" // TODO
+#include "core/intf/types.h"   // TODO
+
 #include "numstore/hash_map/hm.h"   // hm
 #include "numstore/rptree/rptree.h" // rptree
 
@@ -55,6 +56,7 @@ void
 cursor_close (cursor *c)
 {
   cursor_assert (c);
+  rpt_close (c->r);
   hm_close (c->h);
   i_free (c);
 }

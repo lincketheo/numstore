@@ -1,8 +1,8 @@
 #include "numstore/rptree/internal/dlr.h"
-#include "numstore/paging/pager.h"
-#include "numstore/rptree/mem_inner_node.h"
 
-// Stateful
+#include "numstore/paging/pager.h"          // TODO
+#include "numstore/rptree/mem_inner_node.h" // TODO
+
 typedef struct
 {
   const page *page; // Starting page

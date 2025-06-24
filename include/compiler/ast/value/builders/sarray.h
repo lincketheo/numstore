@@ -1,8 +1,8 @@
-
 #pragma once
 
+#include "core/mm/lalloc.h" // lalloc
+
 #include "compiler/ast/value/values/sarray.h" // sarray_v
-#include "core/mm/lalloc.h"                   // lalloc
 
 typedef struct
 {

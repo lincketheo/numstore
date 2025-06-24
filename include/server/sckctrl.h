@@ -1,7 +1,8 @@
 #pragma once
 
-#include "core/ds/cbuffer.h"
-#include <netinet/in.h>
+#include <netinet/in.h> // TODO
+
+#include "core/ds/cbuffer.h" // TODO
 
 typedef struct
 {

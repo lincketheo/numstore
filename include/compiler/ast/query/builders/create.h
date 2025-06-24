@@ -1,8 +1,9 @@
 #pragma once
 
+#include "core/ds/strings.h" // string
+
 #include "compiler/ast/query/queries/create.h" // create_query
 #include "compiler/ast/type/types.h"           // type
-#include "core/ds/strings.h"                   // string
 
 typedef struct
 {

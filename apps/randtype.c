@@ -1,13 +1,14 @@
-#include "compiler/ast/type/types.h"
-#include "compiler/ast/type/types/prim.h"
-#include "core/errors/error.h"
-#include "core/intf/io.h"
-#include "core/intf/types.h"
-#include "core/mm/lalloc.h"
+#include <stdio.h>  // TODO
+#include <stdlib.h> // TODO
+#include <time.h>   // TODO
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
+#include "core/errors/error.h" // TODO
+#include "core/intf/io.h"      // TODO
+#include "core/intf/types.h"   // TODO
+#include "core/mm/lalloc.h"    // TODO
+
+#include "compiler/ast/type/types.h"      // TODO
+#include "compiler/ast/type/types/prim.h" // TODO
 
 int
 main (void)

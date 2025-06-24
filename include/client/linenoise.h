@@ -1,3 +1,4 @@
+#pragma once
 /* linenoise.h -- VERSION 1.0
  *
  * Guerrilla line editing library against the idea that a line editing lib

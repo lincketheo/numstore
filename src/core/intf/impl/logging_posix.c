@@ -1,8 +1,8 @@
-#include "core/intf/logging.h"
+#include <stdarg.h> // TODO
+#include <stdio.h>  // TODO
+#include <string.h> // TODO
 
-#include <stdarg.h>
-#include <stdio.h>
-#include <string.h>
+#include "core/intf/logging.h" // TODO
 
 void
 i_log_internal (

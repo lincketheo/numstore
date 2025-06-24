@@ -1,7 +1,8 @@
 #include "numstore/paging/types/inner_node.h"
 
 #include "core/dev/assert.h" // DEFINE_DBG_ASSERT_I
-#include "numstore/config.h"
+
+#include "numstore/config.h"      // TODO
 #include "numstore/paging/page.h" // PG_INNER_NODE
 
 DEFINE_DBG_ASSERT_I (inner_node, unchecked_inner_node, i)

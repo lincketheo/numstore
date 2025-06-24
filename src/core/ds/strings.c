@@ -1,4 +1,5 @@
-#include "core/ds/strings.h"  // string
+#include "core/ds/strings.h" // string
+
 #include "core/dev/assert.h"  // DEFINE_DBG_ASSERT_I
 #include "core/dev/testing.h" // TEST
 #include "core/intf/stdlib.h" // i_memcmp

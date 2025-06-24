@@ -1,6 +1,7 @@
 #pragma once
 
-#include "core/intf/types.h"                // p_size
+#include "core/intf/types.h" // p_size
+
 #include "numstore/paging/page.h"           // page
 #include "numstore/paging/pager.h"          // pager
 #include "numstore/rptree/mem_inner_node.h" // mem_inner_node

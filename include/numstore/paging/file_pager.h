@@ -3,7 +3,8 @@
 #include "core/errors/error.h" // err_t
 #include "core/intf/io.h"      // i_file
 #include "core/intf/types.h"   // pgno
-#include "numstore/config.h"   // PAGE_SIZE
+
+#include "numstore/config.h" // PAGE_SIZE
 
 typedef struct file_pager_s file_pager;
 

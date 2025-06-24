@@ -1,10 +1,11 @@
 #include "compiler/ast/type/types/union.h"
 
+#include "core/dev/assert.h"  // DEFINE_DBG_ASSERT_I
+#include "core/dev/testing.h" // TEST
+#include "core/intf/stdlib.h" // i_strncmp
+#include "core/math/random.h" // TODO
+
 #include "compiler/ast/type/builders/kvt.h" // kvt_builder
-#include "core/dev/assert.h"                // DEFINE_DBG_ASSERT_I
-#include "core/dev/testing.h"               // TEST
-#include "core/intf/stdlib.h"               // i_strncmp
-#include "core/math/random.h"
 
 DEFINE_DBG_ASSERT_I (union_t, unchecked_union_t, s)
 {

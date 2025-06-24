@@ -1,10 +1,11 @@
 #pragma once
 
+#include "core/ds/llist.h"   // llnode
+#include "core/ds/strings.h" // string
+#include "core/intf/types.h" // u32
+#include "core/mm/lalloc.h"  // lalloc
+
 #include "compiler/ast/type/types.h" // type
-#include "core/ds/llist.h"           // llnode
-#include "core/ds/strings.h"         // string
-#include "core/intf/types.h"         // u32
-#include "core/mm/lalloc.h"          // lalloc
 
 /**
  * An intrusive linked list

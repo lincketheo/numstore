@@ -3,13 +3,12 @@
 #include "core/ds/strings.h"   // string
 #include "core/errors/error.h" // error
 #include "core/intf/types.h"   // pgno
-#include "numstore/config.h"   // PAGE_SIZE
 
-// Page IMPLS
-#include "numstore/paging/types/data_list.h"
-#include "numstore/paging/types/hash_leaf.h"
-#include "numstore/paging/types/hash_page.h"
-#include "numstore/paging/types/inner_node.h"
+#include "numstore/config.h"                  // PAGE_SIZE
+#include "numstore/paging/types/data_list.h"  // TODO
+#include "numstore/paging/types/hash_leaf.h"  // TODO
+#include "numstore/paging/types/hash_page.h"  // TODO
+#include "numstore/paging/types/inner_node.h" // TODO
 
 typedef struct page_s page;
 

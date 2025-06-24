@@ -1,13 +1,9 @@
 #pragma once
 
-#include "core/intf/types.h"
-
-#include <stdio.h>
+#include <stdio.h>  // TODO
 #include <string.h> // snprintf
 
-// I just like this pattern just to know
-// which functions from the standard library I'm
-// using. Not fully ocd about it, it's all iso
+#include "core/intf/types.h" // TODO
 
 #define i_memset(s, c, n) memset (s, c, n)
 #define i_memcpy(dest, src, bytes) memcpy (dest, src, bytes)

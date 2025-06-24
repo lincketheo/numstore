@@ -1,10 +1,11 @@
 #pragma once
 
+#include "core/ds/llist.h"   // llnode
+#include "core/intf/types.h" // u32
+#include "core/mm/lalloc.h"  // lalloc
+
 #include "compiler/ast/type/types.h"        // type
 #include "compiler/ast/type/types/sarray.h" // sarray_t
-#include "core/ds/llist.h"                  // llnode
-#include "core/intf/types.h"                // u32
-#include "core/mm/lalloc.h"                 // lalloc
 
 typedef struct
 {

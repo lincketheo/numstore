@@ -1,9 +1,9 @@
 #pragma once
 
-#include "core/errors/error.h"
-#include "core/intf/types.h" // u16
-
 #include <netinet/in.h> // sockaddr_in
+
+#include "core/errors/error.h" // TODO
+#include "core/intf/types.h"   // u16
 
 typedef struct client_s client;
 

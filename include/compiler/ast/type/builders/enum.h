@@ -1,10 +1,11 @@
 #pragma once
 
+#include "core/ds/llist.h"     // llnode
+#include "core/ds/strings.h"   // string
+#include "core/errors/error.h" // err_t
+#include "core/mm/lalloc.h"    // lalloc
+
 #include "compiler/ast/type/types/enum.h" // enum_t
-#include "core/ds/llist.h"                // llnode
-#include "core/ds/strings.h"              // string
-#include "core/errors/error.h"            // err_t
-#include "core/mm/lalloc.h"               // lalloc
 
 typedef struct
 {

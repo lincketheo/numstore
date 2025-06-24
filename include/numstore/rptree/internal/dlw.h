@@ -1,7 +1,8 @@
 #pragma once
 
-#include "core/errors/error.h"              // error
-#include "core/intf/types.h"                // f32
+#include "core/errors/error.h" // error
+#include "core/intf/types.h"   // f32
+
 #include "numstore/paging/page.h"           // page
 #include "numstore/paging/pager.h"          // pager
 #include "numstore/rptree/mem_inner_node.h" // mem_inner_node

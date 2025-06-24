@@ -1,10 +1,11 @@
 #include "compiler/ast/type/types/sarray.h"
 
+#include "core/dev/assert.h"  // DEFINE_DBG_ASSERT_I
+#include "core/dev/testing.h" // TEST
+#include "core/intf/stdlib.h" // i_snprintf
+#include "core/math/random.h" // randu32
+
 #include "compiler/ast/type/types.h" // type_validate
-#include "core/dev/assert.h"         // DEFINE_DBG_ASSERT_I
-#include "core/dev/testing.h"        // TEST
-#include "core/intf/stdlib.h"        // i_snprintf
-#include "core/math/random.h"        // randu32
 
 DEFINE_DBG_ASSERT_I (sarray_t, unchecked_sarray_t, s)
 {

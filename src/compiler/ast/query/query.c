@@ -1,8 +1,9 @@
 #include "compiler/ast/query/query.h"
 
+#include "core/intf/logging.h" // TODO
+
 #include "compiler/ast/query/queries/create.h" // i_log_create
 #include "compiler/ast/query/queries/delete.h" // i_log_delete
-#include "core/intf/logging.h"
 
 void
 i_log_query (query q)

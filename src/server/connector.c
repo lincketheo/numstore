@@ -1,16 +1,18 @@
-#include "server/connection.h"
+#include <stdlib.h>   // malloc / free
+#include <sys/poll.h> // pollfd
 
-#include "compiler/compiler.h" // scanner
 #include "core/dev/assert.h"   // DEFINE_DBG_ASSERT_I
 #include "core/ds/cbuffer.h"   // cbuffer
 #include "core/errors/error.h" // err_t
 #include "core/intf/io.h"      // i_file
 #include "core/intf/stdlib.h"  // i_memcpy
-#include "numstore/database.h" // database
-#include "numstore/virtual_machine.h"
 
-#include <stdlib.h>   // malloc / free
-#include <sys/poll.h> // pollfd
+#include "compiler/compiler.h" // scanner
+
+#include "server/connection.h" // TODO
+
+#include "numstore/database.h"        // database
+#include "numstore/virtual_machine.h" // TODO
 
 /**
  * A connection is in three states:

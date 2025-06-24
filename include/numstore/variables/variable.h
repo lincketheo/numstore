@@ -1,7 +1,8 @@
 #pragma once
 
-#include "compiler/ast/type/types.h"
-#include "core/ds/strings.h"
+#include "core/ds/strings.h" // TODO
+
+#include "compiler/ast/type/types.h" // TODO
 
 /**
  * The domain layer variable data structure

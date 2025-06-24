@@ -1,11 +1,12 @@
 #include "compiler/ast/type/types/struct.h"
 
+#include "core/dev/assert.h"   // DEFINE_DBG_ASSERT_I
+#include "core/dev/testing.h"  // TEST
+#include "core/errors/error.h" // TODO
+#include "core/intf/stdlib.h"  // i_strncmp
+#include "core/math/random.h"  // TODO
+
 #include "compiler/ast/type/builders/kvt.h" // kvt_builder
-#include "core/dev/assert.h"                // DEFINE_DBG_ASSERT_I
-#include "core/dev/testing.h"               // TEST
-#include "core/errors/error.h"
-#include "core/intf/stdlib.h" // i_strncmp
-#include "core/math/random.h"
 
 DEFINE_DBG_ASSERT_I (struct_t, unchecked_struct_t, s)
 {

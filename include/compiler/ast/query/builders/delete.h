@@ -1,9 +1,10 @@
 #pragma once
 
+#include "core/ds/strings.h"   // string
+#include "core/errors/error.h" // error
+
 #include "compiler/ast/query/queries/delete.h" // delete_query
 #include "compiler/ast/type/types.h"           // type
-#include "core/ds/strings.h"                   // string
-#include "core/errors/error.h"                 // error
 
 typedef struct
 {

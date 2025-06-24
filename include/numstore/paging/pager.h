@@ -1,10 +1,10 @@
 #pragma once
 
-#include "core/intf/types.h"
+#include "core/intf/types.h" // TODO
+
 #include "numstore/paging/file_pager.h" // file_pager
 #include "numstore/paging/page.h"       // page
 
-// An opaque pager type
 typedef struct pager_s pager;
 
 /**

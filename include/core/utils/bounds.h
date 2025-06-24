@@ -1,9 +1,7 @@
 #pragma once
 
-#pragma once
-
-#include <math.h>
-#include <stdint.h>
+#include <math.h>   // TODO
+#include <stdint.h> // TODO
 
 /*
  * Overflow-checking macros for fixed-width numeric types.

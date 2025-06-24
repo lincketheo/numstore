@@ -1,8 +1,9 @@
 #include "numstore/paging/types/hash_page.h"
 
-#include "core/dev/assert.h"      // DEFINE_DBG_ASSERT_I
-#include "core/intf/stdlib.h"     // i_memset
-#include "core/utils/hashing.h"   // fnv1a_hash
+#include "core/dev/assert.h"    // DEFINE_DBG_ASSERT_I
+#include "core/intf/stdlib.h"   // i_memset
+#include "core/utils/hashing.h" // fnv1a_hash
+
 #include "numstore/paging/page.h" // PG_HASH_PAGE
 
 DEFINE_DBG_ASSERT_I (hash_page, unchecked_hash_page, d)

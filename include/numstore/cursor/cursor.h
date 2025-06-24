@@ -1,8 +1,10 @@
 #pragma once
 
+#include "core/errors/error.h" // error
+
 #include "compiler/ast/query/queries/create.h" // create_query
-#include "compiler/ast/query/queries/delete.h"
-#include "core/errors/error.h"     // error
+#include "compiler/ast/query/queries/delete.h" // TODO
+
 #include "numstore/paging/pager.h" // pager
 
 typedef struct cursor_s cursor;

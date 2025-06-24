@@ -1,12 +1,11 @@
 #include "numstore/paging/file_pager.h"
 
-#include "core/dev/testing.h" // TEST
-#include "core/errors/error.h"
-#include "core/intf/io.h"
-#include "core/intf/stdlib.h" // i_memset
-#include "numstore/config.h"  // PAGE_SIZE
+#include "core/dev/testing.h"  // TEST
+#include "core/errors/error.h" // TODO
+#include "core/intf/io.h"      // TODO
+#include "core/intf/stdlib.h"  // i_memset
 
-///////////////////////////// FILE PAGING
+#include "numstore/config.h" // PAGE_SIZE
 
 struct file_pager_s
 {

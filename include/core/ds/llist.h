@@ -1,9 +1,9 @@
 #pragma once
 
-#include "core/dev/assert.h"
-#include "core/intf/types.h"
-
 #include <stddef.h> // offsetof
+
+#include "core/dev/assert.h" // TODO
+#include "core/intf/types.h" // TODO
 
 typedef struct llnode_s
 {

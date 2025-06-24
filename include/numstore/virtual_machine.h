@@ -1,7 +1,8 @@
 #pragma once
 
-#include "core/ds/cbuffer.h"       // cbuffer
-#include "core/errors/error.h"     // err_t
+#include "core/ds/cbuffer.h"   // cbuffer
+#include "core/errors/error.h" // err_t
+
 #include "numstore/paging/pager.h" // pager
 
 typedef struct vm_s vm;
