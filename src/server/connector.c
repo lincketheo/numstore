@@ -133,6 +133,7 @@ err_t
 con_close (connection *c, error *e)
 {
   connection_assert (c);
+
   compiler_free (c->compiler);
   vm_close (c->vm);
 
@@ -142,6 +143,7 @@ con_close (connection *c, error *e)
    */
   err_t_continue (i_close (&c->cfd, e), e);
   i_free (c);
+
   return err_t_from (e);
 }
 

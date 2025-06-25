@@ -4,6 +4,7 @@
 #include <fcntl.h>  // TODO
 #include <stdlib.h> // TODO
 #include <string.h> // TODO
+#include <sys/poll.h>
 #include <unistd.h> // TODO
 
 #include "core/errors/error.h" // TODO
@@ -200,6 +201,13 @@ server_execute_connections (server *s)
       connection *con = s->cons[pfd.fd];
       ASSERT (con);
 
+      if (ready & POLLHUP || ready & POLLERR)
+        {
+          err_t_log_swallow (con_close (con, &e), e);
+          s->cons[pfd.fd] = NULL;
+          break;
+        }
+
       /**
        * Read the maximum amount that the connection can handle
        */
@@ -221,13 +229,6 @@ server_execute_connections (server *s)
       if (ready & POLLOUT)
         {
           err_t_log_swallow (con_write_max (con, &e), e);
-        }
-
-      // Check for close - TODO
-      if (false) // con_is_done (con))
-        {
-          err_t_log_swallow (con_close (con, &e), e);
-          s->cons[pfd.fd] = NULL;
         }
     }
 }
