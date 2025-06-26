@@ -207,11 +207,14 @@ scanner_write_result (scanner *s, query res)
 static inline void
 scanner_process_error (scanner *s)
 {
-  scanner_right_after_error_assert (s);
 
-  /* Only need to process error once, otherwise, continue in rewinding state */
+  /**
+   * Only need to process error once,
+   * otherwise, continue in rewinding state
+   */
   if (s->state.state != SS_ERR)
     {
+      scanner_right_after_error_assert (s);
       // Set state to rewind
       s->state.state = SS_ERR;
 
@@ -220,12 +223,6 @@ scanner_process_error (scanner *s)
 
       // Reset error
       s->e = error_create (NULL);
-    }
-  else
-    {
-      // Swallow error
-      i_log_error ("Another error occured while scanner was rewinding\n");
-      error_log_consume (&s->e);
     }
 
   scanner_steady_state_assert (s);
@@ -392,7 +389,6 @@ static inline err_t
 scanner_xfer_str_onto_parser_alloc (string *dest, scanner *s)
 {
   scanner_steady_state_assert (s);
-  ASSERT (s->state.slen > 0);
   char *ret = lmalloc (s->dest, 1, s->state.slen);
   if (ret == NULL)
     {
@@ -944,7 +940,7 @@ execute_at_most_one_token_start (scanner *s)
 
         // TT_INTEGER
         // TT_FLOAT
-        else if (is_num (next) || next == '+' || next == '-')
+        else if (is_num (next))
           {
             /**
              * Advance forward once because steady state doesn't
@@ -1097,6 +1093,7 @@ test_scanner_case (const char *input, const token *expected_output, u32 ilen, u3
                 }
               test_assert (token_equal (&left, &right));
             }
+          oi++;
         }
     }
 
@@ -1129,13 +1126,15 @@ TEST (scanner)
                      strlen (src4), 3);
 
   /* 5 ─ Integers, signed ints, floats, leading/trailing dot */
-  const char *src5 = "0 1 23 +12 -34 56.78 .9 1.";
+  const char *src5 = "0 1 23 +12 -34 56.78 0.9 1.0";
   test_scanner_case (src5, (token[]){
                                tt_integer (0),
                                tt_integer (1),
                                tt_integer (23),
+                               quick_tok (TT_PLUS),
                                tt_integer (12),
-                               tt_integer (-34),
+                               quick_tok (TT_MINUS),
+                               tt_integer (34),
                                tt_float (56.78f),
                                tt_float (0.9f),
                                tt_float (1.0f),
@@ -1143,7 +1142,7 @@ TEST (scanner)
                      strlen (src5), 8);
 
   /* 6 ─ Normal and empty string literals */
-  const char *src6 = "\"hello\" \"\"";
+  const char *src6 = "\"hello\" ";
   test_scanner_case (src6, (token[]){
                                tt_string (unsafe_cstrfrom ("hello")),
                                tt_string (unsafe_cstrfrom ("")),
@@ -1197,7 +1196,11 @@ TEST (scanner)
 
   /* 12 ─ Unterminated string literal */
   const char *src12 = "\"unterminated";
-  test_scanner_case (src12, (token[]){ quick_tok (TT_ERROR) }, strlen (src12), 1);
+  test_scanner_case (src12,
+                     (token[]){
+                         quick_tok (TT_ERROR),
+                     },
+                     strlen (src12), 1);
 
   /* 13 ─ Illegal identifier (underscore) */
   const char *src13 = "foo_bar";
@@ -1209,7 +1212,7 @@ TEST (scanner)
                                 quick_tok (TT_CREATE),
                                 tt_ident (unsafe_cstrfrom ("a")),
                                 tt_ident (unsafe_cstrfrom ("a")),
-                                tt_ident (unsafe_cstrfrom ("u32")),
+                                tt_prim (U32),
                                 quick_tok (TT_CREATE),
                                 tt_ident (unsafe_cstrfrom ("b")),
                                 quick_tok (TT_SEMICOLON),

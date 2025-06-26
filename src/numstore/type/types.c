@@ -331,6 +331,10 @@ type_equal (const type *left, const type *right)
       {
         return sarray_t_equal (&left->sa, &right->sa);
       }
+    default:
+      {
+        UNREACHABLE ();
+      }
     }
 }
 

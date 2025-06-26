@@ -1,5 +1,6 @@
 #include "numstore/query/query.h"
 
+#include "core/dev/assert.h"
 #include "core/intf/logging.h" // TODO
 
 #include "numstore/query/queries/create.h" // i_log_create
@@ -59,6 +60,10 @@ query_equal (const query *left, const query *right)
     case QT_INSERT:
       {
         return insert_query_equal (left->insert, right->insert);
+      }
+    default:
+      {
+        UNREACHABLE ();
       }
     }
 }

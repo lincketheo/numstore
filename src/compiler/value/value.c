@@ -46,5 +46,9 @@ value_equal (const value *left, const value *right)
       {
         return true;
       }
+    default:
+      {
+        UNREACHABLE ();
+      }
     }
 }
