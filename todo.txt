@@ -18,3 +18,7 @@
    it encounters an ASSERT(str.len > 0). I think empty strings 
    should be supported, but I don't want to just slap a NULL on it 
    and be good
+
+2. The 2 char token test is failing because my logic is wrong 
+   
+   Step through it and fix it
