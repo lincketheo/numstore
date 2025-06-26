@@ -3,7 +3,8 @@
 #include "core/errors/error.h" // TODO
 #include "core/intf/types.h"   // TODO
 
-#include "numstore/hash_map/hm.h"   // hm
+#include "numstore/hash_map/hm.h" // hm
+#include "numstore/query/queries/insert.h"
 #include "numstore/rptree/rptree.h" // rptree
 
 DEFINE_DBG_ASSERT_I (cursor, cursor, c)
@@ -62,7 +63,7 @@ cursor_close (cursor *c)
 }
 
 err_t
-cursor_create_var (cursor *c, create_query *q, error *e)
+cursor_create (cursor *c, create_query *q, error *e)
 {
   cursor_assert (c);
 
@@ -90,13 +91,25 @@ cursor_create_var (cursor *c, create_query *q, error *e)
 }
 
 err_t
-cursor_delete_var (cursor *c, delete_query *q, error *e)
+cursor_delete (cursor *c, delete_query *q, error *e)
 {
   cursor_assert (c);
 
   // TODO - delete rptree
 
   err_t_wrap (hm_delete (c->h, q->vname, e), e);
+
+  return err_t_from (e);
+}
+
+err_t
+cursor_insert (cursor *c, insert_query *q, error *e)
+{
+  cursor_assert (c);
+
+  // TODO - delete rptree
+
+  i_log_insert (q);
 
   return err_t_from (e);
 }

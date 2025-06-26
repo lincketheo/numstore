@@ -2,9 +2,9 @@
 
 #include "core/ds/strings.h" // TODO
 
-#include "compiler/ast/query/queries/create.h" // TODO
-#include "compiler/ast/query/query.h"          // TODO
-#include "compiler/ast/type/types.h"           // TODO
+#include "numstore/query/queries/create.h" // TODO
+#include "numstore/query/query.h"          // TODO
+#include "numstore/type/types.h"           // TODO
 
 typedef enum
 {
@@ -33,6 +33,10 @@ typedef enum
   TT_ENUM,
   TT_PRIM,
 
+  //      Bools
+  TT_TRUE,
+  TT_FALSE,
+
   //      Other
   TT_IDENTIFIER,
   TT_STRING,
@@ -43,6 +47,7 @@ typedef enum
 
   // Tokens that are single characters
   TT_SEMICOLON,
+  TT_COLON,
   TT_LEFT_BRACKET,
   TT_RIGHT_BRACKET,
   TT_LEFT_BRACE,

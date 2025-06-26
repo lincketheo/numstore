@@ -6,9 +6,10 @@
 #include "core/intf/io.h"      // TODO
 #include "core/mm/lalloc.h"    // TODO
 
-#include "compiler/ast/query/query_provider.h" // TODO
-#include "compiler/ast/type/types.h"           // TODO
-#include "compiler/tokens.h"                   // TODO
+#include "compiler/tokens.h" // TODO
+
+#include "numstore/query/query_provider.h" // TODO
+#include "numstore/type/types.h"           // TODO
 
 typedef struct
 {

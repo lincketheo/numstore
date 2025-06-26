@@ -9,11 +9,12 @@
 #include "core/utils/macros.h"  // is_alpha
 #include "core/utils/numbers.h" // parse_i32_expect
 
-#include "compiler/ast/query/queries/create.h" // TODO
-#include "compiler/ast/query/query.h"          // query
-#include "compiler/ast/query/query_provider.h" // TODO
-#include "compiler/parser.h"                   // parser
-#include "compiler/tokens.h"                   // token
+#include "compiler/parser.h" // parser
+#include "compiler/tokens.h" // token
+
+#include "numstore/query/queries/create.h" // TODO
+#include "numstore/query/query.h"          // query
+#include "numstore/query/query_provider.h" // TODO
 
 typedef struct
 {
@@ -139,6 +140,9 @@ static const magic_token magic_tokens[] = {
   { .token = STR_LIT ("cu32"), .t = { .type = TT_PRIM, .prim = CU32 } },
   { .token = STR_LIT ("cu64"), .t = { .type = TT_PRIM, .prim = CU64 } },
   { .token = STR_LIT ("cu128"), .t = { .type = TT_PRIM, .prim = CU128 } },
+
+  { .token = STR_LIT ("true"), .t = { .type = TT_TRUE } },
+  { .token = STR_LIT ("false"), .t = { .type = TT_FALSE } },
 };
 
 ////////////////////////////// State Machine Functions
@@ -725,6 +729,12 @@ steady_state_execute_max_start (compiler *s)
       {
         compiler_advance_expect (s);
         compiler_err_t_wrap (compiler_process_token (s, quick_tok (TT_SEMICOLON)), s);
+        break;
+      }
+    case ':':
+      {
+        compiler_advance_expect (s);
+        compiler_err_t_wrap (compiler_process_token (s, quick_tok (TT_COLON)), s);
         break;
       }
     case '[':

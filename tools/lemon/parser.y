@@ -1,12 +1,20 @@
 %include {
 #include "compiler/parser.h"
 #include "compiler/tokens.h"        
-#include "compiler/ast/type/builders/enum.h"
-#include "compiler/ast/type/builders/kvt.h"
-#include "compiler/ast/type/builders/sarray.h"
-#include "compiler/ast/query/builders/create.h"
-#include "compiler/ast/query/builders/delete.h"
-#include "compiler/ast/type/types.h"      
+
+#include "numstore/type/builders/enum.h"
+#include "numstore/type/builders/kvt.h"
+#include "numstore/type/builders/sarray.h"
+
+#include "numstore/query/builders/create.h"
+#include "numstore/query/builders/delete.h"
+#include "numstore/query/builders/insert.h"
+
+#include "compiler/value/builders/object.h"
+#include "compiler/value/builders/array.h"
+
+#include "numstore/type/types.h"      
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 #pragma GCC diagnostic ignored "-Wunused-function"
@@ -31,16 +39,23 @@
 
 %token  STRUCT UNION ENUM PRIM.
 
+%token  TRUE FALSE.
+
 %token  IDENTIFIER STRING.
 
 %token  INTEGER FLOAT.
 
-%token  SEMICOLON LEFT_BRACKET RIGHT_BRACKET LEFT_BRACE RIGHT_BRACE LEFT_PAREN RIGHT_PAREN COMMA.
-
+%token  SEMICOLON COLON LEFT_BRACKET RIGHT_BRACKET LEFT_BRACE RIGHT_BRACE LEFT_PAREN RIGHT_PAREN COMMA.
 
 /* -------------------------------------------------------------------
    Non-terminal return types
 ------------------------------------------------------------------- */
+
+%type query              {query}
+%type create_decl        {query}
+%type delete_decl        {query}
+%type insert_decl        {query}
+
 %type type               {type}
 %type type_spec          {type}
 
@@ -56,9 +71,14 @@
 %type sarray_decl        {sarray_builder}
 %type sarray_dims        {sarray_builder}
 
-%type query              {query}
-%type create_decl        {query}
-%type delete_decl        {query}
+%type value              {value}
+%type value_spec         {value}
+
+%type object_decl        {object_builder}
+%type object_items       {object_builder}
+
+%type array_decl         {array_builder}
+%type array_items        {array_builder}
 
 /* -------------------------------------------------------------------
    Error Handling
@@ -79,9 +99,7 @@
 }
 
 
-/* -------------------------------------------------------------------
-   Top-level Type Parsing
-------------------------------------------------------------------- */
+/* Top Level */
 main ::= in. 
 in ::= .
 in ::= in state SEMICOLON.
@@ -91,6 +109,7 @@ state ::= query(A). {
     res->ready = true;
 }
 
+/* Query Top Level */
 query(A) ::= delete_decl(B). {
     A = B;
 }
@@ -99,6 +118,11 @@ query(A) ::= create_decl(B). {
     A = B;
 }
 
+query(A) ::= insert_decl(B). {
+    A = B;
+}
+
+/* Type top level */
 type_spec(A) ::= type(B). { A = B; }
 
 type(A) ::= enum_decl(B). {
@@ -126,6 +150,46 @@ type(A) ::= PRIM(B). {
     .type = T_PRIM,
     .p = B.prim,
   };
+}
+
+/* Value Top Level */
+value_spec(A) ::= value(B). { A = B; }
+
+value(A) ::= object_decl(B). {
+  A = (value){ .type = VT_OBJECT };
+  if(objb_build(&A.obj, &B, res->e) != 0) break;
+}
+
+value(A) ::= array_decl(B). {
+  A = (value){ .type = VT_ARRAY };
+  if(arb_build(&A.arr, &B, res->e) != 0) break;
+}
+
+/* Low Hanging fruit */
+value(A) ::= STRING(B). {
+  A = value_string_create(B.str); 
+}
+
+value(A) ::= IDENT(B). {
+  A = value_ident_create(B.str); 
+}
+
+value(A) ::= INTEGER(B). {
+  A = value_number_create(B.integer); 
+}
+
+value(A) ::= DECIMAL(B). {
+  A = value_number_create(B.floating); 
+}
+
+/* TODO - complex */
+
+value(A) ::= TRUE. {
+  A = value_true_create(); 
+}
+
+value(A) ::= FALSE. {
+  A = value_false_create(); 
 }
 
 /* -------------------------------------------------------------------
@@ -241,5 +305,63 @@ delete_decl(A) ::= DELETE(B) IDENTIFIER(I). {
 
     // Build the query
     if (dltb_build(A.delete, &tmp, res->e) != 0) break; 
+}
+
+/* -------------------------------------------------------------------
+   INSERT: insert IDENT START VALUE
+------------------------------------------------------------------- */
+insert_decl(A) ::= INSERT(B) IDENTIFIER(I) INTEGER(N) value_spec(T). {
+    A = B.q;
+
+    // Build the builder
+    insert_builder tmp = inb_create();
+
+    // Accept
+    if (inb_accept_string(&tmp, I.str, res->e) != 0) break;
+    if (inb_accept_value(&tmp, T, res->e) != 0) break;
+    if (inb_accept_start(&tmp, N.integer, res->e) != 0) break;
+
+    // Build the query
+    if (inb_build(A.insert, &tmp, res->e) != 0) break; 
+}
+
+/* -------------------------------------------------------------------
+   Object: { ident : value, ... }
+------------------------------------------------------------------- */
+object_decl(A) ::= LEFT_BRACE object_items(B) RIGHT_BRACE. { A = B; }
+
+/* 1st variant */
+object_items(A) ::= IDENTIFIER(tok) COLON value_spec(v).
+{
+    A = objb_create(res->work, res->dest);
+    if (objb_accept_string(&A, tok.str, res->e) != 0) break;
+    if (objb_accept_value(&A, v,       res->e) != 0) break;
+}
+
+/* subsequent variants */
+object_items(A) ::= object_items(B) COMMA IDENTIFIER(tok) value_spec(t).
+{
+    A = B;
+    if (objb_accept_string(&A, tok.str, res->e) != 0) break;
+    if (objb_accept_value(&A, t,       res->e) != 0) break;
+}
+
+/* -------------------------------------------------------------------
+   Array: [ value, ... ]
+------------------------------------------------------------------- */
+array_decl(A) ::= LEFT_BRACKET array_items(B) RIGHT_BRACKET. {  A = B; }
+
+/* 1st variant */ 
+array_items(A) ::= value_spec(v). 
+{ 
+  A = arb_create(res->work, res->dest);
+  if (arb_accept_value(&A, v, res->e) != 0) break;
+}
+
+/* subsequent variants */
+array_items(A) ::= array_items(B) COMMA value_spec(v).
+{
+  A = B;
+  if (arb_accept_value(&A, v, res->e) != 0) break;
 }
 

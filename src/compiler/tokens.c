@@ -2,7 +2,7 @@
 
 #include "core/dev/assert.h" // UNREACHABLE
 
-#include "compiler/ast/query/query.h" // QT_...
+#include "numstore/query/query.h" // QT_...
 
 query_t
 tt_to_qt (token_t t)
@@ -16,6 +16,10 @@ tt_to_qt (token_t t)
     case TT_DELETE:
       {
         return QT_DELETE;
+      }
+    case TT_INSERT:
+      {
+        return QT_INSERT;
       }
     default:
       {
@@ -111,6 +115,12 @@ tt_tostr (token_t t)
     case TT_PRIM:
       return "TT_PRIM";
 
+      //      Bools
+    case TT_TRUE:
+      return "TT_TRUE";
+    case TT_FALSE:
+      return "TT_FALSE";
+
       //      Other
     case TT_IDENTIFIER:
       return "TT_IDENTIFIER";
@@ -126,6 +136,8 @@ tt_tostr (token_t t)
       // Tokens that are single characters
     case TT_SEMICOLON:
       return "TT_SEMICOLON";
+    case TT_COLON:
+      return "TT_COLON";
     case TT_LEFT_BRACKET:
       return "TT_LEFT_BRACKET";
     case TT_RIGHT_BRACKET:

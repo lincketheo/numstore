@@ -2,7 +2,7 @@
 
 #include "core/ds/strings.h" // TODO
 
-#include "compiler/ast/type/types.h" // TODO
+#include "numstore/type/types.h" // TODO
 
 /**
  * The domain layer variable data structure

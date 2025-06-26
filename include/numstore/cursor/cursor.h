@@ -2,10 +2,10 @@
 
 #include "core/errors/error.h" // error
 
-#include "compiler/ast/query/queries/create.h" // create_query
-#include "compiler/ast/query/queries/delete.h" // TODO
-
-#include "numstore/paging/pager.h" // pager
+#include "numstore/paging/pager.h"         // pager
+#include "numstore/query/queries/create.h" // create_query
+#include "numstore/query/queries/delete.h" // TODO
+#include "numstore/query/queries/insert.h"
 
 typedef struct cursor_s cursor;
 
@@ -17,7 +17,10 @@ void cursor_close (cursor *c);
  */
 
 // CREATE
-err_t cursor_create_var (cursor *c, create_query *q, error *e);
+err_t cursor_create (cursor *c, create_query *q, error *e);
 
 // DELETE
-err_t cursor_delete_var (cursor *c, delete_query *q, error *e);
+err_t cursor_delete (cursor *c, delete_query *q, error *e);
+
+// INSERT
+err_t cursor_insert (cursor *c, insert_query *q, error *e);

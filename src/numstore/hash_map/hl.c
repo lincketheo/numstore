@@ -32,7 +32,7 @@
 #define HL_HEADER_LEN (4 + sizeof (pgno)) // Length of upfront header
 #define HL_BLEN (MAX_VSTR + MAX_TSTR + HL_HEADER_LEN + 1)
 
-_Static_assert(MAX_VSTR + MAX_TSTR <= UINT16_MAX, "Max vstr and tstr must not exceed max u16");
+_Static_assert (MAX_VSTR + MAX_TSTR <= UINT16_MAX, "Max vstr and tstr must not exceed max u16");
 
 typedef struct
 {

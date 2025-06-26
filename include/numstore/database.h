@@ -3,10 +3,9 @@
 #include "core/ds/strings.h"   // string
 #include "core/errors/error.h" // err_t
 
-#include "compiler/ast/query/query_provider.h" // TODO
-
-#include "numstore/paging/pager.h"    // TODO
-#include "numstore/virtual_machine.h" // TODO
+#include "numstore/paging/pager.h"         // TODO
+#include "numstore/query/query_provider.h" // TODO
+#include "numstore/virtual_machine.h"      // TODO
 
 /**
  * A database holds the primary resources

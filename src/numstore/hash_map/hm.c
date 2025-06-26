@@ -7,12 +7,11 @@
 #include "core/intf/stdlib.h"  // TODO
 #include "core/mm/lalloc.h"    // TODO
 
-#include "compiler/ast/type/types.h" // TODO
-
 #include "numstore/hash_map/hl.h"            // TODO
 #include "numstore/paging/page.h"            // TODO
 #include "numstore/paging/pager.h"           // TODO
 #include "numstore/paging/types/hash_page.h" // TODO
+#include "numstore/type/types.h"             // TODO
 #include "numstore/variables/variable.h"     // TODO
 
 struct hm_s

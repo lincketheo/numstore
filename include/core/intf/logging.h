@@ -1,7 +1,6 @@
 #pragma once
 
 /////////////////////// Logging
-#ifndef NLOGGING
 
 // Regular colors
 #define BLACK "\033[0;30m"
@@ -34,25 +33,60 @@ void i_log_internal (
     ...)
     __attribute__ ((format (printf, 3, 4)));
 
+// #define LOG_TRACE
+#define LOG_DEBUG
+#define LOG_INFO
+#define LOG_WARN
+#define LOG_ERROR
+#define LOG_ASSERT
+#define LOG_PASSED
+#define LOG_FAILURE
+
 // Log macros
+#if defined(LOG_TRACE) && !defined(NLOGGING)
 #define i_log_trace(...) i_log_internal ("TRACE", BOLD_WHITE, __VA_ARGS__)
-#define i_log_debug(...) i_log_internal ("DEBUG", BLUE, __VA_ARGS__)
-#define i_log_info(...) i_log_internal ("INFO", GREEN, __VA_ARGS__)
-#define i_log_warn(...) i_log_internal ("WARN", YELLOW, __VA_ARGS__)
-#define i_log_error(...) i_log_internal ("ERROR", RED, __VA_ARGS__)
-#define i_log_assert(...) i_log_internal ("ASSERT", RED, __VA_ARGS__)
-#define i_log_failure(...) i_log_internal ("FAILURE", BOLD_RED, __VA_ARGS__)
-#define i_log_passed(...) i_log_internal ("PASSED", BOLD_GREEN, __VA_ARGS__)
-
 #else
+#define i_log_trace(...) ((void)0)
+#endif
 
-#define i_log_trace (fmt, __VA_ARGS__)
-#define i_log_debug (fmt, __VA_ARGS__)
-#define i_log_info (fmt, __VA_ARGS__)
-#define i_log_warn (fmt, __VA_ARGS__)
-#define i_log_error (fmt, __VA_ARGS__)
-#define i_log_assert (fmt, __VA_ARGS__)
-#define i_log_failure (fmt, __VA_ARGS__)
-#define i_log_passed (fmt, __VA_ARGS__)
+#if defined(LOG_DEBUG) && !defined(NLOGGING)
+#define i_log_debug(...) i_log_internal ("DEBUG", BLUE, __VA_ARGS__)
+#else
+#define i_log_debug(...) ((void)0)
+#endif
 
+#if defined(LOG_INFO) && !defined(NLOGGING)
+#define i_log_info(...) i_log_internal ("INFO", GREEN, __VA_ARGS__)
+#else
+#define i_log_info(...) ((void)0)
+#endif
+
+#if defined(LOG_WARN) && !defined(NLOGGING)
+#define i_log_warn(...) i_log_internal ("WARN", YELLOW, __VA_ARGS__)
+#else
+#define i_log_warn(...) ((void)0)
+#endif
+
+#if defined(LOG_ERROR) && !defined(NLOGGING)
+#define i_log_error(...) i_log_internal ("ERROR", RED, __VA_ARGS__)
+#else
+#define i_log_error(...) ((void)0)
+#endif
+
+#if defined(LOG_ASSERT) && !defined(NLOGGING)
+#define i_log_assert(...) i_log_internal ("ASSERT", RED, __VA_ARGS__)
+#else
+#define i_log_assert(...) ((void)0)
+#endif
+
+#if defined(LOG_FAILURE) && !defined(NLOGGING)
+#define i_log_failure(...) i_log_internal ("FAILURE", BOLD_RED, __VA_ARGS__)
+#else
+#define i_log_failure(...) ((void)0)
+#endif
+
+#if defined(LOG_PASSED) && !defined(NLOGGING)
+#define i_log_passed(...) i_log_internal ("PASSED", BOLD_GREEN, __VA_ARGS__)
+#else
+#define i_log_passed(...) ((void)0)
 #endif

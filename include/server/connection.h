@@ -5,10 +5,10 @@
 #include "core/errors/error.h" // error
 #include "core/intf/io.h"      // i_file
 
-#include "compiler/ast/query/query_provider.h" // qspce_prvdr
-#include "compiler/compiler.h"                 // compiler
+#include "compiler/compiler.h" // compiler
 
-#include "numstore/database.h" // database
+#include "numstore/database.h"             // database
+#include "numstore/query/query_provider.h" // qspce_prvdr
 
 typedef struct connection_s connection;
 

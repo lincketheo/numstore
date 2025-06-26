@@ -7,10 +7,9 @@
 #include "core/intf/io.h"      // i_touch
 #include "core/math/random.h"  // TODO
 
-#include "compiler/ast/query/query_provider.h" // qspce
-
-#include "numstore/paging/pager.h"    // pager
-#include "numstore/virtual_machine.h" // vm
+#include "numstore/paging/pager.h"         // pager
+#include "numstore/query/query_provider.h" // qspce
+#include "numstore/virtual_machine.h"      // vm
 
 DEFINE_DBG_ASSERT_I (database, database, d)
 {

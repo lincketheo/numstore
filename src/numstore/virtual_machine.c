@@ -1,16 +1,10 @@
 #include "numstore/virtual_machine.h"
 
-#include "core/dev/assert.h"   // ASSERT
-#include "core/ds/cbuffer.h"   // TODO
-#include "core/errors/error.h" // TODO
-#include "core/intf/logging.h" // TODO
-#include "core/intf/stdlib.h"  // TODO
-
-#include "compiler/ast/query/queries/create.h" // TODO
-#include "compiler/ast/query/queries/delete.h" // TODO
-#include "compiler/ast/query/query.h"          // TODO
+#include "core/dev/assert.h"  // ASSERT
+#include "core/intf/stdlib.h" // TODO
 
 #include "numstore/cursor/cursor.h" // TODO
+#include "numstore/query/query.h"   // TODO
 
 struct vm_s
 {
@@ -95,7 +89,7 @@ create_query_execute (vm *v)
     {
       i_log_create (v->active.create);
       error e = error_create (NULL);
-      err_t ret = cursor_create_var (v->c, v->active.create, &e);
+      err_t ret = cursor_create (v->c, v->active.create, &e);
       if (ret)
         {
           error_log_consume (&e);
@@ -148,7 +142,60 @@ delete_query_execute (vm *v)
     {
       i_log_delete (v->active.delete);
       error e = error_create (NULL);
-      err_t ret = cursor_delete_var (v->c, v->active.delete, &e);
+      err_t ret = cursor_delete (v->c, v->active.delete, &e);
+      if (ret)
+        {
+          error_log_consume (&e);
+          v->len = i_unsafe_strlen (bad) + sizeof v->len;
+          v->data = bad;
+        }
+      else
+        {
+          v->len = i_unsafe_strlen (good) + sizeof v->len;
+          v->data = good;
+        }
+    }
+
+  // Write header
+  if (v->pos < sizeof v->len)
+    {
+      ASSERT (v->output.cap >= sizeof (v->len)); // Assumes buffer can hold a u16
+      u32 written = cbuffer_write (&v->len, sizeof v->len, 1, &v->output);
+      ASSERT (written == 1);
+      v->pos = sizeof (v->len);
+    }
+
+  // Write body
+  if (v->pos >= sizeof v->len)
+    {
+      const char *head = v->data + (v->pos - sizeof v->len);
+
+      u32 remaining = i_unsafe_strlen (v->data) - (v->pos - sizeof v->len);
+
+      v->pos += cbuffer_write (head, 1, remaining, &v->output);
+      ASSERT (v->pos <= i_unsafe_strlen (v->data) + sizeof v->len);
+
+      if (v->pos == i_unsafe_strlen (v->data) + sizeof v->len)
+        {
+          v->pos = 0;
+          v->is_active = false;
+          return;
+        }
+    }
+}
+
+static inline void
+insert_query_execute (vm *v)
+{
+  vm_assert (v);
+  ASSERT (v->is_active);
+  ASSERT (v->active.type == QT_INSERT);
+
+  if (v->pos == 0)
+    {
+      i_log_insert (v->active.insert);
+      error e = error_create (NULL);
+      err_t ret = cursor_insert (v->c, v->active.insert, &e);
       if (ret)
         {
           error_log_consume (&e);
@@ -253,6 +300,11 @@ vm_execute_one_query (vm *v)
     case QT_DELETE:
       {
         delete_query_execute (v);
+        break;
+      }
+    case QT_INSERT:
+      {
+        insert_query_execute (v);
         break;
       }
     default:

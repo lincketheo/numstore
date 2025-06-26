@@ -14,7 +14,7 @@ typedef struct llnode_s
 #pragma GCC diagnostic ignored "-Wunused-function"
 
 #define container_of(ptr, type, member) \
-  ((type *)((char *)(ptr)-offsetof (type, member)))
+  ((type *)((char *)(ptr) - offsetof (type, member)))
 
 static inline void
 llnode_init (llnode *n)
