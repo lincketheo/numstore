@@ -634,3 +634,26 @@ union_t_random (union_t *un, lalloc *alloc, u32 depth, error *e)
 
   return SUCCESS;
 }
+
+bool
+union_t_equal (const union_t *left, const union_t *right)
+{
+  if (left->len != right->len)
+    {
+      return false;
+    }
+
+  for (u32 i = 0; i < left->len; ++i)
+    {
+      if (!string_equal (left->keys[i], right->keys[i]))
+        {
+          return false;
+        }
+      if (!type_equal (&left->types[i], &right->types[i]))
+        {
+          return false;
+        }
+    }
+
+  return true;
+}

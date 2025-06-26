@@ -89,3 +89,5 @@ value_false_create (void)
     .type = VT_FALSE,
   };
 }
+
+bool value_equal (const value *left, const value *right);

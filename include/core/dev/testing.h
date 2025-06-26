@@ -78,6 +78,18 @@ extern int test_ret;     // The return value of all tests
 
 #define test_assert_ptr_equal(left, right) test_assert_equal ((void *)left, (void *)right)
 
+#define test_assert(expr)                                                  \
+  do                                                                       \
+    {                                                                      \
+      if (!expr)                                                           \
+        {                                                                  \
+          i_log_failure ("Failed test due to invalid value: %s\n", #expr); \
+          test_ret = -1;                                                   \
+          return;                                                          \
+        }                                                                  \
+    }                                                                      \
+  while (0)
+
 #define test_fail_if(expr)                                                 \
   do                                                                       \
     {                                                                      \

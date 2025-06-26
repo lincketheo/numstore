@@ -22,11 +22,11 @@ State 1:
           sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET
           sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims
 
-                        STRUCT shift        33     
-                         UNION shift        31     
-                          ENUM shift        35     
+                  LEFT_BRACKET shift        30     
+                        STRUCT shift        34     
+                         UNION shift        32     
+                          ENUM shift        36     
                           PRIM shift-reduce 9      type ::= PRIM
-                  LEFT_BRACKET shift        29     
                           type shift-reduce 4      type_spec ::= type
                      type_spec shift-reduce 23     struct_items ::= IDENTIFIER type_spec
                      enum_decl shift-reduce 5      type ::= enum_decl
@@ -50,11 +50,11 @@ State 2:
           sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET
           sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims
 
-                        STRUCT shift        33     
-                         UNION shift        31     
-                          ENUM shift        35     
+                  LEFT_BRACKET shift        30     
+                        STRUCT shift        34     
+                         UNION shift        32     
+                          ENUM shift        36     
                           PRIM shift-reduce 9      type ::= PRIM
-                  LEFT_BRACKET shift        29     
                           type shift-reduce 4      type_spec ::= type
                      type_spec shift-reduce 26     union_items ::= IDENTIFIER type_spec
                      enum_decl shift-reduce 5      type ::= enum_decl
@@ -78,11 +78,11 @@ State 3:
           sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET
           sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims
 
-                        STRUCT shift        33     
-                         UNION shift        31     
-                          ENUM shift        35     
+                  LEFT_BRACKET shift        30     
+                        STRUCT shift        34     
+                         UNION shift        32     
+                          ENUM shift        36     
                           PRIM shift-reduce 9      type ::= PRIM
-                  LEFT_BRACKET shift        29     
                           type shift-reduce 4      type_spec ::= type
                      type_spec shift-reduce 27     union_items ::= union_items COMMA IDENTIFIER type_spec
                      enum_decl shift-reduce 5      type ::= enum_decl
@@ -106,11 +106,11 @@ State 4:
           sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET
           sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims
 
-                        STRUCT shift        33     
-                         UNION shift        31     
-                          ENUM shift        35     
+                  LEFT_BRACKET shift        30     
+                        STRUCT shift        34     
+                         UNION shift        32     
+                          ENUM shift        36     
                           PRIM shift-reduce 9      type ::= PRIM
-                  LEFT_BRACKET shift        29     
                           type shift-reduce 4      type_spec ::= type
                      type_spec shift-reduce 24     struct_items ::= struct_items COMMA IDENTIFIER type_spec
                      enum_decl shift-reduce 5      type ::= enum_decl
@@ -134,11 +134,11 @@ State 5:
           sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims
           create_decl ::= CREATE IDENTIFIER * type_spec
 
-                        STRUCT shift        33     
-                         UNION shift        31     
-                          ENUM shift        35     
+                  LEFT_BRACKET shift        30     
+                        STRUCT shift        34     
+                         UNION shift        32     
+                          ENUM shift        36     
                           PRIM shift-reduce 9      type ::= PRIM
-                  LEFT_BRACKET shift        29     
                           type shift-reduce 4      type_spec ::= type
                      type_spec shift-reduce 31     create_decl ::= CREATE IDENTIFIER type_spec
                      enum_decl shift-reduce 5      type ::= enum_decl
@@ -161,11 +161,11 @@ State 6:
           sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET
           sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims
 
-                        STRUCT shift        33     
-                         UNION shift        31     
-                          ENUM shift        35     
+                  LEFT_BRACKET shift        30     
+                        STRUCT shift        34     
+                         UNION shift        32     
+                          ENUM shift        36     
                           PRIM shift-reduce 9      type ::= PRIM
-                  LEFT_BRACKET shift        29     
                           type shift-reduce 28     sarray_decl ::= sarray_dims type
                      enum_decl shift-reduce 5      type ::= enum_decl
                    struct_decl shift-reduce 6      type ::= struct_decl
@@ -180,7 +180,7 @@ State 7:
           value ::= * STRING
           value ::= * IDENT
           value ::= * INTEGER
-          value ::= * DECIMAL
+          value ::= * FLOAT
           value ::= * TRUE
           value ::= * FALSE
           object_decl ::= * LEFT_BRACE object_items RIGHT_BRACE
@@ -189,14 +189,14 @@ State 7:
           array_items ::= * value_spec
           array_items ::= * array_items COMMA value_spec
 
-                          TRUE shift-reduce 17     value ::= TRUE
-                         FALSE shift-reduce 18     value ::= FALSE
-                        STRING shift-reduce 13     value ::= STRING
-                       INTEGER shift-reduce 15     value ::= INTEGER
                   LEFT_BRACKET shift        7      
                     LEFT_BRACE shift        13     
+                        STRING shift-reduce 13     value ::= STRING
+                       INTEGER shift-reduce 15     value ::= INTEGER
+                         FLOAT shift-reduce 16     value ::= FLOAT
+                          TRUE shift-reduce 17     value ::= TRUE
+                         FALSE shift-reduce 18     value ::= FALSE
                          IDENT shift-reduce 14     value ::= IDENT
-                       DECIMAL shift-reduce 16     value ::= DECIMAL
                          value shift-reduce 10     value_spec ::= value
                     value_spec shift-reduce 38     array_items ::= value_spec
                    object_decl shift-reduce 11     value ::= object_decl
@@ -215,14 +215,14 @@ State 8:
           insert_decl ::= * INSERT IDENTIFIER INTEGER value_spec
 
                              $ reduce       40     main ::= in
-                        CREATE shift        36     
-                        DELETE shift        27     
-                        INSERT shift        26     
+                        CREATE shift        37     
+                        DELETE shift        28     
+                        INSERT shift        27     
                          query shift-reduce 0      state ::= query
                    create_decl shift-reduce 2      query ::= create_decl
                    delete_decl shift-reduce 1      query ::= delete_decl
                    insert_decl shift-reduce 3      query ::= insert_decl
-                         state shift        37     
+                         state shift        38     
 
 State 9:
           value_spec ::= * value
@@ -231,21 +231,21 @@ State 9:
           value ::= * STRING
           value ::= * IDENT
           value ::= * INTEGER
-          value ::= * DECIMAL
+          value ::= * FLOAT
           value ::= * TRUE
           value ::= * FALSE
           object_decl ::= * LEFT_BRACE object_items RIGHT_BRACE
           object_items ::= IDENTIFIER COLON * value_spec
           array_decl ::= * LEFT_BRACKET array_items RIGHT_BRACKET
 
-                          TRUE shift-reduce 17     value ::= TRUE
-                         FALSE shift-reduce 18     value ::= FALSE
-                        STRING shift-reduce 13     value ::= STRING
-                       INTEGER shift-reduce 15     value ::= INTEGER
                   LEFT_BRACKET shift        7      
                     LEFT_BRACE shift        13     
+                        STRING shift-reduce 13     value ::= STRING
+                       INTEGER shift-reduce 15     value ::= INTEGER
+                         FLOAT shift-reduce 16     value ::= FLOAT
+                          TRUE shift-reduce 17     value ::= TRUE
+                         FALSE shift-reduce 18     value ::= FALSE
                          IDENT shift-reduce 14     value ::= IDENT
-                       DECIMAL shift-reduce 16     value ::= DECIMAL
                          value shift-reduce 10     value_spec ::= value
                     value_spec shift-reduce 35     object_items ::= IDENTIFIER COLON value_spec
                    object_decl shift-reduce 11     value ::= object_decl
@@ -258,21 +258,21 @@ State 10:
           value ::= * STRING
           value ::= * IDENT
           value ::= * INTEGER
-          value ::= * DECIMAL
+          value ::= * FLOAT
           value ::= * TRUE
           value ::= * FALSE
           object_decl ::= * LEFT_BRACE object_items RIGHT_BRACE
           array_decl ::= * LEFT_BRACKET array_items RIGHT_BRACKET
           array_items ::= array_items COMMA * value_spec
 
-                          TRUE shift-reduce 17     value ::= TRUE
-                         FALSE shift-reduce 18     value ::= FALSE
-                        STRING shift-reduce 13     value ::= STRING
-                       INTEGER shift-reduce 15     value ::= INTEGER
                   LEFT_BRACKET shift        7      
                     LEFT_BRACE shift        13     
+                        STRING shift-reduce 13     value ::= STRING
+                       INTEGER shift-reduce 15     value ::= INTEGER
+                         FLOAT shift-reduce 16     value ::= FLOAT
+                          TRUE shift-reduce 17     value ::= TRUE
+                         FALSE shift-reduce 18     value ::= FALSE
                          IDENT shift-reduce 14     value ::= IDENT
-                       DECIMAL shift-reduce 16     value ::= DECIMAL
                          value shift-reduce 10     value_spec ::= value
                     value_spec shift-reduce 39     array_items ::= array_items COMMA value_spec
                    object_decl shift-reduce 11     value ::= object_decl
@@ -285,23 +285,23 @@ State 11:
           value ::= * STRING
           value ::= * IDENT
           value ::= * INTEGER
-          value ::= * DECIMAL
+          value ::= * FLOAT
           value ::= * TRUE
           value ::= * FALSE
           object_decl ::= * LEFT_BRACE object_items RIGHT_BRACE
-          object_items ::= object_items COMMA IDENTIFIER * value_spec
+          object_items ::= object_items COMMA IDENTIFIER COLON * value_spec
           array_decl ::= * LEFT_BRACKET array_items RIGHT_BRACKET
 
-                          TRUE shift-reduce 17     value ::= TRUE
-                         FALSE shift-reduce 18     value ::= FALSE
-                        STRING shift-reduce 13     value ::= STRING
-                       INTEGER shift-reduce 15     value ::= INTEGER
                   LEFT_BRACKET shift        7      
                     LEFT_BRACE shift        13     
+                        STRING shift-reduce 13     value ::= STRING
+                       INTEGER shift-reduce 15     value ::= INTEGER
+                         FLOAT shift-reduce 16     value ::= FLOAT
+                          TRUE shift-reduce 17     value ::= TRUE
+                         FALSE shift-reduce 18     value ::= FALSE
                          IDENT shift-reduce 14     value ::= IDENT
-                       DECIMAL shift-reduce 16     value ::= DECIMAL
                          value shift-reduce 10     value_spec ::= value
-                    value_spec shift-reduce 36     object_items ::= object_items COMMA IDENTIFIER value_spec
+                    value_spec shift-reduce 36     object_items ::= object_items COMMA IDENTIFIER COLON value_spec
                    object_decl shift-reduce 11     value ::= object_decl
                     array_decl shift-reduce 12     value ::= array_decl
 
@@ -312,21 +312,21 @@ State 12:
           value ::= * STRING
           value ::= * IDENT
           value ::= * INTEGER
-          value ::= * DECIMAL
+          value ::= * FLOAT
           value ::= * TRUE
           value ::= * FALSE
           insert_decl ::= INSERT IDENTIFIER INTEGER * value_spec
           object_decl ::= * LEFT_BRACE object_items RIGHT_BRACE
           array_decl ::= * LEFT_BRACKET array_items RIGHT_BRACKET
 
-                          TRUE shift-reduce 17     value ::= TRUE
-                         FALSE shift-reduce 18     value ::= FALSE
-                        STRING shift-reduce 13     value ::= STRING
-                       INTEGER shift-reduce 15     value ::= INTEGER
                   LEFT_BRACKET shift        7      
                     LEFT_BRACE shift        13     
+                        STRING shift-reduce 13     value ::= STRING
+                       INTEGER shift-reduce 15     value ::= INTEGER
+                         FLOAT shift-reduce 16     value ::= FLOAT
+                          TRUE shift-reduce 17     value ::= TRUE
+                         FALSE shift-reduce 18     value ::= FALSE
                          IDENT shift-reduce 14     value ::= IDENT
-                       DECIMAL shift-reduce 16     value ::= DECIMAL
                          value shift-reduce 10     value_spec ::= value
                     value_spec shift-reduce 33     insert_decl ::= INSERT IDENTIFIER INTEGER value_spec
                    object_decl shift-reduce 11     value ::= object_decl
@@ -335,7 +335,7 @@ State 12:
 State 13:
           object_decl ::= LEFT_BRACE * object_items RIGHT_BRACE
           object_items ::= * IDENTIFIER COLON value_spec
-          object_items ::= * object_items COMMA IDENTIFIER value_spec
+          object_items ::= * object_items COMMA IDENTIFIER COLON value_spec
 
                     IDENTIFIER shift        23     
                   object_items shift        19     
@@ -346,7 +346,7 @@ State 14:
           sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims
           sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET * sarray_dims
 
-                  LEFT_BRACKET shift        29     
+                  LEFT_BRACKET shift        30     
                   LEFT_BRACKET reduce       29      ** Parsing conflict **
                    sarray_dims shift-reduce 30     sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims
                      {default} reduce       29     sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET
@@ -384,31 +384,31 @@ State 18:
 
 State 19:
           object_decl ::= LEFT_BRACE object_items * RIGHT_BRACE
-          object_items ::= object_items * COMMA IDENTIFIER value_spec
+          object_items ::= object_items * COMMA IDENTIFIER COLON value_spec
 
                    RIGHT_BRACE shift-reduce 34     object_decl ::= LEFT_BRACE object_items RIGHT_BRACE
-                         COMMA shift        24     
+                         COMMA shift        25     
 
 State 20:
           union_decl ::= UNION LEFT_BRACE union_items * RIGHT_BRACE
           union_items ::= union_items * COMMA IDENTIFIER type_spec
 
                    RIGHT_BRACE shift-reduce 25     union_decl ::= UNION LEFT_BRACE union_items RIGHT_BRACE
-                         COMMA shift        30     
+                         COMMA shift        31     
 
 State 21:
           struct_decl ::= STRUCT LEFT_BRACE struct_items * RIGHT_BRACE
           struct_items ::= struct_items * COMMA IDENTIFIER type_spec
 
                    RIGHT_BRACE shift-reduce 22     struct_decl ::= STRUCT LEFT_BRACE struct_items RIGHT_BRACE
-                         COMMA shift        32     
+                         COMMA shift        33     
 
 State 22:
           enum_decl ::= ENUM LEFT_BRACE enum_items * RIGHT_BRACE
           enum_items ::= enum_items * COMMA IDENTIFIER
 
                    RIGHT_BRACE shift-reduce 19     enum_decl ::= ENUM LEFT_BRACE enum_items RIGHT_BRACE
-                         COMMA shift        34     
+                         COMMA shift        35     
 
 State 23:
           object_items ::= IDENTIFIER * COLON value_spec
@@ -416,73 +416,78 @@ State 23:
                          COLON shift        9      
 
 State 24:
-          object_items ::= object_items COMMA * IDENTIFIER value_spec
+          object_items ::= object_items COMMA IDENTIFIER * COLON value_spec
 
-                    IDENTIFIER shift        11     
+                         COLON shift        11     
 
 State 25:
+          object_items ::= object_items COMMA * IDENTIFIER COLON value_spec
+
+                    IDENTIFIER shift        24     
+
+State 26:
           insert_decl ::= INSERT IDENTIFIER * INTEGER value_spec
 
                        INTEGER shift        12     
 
-State 26:
+State 27:
           insert_decl ::= INSERT * IDENTIFIER INTEGER value_spec
 
-                    IDENTIFIER shift        25     
+                    IDENTIFIER shift        26     
 
-State 27:
+State 28:
           delete_decl ::= DELETE * IDENTIFIER
 
                     IDENTIFIER shift-reduce 32     delete_decl ::= DELETE IDENTIFIER
 
-State 28:
+State 29:
           sarray_dims ::= LEFT_BRACKET INTEGER * RIGHT_BRACKET
           sarray_dims ::= LEFT_BRACKET INTEGER * RIGHT_BRACKET sarray_dims
 
                  RIGHT_BRACKET shift        14     
 
-State 29:
+State 30:
           sarray_dims ::= LEFT_BRACKET * INTEGER RIGHT_BRACKET
           sarray_dims ::= LEFT_BRACKET * INTEGER RIGHT_BRACKET sarray_dims
 
-                       INTEGER shift        28     
+                       INTEGER shift        29     
 
-State 30:
+State 31:
           union_items ::= union_items COMMA * IDENTIFIER type_spec
 
                     IDENTIFIER shift        3      
 
-State 31:
+State 32:
           union_decl ::= UNION * LEFT_BRACE union_items RIGHT_BRACE
 
                     LEFT_BRACE shift        15     
 
-State 32:
+State 33:
           struct_items ::= struct_items COMMA * IDENTIFIER type_spec
 
                     IDENTIFIER shift        4      
 
-State 33:
+State 34:
           struct_decl ::= STRUCT * LEFT_BRACE struct_items RIGHT_BRACE
 
                     LEFT_BRACE shift        16     
 
-State 34:
+State 35:
           enum_items ::= enum_items COMMA * IDENTIFIER
 
                     IDENTIFIER shift-reduce 21     enum_items ::= enum_items COMMA IDENTIFIER
 
-State 35:
+State 36:
           enum_decl ::= ENUM * LEFT_BRACE enum_items RIGHT_BRACE
 
                     LEFT_BRACE shift        17     
 
-State 36:
+State 37:
           create_decl ::= CREATE * IDENTIFIER type_spec
 
                     IDENTIFIER shift        5      
 
-State 37:
+State 38:
           in ::= in state * SEMICOLON
 
                      SEMICOLON shift-reduce 42     in ::= in state SEMICOLON
@@ -492,72 +497,88 @@ Symbols:
 The first-set of non-terminals is shown after the name.
 
     0: $:
-    1: CREATE
-    2: DELETE
-    3: APPEND
-    4: INSERT
-    5: UPDATE
-    6: READ
-    7: TAKE
-    8: BCREATE
-    9: BDELETE
-   10: BAPPEND
-   11: BINSERT
-   12: BUPDATE
-   13: BREAD
-   14: BTAKE
-   15: STRUCT
-   16: UNION
-   17: ENUM
-   18: PRIM
-   19: TRUE
-   20: FALSE
-   21: IDENTIFIER
-   22: STRING
-   23: INTEGER
-   24: FLOAT
-   25: SEMICOLON
-   26: COLON
-   27: LEFT_BRACKET
-   28: RIGHT_BRACKET
-   29: LEFT_BRACE
-   30: RIGHT_BRACE
-   31: LEFT_PAREN
-   32: RIGHT_PAREN
-   33: COMMA
-   34: IDENT
-   35: DECIMAL
-   36: query: CREATE DELETE INSERT
-   37: create_decl: CREATE
-   38: delete_decl: DELETE
-   39: insert_decl: INSERT
-   40: type: STRUCT UNION ENUM PRIM LEFT_BRACKET
-   41: type_spec: STRUCT UNION ENUM PRIM LEFT_BRACKET
-   42: enum_decl: ENUM
-   43: enum_items: IDENTIFIER
-   44: struct_decl: STRUCT
-   45: struct_items: IDENTIFIER
-   46: union_decl: UNION
-   47: union_items: IDENTIFIER
-   48: sarray_decl: LEFT_BRACKET
-   49: sarray_dims: LEFT_BRACKET
-   50: value: TRUE FALSE STRING INTEGER LEFT_BRACKET LEFT_BRACE IDENT DECIMAL
-   51: value_spec: TRUE FALSE STRING INTEGER LEFT_BRACKET LEFT_BRACE IDENT DECIMAL
-   52: object_decl: LEFT_BRACE
-   53: object_items: IDENTIFIER
-   54: array_decl: LEFT_BRACKET
-   55: array_items: TRUE FALSE STRING INTEGER LEFT_BRACKET LEFT_BRACE IDENT DECIMAL
-   56: main: <lambda> CREATE DELETE INSERT
-   57: in: <lambda> CREATE DELETE INSERT
-   58: state: CREATE DELETE INSERT
+    1: PLUS
+    2: MINUS
+    3: SLASH
+    4: STAR
+    5: BANG
+    6: BANG_EQUAL
+    7: EQUAL_EQUAL
+    8: GREATER
+    9: GREATER_EQUAL
+   10: LESS
+   11: LESS_EQUAL
+   12: NOT
+   13: CARET
+   14: PERCENT
+   15: PIPE
+   16: AMPERSAND
+   17: SEMICOLON
+   18: COLON
+   19: LEFT_BRACKET
+   20: RIGHT_BRACKET
+   21: LEFT_BRACE
+   22: RIGHT_BRACE
+   23: LEFT_PAREN
+   24: RIGHT_PAREN
+   25: COMMA
+   26: STRING
+   27: IDENTIFIER
+   28: INTEGER
+   29: FLOAT
+   30: CREATE
+   31: DELETE
+   32: APPEND
+   33: INSERT
+   34: UPDATE
+   35: READ
+   36: TAKE
+   37: BCREATE
+   38: BDELETE
+   39: BAPPEND
+   40: BINSERT
+   41: BUPDATE
+   42: BREAD
+   43: BTAKE
+   44: STRUCT
+   45: UNION
+   46: ENUM
+   47: PRIM
+   48: TRUE
+   49: FALSE
+   50: IDENT
+   51: query: CREATE DELETE INSERT
+   52: create_decl: CREATE
+   53: delete_decl: DELETE
+   54: insert_decl: INSERT
+   55: type: LEFT_BRACKET STRUCT UNION ENUM PRIM
+   56: type_spec: LEFT_BRACKET STRUCT UNION ENUM PRIM
+   57: enum_decl: ENUM
+   58: enum_items: IDENTIFIER
+   59: struct_decl: STRUCT
+   60: struct_items: IDENTIFIER
+   61: union_decl: UNION
+   62: union_items: IDENTIFIER
+   63: sarray_decl: LEFT_BRACKET
+   64: sarray_dims: LEFT_BRACKET
+   65: value: LEFT_BRACKET LEFT_BRACE STRING INTEGER FLOAT TRUE FALSE IDENT
+   66: value_spec: LEFT_BRACKET LEFT_BRACE STRING INTEGER FLOAT TRUE FALSE IDENT
+   67: object_decl: LEFT_BRACE
+   68: object_items: IDENTIFIER
+   69: array_decl: LEFT_BRACKET
+   70: array_items: LEFT_BRACKET LEFT_BRACE STRING INTEGER FLOAT TRUE FALSE IDENT
+   71: main: <lambda> CREATE DELETE INSERT
+   72: in: <lambda> CREATE DELETE INSERT
+   73: state: CREATE DELETE INSERT
 ----------------------------------------------------
 Syntax-only Symbols:
 The following symbols never carry semantic content.
 
-$ APPEND UPDATE READ TAKE BCREATE BDELETE BAPPEND BINSERT BUPDATE BREAD
-BTAKE STRUCT UNION ENUM TRUE FALSE FLOAT SEMICOLON COLON LEFT_BRACKET
-RIGHT_BRACKET LEFT_BRACE RIGHT_BRACE LEFT_PAREN RIGHT_PAREN COMMA main in
-state
+$ PLUS MINUS SLASH STAR BANG BANG_EQUAL EQUAL_EQUAL GREATER GREATER_EQUAL
+LESS LESS_EQUAL NOT CARET PERCENT PIPE AMPERSAND SEMICOLON COLON
+LEFT_BRACKET RIGHT_BRACKET LEFT_BRACE RIGHT_BRACE LEFT_PAREN RIGHT_PAREN
+COMMA APPEND UPDATE READ TAKE BCREATE BDELETE BAPPEND BINSERT BUPDATE BREAD
+BTAKE STRUCT UNION ENUM TRUE FALSE main in state
 ----------------------------------------------------
 Rules:
    0: state ::= query.
@@ -576,7 +597,7 @@ Rules:
   13: value ::= STRING.
   14: value ::= IDENT.
   15: value ::= INTEGER.
-  16: value ::= DECIMAL.
+  16: value ::= FLOAT.
   17: value ::= TRUE.
   18: value ::= FALSE.
   19: enum_decl ::= ENUM LEFT_BRACE enum_items RIGHT_BRACE.
@@ -596,7 +617,7 @@ Rules:
   33: insert_decl ::= INSERT IDENTIFIER INTEGER value_spec.
   34: object_decl ::= LEFT_BRACE object_items RIGHT_BRACE.
   35: object_items ::= IDENTIFIER COLON value_spec.
-  36: object_items ::= object_items COMMA IDENTIFIER value_spec.
+  36: object_items ::= object_items COMMA IDENTIFIER COLON value_spec.
   37: array_decl ::= LEFT_BRACKET array_items RIGHT_BRACKET.
   38: array_items ::= value_spec.
   39: array_items ::= array_items COMMA value_spec.

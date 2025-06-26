@@ -37,3 +37,28 @@ query_error_create (error e)
     .e = e,
   };
 }
+
+bool
+query_equal (const query *left, const query *right)
+{
+  if (left->type != right->type)
+    {
+      return false;
+    }
+
+  switch (left->type)
+    {
+    case QT_CREATE:
+      {
+        return create_query_equal (left->create, right->create);
+      }
+    case QT_DELETE:
+      {
+        return delete_query_equal (left->delete, right->delete);
+      }
+    case QT_INSERT:
+      {
+        return insert_query_equal (left->insert, right->insert);
+      }
+    }
+}

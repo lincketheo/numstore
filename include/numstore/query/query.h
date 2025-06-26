@@ -41,3 +41,4 @@ struct query_s
 
 void i_log_query (query q);
 struct query_s query_error_create (error e);
+bool query_equal (const query *left, const query *right);

@@ -20,3 +20,4 @@ u32 enum_t_get_serial_size (const enum_t *t);
 void enum_t_serialize (serializer *dest, const enum_t *src);
 err_t enum_t_deserialize (enum_t *dest, deserializer *src, lalloc *a, error *e);
 err_t enum_t_random (enum_t *en, lalloc *alloc, error *e);
+bool enum_t_equal (const enum_t *left, const enum_t *right);

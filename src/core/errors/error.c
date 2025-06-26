@@ -190,3 +190,28 @@ error_log_consume (error *e)
   e->elen = 0;
   e->cause_code = SUCCESS;
 }
+
+bool
+error_equal (const error *left, const error *right)
+{
+  error_assert (left);
+  error_assert (right);
+  if (left->cause_code != right->cause_code)
+    {
+      return false;
+    }
+
+  if (left->cause_code)
+    {
+      if (left->cmlen != right->cmlen)
+        {
+          return false;
+        }
+      if (i_strncmp (left->cause_msg, right->cause_msg, left->cmlen) != 0)
+        {
+          return false;
+        }
+    }
+
+  return true;
+}

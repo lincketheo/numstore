@@ -9,10 +9,10 @@
 #include "core/mm/lalloc.h"    // TODO
 #include "core/utils/macros.h" // TODO
 
-#include "compiler/ast/query/queries/create.h" // TODO
-#include "compiler/ast/query/query.h"          // TODO
-#include "compiler/ast/query/query_provider.h" // TODO
 #include "compiler/tokens.h"                   // TODO
+#include "numstore/ast/query/queries/create.h" // TODO
+#include "numstore/query/query.h"              // TODO
+#include "numstore/query/query_provider.h"     // TODO
 
 int
 main (void)

@@ -43,3 +43,17 @@ delete_query_reset (delete_query *q)
   lalloc_reset (&q->query_allocator);
   q->vname = (string){ 0 };
 }
+
+bool
+delete_query_equal (const delete_query *left, const delete_query *right)
+{
+  delete_query_assert (left);
+  delete_query_assert (right);
+
+  if (!string_equal (left->vname, right->vname))
+    {
+      return false;
+    }
+
+  return true;
+}

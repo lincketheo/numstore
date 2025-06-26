@@ -22,3 +22,4 @@ u32 sarray_t_get_serial_size (const sarray_t *t);
 void sarray_t_serialize (serializer *dest, const sarray_t *src);
 err_t sarray_t_deserialize (sarray_t *dest, deserializer *src, lalloc *a, error *e);
 err_t sarray_t_random (sarray_t *sa, lalloc *alloc, u32 depth, error *e);
+bool sarray_t_equal (const sarray_t *left, const sarray_t *right);

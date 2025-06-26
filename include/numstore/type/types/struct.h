@@ -23,3 +23,4 @@ u32 struct_t_get_serial_size (const struct_t *t);
 void struct_t_serialize (serializer *dest, const struct_t *src);
 err_t struct_t_deserialize (struct_t *dest, deserializer *src, lalloc *a, error *e);
 err_t struct_t_random (struct_t *st, lalloc *alloc, u32 depth, error *e);
+bool struct_t_equal (const struct_t *left, const struct_t *right);

@@ -19,3 +19,4 @@ typedef struct
 void i_log_delete (delete_query *q);
 query delete_query_create (delete_query *q);
 void delete_query_reset (delete_query *q);
+bool delete_query_equal (const delete_query *left, const delete_query *right);

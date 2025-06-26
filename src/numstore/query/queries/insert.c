@@ -1,5 +1,6 @@
 #include "numstore/query/queries/insert.h"
 #include "core/dev/assert.h"
+#include "core/ds/strings.h"
 #include "core/errors/error.h"
 #include "core/intf/logging.h"
 #include "core/mm/lalloc.h"
@@ -42,4 +43,22 @@ insert_query_reset (insert_query *q)
 {
   insert_query_assert (q);
   lalloc_reset (&q->query_allocator);
+}
+
+bool
+insert_query_equal (const insert_query *left, const insert_query *right)
+{
+  if (!string_equal (left->vname, right->vname))
+    {
+      return false;
+    }
+  if (!value_equal (&left->val, &right->val))
+    {
+      return false;
+    }
+  if (left->start != right->start)
+    {
+      return false;
+    }
+  return true;
 }

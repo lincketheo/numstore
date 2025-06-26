@@ -402,3 +402,22 @@ sarray_t_random (sarray_t *sa, lalloc *alloc, u32 depth, error *e)
 
   return SUCCESS;
 }
+
+bool
+sarray_t_equal (const sarray_t *left, const sarray_t *right)
+{
+  if (left->rank != right->rank)
+    {
+      return false;
+    }
+
+  for (u32 i = 0; i < left->rank; ++i)
+    {
+      if (left->dims[i] != right->dims[i])
+        {
+          return false;
+        }
+    }
+
+  return true;
+}

@@ -33,19 +33,36 @@
 /* -------------------------------------------------------------------
    Tokens - Ordering 
 ------------------------------------------------------------------- */
-%token  CREATE DELETE APPEND INSERT UPDATE READ TAKE.
+//      Arithmetic Operators
+%token  PLUS MINUS SLASH STAR.
 
-%token  BCREATE BDELETE BAPPEND BINSERT BUPDATE BREAD BTAKE.
+//      Logical Operators
+%token  BANG BANG_EQUAL EQUAL_EQUAL GREATER GREATER_EQUAL LESS LESS_EQUAL.
 
-%token  STRUCT UNION ENUM PRIM.
+//      Fancy Operators
+%token  NOT CARET PERCENT PIPE AMPERSAND.
 
-%token  TRUE FALSE.
+//      Other One char tokens
+%token  SEMICOLON COLON LEFT_BRACKET RIGHT_BRACKET LEFT_BRACE.
+%token  RIGHT_BRACE LEFT_PAREN RIGHT_PAREN COMMA.
 
-%token  IDENTIFIER STRING.
+//      Other
+%token  STRING IDENTIFIER.
 
+// Tokens that start with a number or +/-
 %token  INTEGER FLOAT.
 
-%token  SEMICOLON COLON LEFT_BRACKET RIGHT_BRACKET LEFT_BRACE RIGHT_BRACE LEFT_PAREN RIGHT_PAREN COMMA.
+//      Literal Operations
+%token  CREATE DELETE APPEND INSERT UPDATE READ TAKE.
+
+//      Binary Operations
+%token  BCREATE BDELETE BAPPEND BINSERT BUPDATE BREAD BTAKE.
+
+//      Type literals
+%token  STRUCT UNION ENUM PRIM.
+
+//      Bools
+%token  TRUE FALSE.
 
 /* -------------------------------------------------------------------
    Non-terminal return types
@@ -178,7 +195,7 @@ value(A) ::= INTEGER(B). {
   A = value_number_create(B.integer); 
 }
 
-value(A) ::= DECIMAL(B). {
+value(A) ::= FLOAT(B). {
   A = value_number_create(B.floating); 
 }
 
@@ -339,7 +356,7 @@ object_items(A) ::= IDENTIFIER(tok) COLON value_spec(v).
 }
 
 /* subsequent variants */
-object_items(A) ::= object_items(B) COMMA IDENTIFIER(tok) value_spec(t).
+object_items(A) ::= object_items(B) COMMA IDENTIFIER(tok) COLON value_spec(t).
 {
     A = B;
     if (objb_accept_string(&A, tok.str, res->e) != 0) break;

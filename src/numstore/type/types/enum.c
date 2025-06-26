@@ -476,3 +476,22 @@ TEST (enum_t_random)
   // Generated enum must be valid according to enum_t_validate
   test_assert_int_equal (enum_t_validate (&en, &err), SUCCESS);
 }
+
+bool
+enum_t_equal (const enum_t *left, const enum_t *right)
+{
+  if (left->len != right->len)
+    {
+      return false;
+    }
+
+  for (u32 i = 0; i < left->len; ++i)
+    {
+      if (!string_equal (left->keys[i], right->keys[i]))
+        {
+          return false;
+        }
+    }
+
+  return true;
+}

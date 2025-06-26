@@ -2,6 +2,9 @@
 
 #include "core/dev/assert.h" // UNREACHABLE
 
+#include "core/ds/strings.h"
+#include "core/errors/error.h"
+#include "core/intf/logging.h"
 #include "numstore/query/query.h" // QT_...
 
 query_t
@@ -67,73 +70,85 @@ i_log_token (token t)
     }
 }
 
+bool
+token_equal (const token *left, const token *right)
+{
+  if (left->type != right->type)
+    {
+      return false;
+    }
+
+  switch (left->type)
+    {
+    //      Other
+    case TT_STRING:
+    case TT_IDENTIFIER:
+      return string_equal (left->str, right->str);
+
+    // Tokens that start with a number or +/-
+    case TT_INTEGER:
+      return left->integer == right->integer;
+    case TT_FLOAT:
+      return left->floating == right->floating;
+
+    //      Literal Operations
+    case TT_CREATE:
+    case TT_DELETE:
+    case TT_INSERT:
+      return query_equal (&left->q, &right->q);
+
+    case TT_ERROR:
+      return error_equal (&left->e, &right->e);
+
+    default:
+      return true;
+    }
+}
+
 const char *
 tt_tostr (token_t t)
 {
   switch (t)
     {
-      // Tokens that start with a letter (alpha)
-      //      Operations
-    case TT_CREATE:
-      return "TT_CREATE";
-    case TT_DELETE:
-      return "TT_DELETE";
-    case TT_APPEND:
-      return "TT_APPEND";
-    case TT_INSERT:
-      return "TT_INSERT";
-    case TT_UPDATE:
-      return "TT_UPDATE";
-    case TT_READ:
-      return "TT_READ";
-    case TT_TAKE:
-      return "TT_TAKE";
+    //      Arithmetic Operators
+    case TT_PLUS:
+      return "TT_PLUS";
+    case TT_MINUS:
+      return "TT_MINUS";
+    case TT_SLASH:
+      return "TT_SLASH";
+    case TT_STAR:
+      return "TT_STAR";
 
-      //      Binary Operations
-    case TT_BCREATE:
-      return "TT_BCREATE";
-    case TT_BDELETE:
-      return "TT_BDELETE";
-    case TT_BAPPEND:
-      return "TT_BAPPEND";
-    case TT_BINSERT:
-      return "TT_BINSERT";
-    case TT_BUPDATE:
-      return "TT_BUPDATE";
-    case TT_BREAD:
-      return "TT_BREAD";
-    case TT_BTAKE:
-      return "TT_BTAKE";
+    //      Logical Operators
+    case TT_BANG:
+      return "TT_BANG";
+    case TT_BANG_EQUAL:
+      return "TT_BANG_EQUAL";
+    case TT_EQUAL_EQUAL:
+      return "TT_EQUAL_EQUAL";
+    case TT_GREATER:
+      return "TT_GREATER";
+    case TT_GREATER_EQUAL:
+      return "TT_GREATER_EQUAL";
+    case TT_LESS:
+      return "TT_LESS";
+    case TT_LESS_EQUAL:
+      return "TT_LESS_EQUAL";
 
-      //      Type Utils
-    case TT_STRUCT:
-      return "TT_STRUCT";
-    case TT_UNION:
-      return "TT_UNION";
-    case TT_ENUM:
-      return "TT_ENUM";
-    case TT_PRIM:
-      return "TT_PRIM";
+    //      Fancy Operators
+    case TT_NOT:
+      return "TT_NOT";
+    case TT_CARET:
+      return "TT_CARET";
+    case TT_PERCENT:
+      return "TT_PERCENT";
+    case TT_PIPE:
+      return "TT_PIPE";
+    case TT_AMPERSAND:
+      return "TT_AMPERSAND";
 
-      //      Bools
-    case TT_TRUE:
-      return "TT_TRUE";
-    case TT_FALSE:
-      return "TT_FALSE";
-
-      //      Other
-    case TT_IDENTIFIER:
-      return "TT_IDENTIFIER";
-    case TT_STRING:
-      return "TT_STRING";
-
-      // Tokens that start with a number or +/-
-    case TT_INTEGER:
-      return "TT_INTEGER";
-    case TT_FLOAT:
-      return "TT_FLOAT";
-
-      // Tokens that are single characters
+    //      Other One char tokens
     case TT_SEMICOLON:
       return "TT_SEMICOLON";
     case TT_COLON:
@@ -152,7 +167,47 @@ tt_tostr (token_t t)
       return "TT_RIGHT_PAREN";
     case TT_COMMA:
       return "TT_COMMA";
+
+    //      Other
+    case TT_STRING:
+      return "TT_STRING";
+    case TT_IDENTIFIER:
+      return "TT_IDENTIFIER";
+
+    // Tokens that start with a number or +/-
+    case TT_INTEGER:
+      return "TT_INTEGER";
+    case TT_FLOAT:
+      return "TT_FLOAT";
+
+    //      Literal Operations
+    case TT_CREATE:
+      return "TT_CREATE";
+    case TT_DELETE:
+      return "TT_DELETE";
+    case TT_INSERT:
+      return "TT_INSERT";
+
+    //      Type literals
+    case TT_STRUCT:
+      return "TT_STRUCT";
+    case TT_UNION:
+      return "TT_UNION";
+    case TT_ENUM:
+      return "TT_ENUM";
+    case TT_PRIM:
+      return "TT_PRIM";
+
+    //      Bools
+    case TT_TRUE:
+      return "TT_TRUE";
+    case TT_FALSE:
+      return "TT_FALSE";
+
+    case TT_ERROR:
+      return "TT_ERROR";
     }
+
   UNREACHABLE ();
   return NULL;
 }

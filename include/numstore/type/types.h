@@ -27,8 +27,7 @@ typedef enum
   T_STRUCT = 1,
   T_UNION = 2,
   T_ENUM = 3,
-  T_VARRAY = 4,
-  T_SARRAY = 5,
+  T_SARRAY = 4,
 } type_t;
 
 struct type_s
@@ -84,6 +83,11 @@ err_t type_deserialize (type *dest, deserializer *src, lalloc *alloc, error *e);
  *   - ERR_NOMEM - allocation exceeded
  */
 err_t type_random (type *dest, lalloc *alloc, u32 depth, error *e);
+
+/**
+ * Checks if [left] == [right] deeply
+ */
+bool type_equal (const type *left, const type *right);
 
 /**
  * Logs type - Allocates memory under the hood - no lalloc

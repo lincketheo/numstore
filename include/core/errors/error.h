@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/dev/assert.h"
 #include "core/ds/strings.h" // TODO
 #include "core/intf/types.h" // TODO
 
@@ -36,6 +37,18 @@ typedef struct
   u32 elen;               // Length of evidence
   struct lalloc_s *alloc; // Sweeps ERRNOMEM under the rug
 } error;
+
+DEFINE_DBG_ASSERT_I (error, ok_error, e)
+{
+  ASSERT (e);
+  ASSERT (e->cause_code == SUCCESS);
+}
+
+DEFINE_DBG_ASSERT_I (error, bad_error, e)
+{
+  ASSERT (e);
+  ASSERT (e->cause_code < SUCCESS);
+}
 
 #define err_t_wrap(expr, e)                                         \
   do                                                                \
@@ -115,6 +128,8 @@ err_t error_change_causef (
     __attribute__ ((format (printf, 3, 4)));
 
 void error_log_consume (error *e);
+
+bool error_equal (const error *left, const error *right);
 
 #ifndef NDEBUG
 #define error_trailf_dbg(e, ...) error_trailf (e, "DEBUG " __VA_ARGS__)

@@ -23,3 +23,4 @@ typedef struct
 void i_log_create (create_query *q);
 query create_query_create (create_query *q);
 void create_query_reset (create_query *q);
+bool create_query_equal (const create_query *left, const create_query *right);

@@ -12,3 +12,4 @@ typedef struct
 } object;
 
 i32 object_t_snprintf (char *str, u32 size, const object *st);
+bool object_equal (const object *left, const object *right);

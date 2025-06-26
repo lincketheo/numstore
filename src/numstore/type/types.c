@@ -294,14 +294,42 @@ type_random (type *dest, lalloc *alloc, u32 depth, error *e)
         return sarray_t_random (&dest->sa, alloc, depth - 1, e);
       }
 
-    case T_VARRAY:
-      {
-        return error_causef (e, ERR_NOMEM, "VARRAY not implemented");
-      }
-
     default:
       {
         return error_causef (e, ERR_NOMEM, "Invalid type tag");
+      }
+    }
+}
+
+bool
+type_equal (const type *left, const type *right)
+{
+  if (left->type != right->type)
+    {
+      return false;
+    }
+
+  switch (left->type)
+    {
+    case T_PRIM:
+      {
+        return left->p == right->p;
+      }
+    case T_STRUCT:
+      {
+        return struct_t_equal (&left->st, &right->st);
+      }
+    case T_UNION:
+      {
+        return union_t_equal (&left->un, &right->un);
+      }
+    case T_ENUM:
+      {
+        return enum_t_equal (&left->en, &right->en);
+      }
+    case T_SARRAY:
+      {
+        return sarray_t_equal (&left->sa, &right->sa);
       }
     }
 }

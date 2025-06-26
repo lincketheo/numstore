@@ -23,3 +23,4 @@ u32 union_t_get_serial_size (const union_t *t);
 void union_t_serialize (serializer *dest, const union_t *src);
 err_t union_t_deserialize (union_t *dest, deserializer *src, lalloc *a, error *e);
 err_t union_t_random (union_t *un, lalloc *alloc, u32 depth, error *e);
+bool union_t_equal (const union_t *left, const union_t *right);

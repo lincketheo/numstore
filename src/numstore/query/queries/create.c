@@ -62,3 +62,20 @@ create_query_reset (create_query *q)
   create_query_assert (q);
   lalloc_reset (&q->query_allocator);
 }
+
+bool
+create_query_equal (const create_query *left, const create_query *right)
+{
+  create_query_assert (left);
+  create_query_assert (right);
+
+  if (!string_equal (left->vname, right->vname))
+    {
+      return false;
+    }
+  if (!type_equal (&left->type, &right->type))
+    {
+      return false;
+    }
+  return true;
+}
