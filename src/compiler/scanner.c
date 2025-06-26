@@ -14,6 +14,7 @@
 #include "numstore/query/queries/create.h" // TODO
 #include "numstore/query/query.h"          // query
 #include "numstore/query/query_provider.h" // TODO
+#include "numstore/type/types/prim.h"
 
 DEFINE_DBG_ASSERT_I (scanner, scanner, s)
 {
@@ -668,7 +669,6 @@ execute_at_most_one_token_start (scanner *s)
           default:
             {
               // Just !, consume previous token
-              scanner_advance_expect (s);
               scanner_err_t_wrap (scanner_process_token (s, quick_tok (TT_BANG)), s);
 
               // Continue to process current token
@@ -692,7 +692,6 @@ execute_at_most_one_token_start (scanner *s)
           default:
             {
               // Bare = is invalid
-              scanner_advance_expect (s);
               scanner_err_t_wrap (
                   error_causef (
                       &s->e,
@@ -720,7 +719,6 @@ execute_at_most_one_token_start (scanner *s)
           default:
             {
               // Just >, consume previous token
-              scanner_advance_expect (s);
               scanner_err_t_wrap (scanner_process_token (s, quick_tok (TT_GREATER)), s);
 
               // Continue to process current token
@@ -744,7 +742,6 @@ execute_at_most_one_token_start (scanner *s)
           default:
             {
               // Just <, consume previous token
-              scanner_advance_expect (s);
               scanner_err_t_wrap (scanner_process_token (s, quick_tok (TT_LESS)), s);
 
               // Continue to process current token
@@ -1100,8 +1097,261 @@ test_scanner_case (const char *input, const token *expected_output, u32 ilen, u3
   query_provider_free (qp);
 }
 
-TEST (scanner)
+/**
+TEST (scanner_two_char_tokens)
 {
+  char *src = "! !! !!= !== !=! !=!= !== !=== !< !<= !> !>= "
+              "== === ==! ==< ==<= ==!= ==== ==<> ==>< "
+              "< << <<< <= <=< <== <<= <==< <=<= <<== "
+              "> >> >>> >= >=< >== >>= >==> >=>= >>== "
+              "== === ==== =< => =! =!= =<< =>> =<> =>< "
+              "<> >< ><=> =>< !=<> ==>> <<>>"
+              ", ! , != ,==, < , <= , >= , >";
+
+  token expected_tokens[] = {
+    quick_tok (TT_BANG),
+    quick_tok (TT_BANG),
+    quick_tok (TT_BANG),
+    quick_tok (TT_BANG),
+    quick_tok (TT_BANG_EQUAL),
+    quick_tok (TT_BANG_EQUAL),
+    quick_tok (TT_BANG_EQUAL),
+    quick_tok (TT_BANG),
+    quick_tok (TT_BANG_EQUAL),
+    quick_tok (TT_BANG_EQUAL),
+    quick_tok (TT_BANG_EQUAL),
+    quick_tok (TT_BANG_EQUAL),
+    quick_tok (TT_EQUAL_EQUAL),
+    quick_tok (TT_BANG),
+    quick_tok (TT_LESS),
+    quick_tok (TT_BANG),
+    quick_tok (TT_LESS_EQUAL),
+    quick_tok (TT_BANG),
+    quick_tok (TT_GREATER),
+    quick_tok (TT_BANG),
+    quick_tok (TT_GREATER_EQUAL),
+    quick_tok (TT_EQUAL_EQUAL),
+    quick_tok (TT_EQUAL_EQUAL),
+    quick_tok (TT_EQUAL_EQUAL),
+    quick_tok (TT_BANG),
+    quick_tok (TT_EQUAL_EQUAL),
+    quick_tok (TT_LESS),
+    quick_tok (TT_EQUAL_EQUAL),
+    quick_tok (TT_LESS_EQUAL),
+    quick_tok (TT_EQUAL_EQUAL),
+    quick_tok (TT_BANG_EQUAL),
+    quick_tok (TT_EQUAL_EQUAL),
+    quick_tok (TT_EQUAL_EQUAL),
+    quick_tok (TT_LESS),
+    quick_tok (TT_LESS),
+    quick_tok (TT_LESS),
+    quick_tok (TT_LESS_EQUAL),
+    quick_tok (TT_LESS_EQUAL),
+    quick_tok (TT_LESS),
+    quick_tok (TT_LESS_EQUAL),
+    quick_tok (TT_LESS_EQUAL),
+    quick_tok (TT_LESS),
+    quick_tok (TT_LESS),
+    quick_tok (TT_LESS_EQUAL),
+    quick_tok (TT_LESS),
+    quick_tok (TT_LESS),
+    quick_tok (TT_LESS),
+    quick_tok (TT_GREATER),
+    quick_tok (TT_GREATER),
+    quick_tok (TT_GREATER),
+    quick_tok (TT_GREATER_EQUAL),
+    quick_tok (TT_GREATER),
+    quick_tok (TT_GREATER),
+    quick_tok (TT_EQUAL_EQUAL),
+    quick_tok (TT_GREATER_EQUAL),
+    quick_tok (TT_GREATER_EQUAL),
+    quick_tok (TT_GREATER),
+    quick_tok (TT_GREATER_EQUAL),
+    quick_tok (TT_GREATER),
+    quick_tok (TT_GREATER_EQUAL),
+    quick_tok (TT_GREATER_EQUAL),
+    quick_tok (TT_GREATER),
+    quick_tok (TT_GREATER_EQUAL),
+    quick_tok (TT_GREATER_EQUAL),
+    quick_tok (TT_GREATER),
+    quick_tok (TT_GREATER_EQUAL),
+    quick_tok (TT_GREATER),
+    quick_tok (TT_GREATER),
+    quick_tok (TT_GREATER_EQUAL),
+    quick_tok (TT_GREATER_EQUAL),
+    quick_tok (TT_GREATER),
+    quick_tok (TT_GREATER_EQUAL),
+    quick_tok (TT_GREATER),
+    quick_tok (TT_BANG),
+    quick_tok (TT_EQUAL_EQUAL),
+    quick_tok (TT_EQUAL_EQUAL),
+    quick_tok (TT_EQUAL_EQUAL),
+    quick_tok (TT_BANG_EQUAL),
+    quick_tok (TT_LESS),
+    quick_tok (TT_GREATER),
+    quick_tok (TT_BANG),
+    quick_tok (TT_BANG),
+    quick_tok (TT_GREATER_EQUAL),
+    quick_tok (TT_BANG_EQUAL),
+    quick_tok (TT_BANG),
+    quick_tok (TT_EQUAL_EQUAL),
+    quick_tok (TT_LESS),
+    quick_tok (TT_LESS),
+    quick_tok (TT_BANG_EQUAL),
+    quick_tok (TT_EQUAL_EQUAL),
+    quick_tok (TT_LESS_EQUAL),
+    quick_tok (TT_GREATER_EQUAL),
+    quick_tok (TT_EQUAL_EQUAL),
+    quick_tok (TT_GREATER),
+    quick_tok (TT_GREATER),
+    quick_tok (TT_BANG),
+    quick_tok (TT_BANG_EQUAL),
+    quick_tok (TT_LESS),
+    quick_tok (TT_GREATER),
+    quick_tok (TT_EQUAL_EQUAL),
+    quick_tok (TT_BANG_EQUAL),
+    quick_tok (TT_BANG_EQUAL),
+    quick_tok (TT_EQUAL_EQUAL),
+    quick_tok (TT_LESS),
+    quick_tok (TT_LESS_EQUAL),
+    quick_tok (TT_GREATER_EQUAL),
+    quick_tok (TT_EQUAL_EQUAL),
+    quick_tok (TT_BANG_EQUAL),
+    quick_tok (TT_EQUAL_EQUAL),
+    quick_tok (TT_LESS),
+    quick_tok (TT_BANG_EQUAL),
+    quick_tok (TT_EQUAL_EQUAL),
+    quick_tok (TT_GREATER_EQUAL),
+    quick_tok (TT_GREATER),
+    quick_tok (TT_GREATER),
+    quick_tok (TT_LESS),
+    quick_tok (TT_BANG_EQUAL),
+    quick_tok (TT_LESS),
+    quick_tok (TT_GREATER),
+    quick_tok (TT_EQUAL_EQUAL),
+    quick_tok (TT_GREATER),
+    quick_tok (TT_GREATER),
+    quick_tok (TT_LESS),
+    quick_tok (TT_LESS),
+    quick_tok (TT_GREATER),
+    quick_tok (TT_GREATER),
+    quick_tok (TT_COMMA),
+    quick_tok (TT_BANG),
+    quick_tok (TT_COMMA),
+    quick_tok (TT_BANG_EQUAL),
+    quick_tok (TT_COMMA),
+    quick_tok (TT_EQUAL_EQUAL),
+    quick_tok (TT_COMMA),
+    quick_tok (TT_LESS),
+    quick_tok (TT_COMMA),
+    quick_tok (TT_LESS_EQUAL),
+    quick_tok (TT_COMMA),
+    quick_tok (TT_GREATER_EQUAL),
+    quick_tok (TT_COMMA),
+    quick_tok (TT_GREATER),
+  };
+
+  test_scanner_case (src, expected_tokens, i_unsafe_strlen (src), arrlen (expected_tokens));
+}
+*/
+
+TEST (scanner_single_tokens)
+{
+  char *src;
+
+  //////// PARSE EACH TOKEN CORRECTLY - just the token
+
+#define single_tok_edge_test_case(literal, tok_expr)                                                                      \
+  do                                                                                                                      \
+    {                                                                                                                     \
+      src = literal;                                                                                                      \
+      test_scanner_case (src, (token[]){ tok_expr }, i_unsafe_strlen (src), 1);                                           \
+      src = " " literal;                                                                                                  \
+      test_scanner_case (src, (token[]){ tok_expr }, i_unsafe_strlen (src), 1);                                           \
+      src = literal " ";                                                                                                  \
+      test_scanner_case (src, (token[]){ tok_expr }, i_unsafe_strlen (src), 1);                                           \
+      src = " " literal " ";                                                                                              \
+      test_scanner_case (src, (token[]){ tok_expr }, i_unsafe_strlen (src), 1);                                           \
+      src = " " literal " ";                                                                                              \
+      test_scanner_case (src, (token[]){ tok_expr }, i_unsafe_strlen (src), 1);                                           \
+      src = "+" literal;                                                                                                  \
+      test_scanner_case (src, (token[]){ quick_tok (TT_PLUS), tok_expr }, i_unsafe_strlen (src), 2);                      \
+      src = "+ " literal;                                                                                                 \
+      test_scanner_case (src, (token[]){ quick_tok (TT_PLUS), tok_expr }, i_unsafe_strlen (src), 2);                      \
+      src = literal "+";                                                                                                  \
+      test_scanner_case (src, (token[]){ tok_expr, quick_tok (TT_PLUS) }, i_unsafe_strlen (src), 2);                      \
+      src = literal " +";                                                                                                 \
+      test_scanner_case (src, (token[]){ tok_expr, quick_tok (TT_PLUS) }, i_unsafe_strlen (src), 2);                      \
+      src = "+" literal "+";                                                                                              \
+      test_scanner_case (src, (token[]){ quick_tok (TT_PLUS), tok_expr, quick_tok (TT_PLUS) }, i_unsafe_strlen (src), 2); \
+      src = "+ " literal " +";                                                                                            \
+      test_scanner_case (src, (token[]){ quick_tok (TT_PLUS), tok_expr, quick_tok (TT_PLUS) }, i_unsafe_strlen (src), 2); \
+    }                                                                                                                     \
+  while (0)
+
+  single_tok_edge_test_case ("+", quick_tok (TT_PLUS));
+  single_tok_edge_test_case ("-", quick_tok (TT_MINUS));
+  single_tok_edge_test_case ("/", quick_tok (TT_SLASH));
+  single_tok_edge_test_case ("*", quick_tok (TT_STAR));
+
+  //      Logical Operators
+  single_tok_edge_test_case ("!", quick_tok (TT_BANG));
+  single_tok_edge_test_case ("!=", quick_tok (TT_BANG_EQUAL));
+  single_tok_edge_test_case ("==", quick_tok (TT_EQUAL_EQUAL));
+  single_tok_edge_test_case (">", quick_tok (TT_GREATER));
+  single_tok_edge_test_case (">=", quick_tok (TT_GREATER_EQUAL));
+  single_tok_edge_test_case ("<", quick_tok (TT_LESS));
+  single_tok_edge_test_case ("<=", quick_tok (TT_LESS_EQUAL));
+
+  //       Fancy Operators
+  single_tok_edge_test_case ("~", quick_tok (TT_NOT));
+  single_tok_edge_test_case ("^", quick_tok (TT_CARET));
+  single_tok_edge_test_case ("%", quick_tok (TT_PERCENT));
+  single_tok_edge_test_case ("|", quick_tok (TT_PIPE));
+  single_tok_edge_test_case ("&", quick_tok (TT_AMPERSAND));
+
+  //        Other One char tokens
+  single_tok_edge_test_case (";", quick_tok (TT_SEMICOLON));
+  single_tok_edge_test_case (":", quick_tok (TT_COLON));
+  single_tok_edge_test_case ("[", quick_tok (TT_LEFT_BRACKET));
+  single_tok_edge_test_case ("]", quick_tok (TT_RIGHT_BRACKET));
+  single_tok_edge_test_case ("{", quick_tok (TT_LEFT_BRACE));
+  single_tok_edge_test_case ("}", quick_tok (TT_RIGHT_BRACE));
+  single_tok_edge_test_case ("(", quick_tok (TT_LEFT_PAREN));
+  single_tok_edge_test_case (")", quick_tok (TT_RIGHT_PAREN));
+  single_tok_edge_test_case (",", quick_tok (TT_COMMA));
+
+  //      Other
+  single_tok_edge_test_case ("\"foo\"", tt_string (unsafe_cstrfrom ("foo")));
+  single_tok_edge_test_case ("bar", tt_ident (unsafe_cstrfrom ("bar")));
+
+  // Tokens that start with a number or +/-
+  single_tok_edge_test_case ("1234", tt_integer (1234));
+  single_tok_edge_test_case ("123.456", tt_float (123.456));
+
+  //      Identifiers first, then literals identified later
+  //      Literal Operations
+  single_tok_edge_test_case ("create", quick_tok (TT_CREATE));
+  single_tok_edge_test_case ("delete", quick_tok (TT_DELETE));
+  single_tok_edge_test_case ("insert", quick_tok (TT_INSERT));
+
+  //      Type literals
+  single_tok_edge_test_case ("struct", quick_tok (TT_STRUCT));
+  single_tok_edge_test_case ("union", quick_tok (TT_UNION));
+  single_tok_edge_test_case ("enum", quick_tok (TT_ENUM));
+  PRIM_FOR_EACH_LITERAL (single_tok_edge_test_case, quick_tok (TT_PRIM));
+
+  //      Bools
+  single_tok_edge_test_case ("true", quick_tok (TT_TRUE));
+  single_tok_edge_test_case ("false", quick_tok (TT_FALSE));
+
+  //      Special Error token on failed scan
+  single_tok_edge_test_case ("\"unterminated", quick_tok (TT_ERROR));
+}
+
+TEST (scanner_random)
+{
+  ///////////////////////////////////////////////////////////
   /* 2 ─ Single-character operator */
   const char *src2 = "+";
   test_scanner_case (src2, (token[]){ quick_tok (TT_PLUS) }, strlen (src2), 1);
