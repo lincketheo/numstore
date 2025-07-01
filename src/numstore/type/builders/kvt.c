@@ -1,8 +1,9 @@
 #include "numstore/type/builders/kvt.h"
 
-#include "core/dev/assert.h"   // ASSERT
-#include "core/dev/testing.h"  // TEST
-#include "core/errors/error.h" // err_t
+#include "core/dev/assert.h"    // ASSERT
+#include "core/dev/testing.h"   // TEST
+#include "core/errors/error.h"  // err_t
+#include "core/utils/strings.h" // TODO
 
 #include "numstore/type/types.h" // u32
 

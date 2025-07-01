@@ -1,11 +1,16 @@
 #pragma once
 
 #include "compiler/tokens.h"
+#include "compiler/value/value.h"
 #include "core/dev/assert.h"
+
 typedef struct expr_s expr;
 
 ///////////////////////////////////////
 ////////////// Section Unary
+
+// !EXPR
+// -EXPR
 typedef struct
 {
   token_t op;
@@ -18,21 +23,12 @@ DEFINE_DBG_ASSERT_I (unary, unary, u)
   ASSERT (u->op == TT_MINUS || u->op == TT_BANG);
 }
 
-#define unary_operator_ASSERT(op) ASSERT (op == MINUS || op == BANG)
-
-static inline unary
-unary_c (expr *e, token_t op)
-{
-  unary_operator_ASSERT (op);
-
-  return (unary){
-    .op = op,
-    .e = e,
-  };
-}
-
 ///////////////////////////////////////
 ////////////// Section Binary
+
+// EXPR + EXPR
+// EXPR == EXPR
+// etc.
 typedef struct
 {
   expr *left;
@@ -40,37 +36,42 @@ typedef struct
   expr *right;
 } binary;
 
-#define binary_operator_ASSERT(op) \
-  ASSERT (op == EQUAL_EQUAL || op == BANG_EQUAL || op == LESS || op == LESS_EQUAL || op == GREATER || op == GREATER_EQUAL || op == PLUS || op == MINUS || op == STAR || op == SLASH);
-
-static inline binary
-binary_c (expr *left, token_t op, expr *right)
+DEFINE_DBG_ASSERT_I (binary, binary, b)
 {
-  binary_operator_ASSERT (op);
-
-  return (binary){
-    .left = left,
-    .op = op,
-    .right = right,
-  };
+  switch (b->op)
+    {
+    case TT_EQUAL_EQUAL:
+    case TT_BANG_EQUAL:
+    case TT_LESS:
+    case TT_LESS_EQUAL:
+    case TT_GREATER:
+    case TT_GREATER_EQUAL:
+    case TT_PLUS:
+    case TT_MINUS:
+    case TT_STAR:
+    case TT_SLASH:
+      break;
+    default:
+      ASSERT (false);
+    }
 }
 
 ///////////////////////////////////////
 ////////////// Section Expression
+
 typedef enum
 {
-  ET_LITERAL,
+  ET_VALUE,
   ET_UNARY,
   ET_BINARY,
   ET_GROUPING,
-  ET_VARIABLE,
 } expr_t;
 
 struct expr_s
 {
   union
   {
-    literal l;
+    value l;
     unary u;
     binary b;
     expr *g;
@@ -80,33 +81,48 @@ struct expr_s
 };
 
 static inline expr
-expr_literal (literal l)
+create_value_expr (value l)
 {
-  return (expr){ .type = ET_LITERAL, .l = l };
+  return (expr){ .type = ET_VALUE, .l = l };
 }
 
 static inline expr
-expr_unary (unary u)
-{
-  return (expr){ .type = ET_UNARY, .u = u };
-}
-
-static inline expr
-expr_binary (binary b)
-{
-  return (expr){ .type = ET_BINARY, .b = b };
-}
-
-static inline expr
-expr_grouping (expr *e)
+create_grouping_expr (expr *e)
 {
   return (expr){ .type = ET_GROUPING, .g = e };
 }
 
 static inline expr
-expr_variable (char *ident)
+create_unary_expr (expr *e, token_t op)
 {
-  return (expr){ .type = ET_VARIABLE, .v = ident };
+  unary ret = {
+    .op = op,
+    .e = e,
+  };
+
+  unary_assert (&ret);
+
+  return (expr){
+    .type = ET_UNARY,
+    .u = ret,
+  };
 }
 
-int fprintln_expr (FILE *ofp, expr *e);
+static inline expr
+create_binary_expr (expr *left, token_t op, expr *right)
+{
+  binary ret = {
+    .left = left,
+    .op = op,
+    .right = right,
+  };
+
+  binary_assert (&ret);
+
+  return (expr){
+    .type = ET_BINARY,
+    .b = ret,
+  };
+}
+
+err_t expr_evaluate (value *dest, expr *exp, lalloc *work, error *e);

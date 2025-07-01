@@ -1,9 +1,10 @@
 #include "numstore/type/types/enum.h"
 
-#include "core/dev/assert.h"  // DEFINE_DBG_ASSERT_I
-#include "core/dev/testing.h" // TEST
-#include "core/intf/stdlib.h" // i_snprintf
-#include "core/math/random.h" // randu32
+#include "core/dev/assert.h"    // DEFINE_DBG_ASSERT_I
+#include "core/dev/testing.h"   // TEST
+#include "core/intf/stdlib.h"   // i_snprintf
+#include "core/math/random.h"   // randu32
+#include "core/utils/strings.h" // TODO
 
 DEFINE_DBG_ASSERT_I (enum_t, unchecked_enum_t, e)
 {

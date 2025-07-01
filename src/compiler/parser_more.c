@@ -3,11 +3,18 @@
 
 #include "compiler/tokens.h"
 #include "core/dev/assert.h"
+#include "core/dev/testing.h"
 #include "core/ds/cbuffer.h"
+#include "core/ds/strings.h"
 #include "core/errors/error.h" // TODO
-#include "core/mm/lalloc.h"    // TODO
+#include "core/intf/logging.h"
+#include "core/mm/lalloc.h" // TODO
 
 #include "compiler/parser.h" // TODO
+#include "numstore/query/queries/create.h"
+#include "numstore/query/query.h"
+#include "numstore/query/query_provider.h"
+#include "numstore/type/types.h"
 
 extern void *lemon_parseAlloc (void *(*mallocProc) (size_t));
 
@@ -156,11 +163,13 @@ static inline err_t
 execute_normal (parser *s)
 {
   parser_steady_state_assert (s);
-  ASSERT (s->in_err);
+  ASSERT (!s->in_err);
 
   token t;
   while (cbuffer_read (&t, sizeof t, 1, s->input))
     {
+      i_log_info ("Parser (Normal State) recieved token: %s\n", tt_tostr (t.type));
+
       // Pre set up stuff
       switch (t.type)
         {
@@ -218,6 +227,7 @@ execute_err (parser *s)
   token t;
   while (cbuffer_read (&t, sizeof t, 1, s->input))
     {
+      i_log_info ("Parser (Error state) recieved token: %s\n", tt_tostr (t.type));
       if (t.type == TT_SEMICOLON)
         {
           s->in_err = false;
@@ -288,4 +298,87 @@ parser_execute (parser *p)
 
       parser_err_t_continue (execute_one_token (p), p);
     }
+}
+
+#ifndef NTEST
+void
+test_parser_case (const token *input, const query *expected_output, u32 ilen, u32 olen)
+{
+  parser p;
+
+  token _tokens[20];
+  query _queries[10];
+
+  cbuffer tokens = cbuffer_create_from (_tokens);
+  cbuffer queries = cbuffer_create_from (_queries);
+
+  parser_init (&p, &tokens, &queries);
+
+  // expected_output i
+  u32 ii = 0;
+  u32 oi = 0;
+
+  while (true)
+    {
+      // Seed scanner
+      if (ii < ilen)
+        {
+          ii += cbuffer_write (input + ii, sizeof *input, ilen - ii, &tokens);
+        }
+      else
+        {
+          break;
+        }
+
+      // Execute scanner
+      parser_execute (&p);
+
+      // Check resulting tokens
+      query left;
+      while (cbuffer_read (&left, sizeof left, 1, &queries))
+        {
+          test_fail_if (oi > olen);
+          query right = expected_output[oi];
+
+          if (!query_equal (&left, &right))
+            {
+              i_log_failure ("Actual and expected queries do not equal each other\n");
+              i_log_failure ("Actual: \n");
+              i_log_query (left);
+              i_log_failure ("Expected: \n");
+              i_log_query (right);
+            }
+          test_assert (query_equal (&left, &right));
+          oi++;
+        }
+    }
+}
+#endif
+
+TEST (parser)
+{
+  error e = error_create (NULL);
+  query_provider *qspce = query_provider_create (&e);
+
+  query actual;
+  query expected;
+
+  test_fail_if_null (qspce);
+  test_fail_if (query_provider_get (qspce, &actual, QT_CREATE, &e));
+  test_fail_if (query_provider_get (qspce, &expected, QT_CREATE, &e));
+
+  expected.create->vname = unsafe_cstrfrom ("foo");
+  expected.create->type = (type){
+    .type = T_PRIM,
+    .p = U32,
+  };
+
+  const token tk1[] = {
+    tt_opcode (TT_CREATE, actual),
+    tt_ident (unsafe_cstrfrom ("foo")),
+    tt_prim (U32),
+    quick_tok (TT_SEMICOLON),
+  };
+
+  test_parser_case (tk1, (query[]){ expected }, 4, 1);
 }

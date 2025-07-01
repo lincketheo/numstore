@@ -15,12 +15,13 @@ typedef enum
 
   // Simple
   VT_STRING,
-  VT_IDENT,
   VT_NUMBER,
   VT_COMPLEX,
   VT_TRUE,
   VT_FALSE,
 } value_t;
+
+const char *value_t_tostr (value_t);
 
 typedef struct value_s value;
 struct value_s
@@ -32,9 +33,8 @@ struct value_s
     object obj;
     array arr;
     string str;
-    string ident;
     f128 number;
-    cf128 complex;
+    cf128 cplx;
   };
 };
 
@@ -48,15 +48,6 @@ value_string_create (string str)
 }
 
 static inline value
-value_ident_create (string ident)
-{
-  return (value){
-    .ident = ident,
-    .type = VT_IDENT,
-  };
-}
-
-static inline value
 value_number_create (f128 number)
 {
   return (value){
@@ -66,11 +57,11 @@ value_number_create (f128 number)
 }
 
 static inline value
-value_complex_create (cf128 complex)
+value_complex_create (cf128 cplx)
 {
   return (value){
     .type = VT_COMPLEX,
-    .complex = complex,
+    .cplx = cplx,
   };
 }
 
@@ -91,3 +82,19 @@ value_false_create (void)
 }
 
 bool value_equal (const value *left, const value *right);
+
+err_t value_plus_value (value *dest, const value *right, lalloc *alloc, error *e);
+err_t value_minus_value (value *dest, const value *right, error *e);
+err_t value_star_value (value *dest, const value *right, error *e);
+err_t value_slash_value (value *dest, const value *right, error *e);
+err_t value_equal_equal_value (value *dest, const value *right, error *e);
+err_t value_bang_equal_value (value *dest, const value *right, error *e);
+err_t value_greater_value (value *dest, const value *right, error *e);
+err_t value_greater_equal_value (value *dest, const value *right, error *e);
+err_t value_less_value (value *dest, const value *right, error *e);
+err_t value_less_equal_value (value *dest, const value *right, error *e);
+
+err_t value_minus (value *dest, error *e);
+void value_bang (value *dest);
+
+void i_log_value (value *v);

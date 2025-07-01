@@ -5,11 +5,13 @@
 #include "core/dev/testing.h" // TEST
 #include "core/ds/cbuffer.h"  // cbuffer
 #include "core/ds/strings.h"
-#include "core/errors/error.h"  // err_t
-#include "core/intf/logging.h"  // TODO
+#include "core/errors/error.h" // err_t
+#include "core/intf/logging.h" // TODO
+#include "core/intf/stdlib.h"
 #include "core/mm/lalloc.h"     // lalloc
 #include "core/utils/macros.h"  // is_alpha
 #include "core/utils/numbers.h" // parse_i32_expect
+#include "core/utils/strings.h" // TODO
 
 #include "numstore/query/queries/create.h" // TODO
 #include "numstore/query/query.h"          // query
@@ -33,19 +35,18 @@ DEFINE_DBG_ASSERT_I (scanner, scanner_right_after_error, s)
   bad_error_assert (&s->e);
 }
 
-static const char *TAG = "Compiler";
+static const char *TAG = "Scanner";
 
 ////////////////////////////// Premade magic strings
 
+/**
+ * A magic token is just a string
+ * that goes 1:1 to a token. E.g. "delete"
+ * or "u32"
+ */
 typedef struct
 {
   const string token;
-  token t;
-} prim_token;
-
-typedef struct
-{
-  string token;
   token t;
 } magic_token;
 
@@ -197,12 +198,18 @@ scanner_state_to_str (scanner_state state)
   UNREACHABLE ();
 }
 
-static inline void
-scanner_write_result (scanner *s, query res)
+static inline err_t
+scanner_process_token (scanner *s, token t)
 {
-  ASSERT (cbuffer_avail (s->output) >= sizeof (res));
-  u32 ret = cbuffer_write (&res, sizeof res, 1, s->output);
-  ASSERT (ret == 1);
+  scanner_steady_state_assert (s);
+
+  i_log_trace ("Scanner processing token: %s\n", tt_tostr (t.type));
+  u32 num = cbuffer_write (&t, sizeof t, 1, s->output);
+  ASSERT (num == 1); // We don't execute if downstream is backed up
+
+  s->state.state = SS_START;
+
+  return SUCCESS;
 }
 
 static inline void
@@ -220,7 +227,10 @@ scanner_process_error (scanner *s)
       s->state.state = SS_ERR;
 
       // Write error out
-      scanner_write_result (s, query_error_create (s->e));
+      token t = tt_err (s->e);
+      i_log_trace ("Scanner processing token: %s\n", tt_tostr (t.type));
+      u32 num = cbuffer_write (&t, sizeof t, 1, s->output);
+      ASSERT (num == 1); // We don't execute if downstream is backed up
 
       // Reset error
       s->e = error_create (NULL);
@@ -330,19 +340,6 @@ consume_whitespace (scanner *s)
           return;
         }
     }
-}
-
-static inline err_t
-scanner_process_token (scanner *s, token t)
-{
-  scanner_steady_state_assert (s);
-
-  u32 num = cbuffer_write (&t, sizeof t, 1, s->output);
-  ASSERT (num == 1); // We don't execute if downstream is backed up
-
-  s->state.state = SS_START;
-
-  return SUCCESS;
 }
 
 ////////////////////////////// State Machine Functions
@@ -1097,16 +1094,13 @@ test_scanner_case (const char *input, const token *expected_output, u32 ilen, u3
   query_provider_free (qp);
 }
 
-/**
 TEST (scanner_two_char_tokens)
 {
-  char *src = "! !! !!= !== !=! !=!= !== !=== !< !<= !> !>= "
-              "== === ==! ==< ==<= ==!= ==== ==<> ==>< "
-              "< << <<< <= <=< <== <<= <==< <=<= <<== "
-              "> >> >>> >= >=< >== >>= >==> >=>= >>== "
-              "== === ==== =< => =! =!= =<< =>> =<> =>< "
-              "<> >< ><=> =>< !=<> ==>> <<>>"
-              ", ! , != ,==, < , <= , >= , >";
+  char *src = "! ! ! ! != != != ! != != != != == ! < ! <= ! > ! >= == == == ! == < == <= == "
+              "!= == == < < < <= <= < <= <= < < <= < < < > > > >= > > == >= >= > >= > >= >= > "
+              ">= >= > >= > > >= >= > >= > ! == == == != < > ! ! >= != ! == < < != == <= >= == "
+              "> > ! != < > == != != == < <= >= == != == < != == >= > > < != < > == > > < < > > "
+              ", ! , != , == , < , <= , >= , >";
 
   token expected_tokens[] = {
     quick_tok (TT_BANG),
@@ -1253,14 +1247,12 @@ TEST (scanner_two_char_tokens)
 
   test_scanner_case (src, expected_tokens, i_unsafe_strlen (src), arrlen (expected_tokens));
 }
-*/
 
 TEST (scanner_single_tokens)
 {
   char *src;
 
-  //////// PARSE EACH TOKEN CORRECTLY - just the token
-
+  // Various edge cases
 #define single_tok_edge_test_case(literal, tok_expr)                                                                      \
   do                                                                                                                      \
     {                                                                                                                     \
@@ -1349,14 +1341,11 @@ TEST (scanner_single_tokens)
   single_tok_edge_test_case ("\"unterminated", quick_tok (TT_ERROR));
 }
 
-TEST (scanner_random)
+TEST (scanner_special)
 {
-  ///////////////////////////////////////////////////////////
-  /* 2 ─ Single-character operator */
   const char *src2 = "+";
   test_scanner_case (src2, (token[]){ quick_tok (TT_PLUS) }, strlen (src2), 1);
 
-  /* 3 ─ All two-character operators */
   const char *src3 = "!= == >= <=";
   test_scanner_case (src3, (token[]){
                                quick_tok (TT_BANG_EQUAL),
@@ -1366,7 +1355,6 @@ TEST (scanner_random)
                            },
                      strlen (src3), 4);
 
-  /* 4 ─ Identifier + operator + identifier (no spaces) */
   const char *src4 = "a+b";
   test_scanner_case (src4, (token[]){
                                tt_ident (unsafe_cstrfrom ("a")),
@@ -1375,7 +1363,6 @@ TEST (scanner_random)
                            },
                      strlen (src4), 3);
 
-  /* 5 ─ Integers, signed ints, floats, leading/trailing dot */
   const char *src5 = "0 1 23 +12 -34 56.78 0.9 1.0";
   test_scanner_case (src5, (token[]){
                                tt_integer (0),
@@ -1391,7 +1378,6 @@ TEST (scanner_random)
                            },
                      strlen (src5), 8);
 
-  /* 6 ─ Normal and empty string literals */
   const char *src6 = "\"hello\" ";
   test_scanner_case (src6, (token[]){
                                tt_string (unsafe_cstrfrom ("hello")),
@@ -1399,7 +1385,6 @@ TEST (scanner_random)
                            },
                      strlen (src6), 2);
 
-  /* 7 ─ Keyword vs. look-alike identifiers */
   const char *src7 = "create crate createx";
   test_scanner_case (src7, (token[]){
                                quick_tok (TT_CREATE),
@@ -1408,7 +1393,6 @@ TEST (scanner_random)
                            },
                      strlen (src7), 3);
 
-  /* 8 ─ Booleans */
   const char *src8 = "true false";
   test_scanner_case (src8, (token[]){
                                quick_tok (TT_TRUE),
@@ -1416,7 +1400,6 @@ TEST (scanner_random)
                            },
                      strlen (src8), 2);
 
-  /* 9 ─ All type keywords */
   const char *src9 = "struct union enum prim";
   test_scanner_case (src9, (token[]){
                                quick_tok (TT_STRUCT),
@@ -1426,7 +1409,6 @@ TEST (scanner_random)
                            },
                      strlen (src9), 4);
 
-  /* 10 ─ Repeated separators without spaces */
   const char *src10 = "a,,,b;;c";
   test_scanner_case (src10, (token[]){
                                 tt_ident (unsafe_cstrfrom ("a")),
@@ -1440,45 +1422,43 @@ TEST (scanner_random)
                             },
                      strlen (src10), 8);
 
-  /* 11 ─ Stand-alone invalid character */
   const char *src11 = "@";
-  test_scanner_case (src11, (token[]){ quick_tok (TT_ERROR) }, strlen (src11), 1);
+  char *errormsg = "Scanner: Unexpected char: @";
+  error expected_err = (error){
+    .cause_code = ERR_SYNTAX,
+    .cmlen = i_unsafe_strlen (errormsg),
+  };
+  i_memcpy (expected_err.cause_msg, errormsg, i_unsafe_strlen (errormsg));
 
-  /* 12 ─ Unterminated string literal */
-  const char *src12 = "\"unterminated";
-  test_scanner_case (src12,
-                     (token[]){
-                         quick_tok (TT_ERROR),
-                     },
-                     strlen (src12), 1);
+  test_scanner_case (src11, (token[]){ tt_err (expected_err) }, strlen (src11), 1);
 
-  /* 13 ─ Illegal identifier (underscore) */
   const char *src13 = "foo_bar";
   test_scanner_case (src13, (token[]){ quick_tok (TT_ERROR) }, strlen (src13), 1);
 
-  /* 14 ─ Full integration sample (mixed tokens) */
   const char *src14 = "create a a u32 create b ; ,, + 123 123.4, \"fiz\", \"baz\", struct enum";
-  test_scanner_case (src14, (token[]){
-                                quick_tok (TT_CREATE),
-                                tt_ident (unsafe_cstrfrom ("a")),
-                                tt_ident (unsafe_cstrfrom ("a")),
-                                tt_prim (U32),
-                                quick_tok (TT_CREATE),
-                                tt_ident (unsafe_cstrfrom ("b")),
-                                quick_tok (TT_SEMICOLON),
-                                quick_tok (TT_COMMA),
-                                quick_tok (TT_COMMA),
-                                quick_tok (TT_PLUS),
-                                tt_integer (123),
-                                tt_float (123.4f),
-                                quick_tok (TT_COMMA),
-                                tt_string (unsafe_cstrfrom ("fiz")),
-                                quick_tok (TT_COMMA),
-                                tt_string (unsafe_cstrfrom ("baz")),
-                                quick_tok (TT_COMMA),
-                                quick_tok (TT_STRUCT),
-                                quick_tok (TT_ENUM),
-                            },
-                     strlen (src14), 18);
+  test_scanner_case (
+      src14,
+      (token[]){
+          quick_tok (TT_CREATE),
+          tt_ident (unsafe_cstrfrom ("a")),
+          tt_ident (unsafe_cstrfrom ("a")),
+          tt_prim (U32),
+          quick_tok (TT_CREATE),
+          tt_ident (unsafe_cstrfrom ("b")),
+          quick_tok (TT_SEMICOLON),
+          quick_tok (TT_COMMA),
+          quick_tok (TT_COMMA),
+          quick_tok (TT_PLUS),
+          tt_integer (123),
+          tt_float (123.4f),
+          quick_tok (TT_COMMA),
+          tt_string (unsafe_cstrfrom ("fiz")),
+          quick_tok (TT_COMMA),
+          tt_string (unsafe_cstrfrom ("baz")),
+          quick_tok (TT_COMMA),
+          quick_tok (TT_STRUCT),
+          quick_tok (TT_ENUM),
+      },
+      strlen (src14), 18);
 }
 #endif

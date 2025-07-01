@@ -1,9 +1,10 @@
 #include "numstore/type/types/union.h"
 
-#include "core/dev/assert.h"  // DEFINE_DBG_ASSERT_I
-#include "core/dev/testing.h" // TEST
-#include "core/intf/stdlib.h" // i_strncmp
-#include "core/math/random.h" // TODO
+#include "core/dev/assert.h"    // DEFINE_DBG_ASSERT_I
+#include "core/dev/testing.h"   // TEST
+#include "core/intf/stdlib.h"   // i_strncmp
+#include "core/math/random.h"   // TODO
+#include "core/utils/strings.h" // TODO
 
 #include "numstore/type/builders/kvt.h" // kvt_builder
 

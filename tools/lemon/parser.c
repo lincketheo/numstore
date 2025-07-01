@@ -41,6 +41,7 @@
 #include "compiler/value/builders/array.h"
 
 #include "numstore/type/types.h"      
+#include "compiler/expression.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
@@ -48,7 +49,7 @@
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wtype-limits"
 #pragma GCC diagnostic ignored "-Wpedantic"
-#line 52 "./tools/lemon/parser.c"
+#line 53 "./tools/lemon/parser.c"
 /**************** End of %include directives **********************************/
 /* These constants specify the various numeric values for terminal symbols.
 ***************** Begin token definitions *************************************/
@@ -84,25 +85,13 @@
 #define TT_FLOAT                          29
 #define TT_CREATE                         30
 #define TT_DELETE                         31
-#define TT_APPEND                         32
-#define TT_INSERT                         33
-#define TT_UPDATE                         34
-#define TT_READ                           35
-#define TT_TAKE                           36
-#define TT_BCREATE                        37
-#define TT_BDELETE                        38
-#define TT_BAPPEND                        39
-#define TT_BINSERT                        40
-#define TT_BUPDATE                        41
-#define TT_BREAD                          42
-#define TT_BTAKE                          43
-#define TT_STRUCT                         44
-#define TT_UNION                          45
-#define TT_ENUM                           46
-#define TT_PRIM                           47
-#define TT_TRUE                           48
-#define TT_FALSE                          49
-#define TT_IDENT                          50
+#define TT_INSERT                         32
+#define TT_STRUCT                         33
+#define TT_UNION                          34
+#define TT_ENUM                           35
+#define TT_PRIM                           36
+#define TT_TRUE                           37
+#define TT_FALSE                          38
 #endif
 /**************** End token definitions ***************************************/
 
@@ -167,20 +156,21 @@
 #endif
 /************* Begin control #defines *****************************************/
 #define YYCODETYPE unsigned char
-#define YYNOCODE 74
+#define YYNOCODE 68
 #define YYACTIONTYPE unsigned char
 #define lemon_parseTOKENTYPE token
 typedef union {
   int yyinit;
   lemon_parseTOKENTYPE yy0;
-  sarray_builder yy5;
-  object_builder yy18;
-  value yy54;
-  array_builder yy58;
-  type yy107;
-  enum_builder yy112;
+  kvt_builder yy8;
+  array_builder yy22;
+  expr* yy82;
+  object_builder yy114;
   query yy115;
-  kvt_builder yy124;
+  sarray_builder yy117;
+  type yy123;
+  enum_builder yy128;
+  value yy134;
 } YYMINORTYPE;
 #ifndef YYSTACKDEPTH
 #define YYSTACKDEPTH 100
@@ -198,18 +188,18 @@ typedef union {
 #define lemon_parseCTX_PARAM
 #define lemon_parseCTX_FETCH
 #define lemon_parseCTX_STORE
-#define YYNSTATE             39
-#define YYNRULE              43
-#define YYNRULE_WITH_ACTION  40
-#define YYNTOKEN             51
-#define YY_MAX_SHIFT         38
-#define YY_MIN_SHIFTREDUCE   79
-#define YY_MAX_SHIFTREDUCE   121
-#define YY_ERROR_ACTION      122
-#define YY_ACCEPT_ACTION     123
-#define YY_NO_ACTION         124
-#define YY_MIN_REDUCE        125
-#define YY_MAX_REDUCE        167
+#define YYNSTATE             65
+#define YYNRULE              61
+#define YYNRULE_WITH_ACTION  58
+#define YYNTOKEN             39
+#define YY_MAX_SHIFT         64
+#define YY_MIN_SHIFTREDUCE   111
+#define YY_MAX_SHIFTREDUCE   171
+#define YY_ERROR_ACTION      172
+#define YY_ACCEPT_ACTION     173
+#define YY_NO_ACTION         174
+#define YY_MIN_REDUCE        175
+#define YY_MAX_REDUCE        235
 #define YY_MIN_DSTRCTR       0
 #define YY_MAX_DSTRCTR       0
 /************* End control #defines *******************************************/
@@ -294,63 +284,99 @@ typedef union {
 **  yy_default[]       Default action for each state.
 **
 *********** Begin parsing tables **********************************************/
-#define YY_ACTTAB_COUNT (124)
+#define YY_ACTTAB_COUNT (271)
 static const YYACTIONTYPE yy_action[] = {
- /*     0 */   129,  148,  130,   19,  131,  155,  132,   21,  133,    6,
- /*    10 */   123,    8,   20,   22,  129,  151,  130,  124,  131,    7,
- /*    20 */   132,   13,  133,    6,  113,   14,   92,   25,   94,   95,
- /*    30 */   129,  152,  130,    2,  131,  116,  132,   23,  133,    6,
- /*    40 */    10,  135,  163,  136,  104,  137,   18,   31,   96,   97,
- /*    50 */    93,  129,  149,  130,    1,  131,   99,  132,   30,  133,
- /*    60 */     6,   30,  129,  156,  130,  165,  131,    9,  132,   12,
- /*    70 */   133,    6,  153,   11,  130,   24,  131,   26,  132,  111,
- /*    80 */   133,    6,   29,   34,   32,   36,   88,    3,  125,  127,
- /*    90 */   126,  128,   15,    4,  101,   37,   28,   33,   27,   16,
- /*   100 */   135,  160,  136,  100,  137,  135,  164,  136,   17,  137,
- /*   110 */    38,  135,  161,  136,  124,  137,  135,  158,  136,   98,
- /*   120 */   137,    5,   35,  121,
+ /*     0 */   231,  185,  203,  186,   43,  211,   42,   32,   34,   37,
+ /*    10 */   225,  230,   22,  231,  185,   23,  186,   44,  208,   42,
+ /*    20 */    32,   34,   37,  225,  230,  175,  177,  176,  178,    1,
+ /*    30 */    56,   26,   48,    3,  231,  185,  123,  186,  124,  125,
+ /*    40 */    14,   31,   34,   37,  225,  230,  146,  126,  127,  231,
+ /*    50 */   185,    4,  186,   64,   49,   42,   32,   34,   37,  225,
+ /*    60 */   230,  231,  185,   47,  186,   45,  212,   42,   32,   34,
+ /*    70 */    37,  225,  230,  231,  185,   13,  186,   46,  209,   42,
+ /*    80 */    32,   34,   37,  225,  230,  231,  185,    2,  186,  129,
+ /*    90 */   206,   42,   32,   34,   37,  225,  230,  231,  185,  168,
+ /*   100 */   186,  173,   25,    5,   33,   34,   37,  225,  230,  231,
+ /*   110 */   185,  233,  186,  231,  185,   56,  186,   35,   37,  225,
+ /*   120 */   230,   36,   37,  225,  230,  231,  185,   50,  186,   60,
+ /*   130 */    58,   62,  120,   39,   37,  225,  230,  231,  185,   52,
+ /*   140 */   186,   63,   54,   53,    6,   41,   37,  225,  230,  179,
+ /*   150 */   196,  180,  141,  181,   55,  182,  143,  183,   20,   51,
+ /*   160 */   179,  199,  180,   27,  181,   15,  182,   28,  183,   20,
+ /*   170 */   179,  200,  180,  174,  181,   29,  182,   16,  183,   20,
+ /*   180 */   179,  197,  180,  130,  181,   30,  182,   17,  183,   20,
+ /*   190 */   179,  204,  180,  171,  181,  174,  182,  174,  183,   20,
+ /*   200 */   174,  231,  185,  174,  186,  231,  185,  174,  186,  174,
+ /*   210 */    38,  225,  230,  174,   40,  225,  230,  174,  201,  174,
+ /*   220 */   180,  174,  181,  174,  182,  174,  183,   20,   19,   18,
+ /*   230 */   231,  185,  174,  186,  231,  185,  174,  186,   21,   24,
+ /*   240 */   227,  230,    7,    8,  229,  230,  231,  185,  174,  186,
+ /*   250 */   231,  185,  134,  186,  174,   57,  228,  230,  174,  174,
+ /*   260 */   226,  230,   12,   11,   10,    9,  131,  128,  174,   59,
+ /*   270 */    61,
 };
 static const YYCODETYPE yy_lookahead[] = {
- /*     0 */    55,   56,   57,   68,   59,   64,   61,   60,   63,   64,
- /*    10 */    71,   72,   62,   58,   55,   56,   57,   74,   59,   19,
- /*    20 */    61,   21,   63,   64,   22,   20,   26,   25,   28,   29,
- /*    30 */    55,   56,   57,   27,   59,   20,   61,   27,   63,   64,
- /*    40 */    25,   65,   66,   67,   22,   69,   70,   25,   48,   49,
- /*    50 */    50,   55,   56,   57,   27,   59,   27,   61,   19,   63,
- /*    60 */    64,   19,   55,   56,   57,    0,   59,   18,   61,   28,
- /*    70 */    63,   64,   55,   18,   57,   27,   59,   27,   61,   27,
- /*    80 */    63,   64,   28,   44,   45,   46,   47,   27,   51,   52,
- /*    90 */    53,   54,   21,   27,   22,   30,   31,   25,   33,   21,
- /*   100 */    65,   66,   67,   27,   69,   65,   66,   67,   21,   69,
- /*   110 */    73,   65,   66,   67,   74,   69,   65,   66,   67,   22,
- /*   120 */    69,   27,   25,   17,   74,   74,   74,   74,   74,   74,
- /*   130 */    74,   74,   74,   74,   74,   74,   74,   74,   74,   74,
- /*   140 */    74,   74,   74,   74,   74,   74,   74,   74,   74,   74,
- /*   150 */    74,   74,   74,   74,   74,   74,   74,   74,   74,   74,
- /*   160 */    74,   74,   74,   74,   74,   74,   74,   74,   74,   74,
- /*   170 */    74,   74,   74,   74,   74,
+ /*     0 */    53,   54,   52,   56,   57,   58,   59,   60,   61,   62,
+ /*    10 */    63,   64,    2,   53,   54,    5,   56,   55,   58,   59,
+ /*    20 */    60,   61,   62,   63,   64,   39,   40,   41,   42,   19,
+ /*    30 */    19,   21,   27,   23,   53,   54,   26,   56,   28,   29,
+ /*    40 */    27,   60,   61,   62,   63,   64,   20,   37,   38,   53,
+ /*    50 */    54,   25,   56,   67,   58,   59,   60,   61,   62,   63,
+ /*    60 */    64,   53,   54,   46,   56,   50,   58,   59,   60,   61,
+ /*    70 */    62,   63,   64,   53,   54,   27,   56,   48,   58,   59,
+ /*    80 */    60,   61,   62,   63,   64,   53,   54,   18,   56,   27,
+ /*    90 */    58,   59,   60,   61,   62,   63,   64,   53,   54,   24,
+ /*   100 */    56,   65,   66,   18,   60,   61,   62,   63,   64,   53,
+ /*   110 */    54,    0,   56,   53,   54,   19,   56,   61,   62,   63,
+ /*   120 */    64,   61,   62,   63,   64,   53,   54,   27,   56,   33,
+ /*   130 */    34,   35,   36,   61,   62,   63,   64,   53,   54,   27,
+ /*   140 */    56,   30,   31,   32,   28,   61,   62,   63,   64,   43,
+ /*   150 */    44,   45,   27,   47,   28,   49,   22,   51,   52,   25,
+ /*   160 */    43,   44,   45,   20,   47,   27,   49,   21,   51,   52,
+ /*   170 */    43,   44,   45,   68,   47,   21,   49,   27,   51,   52,
+ /*   180 */    43,   44,   45,   27,   47,   21,   49,   27,   51,   52,
+ /*   190 */    43,   44,   45,   17,   47,   68,   49,   68,   51,   52,
+ /*   200 */    68,   53,   54,   68,   56,   53,   54,   68,   56,   68,
+ /*   210 */    62,   63,   64,   68,   62,   63,   64,   68,   43,   68,
+ /*   220 */    45,   68,   47,   68,   49,   68,   51,   52,    1,    2,
+ /*   230 */    53,   54,   68,   56,   53,   54,   68,   56,    3,    4,
+ /*   240 */    63,   64,    6,    7,   63,   64,   53,   54,   68,   56,
+ /*   250 */    53,   54,   22,   56,   68,   25,   63,   64,   68,   68,
+ /*   260 */    63,   64,    8,    9,   10,   11,   22,   22,   68,   25,
+ /*   270 */    25,   68,   68,   68,   68,   68,   68,   68,   68,   68,
+ /*   280 */    68,   68,   68,   68,   68,   68,   68,   68,   68,   68,
+ /*   290 */    68,   68,   68,   68,   68,   68,   68,   68,   68,   68,
+ /*   300 */    68,   68,   68,   68,   68,   68,   68,   39,   39,   39,
 };
-#define YY_SHIFT_COUNT    (38)
+#define YY_SHIFT_COUNT    (64)
 #define YY_SHIFT_MIN      (0)
-#define YY_SHIFT_MAX      (106)
-static const unsigned char yy_shift_ofst[] = {
- /*     0 */   124,   39,   39,   39,   39,   39,   39,    0,   65,    0,
- /*    10 */     0,    0,    0,   10,   42,    6,   27,   29,   15,    2,
- /*    20 */    22,   72,   97,   49,   55,   48,   41,   50,   52,    5,
- /*    30 */    54,   60,   71,   66,   78,   76,   87,   94,  106,
+#define YY_SHIFT_MAX      (254)
+static const unsigned short int yy_shift_ofst[] = {
+ /*     0 */   271,   10,   10,   10,   10,   10,   10,   10,   10,   10,
+ /*    10 */    10,   10,   10,   96,   96,   96,   96,   96,   10,   10,
+ /*    20 */    96,   10,   10,   10,   10,  111,    5,   11,   13,   48,
+ /*    30 */    62,  254,  254,  254,  227,  227,  227,  235,  235,  227,
+ /*    40 */   235,  227,  236,   26,  134,  230,  244,  245,   69,   75,
+ /*    50 */    85,  100,  116,  112,  125,  143,  126,  138,  146,  150,
+ /*    60 */   154,  156,  164,  160,  176,
 };
-#define YY_REDUCE_COUNT (17)
-#define YY_REDUCE_MIN   (-65)
-#define YY_REDUCE_MAX   (51)
-static const signed char yy_reduce_ofst[] = {
- /*     0 */   -61,  -55,  -41,  -25,   -4,    7,   17,  -24,   37,   35,
- /*    10 */    40,   46,   51,  -65,  -59,  -50,  -53,  -45,
+#define YY_REDUCE_COUNT (30)
+#define YY_REDUCE_MIN   (-53)
+#define YY_REDUCE_MAX   (197)
+static const short yy_reduce_ofst[] = {
+ /*     0 */    36,  -53,  -40,   -4,    8,   20,   32,  -19,   44,   56,
+ /*    10 */    60,   72,   84,  106,  117,  127,  137,  147,  148,  152,
+ /*    20 */   175,  177,  181,  193,  197,  -14,  -38,  -50,   15,   29,
+ /*    30 */    17,
 };
 static const YYACTIONTYPE yy_default[] = {
- /*     0 */   166,  122,  122,  122,  122,  122,  122,  122,  122,  122,
- /*    10 */   122,  122,  122,  122,  154,  122,  122,  122,  122,  122,
- /*    20 */   122,  122,  122,  122,  122,  122,  122,  122,  122,  122,
- /*    30 */   122,  122,  122,  122,  122,  122,  122,  122,  122,
+ /*     0 */   234,  172,  172,  172,  172,  172,  172,  172,  172,  172,
+ /*    10 */   172,  172,  172,  172,  172,  172,  172,  172,  172,  172,
+ /*    20 */   172,  172,  172,  172,  172,  172,  172,  202,  172,  172,
+ /*    30 */   172,  216,  214,  215,  217,  221,  220,  222,  224,  219,
+ /*    40 */   223,  218,  213,  172,  172,  172,  172,  172,  172,  172,
+ /*    50 */   172,  172,  172,  172,  172,  172,  172,  172,  172,  172,
+ /*    60 */   172,  172,  172,  172,  172,
 };
 /********** End of lemon-generated parsing tables *****************************/
 
@@ -485,48 +511,42 @@ static const char *const yyTokenName[] = {
   /*   29 */ "FLOAT",
   /*   30 */ "CREATE",
   /*   31 */ "DELETE",
-  /*   32 */ "APPEND",
-  /*   33 */ "INSERT",
-  /*   34 */ "UPDATE",
-  /*   35 */ "READ",
-  /*   36 */ "TAKE",
-  /*   37 */ "BCREATE",
-  /*   38 */ "BDELETE",
-  /*   39 */ "BAPPEND",
-  /*   40 */ "BINSERT",
-  /*   41 */ "BUPDATE",
-  /*   42 */ "BREAD",
-  /*   43 */ "BTAKE",
-  /*   44 */ "STRUCT",
-  /*   45 */ "UNION",
-  /*   46 */ "ENUM",
-  /*   47 */ "PRIM",
-  /*   48 */ "TRUE",
-  /*   49 */ "FALSE",
-  /*   50 */ "IDENT",
-  /*   51 */ "query",
-  /*   52 */ "create_decl",
-  /*   53 */ "delete_decl",
-  /*   54 */ "insert_decl",
-  /*   55 */ "type",
-  /*   56 */ "type_spec",
-  /*   57 */ "enum_decl",
-  /*   58 */ "enum_items",
-  /*   59 */ "struct_decl",
-  /*   60 */ "struct_items",
-  /*   61 */ "union_decl",
-  /*   62 */ "union_items",
-  /*   63 */ "sarray_decl",
-  /*   64 */ "sarray_dims",
-  /*   65 */ "value",
-  /*   66 */ "value_spec",
-  /*   67 */ "object_decl",
-  /*   68 */ "object_items",
-  /*   69 */ "array_decl",
-  /*   70 */ "array_items",
-  /*   71 */ "main",
-  /*   72 */ "in",
-  /*   73 */ "state",
+  /*   32 */ "INSERT",
+  /*   33 */ "STRUCT",
+  /*   34 */ "UNION",
+  /*   35 */ "ENUM",
+  /*   36 */ "PRIM",
+  /*   37 */ "TRUE",
+  /*   38 */ "FALSE",
+  /*   39 */ "query",
+  /*   40 */ "create_decl",
+  /*   41 */ "delete_decl",
+  /*   42 */ "insert_decl",
+  /*   43 */ "type",
+  /*   44 */ "type_spec",
+  /*   45 */ "enum_decl",
+  /*   46 */ "enum_items",
+  /*   47 */ "struct_decl",
+  /*   48 */ "struct_items",
+  /*   49 */ "union_decl",
+  /*   50 */ "union_items",
+  /*   51 */ "sarray_decl",
+  /*   52 */ "sarray_dims",
+  /*   53 */ "value",
+  /*   54 */ "object_decl",
+  /*   55 */ "object_items",
+  /*   56 */ "array_decl",
+  /*   57 */ "array_items",
+  /*   58 */ "expression",
+  /*   59 */ "equality",
+  /*   60 */ "comparison",
+  /*   61 */ "term",
+  /*   62 */ "factor",
+  /*   63 */ "unary",
+  /*   64 */ "primary",
+  /*   65 */ "main",
+  /*   66 */ "in",
+  /*   67 */ "state",
 };
 #endif /* defined(YYCOVERAGE) || !defined(NDEBUG) */
 
@@ -544,39 +564,57 @@ static const char *const yyRuleName[] = {
  /*   7 */ "type ::= union_decl",
  /*   8 */ "type ::= sarray_decl",
  /*   9 */ "type ::= PRIM",
- /*  10 */ "value_spec ::= value",
- /*  11 */ "value ::= object_decl",
- /*  12 */ "value ::= array_decl",
- /*  13 */ "value ::= STRING",
- /*  14 */ "value ::= IDENT",
- /*  15 */ "value ::= INTEGER",
- /*  16 */ "value ::= FLOAT",
- /*  17 */ "value ::= TRUE",
- /*  18 */ "value ::= FALSE",
- /*  19 */ "enum_decl ::= ENUM LEFT_BRACE enum_items RIGHT_BRACE",
- /*  20 */ "enum_items ::= IDENTIFIER",
- /*  21 */ "enum_items ::= enum_items COMMA IDENTIFIER",
- /*  22 */ "struct_decl ::= STRUCT LEFT_BRACE struct_items RIGHT_BRACE",
- /*  23 */ "struct_items ::= IDENTIFIER type_spec",
- /*  24 */ "struct_items ::= struct_items COMMA IDENTIFIER type_spec",
- /*  25 */ "union_decl ::= UNION LEFT_BRACE union_items RIGHT_BRACE",
- /*  26 */ "union_items ::= IDENTIFIER type_spec",
- /*  27 */ "union_items ::= union_items COMMA IDENTIFIER type_spec",
- /*  28 */ "sarray_decl ::= sarray_dims type",
- /*  29 */ "sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET",
- /*  30 */ "sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims",
- /*  31 */ "create_decl ::= CREATE IDENTIFIER type_spec",
- /*  32 */ "delete_decl ::= DELETE IDENTIFIER",
- /*  33 */ "insert_decl ::= INSERT IDENTIFIER INTEGER value_spec",
- /*  34 */ "object_decl ::= LEFT_BRACE object_items RIGHT_BRACE",
- /*  35 */ "object_items ::= IDENTIFIER COLON value_spec",
- /*  36 */ "object_items ::= object_items COMMA IDENTIFIER COLON value_spec",
- /*  37 */ "array_decl ::= LEFT_BRACKET array_items RIGHT_BRACKET",
- /*  38 */ "array_items ::= value_spec",
- /*  39 */ "array_items ::= array_items COMMA value_spec",
- /*  40 */ "main ::= in",
- /*  41 */ "in ::=",
- /*  42 */ "in ::= in state SEMICOLON",
+ /*  10 */ "value ::= object_decl",
+ /*  11 */ "value ::= array_decl",
+ /*  12 */ "value ::= STRING",
+ /*  13 */ "value ::= INTEGER",
+ /*  14 */ "value ::= FLOAT",
+ /*  15 */ "value ::= TRUE",
+ /*  16 */ "value ::= FALSE",
+ /*  17 */ "enum_decl ::= ENUM LEFT_BRACE enum_items RIGHT_BRACE",
+ /*  18 */ "enum_items ::= IDENTIFIER",
+ /*  19 */ "enum_items ::= enum_items COMMA IDENTIFIER",
+ /*  20 */ "struct_decl ::= STRUCT LEFT_BRACE struct_items RIGHT_BRACE",
+ /*  21 */ "struct_items ::= IDENTIFIER type_spec",
+ /*  22 */ "struct_items ::= struct_items COMMA IDENTIFIER type_spec",
+ /*  23 */ "union_decl ::= UNION LEFT_BRACE union_items RIGHT_BRACE",
+ /*  24 */ "union_items ::= IDENTIFIER type_spec",
+ /*  25 */ "union_items ::= union_items COMMA IDENTIFIER type_spec",
+ /*  26 */ "sarray_decl ::= sarray_dims type",
+ /*  27 */ "sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET",
+ /*  28 */ "sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims",
+ /*  29 */ "create_decl ::= CREATE IDENTIFIER type_spec",
+ /*  30 */ "delete_decl ::= DELETE IDENTIFIER",
+ /*  31 */ "insert_decl ::= INSERT IDENTIFIER INTEGER expression",
+ /*  32 */ "object_decl ::= LEFT_BRACE object_items RIGHT_BRACE",
+ /*  33 */ "object_items ::= IDENTIFIER COLON expression",
+ /*  34 */ "object_items ::= object_items COMMA IDENTIFIER COLON expression",
+ /*  35 */ "array_decl ::= LEFT_BRACKET array_items RIGHT_BRACKET",
+ /*  36 */ "array_items ::= expression",
+ /*  37 */ "array_items ::= array_items COMMA expression",
+ /*  38 */ "expression ::= equality",
+ /*  39 */ "equality ::= comparison",
+ /*  40 */ "equality ::= equality EQUAL_EQUAL comparison",
+ /*  41 */ "equality ::= equality BANG_EQUAL comparison",
+ /*  42 */ "comparison ::= term",
+ /*  43 */ "comparison ::= comparison GREATER term",
+ /*  44 */ "comparison ::= comparison GREATER_EQUAL term",
+ /*  45 */ "comparison ::= comparison LESS term",
+ /*  46 */ "comparison ::= comparison LESS_EQUAL term",
+ /*  47 */ "term ::= factor",
+ /*  48 */ "term ::= term PLUS factor",
+ /*  49 */ "term ::= term MINUS factor",
+ /*  50 */ "factor ::= unary",
+ /*  51 */ "factor ::= factor STAR unary",
+ /*  52 */ "factor ::= factor SLASH unary",
+ /*  53 */ "unary ::= BANG unary",
+ /*  54 */ "unary ::= MINUS unary",
+ /*  55 */ "unary ::= primary",
+ /*  56 */ "primary ::= value",
+ /*  57 */ "primary ::= LEFT_PAREN expression RIGHT_PAREN",
+ /*  58 */ "main ::= in",
+ /*  59 */ "in ::=",
+ /*  60 */ "in ::= in state SEMICOLON",
 };
 #endif /* NDEBUG */
 
@@ -997,49 +1035,67 @@ static void yy_shift(
 /* For rule J, yyRuleInfoLhs[J] contains the symbol on the left-hand side
 ** of that rule */
 static const YYCODETYPE yyRuleInfoLhs[] = {
-    73,  /* (0) state ::= query */
-    51,  /* (1) query ::= delete_decl */
-    51,  /* (2) query ::= create_decl */
-    51,  /* (3) query ::= insert_decl */
-    56,  /* (4) type_spec ::= type */
-    55,  /* (5) type ::= enum_decl */
-    55,  /* (6) type ::= struct_decl */
-    55,  /* (7) type ::= union_decl */
-    55,  /* (8) type ::= sarray_decl */
-    55,  /* (9) type ::= PRIM */
-    66,  /* (10) value_spec ::= value */
-    65,  /* (11) value ::= object_decl */
-    65,  /* (12) value ::= array_decl */
-    65,  /* (13) value ::= STRING */
-    65,  /* (14) value ::= IDENT */
-    65,  /* (15) value ::= INTEGER */
-    65,  /* (16) value ::= FLOAT */
-    65,  /* (17) value ::= TRUE */
-    65,  /* (18) value ::= FALSE */
-    57,  /* (19) enum_decl ::= ENUM LEFT_BRACE enum_items RIGHT_BRACE */
-    58,  /* (20) enum_items ::= IDENTIFIER */
-    58,  /* (21) enum_items ::= enum_items COMMA IDENTIFIER */
-    59,  /* (22) struct_decl ::= STRUCT LEFT_BRACE struct_items RIGHT_BRACE */
-    60,  /* (23) struct_items ::= IDENTIFIER type_spec */
-    60,  /* (24) struct_items ::= struct_items COMMA IDENTIFIER type_spec */
-    61,  /* (25) union_decl ::= UNION LEFT_BRACE union_items RIGHT_BRACE */
-    62,  /* (26) union_items ::= IDENTIFIER type_spec */
-    62,  /* (27) union_items ::= union_items COMMA IDENTIFIER type_spec */
-    63,  /* (28) sarray_decl ::= sarray_dims type */
-    64,  /* (29) sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET */
-    64,  /* (30) sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims */
-    52,  /* (31) create_decl ::= CREATE IDENTIFIER type_spec */
-    53,  /* (32) delete_decl ::= DELETE IDENTIFIER */
-    54,  /* (33) insert_decl ::= INSERT IDENTIFIER INTEGER value_spec */
-    67,  /* (34) object_decl ::= LEFT_BRACE object_items RIGHT_BRACE */
-    68,  /* (35) object_items ::= IDENTIFIER COLON value_spec */
-    68,  /* (36) object_items ::= object_items COMMA IDENTIFIER COLON value_spec */
-    69,  /* (37) array_decl ::= LEFT_BRACKET array_items RIGHT_BRACKET */
-    70,  /* (38) array_items ::= value_spec */
-    70,  /* (39) array_items ::= array_items COMMA value_spec */
-    71,  /* (40) main ::= in */
-    72,  /* (41) in ::= */
-    72,  /* (42) in ::= in state SEMICOLON */
+    67,  /* (0) state ::= query */
+    39,  /* (1) query ::= delete_decl */
+    39,  /* (2) query ::= create_decl */
+    39,  /* (3) query ::= insert_decl */
+    44,  /* (4) type_spec ::= type */
+    43,  /* (5) type ::= enum_decl */
+    43,  /* (6) type ::= struct_decl */
+    43,  /* (7) type ::= union_decl */
+    43,  /* (8) type ::= sarray_decl */
+    43,  /* (9) type ::= PRIM */
+    53,  /* (10) value ::= object_decl */
+    53,  /* (11) value ::= array_decl */
+    53,  /* (12) value ::= STRING */
+    53,  /* (13) value ::= INTEGER */
+    53,  /* (14) value ::= FLOAT */
+    53,  /* (15) value ::= TRUE */
+    53,  /* (16) value ::= FALSE */
+    45,  /* (17) enum_decl ::= ENUM LEFT_BRACE enum_items RIGHT_BRACE */
+    46,  /* (18) enum_items ::= IDENTIFIER */
+    46,  /* (19) enum_items ::= enum_items COMMA IDENTIFIER */
+    47,  /* (20) struct_decl ::= STRUCT LEFT_BRACE struct_items RIGHT_BRACE */
+    48,  /* (21) struct_items ::= IDENTIFIER type_spec */
+    48,  /* (22) struct_items ::= struct_items COMMA IDENTIFIER type_spec */
+    49,  /* (23) union_decl ::= UNION LEFT_BRACE union_items RIGHT_BRACE */
+    50,  /* (24) union_items ::= IDENTIFIER type_spec */
+    50,  /* (25) union_items ::= union_items COMMA IDENTIFIER type_spec */
+    51,  /* (26) sarray_decl ::= sarray_dims type */
+    52,  /* (27) sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET */
+    52,  /* (28) sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims */
+    40,  /* (29) create_decl ::= CREATE IDENTIFIER type_spec */
+    41,  /* (30) delete_decl ::= DELETE IDENTIFIER */
+    42,  /* (31) insert_decl ::= INSERT IDENTIFIER INTEGER expression */
+    54,  /* (32) object_decl ::= LEFT_BRACE object_items RIGHT_BRACE */
+    55,  /* (33) object_items ::= IDENTIFIER COLON expression */
+    55,  /* (34) object_items ::= object_items COMMA IDENTIFIER COLON expression */
+    56,  /* (35) array_decl ::= LEFT_BRACKET array_items RIGHT_BRACKET */
+    57,  /* (36) array_items ::= expression */
+    57,  /* (37) array_items ::= array_items COMMA expression */
+    58,  /* (38) expression ::= equality */
+    59,  /* (39) equality ::= comparison */
+    59,  /* (40) equality ::= equality EQUAL_EQUAL comparison */
+    59,  /* (41) equality ::= equality BANG_EQUAL comparison */
+    60,  /* (42) comparison ::= term */
+    60,  /* (43) comparison ::= comparison GREATER term */
+    60,  /* (44) comparison ::= comparison GREATER_EQUAL term */
+    60,  /* (45) comparison ::= comparison LESS term */
+    60,  /* (46) comparison ::= comparison LESS_EQUAL term */
+    61,  /* (47) term ::= factor */
+    61,  /* (48) term ::= term PLUS factor */
+    61,  /* (49) term ::= term MINUS factor */
+    62,  /* (50) factor ::= unary */
+    62,  /* (51) factor ::= factor STAR unary */
+    62,  /* (52) factor ::= factor SLASH unary */
+    63,  /* (53) unary ::= BANG unary */
+    63,  /* (54) unary ::= MINUS unary */
+    63,  /* (55) unary ::= primary */
+    64,  /* (56) primary ::= value */
+    64,  /* (57) primary ::= LEFT_PAREN expression RIGHT_PAREN */
+    65,  /* (58) main ::= in */
+    66,  /* (59) in ::= */
+    66,  /* (60) in ::= in state SEMICOLON */
 };
 
 /* For rule J, yyRuleInfoNRhs[J] contains the negative of the number
@@ -1055,39 +1111,57 @@ static const signed char yyRuleInfoNRhs[] = {
    -1,  /* (7) type ::= union_decl */
    -1,  /* (8) type ::= sarray_decl */
    -1,  /* (9) type ::= PRIM */
-   -1,  /* (10) value_spec ::= value */
-   -1,  /* (11) value ::= object_decl */
-   -1,  /* (12) value ::= array_decl */
-   -1,  /* (13) value ::= STRING */
-   -1,  /* (14) value ::= IDENT */
-   -1,  /* (15) value ::= INTEGER */
-   -1,  /* (16) value ::= FLOAT */
-   -1,  /* (17) value ::= TRUE */
-   -1,  /* (18) value ::= FALSE */
-   -4,  /* (19) enum_decl ::= ENUM LEFT_BRACE enum_items RIGHT_BRACE */
-   -1,  /* (20) enum_items ::= IDENTIFIER */
-   -3,  /* (21) enum_items ::= enum_items COMMA IDENTIFIER */
-   -4,  /* (22) struct_decl ::= STRUCT LEFT_BRACE struct_items RIGHT_BRACE */
-   -2,  /* (23) struct_items ::= IDENTIFIER type_spec */
-   -4,  /* (24) struct_items ::= struct_items COMMA IDENTIFIER type_spec */
-   -4,  /* (25) union_decl ::= UNION LEFT_BRACE union_items RIGHT_BRACE */
-   -2,  /* (26) union_items ::= IDENTIFIER type_spec */
-   -4,  /* (27) union_items ::= union_items COMMA IDENTIFIER type_spec */
-   -2,  /* (28) sarray_decl ::= sarray_dims type */
-   -3,  /* (29) sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET */
-   -4,  /* (30) sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims */
-   -3,  /* (31) create_decl ::= CREATE IDENTIFIER type_spec */
-   -2,  /* (32) delete_decl ::= DELETE IDENTIFIER */
-   -4,  /* (33) insert_decl ::= INSERT IDENTIFIER INTEGER value_spec */
-   -3,  /* (34) object_decl ::= LEFT_BRACE object_items RIGHT_BRACE */
-   -3,  /* (35) object_items ::= IDENTIFIER COLON value_spec */
-   -5,  /* (36) object_items ::= object_items COMMA IDENTIFIER COLON value_spec */
-   -3,  /* (37) array_decl ::= LEFT_BRACKET array_items RIGHT_BRACKET */
-   -1,  /* (38) array_items ::= value_spec */
-   -3,  /* (39) array_items ::= array_items COMMA value_spec */
-   -1,  /* (40) main ::= in */
-    0,  /* (41) in ::= */
-   -3,  /* (42) in ::= in state SEMICOLON */
+   -1,  /* (10) value ::= object_decl */
+   -1,  /* (11) value ::= array_decl */
+   -1,  /* (12) value ::= STRING */
+   -1,  /* (13) value ::= INTEGER */
+   -1,  /* (14) value ::= FLOAT */
+   -1,  /* (15) value ::= TRUE */
+   -1,  /* (16) value ::= FALSE */
+   -4,  /* (17) enum_decl ::= ENUM LEFT_BRACE enum_items RIGHT_BRACE */
+   -1,  /* (18) enum_items ::= IDENTIFIER */
+   -3,  /* (19) enum_items ::= enum_items COMMA IDENTIFIER */
+   -4,  /* (20) struct_decl ::= STRUCT LEFT_BRACE struct_items RIGHT_BRACE */
+   -2,  /* (21) struct_items ::= IDENTIFIER type_spec */
+   -4,  /* (22) struct_items ::= struct_items COMMA IDENTIFIER type_spec */
+   -4,  /* (23) union_decl ::= UNION LEFT_BRACE union_items RIGHT_BRACE */
+   -2,  /* (24) union_items ::= IDENTIFIER type_spec */
+   -4,  /* (25) union_items ::= union_items COMMA IDENTIFIER type_spec */
+   -2,  /* (26) sarray_decl ::= sarray_dims type */
+   -3,  /* (27) sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET */
+   -4,  /* (28) sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims */
+   -3,  /* (29) create_decl ::= CREATE IDENTIFIER type_spec */
+   -2,  /* (30) delete_decl ::= DELETE IDENTIFIER */
+   -4,  /* (31) insert_decl ::= INSERT IDENTIFIER INTEGER expression */
+   -3,  /* (32) object_decl ::= LEFT_BRACE object_items RIGHT_BRACE */
+   -3,  /* (33) object_items ::= IDENTIFIER COLON expression */
+   -5,  /* (34) object_items ::= object_items COMMA IDENTIFIER COLON expression */
+   -3,  /* (35) array_decl ::= LEFT_BRACKET array_items RIGHT_BRACKET */
+   -1,  /* (36) array_items ::= expression */
+   -3,  /* (37) array_items ::= array_items COMMA expression */
+   -1,  /* (38) expression ::= equality */
+   -1,  /* (39) equality ::= comparison */
+   -3,  /* (40) equality ::= equality EQUAL_EQUAL comparison */
+   -3,  /* (41) equality ::= equality BANG_EQUAL comparison */
+   -1,  /* (42) comparison ::= term */
+   -3,  /* (43) comparison ::= comparison GREATER term */
+   -3,  /* (44) comparison ::= comparison GREATER_EQUAL term */
+   -3,  /* (45) comparison ::= comparison LESS term */
+   -3,  /* (46) comparison ::= comparison LESS_EQUAL term */
+   -1,  /* (47) term ::= factor */
+   -3,  /* (48) term ::= term PLUS factor */
+   -3,  /* (49) term ::= term MINUS factor */
+   -1,  /* (50) factor ::= unary */
+   -3,  /* (51) factor ::= factor STAR unary */
+   -3,  /* (52) factor ::= factor SLASH unary */
+   -2,  /* (53) unary ::= BANG unary */
+   -2,  /* (54) unary ::= MINUS unary */
+   -1,  /* (55) unary ::= primary */
+   -1,  /* (56) primary ::= value */
+   -3,  /* (57) primary ::= LEFT_PAREN expression RIGHT_PAREN */
+   -1,  /* (58) main ::= in */
+    0,  /* (59) in ::= */
+   -3,  /* (60) in ::= in state SEMICOLON */
 };
 
 static void yy_accept(yyParser*);  /* Forward Declaration */
@@ -1130,233 +1204,219 @@ static YYACTIONTYPE yy_reduce(
 /********** Begin reduce actions **********************************************/
         YYMINORTYPE yylhsminor;
       case 0: /* state ::= query */
-#line 124 "./tools/lemon/parser.y"
+#line 129 "./tools/lemon/parser.y"
 {
     res->result = yymsp[0].minor.yy115;
     res->ready = true;
 }
-#line 1138 "./tools/lemon/parser.c"
+#line 1212 "./tools/lemon/parser.c"
         break;
       case 1: /* query ::= delete_decl */
       case 2: /* query ::= create_decl */ yytestcase(yyruleno==2);
       case 3: /* query ::= insert_decl */ yytestcase(yyruleno==3);
-#line 130 "./tools/lemon/parser.y"
+#line 135 "./tools/lemon/parser.y"
 {
     yylhsminor.yy115 = yymsp[0].minor.yy115;
 }
-#line 1147 "./tools/lemon/parser.c"
+#line 1221 "./tools/lemon/parser.c"
   yymsp[0].minor.yy115 = yylhsminor.yy115;
         break;
       case 4: /* type_spec ::= type */
-#line 143 "./tools/lemon/parser.y"
-{ yylhsminor.yy107 = yymsp[0].minor.yy107; }
-#line 1153 "./tools/lemon/parser.c"
-  yymsp[0].minor.yy107 = yylhsminor.yy107;
+#line 148 "./tools/lemon/parser.y"
+{ yylhsminor.yy123 = yymsp[0].minor.yy123; }
+#line 1227 "./tools/lemon/parser.c"
+  yymsp[0].minor.yy123 = yylhsminor.yy123;
         break;
       case 5: /* type ::= enum_decl */
-#line 145 "./tools/lemon/parser.y"
-{
-    yylhsminor.yy107 = (type){ .type = T_ENUM };
-    if (enb_build(&yylhsminor.yy107.en, &yymsp[0].minor.yy112, res->e) != 0) break;
-}
-#line 1162 "./tools/lemon/parser.c"
-  yymsp[0].minor.yy107 = yylhsminor.yy107;
-        break;
-      case 6: /* type ::= struct_decl */
 #line 150 "./tools/lemon/parser.y"
 {
-    yylhsminor.yy107 = (type){ .type = T_STRUCT };
-    if (kvb_struct_t_build(&yylhsminor.yy107.st, &yymsp[0].minor.yy124, res->e) != 0) break;
+    yylhsminor.yy123 = (type){ .type = T_ENUM };
+    if (enb_build(&yylhsminor.yy123.en, &yymsp[0].minor.yy128, res->e)) break;
 }
-#line 1171 "./tools/lemon/parser.c"
-  yymsp[0].minor.yy107 = yylhsminor.yy107;
+#line 1236 "./tools/lemon/parser.c"
+  yymsp[0].minor.yy123 = yylhsminor.yy123;
         break;
-      case 7: /* type ::= union_decl */
+      case 6: /* type ::= struct_decl */
 #line 155 "./tools/lemon/parser.y"
 {
-    yylhsminor.yy107 = (type){ .type = T_UNION };
-    if (kvb_union_t_build(&yylhsminor.yy107.un, &yymsp[0].minor.yy124, res->e) != 0) break;
+    yylhsminor.yy123 = (type){ .type = T_STRUCT };
+    if (kvb_struct_t_build(&yylhsminor.yy123.st, &yymsp[0].minor.yy8, res->e)) break;
 }
-#line 1180 "./tools/lemon/parser.c"
-  yymsp[0].minor.yy107 = yylhsminor.yy107;
+#line 1245 "./tools/lemon/parser.c"
+  yymsp[0].minor.yy123 = yylhsminor.yy123;
         break;
-      case 8: /* type ::= sarray_decl */
+      case 7: /* type ::= union_decl */
 #line 160 "./tools/lemon/parser.y"
 {
-    yylhsminor.yy107 = (type){ .type = T_SARRAY };
-    if (sab_build(&yylhsminor.yy107.sa, &yymsp[0].minor.yy5, res->e) != 0) break;
+    yylhsminor.yy123 = (type){ .type = T_UNION };
+    if (kvb_union_t_build(&yylhsminor.yy123.un, &yymsp[0].minor.yy8, res->e)) break;
 }
-#line 1189 "./tools/lemon/parser.c"
-  yymsp[0].minor.yy107 = yylhsminor.yy107;
+#line 1254 "./tools/lemon/parser.c"
+  yymsp[0].minor.yy123 = yylhsminor.yy123;
         break;
-      case 9: /* type ::= PRIM */
+      case 8: /* type ::= sarray_decl */
 #line 165 "./tools/lemon/parser.y"
 {
-  yylhsminor.yy107 = (type){ 
+    yylhsminor.yy123 = (type){ .type = T_SARRAY };
+    if (sab_build(&yylhsminor.yy123.sa, &yymsp[0].minor.yy117, res->e)) break;
+}
+#line 1263 "./tools/lemon/parser.c"
+  yymsp[0].minor.yy123 = yylhsminor.yy123;
+        break;
+      case 9: /* type ::= PRIM */
+#line 170 "./tools/lemon/parser.y"
+{
+  yylhsminor.yy123 = (type){ 
     .type = T_PRIM,
     .p = yymsp[0].minor.yy0.prim,
   };
 }
-#line 1200 "./tools/lemon/parser.c"
-  yymsp[0].minor.yy107 = yylhsminor.yy107;
+#line 1274 "./tools/lemon/parser.c"
+  yymsp[0].minor.yy123 = yylhsminor.yy123;
         break;
-      case 10: /* value_spec ::= value */
-#line 173 "./tools/lemon/parser.y"
-{ yylhsminor.yy54 = yymsp[0].minor.yy54; }
-#line 1206 "./tools/lemon/parser.c"
-  yymsp[0].minor.yy54 = yylhsminor.yy54;
-        break;
-      case 11: /* value ::= object_decl */
-#line 175 "./tools/lemon/parser.y"
+      case 10: /* value ::= object_decl */
+#line 178 "./tools/lemon/parser.y"
 {
-  yylhsminor.yy54 = (value){ .type = VT_OBJECT };
-  if(objb_build(&yylhsminor.yy54.obj, &yymsp[0].minor.yy18, res->e) != 0) break;
+  yylhsminor.yy134 = (value){ .type = VT_OBJECT };
+  if(objb_build(&yylhsminor.yy134.obj, &yymsp[0].minor.yy114, res->e)) break;
 }
-#line 1215 "./tools/lemon/parser.c"
-  yymsp[0].minor.yy54 = yylhsminor.yy54;
+#line 1283 "./tools/lemon/parser.c"
+  yymsp[0].minor.yy134 = yylhsminor.yy134;
         break;
-      case 12: /* value ::= array_decl */
-#line 180 "./tools/lemon/parser.y"
+      case 11: /* value ::= array_decl */
+#line 183 "./tools/lemon/parser.y"
 {
-  yylhsminor.yy54 = (value){ .type = VT_ARRAY };
-  if(arb_build(&yylhsminor.yy54.arr, &yymsp[0].minor.yy58, res->e) != 0) break;
+  yylhsminor.yy134 = (value){ .type = VT_ARRAY };
+  if(arb_build(&yylhsminor.yy134.arr, &yymsp[0].minor.yy22, res->e)) break;
 }
-#line 1224 "./tools/lemon/parser.c"
-  yymsp[0].minor.yy54 = yylhsminor.yy54;
+#line 1292 "./tools/lemon/parser.c"
+  yymsp[0].minor.yy134 = yylhsminor.yy134;
         break;
-      case 13: /* value ::= STRING */
-#line 186 "./tools/lemon/parser.y"
+      case 12: /* value ::= STRING */
+#line 189 "./tools/lemon/parser.y"
 {
-  yylhsminor.yy54 = value_string_create(yymsp[0].minor.yy0.str); 
+  yylhsminor.yy134 = value_string_create(yymsp[0].minor.yy0.str); 
 }
-#line 1232 "./tools/lemon/parser.c"
-  yymsp[0].minor.yy54 = yylhsminor.yy54;
-        break;
-      case 14: /* value ::= IDENT */
-#line 190 "./tools/lemon/parser.y"
-{
-  yylhsminor.yy54 = value_ident_create(yymsp[0].minor.yy0.str); 
-}
-#line 1240 "./tools/lemon/parser.c"
-  yymsp[0].minor.yy54 = yylhsminor.yy54;
-        break;
-      case 15: /* value ::= INTEGER */
-#line 194 "./tools/lemon/parser.y"
-{
-  yylhsminor.yy54 = value_number_create(yymsp[0].minor.yy0.integer); 
-}
-#line 1248 "./tools/lemon/parser.c"
-  yymsp[0].minor.yy54 = yylhsminor.yy54;
-        break;
-      case 16: /* value ::= FLOAT */
-#line 198 "./tools/lemon/parser.y"
-{
-  yylhsminor.yy54 = value_number_create(yymsp[0].minor.yy0.floating); 
-}
-#line 1256 "./tools/lemon/parser.c"
-  yymsp[0].minor.yy54 = yylhsminor.yy54;
-        break;
-      case 17: /* value ::= TRUE */
-#line 204 "./tools/lemon/parser.y"
-{
-  yymsp[0].minor.yy54 = value_true_create(); 
-}
-#line 1264 "./tools/lemon/parser.c"
-        break;
-      case 18: /* value ::= FALSE */
-#line 208 "./tools/lemon/parser.y"
-{
-  yymsp[0].minor.yy54 = value_false_create(); 
-}
-#line 1271 "./tools/lemon/parser.c"
-        break;
-      case 19: /* enum_decl ::= ENUM LEFT_BRACE enum_items RIGHT_BRACE */
-#line 215 "./tools/lemon/parser.y"
-{ yymsp[-3].minor.yy112 = yymsp[-1].minor.yy112; }
-#line 1276 "./tools/lemon/parser.c"
-        break;
-      case 20: /* enum_items ::= IDENTIFIER */
-#line 218 "./tools/lemon/parser.y"
-{
-    yylhsminor.yy112 = enb_create(res->work, res->dest);
-    if (enb_accept_key(&yylhsminor.yy112, yymsp[0].minor.yy0.str, res->e) != 0) break;
-}
-#line 1284 "./tools/lemon/parser.c"
-  yymsp[0].minor.yy112 = yylhsminor.yy112;
-        break;
-      case 21: /* enum_items ::= enum_items COMMA IDENTIFIER */
-#line 224 "./tools/lemon/parser.y"
-{
-    yylhsminor.yy112 = yymsp[-2].minor.yy112;
-    if (enb_accept_key(&yylhsminor.yy112, yymsp[0].minor.yy0.str, res->e) != 0) break;
-}
-#line 1293 "./tools/lemon/parser.c"
-  yymsp[-2].minor.yy112 = yylhsminor.yy112;
-        break;
-      case 22: /* struct_decl ::= STRUCT LEFT_BRACE struct_items RIGHT_BRACE */
-      case 25: /* union_decl ::= UNION LEFT_BRACE union_items RIGHT_BRACE */ yytestcase(yyruleno==25);
-#line 232 "./tools/lemon/parser.y"
-{ yymsp[-3].minor.yy124 = yymsp[-1].minor.yy124; }
 #line 1300 "./tools/lemon/parser.c"
+  yymsp[0].minor.yy134 = yylhsminor.yy134;
         break;
-      case 23: /* struct_items ::= IDENTIFIER type_spec */
-#line 236 "./tools/lemon/parser.y"
+      case 13: /* value ::= INTEGER */
+#line 193 "./tools/lemon/parser.y"
 {
-    yylhsminor.yy124 = kvb_create(res->work, res->dest);                 /* <-- was “yylhsminor.yy124 = B;” (undefined) */
-    if (kvb_accept_key (&yylhsminor.yy124, yymsp[-1].minor.yy0.str, res->e) != 0) break;
-    if (kvb_accept_type(&yylhsminor.yy124, yymsp[0].minor.yy107,       res->e) != 0) break;
+  yylhsminor.yy134 = value_number_create(yymsp[0].minor.yy0.integer); 
 }
-#line 1309 "./tools/lemon/parser.c"
-  yymsp[-1].minor.yy124 = yylhsminor.yy124;
+#line 1308 "./tools/lemon/parser.c"
+  yymsp[0].minor.yy134 = yylhsminor.yy134;
         break;
-      case 24: /* struct_items ::= struct_items COMMA IDENTIFIER type_spec */
-      case 27: /* union_items ::= union_items COMMA IDENTIFIER type_spec */ yytestcase(yyruleno==27);
-#line 244 "./tools/lemon/parser.y"
+      case 14: /* value ::= FLOAT */
+#line 197 "./tools/lemon/parser.y"
 {
-    yylhsminor.yy124 = yymsp[-3].minor.yy124;
-    if (kvb_accept_key (&yylhsminor.yy124, yymsp[-1].minor.yy0.str, res->e) != 0) break;
-    if (kvb_accept_type(&yylhsminor.yy124, yymsp[0].minor.yy107,       res->e) != 0) break;
+  yylhsminor.yy134 = value_number_create(yymsp[0].minor.yy0.floating); 
 }
-#line 1320 "./tools/lemon/parser.c"
-  yymsp[-3].minor.yy124 = yylhsminor.yy124;
+#line 1316 "./tools/lemon/parser.c"
+  yymsp[0].minor.yy134 = yylhsminor.yy134;
         break;
-      case 26: /* union_items ::= IDENTIFIER type_spec */
-#line 257 "./tools/lemon/parser.y"
+      case 15: /* value ::= TRUE */
+#line 203 "./tools/lemon/parser.y"
 {
-    yylhsminor.yy124 = kvb_create(res->work, res->dest);
-    if (kvb_accept_key (&yylhsminor.yy124, yymsp[-1].minor.yy0.str, res->e) != 0) break;
-    if (kvb_accept_type(&yylhsminor.yy124, yymsp[0].minor.yy107,       res->e) != 0) break;
+  yymsp[0].minor.yy134 = value_true_create(); 
 }
-#line 1330 "./tools/lemon/parser.c"
-  yymsp[-1].minor.yy124 = yylhsminor.yy124;
+#line 1324 "./tools/lemon/parser.c"
         break;
-      case 28: /* sarray_decl ::= sarray_dims type */
-#line 277 "./tools/lemon/parser.y"
+      case 16: /* value ::= FALSE */
+#line 207 "./tools/lemon/parser.y"
+{
+  yymsp[0].minor.yy134 = value_false_create(); 
+}
+#line 1331 "./tools/lemon/parser.c"
+        break;
+      case 17: /* enum_decl ::= ENUM LEFT_BRACE enum_items RIGHT_BRACE */
+#line 214 "./tools/lemon/parser.y"
+{ yymsp[-3].minor.yy128 = yymsp[-1].minor.yy128; }
+#line 1336 "./tools/lemon/parser.c"
+        break;
+      case 18: /* enum_items ::= IDENTIFIER */
+#line 217 "./tools/lemon/parser.y"
+{
+    yylhsminor.yy128 = enb_create(res->work, res->dest);
+    if (enb_accept_key(&yylhsminor.yy128, yymsp[0].minor.yy0.str, res->e)) break;
+}
+#line 1344 "./tools/lemon/parser.c"
+  yymsp[0].minor.yy128 = yylhsminor.yy128;
+        break;
+      case 19: /* enum_items ::= enum_items COMMA IDENTIFIER */
+#line 223 "./tools/lemon/parser.y"
+{
+    yylhsminor.yy128 = yymsp[-2].minor.yy128;
+    if (enb_accept_key(&yylhsminor.yy128, yymsp[0].minor.yy0.str, res->e)) break;
+}
+#line 1353 "./tools/lemon/parser.c"
+  yymsp[-2].minor.yy128 = yylhsminor.yy128;
+        break;
+      case 20: /* struct_decl ::= STRUCT LEFT_BRACE struct_items RIGHT_BRACE */
+      case 23: /* union_decl ::= UNION LEFT_BRACE union_items RIGHT_BRACE */ yytestcase(yyruleno==23);
+#line 231 "./tools/lemon/parser.y"
+{ yymsp[-3].minor.yy8 = yymsp[-1].minor.yy8; }
+#line 1360 "./tools/lemon/parser.c"
+        break;
+      case 21: /* struct_items ::= IDENTIFIER type_spec */
+#line 235 "./tools/lemon/parser.y"
+{
+    yylhsminor.yy8 = kvb_create(res->work, res->dest);                 /* <-- was “yylhsminor.yy8 = B;” (undefined) */
+    if (kvb_accept_key (&yylhsminor.yy8, yymsp[-1].minor.yy0.str, res->e)) break;
+    if (kvb_accept_type(&yylhsminor.yy8, yymsp[0].minor.yy123,       res->e)) break;
+}
+#line 1369 "./tools/lemon/parser.c"
+  yymsp[-1].minor.yy8 = yylhsminor.yy8;
+        break;
+      case 22: /* struct_items ::= struct_items COMMA IDENTIFIER type_spec */
+      case 25: /* union_items ::= union_items COMMA IDENTIFIER type_spec */ yytestcase(yyruleno==25);
+#line 243 "./tools/lemon/parser.y"
+{
+    yylhsminor.yy8 = yymsp[-3].minor.yy8;
+    if (kvb_accept_key (&yylhsminor.yy8, yymsp[-1].minor.yy0.str, res->e)) break;
+    if (kvb_accept_type(&yylhsminor.yy8, yymsp[0].minor.yy123,       res->e)) break;
+}
+#line 1380 "./tools/lemon/parser.c"
+  yymsp[-3].minor.yy8 = yylhsminor.yy8;
+        break;
+      case 24: /* union_items ::= IDENTIFIER type_spec */
+#line 256 "./tools/lemon/parser.y"
+{
+    yylhsminor.yy8 = kvb_create(res->work, res->dest);
+    if (kvb_accept_key (&yylhsminor.yy8, yymsp[-1].minor.yy0.str, res->e)) break;
+    if (kvb_accept_type(&yylhsminor.yy8, yymsp[0].minor.yy123,       res->e)) break;
+}
+#line 1390 "./tools/lemon/parser.c"
+  yymsp[-1].minor.yy8 = yylhsminor.yy8;
+        break;
+      case 26: /* sarray_decl ::= sarray_dims type */
+#line 276 "./tools/lemon/parser.y"
 {  
-  if (sab_accept_type(&yymsp[-1].minor.yy5, yymsp[0].minor.yy107, res->e) != 0) break;
-  yylhsminor.yy5 = yymsp[-1].minor.yy5; 
+  if (sab_accept_type(&yymsp[-1].minor.yy117, yymsp[0].minor.yy123, res->e)) break;
+  yylhsminor.yy117 = yymsp[-1].minor.yy117; 
 }
-#line 1339 "./tools/lemon/parser.c"
-  yymsp[-1].minor.yy5 = yylhsminor.yy5;
+#line 1399 "./tools/lemon/parser.c"
+  yymsp[-1].minor.yy117 = yylhsminor.yy117;
         break;
-      case 29: /* sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET */
-#line 283 "./tools/lemon/parser.y"
+      case 27: /* sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET */
+#line 282 "./tools/lemon/parser.y"
 { 
-  yymsp[-2].minor.yy5 = sab_create(res->work, res->dest);
-  if (sab_accept_dim(&yymsp[-2].minor.yy5, yymsp[-1].minor.yy0.integer, res->e) != 0) break;
+  yymsp[-2].minor.yy117 = sab_create(res->work, res->dest);
+  if (sab_accept_dim(&yymsp[-2].minor.yy117, yymsp[-1].minor.yy0.integer, res->e)) break;
 }
-#line 1348 "./tools/lemon/parser.c"
+#line 1408 "./tools/lemon/parser.c"
         break;
-      case 30: /* sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims */
-#line 289 "./tools/lemon/parser.y"
+      case 28: /* sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims */
+#line 288 "./tools/lemon/parser.y"
 {
-  if (sab_accept_dim(&yymsp[0].minor.yy5, yymsp[-2].minor.yy0.integer, res->e) != 0) break;
-  yymsp[-3].minor.yy5 = yymsp[0].minor.yy5;
+  if (sab_accept_dim(&yymsp[0].minor.yy117, yymsp[-2].minor.yy0.integer, res->e)) break;
+  yymsp[-3].minor.yy117 = yymsp[0].minor.yy117;
 }
-#line 1356 "./tools/lemon/parser.c"
+#line 1416 "./tools/lemon/parser.c"
         break;
-      case 31: /* create_decl ::= CREATE IDENTIFIER type_spec */
-#line 297 "./tools/lemon/parser.y"
+      case 29: /* create_decl ::= CREATE IDENTIFIER type_spec */
+#line 296 "./tools/lemon/parser.y"
 {
     yylhsminor.yy115 = yymsp[-2].minor.yy0.q;
 
@@ -1364,17 +1424,17 @@ static YYACTIONTYPE yy_reduce(
     create_builder tmp = crb_create();
 
     // Accept
-    if (crb_accept_string(&tmp, yymsp[-1].minor.yy0.str, res->e) != 0) break;
-    if (crb_accept_type(&tmp, yymsp[0].minor.yy107, res->e) != 0) break;
+    if (crb_accept_string(&tmp, yymsp[-1].minor.yy0.str, res->e)) break;
+    if (crb_accept_type(&tmp, yymsp[0].minor.yy123, res->e)) break;
 
     // Build the query
-    if (crb_build(yylhsminor.yy115.create, &tmp, res->e) != 0) break; 
+    if (crb_build(yylhsminor.yy115.create, &tmp, res->e)) break; 
 }
-#line 1373 "./tools/lemon/parser.c"
+#line 1433 "./tools/lemon/parser.c"
   yymsp[-2].minor.yy115 = yylhsminor.yy115;
         break;
-      case 32: /* delete_decl ::= DELETE IDENTIFIER */
-#line 314 "./tools/lemon/parser.y"
+      case 30: /* delete_decl ::= DELETE IDENTIFIER */
+#line 313 "./tools/lemon/parser.y"
 {
     yylhsminor.yy115 = yymsp[-1].minor.yy0.q;
 
@@ -1382,85 +1442,298 @@ static YYACTIONTYPE yy_reduce(
     delete_builder tmp = dltb_create();
 
     // Accept
-    if (dltb_accept_string(&tmp, yymsp[0].minor.yy0.str, res->e) != 0) break;
+    if (dltb_accept_string(&tmp, yymsp[0].minor.yy0.str, res->e)) break;
 
     // Build the query
-    if (dltb_build(yylhsminor.yy115.delete, &tmp, res->e) != 0) break; 
+    if (dltb_build(yylhsminor.yy115.delete, &tmp, res->e)) break; 
 }
-#line 1390 "./tools/lemon/parser.c"
+#line 1450 "./tools/lemon/parser.c"
   yymsp[-1].minor.yy115 = yylhsminor.yy115;
         break;
-      case 33: /* insert_decl ::= INSERT IDENTIFIER INTEGER value_spec */
-#line 330 "./tools/lemon/parser.y"
+      case 31: /* insert_decl ::= INSERT IDENTIFIER INTEGER expression */
+#line 329 "./tools/lemon/parser.y"
 {
     yylhsminor.yy115 = yymsp[-3].minor.yy0.q;
 
     // Build the builder
     insert_builder tmp = inb_create();
 
+    // Evaluate expression 
+    value v;
+    if(expr_evaluate(&v, yymsp[0].minor.yy82, res->work, res->e)) break;
+
     // Accept
-    if (inb_accept_string(&tmp, yymsp[-2].minor.yy0.str, res->e) != 0) break;
-    if (inb_accept_value(&tmp, yymsp[0].minor.yy54, res->e) != 0) break;
-    if (inb_accept_start(&tmp, yymsp[-1].minor.yy0.integer, res->e) != 0) break;
+    if (inb_accept_string(&tmp, yymsp[-2].minor.yy0.str, res->e)) break;
+    if (inb_accept_value(&tmp, v, res->e)) break;
+    if (inb_accept_start(&tmp, yymsp[-1].minor.yy0.integer, res->e)) break;
 
     // Build the query
-    if (inb_build(yylhsminor.yy115.insert, &tmp, res->e) != 0) break; 
+    if (inb_build(yylhsminor.yy115.insert, &tmp, res->e)) break; 
 }
-#line 1409 "./tools/lemon/parser.c"
+#line 1473 "./tools/lemon/parser.c"
   yymsp[-3].minor.yy115 = yylhsminor.yy115;
         break;
-      case 34: /* object_decl ::= LEFT_BRACE object_items RIGHT_BRACE */
-#line 348 "./tools/lemon/parser.y"
-{ yymsp[-2].minor.yy18 = yymsp[-1].minor.yy18; }
-#line 1415 "./tools/lemon/parser.c"
+      case 32: /* object_decl ::= LEFT_BRACE object_items RIGHT_BRACE */
+#line 351 "./tools/lemon/parser.y"
+{ yymsp[-2].minor.yy114 = yymsp[-1].minor.yy114; }
+#line 1479 "./tools/lemon/parser.c"
         break;
-      case 35: /* object_items ::= IDENTIFIER COLON value_spec */
-#line 352 "./tools/lemon/parser.y"
+      case 33: /* object_items ::= IDENTIFIER COLON expression */
+#line 355 "./tools/lemon/parser.y"
 {
-    yylhsminor.yy18 = objb_create(res->work, res->dest);
-    if (objb_accept_string(&yylhsminor.yy18, yymsp[-2].minor.yy0.str, res->e) != 0) break;
-    if (objb_accept_value(&yylhsminor.yy18, yymsp[0].minor.yy54,       res->e) != 0) break;
+    // Evaluate expression 
+    value v;
+    if(expr_evaluate(&v, yymsp[0].minor.yy82, res->work, res->e)) break;
+
+    yylhsminor.yy114 = objb_create(res->work, res->dest);
+    if (objb_accept_string(&yylhsminor.yy114, yymsp[-2].minor.yy0.str, res->e)) break;
+    if (objb_accept_value(&yylhsminor.yy114, v,       res->e)) break;
 }
-#line 1424 "./tools/lemon/parser.c"
-  yymsp[-2].minor.yy18 = yylhsminor.yy18;
+#line 1492 "./tools/lemon/parser.c"
+  yymsp[-2].minor.yy114 = yylhsminor.yy114;
         break;
-      case 36: /* object_items ::= object_items COMMA IDENTIFIER COLON value_spec */
-#line 360 "./tools/lemon/parser.y"
+      case 34: /* object_items ::= object_items COMMA IDENTIFIER COLON expression */
+#line 367 "./tools/lemon/parser.y"
 {
-    yylhsminor.yy18 = yymsp[-4].minor.yy18;
-    if (objb_accept_string(&yylhsminor.yy18, yymsp[-2].minor.yy0.str, res->e) != 0) break;
-    if (objb_accept_value(&yylhsminor.yy18, yymsp[0].minor.yy54,       res->e) != 0) break;
+    // Evaluate expression 
+    value v;
+    if(expr_evaluate(&v, yymsp[0].minor.yy82, res->work, res->e)) break;
+
+    yylhsminor.yy114 = yymsp[-4].minor.yy114;
+    if (objb_accept_string(&yylhsminor.yy114, yymsp[-2].minor.yy0.str, res->e)) break;
+    if (objb_accept_value(&yylhsminor.yy114, v,       res->e)) break;
 }
-#line 1434 "./tools/lemon/parser.c"
-  yymsp[-4].minor.yy18 = yylhsminor.yy18;
+#line 1506 "./tools/lemon/parser.c"
+  yymsp[-4].minor.yy114 = yylhsminor.yy114;
         break;
-      case 37: /* array_decl ::= LEFT_BRACKET array_items RIGHT_BRACKET */
-#line 369 "./tools/lemon/parser.y"
-{  yymsp[-2].minor.yy58 = yymsp[-1].minor.yy58; }
-#line 1440 "./tools/lemon/parser.c"
-        break;
-      case 38: /* array_items ::= value_spec */
-#line 373 "./tools/lemon/parser.y"
-{ 
-  yylhsminor.yy58 = arb_create(res->work, res->dest);
-  if (arb_accept_value(&yylhsminor.yy58, yymsp[0].minor.yy54, res->e) != 0) break;
-}
-#line 1448 "./tools/lemon/parser.c"
-  yymsp[0].minor.yy58 = yylhsminor.yy58;
-        break;
-      case 39: /* array_items ::= array_items COMMA value_spec */
+      case 35: /* array_decl ::= LEFT_BRACKET array_items RIGHT_BRACKET */
 #line 380 "./tools/lemon/parser.y"
-{
-  yylhsminor.yy58 = yymsp[-2].minor.yy58;
-  if (arb_accept_value(&yylhsminor.yy58, yymsp[0].minor.yy54, res->e) != 0) break;
+{  yymsp[-2].minor.yy22 = yymsp[-1].minor.yy22; }
+#line 1512 "./tools/lemon/parser.c"
+        break;
+      case 36: /* array_items ::= expression */
+#line 384 "./tools/lemon/parser.y"
+{ 
+  // Evaluate expression 
+  value v;
+  if(expr_evaluate(&v, yymsp[0].minor.yy82, res->work, res->e)) break;
+
+  yylhsminor.yy22 = arb_create(res->work, res->dest);
+  if (arb_accept_value(&yylhsminor.yy22, v, res->e)) break;
 }
-#line 1457 "./tools/lemon/parser.c"
-  yymsp[-2].minor.yy58 = yylhsminor.yy58;
+#line 1524 "./tools/lemon/parser.c"
+  yymsp[0].minor.yy22 = yylhsminor.yy22;
+        break;
+      case 37: /* array_items ::= array_items COMMA expression */
+#line 395 "./tools/lemon/parser.y"
+{
+  // Evaluate expression 
+  value v;
+  if(expr_evaluate(&v, yymsp[0].minor.yy82, res->work, res->e)) break;
+
+  yylhsminor.yy22 = yymsp[-2].minor.yy22;
+  if (arb_accept_value(&yylhsminor.yy22, v, res->e)) break;
+}
+#line 1537 "./tools/lemon/parser.c"
+  yymsp[-2].minor.yy22 = yylhsminor.yy22;
+        break;
+      case 38: /* expression ::= equality */
+      case 39: /* equality ::= comparison */ yytestcase(yyruleno==39);
+      case 42: /* comparison ::= term */ yytestcase(yyruleno==42);
+      case 47: /* term ::= factor */ yytestcase(yyruleno==47);
+      case 50: /* factor ::= unary */ yytestcase(yyruleno==50);
+      case 55: /* unary ::= primary */ yytestcase(yyruleno==55);
+#line 417 "./tools/lemon/parser.y"
+{
+  yylhsminor.yy82 = yymsp[0].minor.yy82;
+}
+#line 1550 "./tools/lemon/parser.c"
+  yymsp[0].minor.yy82 = yylhsminor.yy82;
+        break;
+      case 40: /* equality ::= equality EQUAL_EQUAL comparison */
+#line 427 "./tools/lemon/parser.y"
+{
+  yylhsminor.yy82 = lmalloc(res->work, 1, sizeof *yylhsminor.yy82);
+  if (yylhsminor.yy82 == NULL) {
+    error_causef(res->e, ERR_NOMEM, "Failed to allocate expression");
+    break;
+  }
+  *yylhsminor.yy82 = create_binary_expr(yymsp[-2].minor.yy82, TT_EQUAL_EQUAL, yymsp[0].minor.yy82);
+}
+#line 1563 "./tools/lemon/parser.c"
+  yymsp[-2].minor.yy82 = yylhsminor.yy82;
+        break;
+      case 41: /* equality ::= equality BANG_EQUAL comparison */
+#line 436 "./tools/lemon/parser.y"
+{
+  yylhsminor.yy82 = lmalloc(res->work, 1, sizeof *yylhsminor.yy82);
+  if (yylhsminor.yy82 == NULL) {
+    error_causef(res->e, ERR_NOMEM, "Failed to allocate expression");
+    break;
+  }
+  *yylhsminor.yy82 = create_binary_expr(yymsp[-2].minor.yy82, TT_BANG_EQUAL, yymsp[0].minor.yy82);
+}
+#line 1576 "./tools/lemon/parser.c"
+  yymsp[-2].minor.yy82 = yylhsminor.yy82;
+        break;
+      case 43: /* comparison ::= comparison GREATER term */
+#line 451 "./tools/lemon/parser.y"
+{
+  yylhsminor.yy82 = lmalloc(res->work, 1, sizeof *yylhsminor.yy82);
+  if (yylhsminor.yy82 == NULL) {
+    error_causef(res->e, ERR_NOMEM, "Failed to allocate expression");
+    break;
+  }
+  *yylhsminor.yy82 = create_binary_expr(yymsp[-2].minor.yy82, TT_GREATER, yymsp[0].minor.yy82);
+}
+#line 1589 "./tools/lemon/parser.c"
+  yymsp[-2].minor.yy82 = yylhsminor.yy82;
+        break;
+      case 44: /* comparison ::= comparison GREATER_EQUAL term */
+#line 460 "./tools/lemon/parser.y"
+{
+  yylhsminor.yy82 = lmalloc(res->work, 1, sizeof *yylhsminor.yy82);
+  if (yylhsminor.yy82 == NULL) {
+    error_causef(res->e, ERR_NOMEM, "Failed to allocate expression");
+    break;
+  }
+  *yylhsminor.yy82 = create_binary_expr(yymsp[-2].minor.yy82, TT_GREATER_EQUAL, yymsp[0].minor.yy82);
+}
+#line 1602 "./tools/lemon/parser.c"
+  yymsp[-2].minor.yy82 = yylhsminor.yy82;
+        break;
+      case 45: /* comparison ::= comparison LESS term */
+#line 469 "./tools/lemon/parser.y"
+{
+  yylhsminor.yy82 = lmalloc(res->work, 1, sizeof *yylhsminor.yy82);
+  if (yylhsminor.yy82 == NULL) {
+    error_causef(res->e, ERR_NOMEM, "Failed to allocate expression");
+    break;
+  }
+  *yylhsminor.yy82 = create_binary_expr(yymsp[-2].minor.yy82, TT_LESS, yymsp[0].minor.yy82);
+}
+#line 1615 "./tools/lemon/parser.c"
+  yymsp[-2].minor.yy82 = yylhsminor.yy82;
+        break;
+      case 46: /* comparison ::= comparison LESS_EQUAL term */
+#line 478 "./tools/lemon/parser.y"
+{
+  yylhsminor.yy82 = lmalloc(res->work, 1, sizeof *yylhsminor.yy82);
+  if (yylhsminor.yy82 == NULL) {
+    error_causef(res->e, ERR_NOMEM, "Failed to allocate expression");
+    break;
+  }
+  *yylhsminor.yy82 = create_binary_expr(yymsp[-2].minor.yy82, TT_LESS_EQUAL, yymsp[0].minor.yy82);
+}
+#line 1628 "./tools/lemon/parser.c"
+  yymsp[-2].minor.yy82 = yylhsminor.yy82;
+        break;
+      case 48: /* term ::= term PLUS factor */
+#line 493 "./tools/lemon/parser.y"
+{
+  yylhsminor.yy82 = lmalloc(res->work, 1, sizeof *yylhsminor.yy82);
+  if (yylhsminor.yy82 == NULL) {
+    error_causef(res->e, ERR_NOMEM, "Failed to allocate expression");
+    break;
+  }
+  *yylhsminor.yy82 = create_binary_expr(yymsp[-2].minor.yy82, TT_PLUS, yymsp[0].minor.yy82);
+}
+#line 1641 "./tools/lemon/parser.c"
+  yymsp[-2].minor.yy82 = yylhsminor.yy82;
+        break;
+      case 49: /* term ::= term MINUS factor */
+#line 502 "./tools/lemon/parser.y"
+{
+  yylhsminor.yy82 = lmalloc(res->work, 1, sizeof *yylhsminor.yy82);
+  if (yylhsminor.yy82 == NULL) {
+    error_causef(res->e, ERR_NOMEM, "Failed to allocate expression");
+    break;
+  }
+  *yylhsminor.yy82 = create_binary_expr(yymsp[-2].minor.yy82, TT_MINUS, yymsp[0].minor.yy82);
+}
+#line 1654 "./tools/lemon/parser.c"
+  yymsp[-2].minor.yy82 = yylhsminor.yy82;
+        break;
+      case 51: /* factor ::= factor STAR unary */
+#line 517 "./tools/lemon/parser.y"
+{
+  yylhsminor.yy82 = lmalloc(res->work, 1, sizeof *yylhsminor.yy82);
+  if (yylhsminor.yy82 == NULL) {
+    error_causef(res->e, ERR_NOMEM, "Failed to allocate expression");
+    break;
+  }
+  *yylhsminor.yy82 = create_binary_expr(yymsp[-2].minor.yy82, TT_STAR, yymsp[0].minor.yy82);
+}
+#line 1667 "./tools/lemon/parser.c"
+  yymsp[-2].minor.yy82 = yylhsminor.yy82;
+        break;
+      case 52: /* factor ::= factor SLASH unary */
+#line 526 "./tools/lemon/parser.y"
+{
+  yylhsminor.yy82 = lmalloc(res->work, 1, sizeof *yylhsminor.yy82);
+  if (yylhsminor.yy82 == NULL) {
+    error_causef(res->e, ERR_NOMEM, "Failed to allocate expression");
+    break;
+  }
+  *yylhsminor.yy82 = create_binary_expr(yymsp[-2].minor.yy82, TT_SLASH, yymsp[0].minor.yy82);
+}
+#line 1680 "./tools/lemon/parser.c"
+  yymsp[-2].minor.yy82 = yylhsminor.yy82;
+        break;
+      case 53: /* unary ::= BANG unary */
+#line 537 "./tools/lemon/parser.y"
+{
+  yymsp[-1].minor.yy82 = lmalloc(res->work, 1, sizeof *yymsp[-1].minor.yy82);
+  if (yymsp[-1].minor.yy82 == NULL) {
+    error_causef(res->e, ERR_NOMEM, "Failed to allocate expression");
+    break;
+  }
+  /* fixed argument order: op first, expr second */
+  *yymsp[-1].minor.yy82 = create_unary_expr(yymsp[0].minor.yy82, TT_BANG);
+}
+#line 1694 "./tools/lemon/parser.c"
+        break;
+      case 54: /* unary ::= MINUS unary */
+#line 547 "./tools/lemon/parser.y"
+{
+  yymsp[-1].minor.yy82 = lmalloc(res->work, 1, sizeof *yymsp[-1].minor.yy82);
+  if (yymsp[-1].minor.yy82 == NULL) {
+    error_causef(res->e, ERR_NOMEM, "Failed to allocate expression");
+    break;
+  }
+  *yymsp[-1].minor.yy82 = create_unary_expr(yymsp[0].minor.yy82, TT_MINUS);
+}
+#line 1706 "./tools/lemon/parser.c"
+        break;
+      case 56: /* primary ::= value */
+#line 561 "./tools/lemon/parser.y"
+{
+  yylhsminor.yy82 = lmalloc(res->work, 1, sizeof *yylhsminor.yy82);
+  if (yylhsminor.yy82 == NULL) {
+    error_causef(res->e, ERR_NOMEM, "Failed to allocate expression");
+    break;
+  }
+  *yylhsminor.yy82 = create_value_expr(yymsp[0].minor.yy134);
+}
+#line 1718 "./tools/lemon/parser.c"
+  yymsp[0].minor.yy82 = yylhsminor.yy82;
+        break;
+      case 57: /* primary ::= LEFT_PAREN expression RIGHT_PAREN */
+#line 570 "./tools/lemon/parser.y"
+{
+  yymsp[-2].minor.yy82 = lmalloc(res->work, 1, sizeof *yymsp[-2].minor.yy82);
+  if (yymsp[-2].minor.yy82 == NULL) {
+    error_causef(res->e, ERR_NOMEM, "Failed to allocate expression");
+    break;
+  }
+  *yymsp[-2].minor.yy82 = create_grouping_expr(yymsp[-1].minor.yy82);
+}
+#line 1731 "./tools/lemon/parser.c"
         break;
       default:
-      /* (40) main ::= in */ yytestcase(yyruleno==40);
-      /* (41) in ::= */ yytestcase(yyruleno==41);
-      /* (42) in ::= in state SEMICOLON */ yytestcase(yyruleno==42);
+      /* (58) main ::= in */ yytestcase(yyruleno==58);
+      /* (59) in ::= */ yytestcase(yyruleno==59);
+      /* (60) in ::= in state SEMICOLON */ yytestcase(yyruleno==60);
         break;
 /********** End reduce actions ************************************************/
   };
@@ -1502,13 +1775,13 @@ static void yy_parse_failed(
   /* Here code is inserted which will be executed whenever the
   ** parser fails */
 /************ Begin %parse_failure code ***************************************/
-#line 111 "./tools/lemon/parser.y"
+#line 116 "./tools/lemon/parser.y"
 
   error_causef(
     res->e, 
     ERR_SYNTAX, 
     "Parser error at index: %d\n", res->tnum);
-#line 1511 "./tools/lemon/parser.c"
+#line 1784 "./tools/lemon/parser.c"
 /************ End %parse_failure code *****************************************/
   lemon_parseARG_STORE /* Suppress warning about unused %extra_argument variable */
   lemon_parseCTX_STORE
@@ -1527,14 +1800,14 @@ static void yy_syntax_error(
   lemon_parseCTX_FETCH
 #define TOKEN yyminor
 /************ Begin %syntax_error code ****************************************/
-#line 103 "./tools/lemon/parser.y"
+#line 108 "./tools/lemon/parser.y"
 
   error_causef(
     res->e, 
     ERR_SYNTAX, 
     "Syntax error at token: %s at index: %d", 
     tt_tostr(yyminor.type), res->tnum);
-#line 1537 "./tools/lemon/parser.c"
+#line 1810 "./tools/lemon/parser.c"
 /************ End %syntax_error code ******************************************/
   lemon_parseARG_STORE /* Suppress warning about unused %extra_argument variable */
   lemon_parseCTX_STORE

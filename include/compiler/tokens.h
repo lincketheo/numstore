@@ -129,6 +129,12 @@ typedef struct
 #define tt_prim(val) \
   (token) { .type = TT_PRIM, .prim = val }
 
+#define tt_opcode(op, _q) \
+  (token) { .type = op, .q = _q }
+
+#define tt_err(_e) \
+  (token) { .type = TT_ERROR, .e = _e }
+
 #define MAX_TOK_T_LEN 16
 
 bool token_equal (const token *left, const token *right);

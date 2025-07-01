@@ -1,0 +1,23 @@
+05/01/2025 
+  - Create parsing "works" for all complex types 
+04/30/2025 
+  - Implements query builders and makes AST building more generic
+04/29/2025
+  - Implements polling server
+  - Starts client and repl
+04/22/2025
+  - Scraps allocator for a simpler design
+  - Scanner is now non blocking on strings > len of the buffer
+  - Parser
+04/21/2025 
+  - Allocation / memory management
+04/20/2025 
+  - Global database config getter / setter 
+  - Paging tests / refactor
+  - Create Database
+04/19/2025 - Initialized project  
+  - Basic scanner / compiler
+  - Simple data structures
+  - OS interface layer
+  - Basic typing
+  - Basic paging

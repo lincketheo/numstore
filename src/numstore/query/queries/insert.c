@@ -1,9 +1,11 @@
 #include "numstore/query/queries/insert.h"
+#include "compiler/value/value.h"
 #include "core/dev/assert.h"
 #include "core/ds/strings.h"
 #include "core/errors/error.h"
 #include "core/intf/logging.h"
 #include "core/mm/lalloc.h"
+#include "core/utils/strings.h" // TODO
 #include "numstore/query/query.h"
 
 DEFINE_DBG_ASSERT_I (insert_query, insert_query, i)
@@ -15,7 +17,8 @@ void
 i_log_insert (insert_query *q)
 {
   insert_query_assert (q);
-  i_log_info ("Inserting to: %.*s at index: %llu\n", q->vname.len, q->vname.data, q->start);
+  i_log_info ("Inserting to: %.*s at index: %llu. Value:\n", q->vname.len, q->vname.data, q->start);
+  i_log_value (&q->val);
 }
 
 query

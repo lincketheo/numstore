@@ -1,8 +1,9 @@
 #include "numstore/type/builders/enum.h"
 
-#include "core/dev/assert.h"   // DEFINE_DBG_ASSERT_I
-#include "core/dev/testing.h"  // TEST
-#include "core/errors/error.h" // err_t
+#include "core/dev/assert.h"    // DEFINE_DBG_ASSERT_I
+#include "core/dev/testing.h"   // TEST
+#include "core/errors/error.h"  // err_t
+#include "core/utils/strings.h" // TODO
 
 DEFINE_DBG_ASSERT_I (enum_builder, enum_builder, s)
 {

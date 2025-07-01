@@ -1,7 +1,8 @@
 #include "numstore/query/queries/delete.h"
 
-#include "core/dev/assert.h"   // DEFINE_DBG_ASSERT_I
-#include "core/intf/logging.h" // i_log_info
+#include "core/dev/assert.h"    // DEFINE_DBG_ASSERT_I
+#include "core/intf/logging.h"  // i_log_info
+#include "core/utils/strings.h" // TODO
 
 #include "numstore/query/query.h" // query
 

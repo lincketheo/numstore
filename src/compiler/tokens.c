@@ -5,6 +5,7 @@
 #include "core/ds/strings.h"
 #include "core/errors/error.h"
 #include "core/intf/logging.h"
+#include "core/utils/strings.h"   // TODO
 #include "numstore/query/query.h" // QT_...
 
 query_t

@@ -138,7 +138,7 @@ client_recv (client *c, error *e)
     {
       error_causef (
           e, ERR_UNEXPECTED,
-          "%s Expected 2 bytes header. Got: %lld\n",
+          "%s Expected 2 bytes header. Got: %lld",
           TAG, read);
       return (string){ 0 };
     }

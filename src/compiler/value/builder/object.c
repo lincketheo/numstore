@@ -4,6 +4,7 @@
 #include "core/dev/testing.h"
 #include "core/ds/llist.h"
 #include "core/errors/error.h"
+#include "core/utils/strings.h" // TODO
 
 DEFINE_DBG_ASSERT_I (object_builder, object_builder, a)
 {

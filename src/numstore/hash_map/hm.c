@@ -1,11 +1,12 @@
 #include "numstore/hash_map/hm.h"
 
-#include "core/dev/testing.h"  // TODO
-#include "core/ds/strings.h"   // TODO
-#include "core/errors/error.h" // TODO
-#include "core/intf/io.h"      // TODO
-#include "core/intf/stdlib.h"  // TODO
-#include "core/mm/lalloc.h"    // TODO
+#include "core/dev/testing.h"   // TODO
+#include "core/ds/strings.h"    // TODO
+#include "core/errors/error.h"  // TODO
+#include "core/intf/io.h"       // TODO
+#include "core/intf/stdlib.h"   // TODO
+#include "core/mm/lalloc.h"     // TODO
+#include "core/utils/strings.h" // TODO
 
 #include "numstore/hash_map/hl.h"            // TODO
 #include "numstore/paging/page.h"            // TODO
