@@ -5,22 +5,18 @@
 
 #include "numstore/type/types.h" // type
 
-typedef struct query_s query;
-
 typedef struct
 {
-  string vname; // Variable name to create
-  type type;    // Type of [vname]
-
-  /**
-   * Space to store variable name and
-   * dynamically allocated type
-   */
-  lalloc query_allocator;
-  u8 _query_space[2048];
+  string vname;
+  type type;
 } create_query;
 
+/**
+ * Log create and do nothing
+ */
 void i_log_create (create_query *q);
-query create_query_create (create_query *q);
-void create_query_reset (create_query *q);
+
+/**
+ * Deep equality check on two create_queries
+ */
 bool create_query_equal (const create_query *left, const create_query *right);

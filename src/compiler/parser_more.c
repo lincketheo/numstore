@@ -137,23 +137,18 @@ parser_write_result (parser *s, query res)
 static inline void
 parser_process_error (parser *s)
 {
-  parser_right_after_error_assert (s);
-
   if (!s->in_err)
     {
+      parser_right_after_error_assert (s);
       s->in_err = true;
 
-      // Write to output buffer
-      parser_write_result (s, query_error_create (s->e));
+      query q = query_error_create (s->e);
+      ASSERT (cbuffer_avail (s->output) >= sizeof (q));
+      u32 ret = cbuffer_write (&q, sizeof q, 1, s->output);
+      ASSERT (ret == 1);
 
       // Reset error
       s->e = error_create (NULL);
-    }
-  else
-    {
-      // Swallow error
-      i_log_error ("Another error occured while parser was rewinding\n");
-      error_log_consume (&s->e);
     }
 
   parser_steady_state_assert (s);

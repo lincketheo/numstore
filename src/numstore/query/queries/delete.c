@@ -18,33 +18,6 @@ i_log_delete (delete_query *q)
   i_log_info ("delete %.*s\n", q->vname.len, q->vname.data);
 }
 
-query
-delete_query_create (delete_query *q)
-{
-  ASSERT (q);
-
-  q->query_allocator = lalloc_create_from (q->_query_space);
-  q->vname = (string){ 0 };
-
-  delete_query_assert (q);
-
-  return (query){
-    .type = QT_DELETE,
-    .qalloc = &q->query_allocator,
-    .delete = q,
-    .ok = true,
-    .e = error_create (NULL),
-  };
-}
-
-void
-delete_query_reset (delete_query *q)
-{
-  delete_query_assert (q);
-  lalloc_reset (&q->query_allocator);
-  q->vname = (string){ 0 };
-}
-
 bool
 delete_query_equal (const delete_query *left, const delete_query *right)
 {

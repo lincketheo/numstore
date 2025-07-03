@@ -234,6 +234,7 @@ scanner_process_error (scanner *s)
 
       // Reset error
       s->e = error_create (NULL);
+      s->qalloc = NULL;
     }
 
   scanner_steady_state_assert (s);
@@ -384,10 +385,24 @@ execute_at_most_one_token (scanner *s)
 }
 
 static inline err_t
-scanner_xfer_str_onto_parser_alloc (string *dest, scanner *s)
+scanner_commit_string (string *dest, scanner *s)
 {
   scanner_steady_state_assert (s);
-  char *ret = lmalloc (s->dest, 1, s->state.slen);
+
+  // Can only transfer strings if we're inside of a query
+  if (s->qalloc == NULL)
+    {
+      scanner_err_t_wrap (
+          error_causef (
+              &s->e, ERR_SYNTAX,
+              "%s: No query to allocate string: %.*s",
+              TAG, s->state.slen, s->state.str),
+          s);
+      UNREACHABLE ();
+    }
+
+  // Allocate onto the query space
+  char *ret = lmalloc (s->qalloc, 1, s->state.slen);
   if (ret == NULL)
     {
       scanner_err_t_wrap (
@@ -398,12 +413,17 @@ scanner_xfer_str_onto_parser_alloc (string *dest, scanner *s)
           s);
       UNREACHABLE ();
     }
+
+  // Copy over local string to query space
   i_memcpy (ret, s->state.str, s->state.slen);
   *dest = (string){
     .data = ret,
     .len = s->state.slen,
   };
+
+  // Reset local string
   s->state.slen = 0;
+
   return SUCCESS;
 }
 
@@ -415,7 +435,7 @@ process_string_or_ident (scanner *s, token_t type)
 
   string literal;
 
-  scanner_err_t_wrap (scanner_xfer_str_onto_parser_alloc (&literal, s), s);
+  scanner_err_t_wrap (scanner_commit_string (&literal, s), s);
 
   // Process the token
   token t = (token){
@@ -469,6 +489,7 @@ process_maybe_ident (scanner *s)
           // Allocate query space for downstream
           query q;
           scanner_err_t_wrap (query_provider_get (s->qp, &q, tt_to_qt (t.type), &s->e), s);
+          s->qalloc = q.qalloc; // Save the allocator here
 
           t.q = q;
 
@@ -854,6 +875,7 @@ execute_at_most_one_token_start (scanner *s)
       {
         scanner_advance_expect (s);
         scanner_err_t_wrap (scanner_process_token (s, quick_tok (TT_SEMICOLON)), s);
+        s->qalloc = NULL;
         break;
       }
     case ':':
@@ -992,7 +1014,7 @@ scanner_init (
     .e = error_create (NULL),
     .qp = qp,
 
-    .dest = dest_alloc,
+    .qalloc = NULL,
   };
 
   scanner_steady_state_assert (dest);

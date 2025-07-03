@@ -35,7 +35,7 @@ typedef struct
   char prev_token;     // Char cache for 2 char lookahead for small tokens
   error e;             // Scanner related errors
   query_provider *qp;  // Allocates queries when an op code is encountered
-  lalloc *dest;        // Where to allocate dynamic content when forwarding tokens (e.g. strings)
+  lalloc *qalloc;      // The query allocator for stuff I know won't change (e.g. strings)
 } scanner;
 
 void scanner_init (

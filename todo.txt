@@ -1,11 +1,14 @@
-
-
 ----------------
 --- FEATURES ---
 ----------------
 
-- Tie together and get insert working again
-- Delete
+- Statement allocation context refactor
+  Get statements to be in control of compiler allocations rather than queries so that 
+  we can support embedded queries in the future.
+  1. Remove qalloc from query
+  2. Create statement and get AST working
+  3. Refactor query_provider to allocate statements instead of queries
+  4. Refactor compiler to allocate to the correct places 
 
 ------------
 --- BUGS ---
