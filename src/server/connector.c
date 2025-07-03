@@ -1,18 +1,15 @@
 #include <stdlib.h>   // malloc / free
 #include <sys/poll.h> // pollfd
 
-#include "core/dev/assert.h"   // DEFINE_DBG_ASSERT_I
-#include "core/ds/cbuffer.h"   // cbuffer
-#include "core/errors/error.h" // err_t
-#include "core/intf/io.h"      // i_file
-#include "core/intf/stdlib.h"  // i_memcpy
-
-#include "compiler/compiler.h" // scanner
-
-#include "server/connection.h" // TODO
-
+#include "compiler/compiler.h"        // scanner
+#include "core/dev/assert.h"          // DEFINE_DBG_ASSERT_I
+#include "core/ds/cbuffer.h"          // cbuffer
+#include "core/errors/error.h"        // err_t
+#include "core/intf/io.h"             // i_file
+#include "core/intf/stdlib.h"         // i_memcpy
 #include "numstore/database.h"        // database
 #include "numstore/virtual_machine.h" // TODO
+#include "server/connection.h"        // TODO
 
 /**
  * A connection is in three states:
@@ -95,7 +92,7 @@ con_open (connection_params params, error *e)
       return NULL;
     }
 
-  compiler *c = compiler_create (params.db->qspce, e);
+  compiler *c = compiler_create (e);
   if (c == NULL)
     {
       i_free (ret);

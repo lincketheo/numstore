@@ -3,8 +3,6 @@
 #include "core/ds/cbuffer.h" // cbuffer
 #include "core/intf/types.h" // u32
 
-#include "numstore/query/query_provider.h" // query_provider
-
 /**
  * A single compiler combines both scan and parse steps
  *
@@ -28,7 +26,7 @@
  */
 typedef struct compiler_s compiler;
 
-compiler *compiler_create (query_provider *qp, error *e);
+compiler *compiler_create (error *e);
 void compiler_free (compiler *c);
 cbuffer *compiler_get_input (compiler *c);
 cbuffer *compiler_get_output (compiler *c);

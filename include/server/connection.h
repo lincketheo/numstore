@@ -1,14 +1,13 @@
 #pragma once
 
-#include <netinet/in.h> // sockaddr_in
-
 #include "core/errors/error.h" // error
 #include "core/intf/io.h"      // i_file
 
 #include "compiler/compiler.h" // compiler
 
-#include "numstore/database.h"             // database
-#include "numstore/query/query_provider.h" // qspce_prvdr
+#include "numstore/database.h" // database
+
+#include <netinet/in.h> // sockaddr_in
 
 typedef struct connection_s connection;
 
@@ -17,7 +16,6 @@ typedef struct
   i_file cfd;
   struct sockaddr_in caddr;
   database *db;
-  query_provider *qp;
 } connection_params;
 
 /**

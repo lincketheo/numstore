@@ -1,7 +1,5 @@
-#include "compiler/statement.h"
-#include "core/errors/error.h"
+#include "compiler/ast/statement.h"
 #include "core/intf/io.h"
-#include "core/mm/lalloc.h"
 
 static const char *TAG = "Statement";
 
@@ -16,5 +14,11 @@ statement_create (error *e)
     }
 
   ret->qspace = lalloc_create_from (ret->query_space);
-  ret->q =
+  return ret;
+}
+
+void
+statement_free (statement *s)
+{
+  i_free (s);
 }

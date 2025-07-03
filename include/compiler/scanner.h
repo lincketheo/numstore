@@ -1,8 +1,7 @@
 #pragma once
 
-#include "compiler/tokens.h"
-#include "core/ds/cbuffer.h"               // err_t
-#include "numstore/query/query_provider.h" // query_provider
+#include "compiler/ast/statement.h" // statement
+#include "core/ds/cbuffer.h"        // cbuffer
 
 typedef struct
 {
@@ -16,32 +15,20 @@ typedef struct
     SS_ERR,     // Rewinding to next TT_SEMICOLON
   } state;
 
-  union
-  {
-    // SS_IDENT, SS_STRING, SS_INTEGER, SS_DECIMAL
-    struct
-    {
-      u32 slen;
-      char str[512];
-    };
-  };
+  // Used in SS_IDENT, SS_STRING, SS_INTEGER, SS_DECIMAL
+  u32 slen;
+  char str[512];
 } scanner_state;
 
 typedef struct
 {
   scanner_state state; // The state for resumability
-  cbuffer *input;      // Chars
-  cbuffer *output;     // tokens
+  cbuffer *input;      // Input Chars
+  cbuffer *output;     // Output tokens
   char prev_token;     // Char cache for 2 char lookahead for small tokens
   error e;             // Scanner related errors
-  query_provider *qp;  // Allocates queries when an op code is encountered
-  lalloc *qalloc;      // The query allocator for stuff I know won't change (e.g. strings)
+  statement *current;  // Current Statement
 } scanner;
 
-void scanner_init (
-    scanner *dest,
-    cbuffer *input,
-    cbuffer *output,
-    query_provider *qp,
-    lalloc *dest_alloc);
+void scanner_init (scanner *dest, cbuffer *input, cbuffer *output);
 void scanner_execute (scanner *s);

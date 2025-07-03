@@ -1,20 +1,10 @@
-#include <stdio.h>  // TODO
-#include <stdlib.h> // TODO
+#include "compiler/parser.h"
 
 #include "compiler/tokens.h"
-#include "core/dev/assert.h"
 #include "core/dev/testing.h"
 #include "core/ds/cbuffer.h"
-#include "core/ds/strings.h"
-#include "core/errors/error.h" // TODO
-#include "core/intf/logging.h"
-#include "core/mm/lalloc.h" // TODO
-
-#include "compiler/parser.h" // TODO
-#include "numstore/query/queries/create.h"
-#include "numstore/query/query.h"
-#include "numstore/query/query_provider.h"
-#include "numstore/type/types.h"
+#include "core/mm/lalloc.h"
+#include <stdlib.h>
 
 extern void *lemon_parseAlloc (void *(*mallocProc) (size_t));
 
@@ -28,12 +18,10 @@ extern void lemon_parse (
     token yyminor,
     parser_result *ctxt);
 
-extern void lemon_parseTrace (FILE *out, char *zPrefix);
-
 static const char *TAG = "Parser";
 
 err_t
-parser_create (parser_result *ret, lalloc *work, lalloc *dest, error *e)
+parser_result_create (parser_result *ret, lalloc *work, error *e)
 {
   ASSERT (ret);
 
@@ -46,35 +34,63 @@ parser_create (parser_result *ret, lalloc *work, lalloc *dest, error *e)
   *ret = (parser_result){
     .yyp = yyp,
     .work = work,
-    .dest = dest,
     .tnum = 0,
     .e = NULL,
-    .ready = false,
+    .result = NULL,
+    .done = false,
   };
 
   return SUCCESS;
 }
 
-query
-parser_consume (parser_result *p)
+static inline void
+parser_result_reset (parser_result *p)
 {
-  ASSERT (p->ready);
-  query ret = p->result;
-  lemon_parseFree (p->yyp, free);
+  if (p->yyp)
+    {
+      lemon_parseFree (p->yyp, free);
+      p->yyp = NULL;
+    }
 
+  lalloc_reset (p->work);
   p->tnum = 0;
   p->e = NULL;
-  p->ready = false;
+  p->done = false;
+}
+
+static inline void
+parser_result_invalidate (parser_result *p)
+{
+  if (p->result)
+    {
+      statement_free (p->result);
+      p->result = NULL;
+    }
+
+  parser_result_reset (p);
+}
+
+statement *
+parser_result_consume (parser_result *p)
+{
+  ASSERT (p->done);
+  ASSERT (p->yyp);
+
+  statement *ret = p->result;
+  ASSERT (ret);
+
+  parser_result_reset (p);
 
   return ret;
 }
 
 err_t
-parser_parse (parser_result *res, token tok, error *e)
+parser_result_parse (parser_result *res, token tok, error *e)
 {
   res->e = e;
   lemon_parse (res->yyp, tok.type, tok, res);
   err_t ret = err_t_from (res->e);
+
   if (!ret)
     {
       res->tnum++;
@@ -100,6 +116,7 @@ DEFINE_DBG_ASSERT_I (parser, parser_right_after_error, s)
 {
   parser_assert (s);
   bad_error_assert (&s->e);
+  ASSERT (s->parser.result == NULL);
 }
 
 #define parser_err_t_wrap(expr, c)  \
@@ -126,11 +143,15 @@ DEFINE_DBG_ASSERT_I (parser, parser_right_after_error, s)
   while (0)
 
 static inline void
-parser_write_result (parser *s, query res)
+parser_write_result (parser *s, statement *stmt)
 {
-  ASSERT (cbuffer_avail (s->output) >= sizeof (res));
-  u32 ret = cbuffer_write (&res, sizeof res, 1, s->output);
-  ASSERT (ret == 1);
+  ASSERT (stmt);
+  statement_result result = {
+    .stmt = stmt,
+    .ok = true,
+  };
+
+  cbuffer_write_expect (&result, sizeof (result), 1, s->output);
 }
 
 // Process an error
@@ -142,10 +163,15 @@ parser_process_error (parser *s)
       parser_right_after_error_assert (s);
       s->in_err = true;
 
-      query q = query_error_create (s->e);
-      ASSERT (cbuffer_avail (s->output) >= sizeof (q));
-      u32 ret = cbuffer_write (&q, sizeof q, 1, s->output);
-      ASSERT (ret == 1);
+      // Invalidate the parser (and free the statement)
+      parser_result_invalidate (&s->parser);
+
+      statement_result result = {
+        .e = s->e,
+        .ok = false,
+      };
+
+      cbuffer_write_expect (&result, sizeof result, 1, s->output);
 
       // Reset error
       s->e = error_create (NULL);
@@ -163,24 +189,52 @@ execute_normal (parser *s)
   token t;
   while (cbuffer_read (&t, sizeof t, 1, s->input))
     {
-      i_log_info ("Parser (Normal State) recieved token: %s\n", tt_tostr (t.type));
+      i_log_trace ("Parser (Normal State) recieved token: %s\n", tt_tostr (t.type));
 
-      // Pre set up stuff
       switch (t.type)
         {
+          // If we encounter an OPCODE
         case case_OPCODE:
           {
-            // TODO - check if we're already in a query
-            // Create a new parser if you encounter a query
-            parser_err_t_wrap (parser_create (&s->parser, &s->parser_work, t.q.qalloc, &s->e), s);
+
+#ifndef NDEBUG
+            if (s->expect_opcode)
+              {
+                ASSERT (t.stmt != NULL);
+                ASSERT (s->parser.yyp == NULL);
+                s->expect_opcode = false;
+              }
+#endif
+
+            // And statement is non null
+            if (t.stmt != NULL)
+              {
+                ASSERT (s->parser.yyp == NULL); // TODO - I think this is true - prove it
+
+                // Start a new lemon parser
+                parser_err_t_wrap (parser_result_create (&s->parser, &s->parser_work, &s->e), s);
+              }
             break;
           }
           // Forward scanner error
         case TT_ERROR:
           {
             bad_error_assert (&t.e);
+
+            // Transfer scanner error over to the parser
             s->e = t.e;
+
+            // Forward the error
             parser_process_error (s);
+
+            // We know that the scanner MUST emit a valid op code token
+            // So the next token must be valid
+            s->in_err = false;
+
+#ifndef NDEBUG
+            s->expect_opcode = true; // Next token MUST be an op code with valid statement
+#endif
+
             continue;
           }
         default:
@@ -190,20 +244,18 @@ execute_normal (parser *s)
         }
 
       // Consume the token
-      parser_err_t_wrap (parser_parse (&s->parser, t, &s->e), s);
+      parser_err_t_wrap (parser_result_parse (&s->parser, t, &s->e), s);
 
       // Check if parser is done
-      if (s->parser.ready)
+      if (s->parser.done)
         {
-          parser_err_t_wrap (parser_parse (&s->parser, quick_tok (0), &s->e), s);
+          parser_err_t_wrap (parser_result_parse (&s->parser, quick_tok (0), &s->e), s);
 
           // Consume query
-          query next = parser_consume (&s->parser);
+          statement *next = parser_result_consume (&s->parser);
 
           // Reset allocator
           lalloc_reset (&s->parser_work);
-
-          i_log_query (next);
 
           // Write to output buffer
           parser_write_result (s, next);
@@ -219,6 +271,7 @@ execute_err (parser *s)
   parser_steady_state_assert (s);
   ASSERT (s->in_err);
 
+  // Read until you see a semi colon
   token t;
   while (cbuffer_read (&t, sizeof t, 1, s->input))
     {
@@ -257,22 +310,27 @@ parser_init (
   ASSERT (input);
   ASSERT (cbuffer_avail (input) % sizeof (token) == 0);
   ASSERT (output);
-  ASSERT (cbuffer_avail (output) % sizeof (query) == 0);
+  ASSERT (cbuffer_avail (output) % sizeof (statement_result) == 0);
 
   *dest = (parser){
     .input = input,
     .output = output,
-
-    // parser gets initialized on op codes
-
+    .parser = { 0 },
     .e = error_create (NULL),
     .parser_work = lalloc_create_from (dest->_parser_work),
+    .in_err = false,
+
+#ifndef NDEBUG
+    .expect_opcode = false,
+#endif
   };
 }
 
 void
 parser_execute (parser *p)
 {
+  parser_assert (p);
+
   while (true)
     {
       /**
@@ -295,6 +353,7 @@ parser_execute (parser *p)
     }
 }
 
+/**
 #ifndef NTEST
 void
 test_parser_case (const token *input, const query *expected_output, u32 ilen, u32 olen)
@@ -353,7 +412,6 @@ test_parser_case (const token *input, const query *expected_output, u32 ilen, u3
 TEST (parser)
 {
   error e = error_create (NULL);
-  query_provider *qspce = query_provider_create (&e);
 
   query actual;
   query expected;
@@ -377,3 +435,4 @@ TEST (parser)
 
   test_parser_case (tk1, (query[]){ expected }, 4, 1);
 }
+*/

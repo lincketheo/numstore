@@ -2,11 +2,11 @@
 
 #include "core/dev/assert.h" // UNREACHABLE
 
+#include "compiler/ast/query.h" // QT_...
 #include "core/ds/strings.h"
 #include "core/errors/error.h"
 #include "core/intf/logging.h"
-#include "core/utils/strings.h"   // TODO
-#include "numstore/query/query.h" // QT_...
+#include "core/utils/strings.h" // TODO
 
 query_t
 tt_to_qt (token_t t)
@@ -96,7 +96,7 @@ token_equal (const token *left, const token *right)
     case TT_CREATE:
     case TT_DELETE:
     case TT_INSERT:
-      return query_equal (&left->q, &right->q);
+      return query_equal (&left->stmt->q, &right->stmt->q);
 
     case TT_ERROR:
       return error_equal (&left->e, &right->e);
@@ -146,8 +146,12 @@ tt_tostr (token_t t)
       return "TT_PERCENT";
     case TT_PIPE:
       return "TT_PIPE";
+    case TT_PIPE_PIPE:
+      return "TT_PIPE_PIPE";
     case TT_AMPERSAND:
       return "TT_AMPERSAND";
+    case TT_AMPERSAND_AMPERSAND:
+      return "TT_AMPERSAND_AMPERSAND";
 
     //      Other One char tokens
     case TT_SEMICOLON:

@@ -1,10 +1,8 @@
 #include "numstore/virtual_machine.h"
-
-#include "core/dev/assert.h"  // ASSERT
-#include "core/intf/stdlib.h" // TODO
-
-#include "numstore/cursor/cursor.h" // TODO
-#include "numstore/query/query.h"   // TODO
+#include "compiler/parser.h"
+#include "core/ds/cbuffer.h"
+#include "core/intf/stdlib.h"
+#include "numstore/cursor/cursor.h"
 
 struct vm_s
 {
@@ -22,7 +20,7 @@ struct vm_s
   };
 
   bool is_active;
-  query active;
+  statement_result active;
 };
 
 static const char *good = "OK";
@@ -83,13 +81,13 @@ create_query_execute (vm *v)
 {
   vm_assert (v);
   ASSERT (v->is_active);
-  ASSERT (v->active.type == QT_CREATE);
+  ASSERT (v->active.stmt->q.type == QT_CREATE);
 
   if (v->pos == 0)
     {
-      i_log_create (v->active.create);
+      i_log_create (&v->active.stmt->q.create);
       error e = error_create (NULL);
-      err_t ret = cursor_create (v->c, v->active.create, &e);
+      err_t ret = cursor_create (v->c, &v->active.stmt->q.create, &e);
       if (ret)
         {
           error_log_consume (&e);
@@ -136,13 +134,13 @@ delete_query_execute (vm *v)
 {
   vm_assert (v);
   ASSERT (v->is_active);
-  ASSERT (v->active.type == QT_DELETE);
+  ASSERT (v->active.stmt->q.type == QT_DELETE);
 
   if (v->pos == 0)
     {
-      i_log_delete (v->active.delete);
+      i_log_delete (&v->active.stmt->q.delete);
       error e = error_create (NULL);
-      err_t ret = cursor_delete (v->c, v->active.delete, &e);
+      err_t ret = cursor_delete (v->c, &v->active.stmt->q.delete, &e);
       if (ret)
         {
           error_log_consume (&e);
@@ -189,13 +187,13 @@ insert_query_execute (vm *v)
 {
   vm_assert (v);
   ASSERT (v->is_active);
-  ASSERT (v->active.type == QT_INSERT);
+  ASSERT (v->active.stmt->q.type == QT_INSERT);
 
   if (v->pos == 0)
     {
-      i_log_insert (v->active.insert);
+      i_log_insert (&v->active.stmt->q.insert);
       error e = error_create (NULL);
-      err_t ret = cursor_insert (v->c, v->active.insert, &e);
+      err_t ret = cursor_insert (v->c, &v->active.stmt->q.insert, &e);
       if (ret)
         {
           error_log_consume (&e);
@@ -242,7 +240,6 @@ error_query_execute (vm *v)
 {
   vm_assert (v);
   ASSERT (v->is_active);
-  ASSERT (!v->active.ok);
 
   // Write header
   if (v->pos < sizeof v->len)
@@ -290,7 +287,7 @@ vm_execute_one_query (vm *v)
       return;
     }
 
-  switch (v->active.type)
+  switch (v->active.stmt->q.type)
     {
     case QT_CREATE:
       {
@@ -343,9 +340,7 @@ vm_execute (vm *v)
       // Read the next query
       if (!v->is_active)
         {
-          u32 read = cbuffer_read (&v->active, sizeof (v->active), 1, v->input);
-          i_log_info ("%u\n", read);
-          ASSERT (read == 1);
+          cbuffer_read_expect (&v->active, sizeof (v->active), 1, v->input);
           v->is_active = true;
         }
     }

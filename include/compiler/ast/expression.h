@@ -1,7 +1,6 @@
 #pragma once
 
 #include "compiler/tokens.h"
-#include "compiler/value/value.h"
 #include "core/dev/assert.h"
 
 typedef struct expr_s expr;
@@ -71,7 +70,7 @@ struct expr_s
 {
   union
   {
-    value l;
+    literal l;
     unary u;
     binary b;
     expr *g;
@@ -81,7 +80,7 @@ struct expr_s
 };
 
 static inline expr
-create_value_expr (value l)
+create_literal_expr (literal l)
 {
   return (expr){ .type = ET_VALUE, .l = l };
 }
@@ -125,4 +124,4 @@ create_binary_expr (expr *left, token_t op, expr *right)
   };
 }
 
-err_t expr_evaluate (value *dest, expr *exp, lalloc *work, error *e);
+err_t expr_evaluate (literal *dest, expr *exp, lalloc *work, error *e);

@@ -47,6 +47,15 @@ extern int test_ret;     // The return value of all tests
   }                                                                  \
   static void test_##name (void)
 
+#define TEST_TODO()              \
+  do                             \
+    {                            \
+      test_ret = -1;             \
+      i_log_failure ("TODO!\n"); \
+      return;                    \
+    }                            \
+  while (0)
+
 #define test_assert_equal(left, right)                 \
   do                                                   \
     {                                                  \

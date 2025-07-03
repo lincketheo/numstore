@@ -1,22 +1,14 @@
 #include "compiler/scanner.h"
 
-#include "compiler/tokens.h"
-#include "core/dev/assert.h"  // DEFINE_DBG_ASSERT_I
+#include "compiler/ast/statement.h"
+#include "compiler/tokens.h"  // token
 #include "core/dev/testing.h" // TEST
-#include "core/ds/cbuffer.h"  // cbuffer
-#include "core/ds/strings.h"
-#include "core/errors/error.h" // err_t
-#include "core/intf/logging.h" // TODO
-#include "core/intf/stdlib.h"
-#include "core/mm/lalloc.h"     // lalloc
-#include "core/utils/macros.h"  // is_alpha
-#include "core/utils/numbers.h" // parse_i32_expect
-#include "core/utils/strings.h" // TODO
-
-#include "numstore/query/queries/create.h" // TODO
-#include "numstore/query/query.h"          // query
-#include "numstore/query/query_provider.h" // TODO
-#include "numstore/type/types/prim.h"
+#include "core/ds/cbuffer.h"
+#include "core/errors/error.h"
+#include "core/intf/stdlib.h"   // i_memcpy
+#include "core/utils/macros.h"  // arrlen
+#include "core/utils/numbers.h" // parse_f32_expect
+#include "core/utils/strings.h" // string_equal
 
 DEFINE_DBG_ASSERT_I (scanner, scanner, s)
 {
@@ -204,8 +196,7 @@ scanner_process_token (scanner *s, token t)
   scanner_steady_state_assert (s);
 
   i_log_trace ("Scanner processing token: %s\n", tt_tostr (t.type));
-  u32 num = cbuffer_write (&t, sizeof t, 1, s->output);
-  ASSERT (num == 1); // We don't execute if downstream is backed up
+  cbuffer_write_expect (&t, sizeof t, 1, s->output);
 
   s->state.state = SS_START;
 
@@ -229,12 +220,11 @@ scanner_process_error (scanner *s)
       // Write error out
       token t = tt_err (s->e);
       i_log_trace ("Scanner processing token: %s\n", tt_tostr (t.type));
-      u32 num = cbuffer_write (&t, sizeof t, 1, s->output);
-      ASSERT (num == 1); // We don't execute if downstream is backed up
+      cbuffer_write_expect (&t, sizeof t, 1, s->output);
 
-      // Reset error
+      // Reset error and statement
       s->e = error_create (NULL);
-      s->qalloc = NULL;
+      s->current = NULL;
     }
 
   scanner_steady_state_assert (s);
@@ -389,20 +379,20 @@ scanner_commit_string (string *dest, scanner *s)
 {
   scanner_steady_state_assert (s);
 
-  // Can only transfer strings if we're inside of a query
-  if (s->qalloc == NULL)
+  // Can only transfer strings if we're inside of a statement
+  if (s->current == NULL)
     {
       scanner_err_t_wrap (
           error_causef (
               &s->e, ERR_SYNTAX,
-              "%s: No query to allocate string: %.*s",
+              "%s: No statement to allocate string: %.*s",
               TAG, s->state.slen, s->state.str),
           s);
       UNREACHABLE ();
     }
 
   // Allocate onto the query space
-  char *ret = lmalloc (s->qalloc, 1, s->state.slen);
+  char *ret = lmalloc (&s->current->qspace, 1, s->state.slen);
   if (ret == NULL)
     {
       scanner_err_t_wrap (
@@ -486,18 +476,22 @@ process_maybe_ident (scanner *s)
           // reset (literal is useless)
           s->state.slen = 0;
 
-          // Allocate query space for downstream
-          query q;
-          scanner_err_t_wrap (query_provider_get (s->qp, &q, tt_to_qt (t.type), &s->e), s);
-          s->qalloc = q.qalloc; // Save the allocator here
-
-          t.q = q;
+          // Create a new statement
+          if (s->current == NULL)
+            {
+              s->current = statement_create (&s->e);
+              if (s->current == NULL)
+                {
+                  scanner_err_t_wrap (s->e.cause_code, s);
+                  UNREACHABLE ();
+                }
+            }
 
           return scanner_process_token (s, t);
         }
     }
 
-  // Otherwise it's an TT_IDENTIFIER
+  // Otherwise it's a TT_IDENTIFIER
   return process_string_or_ident (s, TT_IDENTIFIER);
 }
 
@@ -522,6 +516,9 @@ execute_at_most_one_token_ident (scanner *s)
   return SUCCESS; // no more chars to consume
 }
 
+/**
+ * TODO - support backslash in strings
+ */
 static err_t
 execute_at_most_one_token_string (scanner *s)
 {
@@ -672,7 +669,6 @@ execute_at_most_one_token_start (scanner *s)
         // No previous token, continue to process current token
         break;
       }
-
     case '!':
       {
         switch (next)
@@ -695,7 +691,6 @@ execute_at_most_one_token_start (scanner *s)
           }
         break;
       }
-
     case '=':
       {
         switch (next)
@@ -761,6 +756,50 @@ execute_at_most_one_token_start (scanner *s)
             {
               // Just <, consume previous token
               scanner_err_t_wrap (scanner_process_token (s, quick_tok (TT_LESS)), s);
+
+              // Continue to process current token
+              break;
+            }
+          }
+        break;
+      }
+    case '&':
+      {
+        switch (next)
+          {
+          case '&':
+            {
+              // Found !|, consume both tokens
+              scanner_advance_expect (s);
+              scanner_err_t_wrap (scanner_process_token (s, quick_tok (TT_AMPERSAND_AMPERSAND)), s);
+              return SUCCESS;
+            }
+          default:
+            {
+              // Just &, consume previous token
+              scanner_err_t_wrap (scanner_process_token (s, quick_tok (TT_AMPERSAND)), s);
+
+              // Continue to process current token
+              break;
+            }
+          }
+        break;
+      }
+    case '|':
+      {
+        switch (next)
+          {
+          case '|':
+            {
+              // Found !|, consume both tokens
+              scanner_advance_expect (s);
+              scanner_err_t_wrap (scanner_process_token (s, quick_tok (TT_PIPE_PIPE)), s);
+              return SUCCESS;
+            }
+          default:
+            {
+              // Just |, consume previous token
+              scanner_err_t_wrap (scanner_process_token (s, quick_tok (TT_PIPE)), s);
 
               // Continue to process current token
               break;
@@ -860,14 +899,14 @@ execute_at_most_one_token_start (scanner *s)
     case '|':
       {
         scanner_advance_expect (s);
-        scanner_err_t_wrap (scanner_process_token (s, quick_tok (TT_PIPE)), s);
-        break;
+        s->prev_token = '|';
+        break; // Handled next execute
       }
     case '&':
       {
         scanner_advance_expect (s);
-        scanner_err_t_wrap (scanner_process_token (s, quick_tok (TT_AMPERSAND)), s);
-        break;
+        s->prev_token = '&';
+        break; // Handled next execute
       }
 
     //        Other One char tokens
@@ -875,7 +914,9 @@ execute_at_most_one_token_start (scanner *s)
       {
         scanner_advance_expect (s);
         scanner_err_t_wrap (scanner_process_token (s, quick_tok (TT_SEMICOLON)), s);
-        s->qalloc = NULL;
+
+        // Let go of the current statement
+        s->current = NULL;
         break;
       }
     case ':':
@@ -986,19 +1027,12 @@ execute_at_most_one_token_start (scanner *s)
 ////////////////////////////// Main Functions
 
 void
-scanner_init (
-    scanner *dest, // scanner to be initialized
-    cbuffer *input,
-    cbuffer *output,
-    query_provider *qp, // For creating queries when we encounter an op code
-    lalloc *dest_alloc) // Where to allocate resulting strings
+scanner_init (scanner *dest, cbuffer *input, cbuffer *output)
 {
   ASSERT (dest);
   ASSERT (input);
   ASSERT (output);
   ASSERT (cbuffer_avail (output) % sizeof (token) == 0);
-  ASSERT (qp);
-  ASSERT (dest_alloc);
 
   *dest = (scanner){
     .state = {
@@ -1008,13 +1042,10 @@ scanner_init (
     .input = input,
     .output = output,
 
-    // parser gets initialized on op codes
-
     .prev_token = -1,
     .e = error_create (NULL),
-    .qp = qp,
 
-    .qalloc = NULL,
+    .current = NULL,
   };
 
   scanner_steady_state_assert (dest);
@@ -1051,21 +1082,19 @@ scanner_execute (scanner *s)
 void
 test_scanner_case (const char *input, const token *expected_output, u32 ilen, u32 olen)
 {
-  error e;
   scanner s;
 
   char _chars[20];
   token _tokens[20];
-  u8 _alloc[2048];
 
   cbuffer chars = cbuffer_create_from (_chars);
   cbuffer tokens = cbuffer_create_from (_tokens);
-  lalloc alloc = lalloc_create_from (_alloc);
 
-  query_provider *qp = query_provider_create (&e);
-  test_fail_if_null (qp);
+  scanner_init (&s, &chars, &tokens);
 
-  scanner_init (&s, &chars, &tokens, qp, &alloc);
+  error e = error_create (NULL);
+  s.current = statement_create (&e);
+  test_fail_if_null (s.current);
 
   // expected_output i
   u32 ii = 0;
@@ -1112,8 +1141,6 @@ test_scanner_case (const char *input, const token *expected_output, u32 ilen, u3
           oi++;
         }
     }
-
-  query_provider_free (qp);
 }
 
 TEST (scanner_two_char_tokens)
@@ -1322,7 +1349,9 @@ TEST (scanner_single_tokens)
   single_tok_edge_test_case ("^", quick_tok (TT_CARET));
   single_tok_edge_test_case ("%", quick_tok (TT_PERCENT));
   single_tok_edge_test_case ("|", quick_tok (TT_PIPE));
+  single_tok_edge_test_case ("||", quick_tok (TT_PIPE_PIPE));
   single_tok_edge_test_case ("&", quick_tok (TT_AMPERSAND));
+  single_tok_edge_test_case ("&&", quick_tok (TT_AMPERSAND_AMPERSAND));
 
   //        Other One char tokens
   single_tok_edge_test_case (";", quick_tok (TT_SEMICOLON));
@@ -1365,6 +1394,7 @@ TEST (scanner_single_tokens)
 
 TEST (scanner_special)
 {
+  TEST_TODO ();
   const char *src2 = "+";
   test_scanner_case (src2, (token[]){ quick_tok (TT_PLUS) }, strlen (src2), 1);
 

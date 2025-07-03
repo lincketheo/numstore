@@ -1,25 +1,34 @@
 State 0:
-          main ::= * in
-     (59) in ::= *
-          in ::= * in state SEMICOLON
+          statement ::= * query SEMICOLON
+          query ::= * create
+          create ::= * CREATE IDENTIFIER type
+          query ::= * delete
+          delete ::= * DELETE IDENTIFIER
+          query ::= * insert
+          insert ::= * INSERT IDENTIFIER INTEGER expression
 
-                          main accept
-                            in shift        25     
-                     {default} reduce       59     in ::=
+                        CREATE shift        62     
+                        DELETE shift        53     
+                        INSERT shift        52     
+                         query shift        64     
+                        create shift-reduce 18     query ::= create
+                        delete shift-reduce 20     query ::= delete
+                        insert shift-reduce 22     query ::= insert
+                     statement accept
 
 State 1:
-          value ::= * object_decl
-          value ::= * array_decl
-          value ::= * STRING
-          value ::= * INTEGER
-          value ::= * FLOAT
-          value ::= * TRUE
-          value ::= * FALSE
-          object_decl ::= * LEFT_BRACE object_items RIGHT_BRACE
-          array_decl ::= * LEFT_BRACKET array_items RIGHT_BRACKET
-          array_decl ::= LEFT_BRACKET * array_items RIGHT_BRACKET
+          literal ::= * object
+          object ::= * LEFT_BRACE object_items RIGHT_BRACE
+          literal ::= * array
+          array ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          array ::= LEFT_BRACKET * array_items RIGHT_BRACKET
           array_items ::= * expression
           array_items ::= * array_items COMMA expression
+          literal ::= * STRING
+          literal ::= * INTEGER
+          literal ::= * FLOAT
+          literal ::= * TRUE
+          literal ::= * FALSE
           expression ::= * equality
           equality ::= * comparison
           equality ::= * equality EQUAL_EQUAL comparison
@@ -38,42 +47,42 @@ State 1:
           unary ::= * BANG unary
           unary ::= * MINUS unary
           unary ::= * primary
-          primary ::= * value
+          primary ::= * literal
           primary ::= * LEFT_PAREN expression RIGHT_PAREN
 
                          MINUS shift        22     
                           BANG shift        23     
                   LEFT_BRACKET shift        1      
-                    LEFT_BRACE shift        26     
+                    LEFT_BRACE shift        25     
                     LEFT_PAREN shift        3      
-                        STRING shift-reduce 12     value ::= STRING
-                       INTEGER shift-reduce 13     value ::= INTEGER
-                         FLOAT shift-reduce 14     value ::= FLOAT
-                          TRUE shift-reduce 15     value ::= TRUE
-                         FALSE shift-reduce 16     value ::= FALSE
-                         value shift-reduce 56     primary ::= value
-                   object_decl shift-reduce 10     value ::= object_decl
-                    array_decl shift-reduce 11     value ::= array_decl
-                   array_items shift        43     
-                    expression shift-reduce 36     array_items ::= expression
-                      equality shift        42     
-                    comparison shift        32     
-                          term shift        34     
-                        factor shift        37     
-                         unary shift-reduce 50     factor ::= unary
-                       primary shift-reduce 55     unary ::= primary
+                        STRING shift-reduce 32     literal ::= STRING
+                       INTEGER shift-reduce 33     literal ::= INTEGER
+                         FLOAT shift-reduce 34     literal ::= FLOAT
+                          TRUE shift-reduce 35     literal ::= TRUE
+                         FALSE shift-reduce 36     literal ::= FALSE
+                       literal shift-reduce 55     primary ::= literal
+                        object shift-reduce 24     literal ::= object
+                         array shift-reduce 28     literal ::= array
+                   array_items shift        42     
+                    expression shift-reduce 30     array_items ::= expression
+                      equality shift        41     
+                    comparison shift        31     
+                          term shift        33     
+                        factor shift        36     
+                         unary shift-reduce 49     factor ::= unary
+                       primary shift-reduce 54     unary ::= primary
 
 State 2:
-          value ::= * object_decl
-          value ::= * array_decl
-          value ::= * STRING
-          value ::= * INTEGER
-          value ::= * FLOAT
-          value ::= * TRUE
-          value ::= * FALSE
-          object_decl ::= * LEFT_BRACE object_items RIGHT_BRACE
+          literal ::= * object
+          object ::= * LEFT_BRACE object_items RIGHT_BRACE
           object_items ::= IDENTIFIER COLON * expression
-          array_decl ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          literal ::= * array
+          array ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          literal ::= * STRING
+          literal ::= * INTEGER
+          literal ::= * FLOAT
+          literal ::= * TRUE
+          literal ::= * FALSE
           expression ::= * equality
           equality ::= * comparison
           equality ::= * equality EQUAL_EQUAL comparison
@@ -92,40 +101,40 @@ State 2:
           unary ::= * BANG unary
           unary ::= * MINUS unary
           unary ::= * primary
-          primary ::= * value
+          primary ::= * literal
           primary ::= * LEFT_PAREN expression RIGHT_PAREN
 
                          MINUS shift        22     
                           BANG shift        23     
                   LEFT_BRACKET shift        1      
-                    LEFT_BRACE shift        26     
+                    LEFT_BRACE shift        25     
                     LEFT_PAREN shift        3      
-                        STRING shift-reduce 12     value ::= STRING
-                       INTEGER shift-reduce 13     value ::= INTEGER
-                         FLOAT shift-reduce 14     value ::= FLOAT
-                          TRUE shift-reduce 15     value ::= TRUE
-                         FALSE shift-reduce 16     value ::= FALSE
-                         value shift-reduce 56     primary ::= value
-                   object_decl shift-reduce 10     value ::= object_decl
-                    array_decl shift-reduce 11     value ::= array_decl
-                    expression shift-reduce 33     object_items ::= IDENTIFIER COLON expression
-                      equality shift        42     
-                    comparison shift        32     
-                          term shift        34     
-                        factor shift        37     
-                         unary shift-reduce 50     factor ::= unary
-                       primary shift-reduce 55     unary ::= primary
+                        STRING shift-reduce 32     literal ::= STRING
+                       INTEGER shift-reduce 33     literal ::= INTEGER
+                         FLOAT shift-reduce 34     literal ::= FLOAT
+                          TRUE shift-reduce 35     literal ::= TRUE
+                         FALSE shift-reduce 36     literal ::= FALSE
+                       literal shift-reduce 55     primary ::= literal
+                        object shift-reduce 24     literal ::= object
+                         array shift-reduce 28     literal ::= array
+                    expression shift-reduce 26     object_items ::= IDENTIFIER COLON expression
+                      equality shift        41     
+                    comparison shift        31     
+                          term shift        33     
+                        factor shift        36     
+                         unary shift-reduce 49     factor ::= unary
+                       primary shift-reduce 54     unary ::= primary
 
 State 3:
-          value ::= * object_decl
-          value ::= * array_decl
-          value ::= * STRING
-          value ::= * INTEGER
-          value ::= * FLOAT
-          value ::= * TRUE
-          value ::= * FALSE
-          object_decl ::= * LEFT_BRACE object_items RIGHT_BRACE
-          array_decl ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          literal ::= * object
+          object ::= * LEFT_BRACE object_items RIGHT_BRACE
+          literal ::= * array
+          array ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          literal ::= * STRING
+          literal ::= * INTEGER
+          literal ::= * FLOAT
+          literal ::= * TRUE
+          literal ::= * FALSE
           expression ::= * equality
           equality ::= * comparison
           equality ::= * equality EQUAL_EQUAL comparison
@@ -144,42 +153,42 @@ State 3:
           unary ::= * BANG unary
           unary ::= * MINUS unary
           unary ::= * primary
-          primary ::= * value
+          primary ::= * literal
           primary ::= * LEFT_PAREN expression RIGHT_PAREN
           primary ::= LEFT_PAREN * expression RIGHT_PAREN
 
                          MINUS shift        22     
                           BANG shift        23     
                   LEFT_BRACKET shift        1      
-                    LEFT_BRACE shift        26     
+                    LEFT_BRACE shift        25     
                     LEFT_PAREN shift        3      
-                        STRING shift-reduce 12     value ::= STRING
-                       INTEGER shift-reduce 13     value ::= INTEGER
-                         FLOAT shift-reduce 14     value ::= FLOAT
-                          TRUE shift-reduce 15     value ::= TRUE
-                         FALSE shift-reduce 16     value ::= FALSE
-                         value shift-reduce 56     primary ::= value
-                   object_decl shift-reduce 10     value ::= object_decl
-                    array_decl shift-reduce 11     value ::= array_decl
-                    expression shift        49     
-                      equality shift        42     
-                    comparison shift        32     
-                          term shift        34     
-                        factor shift        37     
-                         unary shift-reduce 50     factor ::= unary
-                       primary shift-reduce 55     unary ::= primary
+                        STRING shift-reduce 32     literal ::= STRING
+                       INTEGER shift-reduce 33     literal ::= INTEGER
+                         FLOAT shift-reduce 34     literal ::= FLOAT
+                          TRUE shift-reduce 35     literal ::= TRUE
+                         FALSE shift-reduce 36     literal ::= FALSE
+                       literal shift-reduce 55     primary ::= literal
+                        object shift-reduce 24     literal ::= object
+                         array shift-reduce 28     literal ::= array
+                    expression shift        48     
+                      equality shift        41     
+                    comparison shift        31     
+                          term shift        33     
+                        factor shift        36     
+                         unary shift-reduce 49     factor ::= unary
+                       primary shift-reduce 54     unary ::= primary
 
 State 4:
-          value ::= * object_decl
-          value ::= * array_decl
-          value ::= * STRING
-          value ::= * INTEGER
-          value ::= * FLOAT
-          value ::= * TRUE
-          value ::= * FALSE
-          object_decl ::= * LEFT_BRACE object_items RIGHT_BRACE
-          array_decl ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          literal ::= * object
+          object ::= * LEFT_BRACE object_items RIGHT_BRACE
+          literal ::= * array
+          array ::= * LEFT_BRACKET array_items RIGHT_BRACKET
           array_items ::= array_items COMMA * expression
+          literal ::= * STRING
+          literal ::= * INTEGER
+          literal ::= * FLOAT
+          literal ::= * TRUE
+          literal ::= * FALSE
           expression ::= * equality
           equality ::= * comparison
           equality ::= * equality EQUAL_EQUAL comparison
@@ -198,41 +207,41 @@ State 4:
           unary ::= * BANG unary
           unary ::= * MINUS unary
           unary ::= * primary
-          primary ::= * value
+          primary ::= * literal
           primary ::= * LEFT_PAREN expression RIGHT_PAREN
 
                          MINUS shift        22     
                           BANG shift        23     
                   LEFT_BRACKET shift        1      
-                    LEFT_BRACE shift        26     
+                    LEFT_BRACE shift        25     
                     LEFT_PAREN shift        3      
-                        STRING shift-reduce 12     value ::= STRING
-                       INTEGER shift-reduce 13     value ::= INTEGER
-                         FLOAT shift-reduce 14     value ::= FLOAT
-                          TRUE shift-reduce 15     value ::= TRUE
-                         FALSE shift-reduce 16     value ::= FALSE
-                         value shift-reduce 56     primary ::= value
-                   object_decl shift-reduce 10     value ::= object_decl
-                    array_decl shift-reduce 11     value ::= array_decl
-                    expression shift-reduce 37     array_items ::= array_items COMMA expression
-                      equality shift        42     
-                    comparison shift        32     
-                          term shift        34     
-                        factor shift        37     
-                         unary shift-reduce 50     factor ::= unary
-                       primary shift-reduce 55     unary ::= primary
+                        STRING shift-reduce 32     literal ::= STRING
+                       INTEGER shift-reduce 33     literal ::= INTEGER
+                         FLOAT shift-reduce 34     literal ::= FLOAT
+                          TRUE shift-reduce 35     literal ::= TRUE
+                         FALSE shift-reduce 36     literal ::= FALSE
+                       literal shift-reduce 55     primary ::= literal
+                        object shift-reduce 24     literal ::= object
+                         array shift-reduce 28     literal ::= array
+                    expression shift-reduce 31     array_items ::= array_items COMMA expression
+                      equality shift        41     
+                    comparison shift        31     
+                          term shift        33     
+                        factor shift        36     
+                         unary shift-reduce 49     factor ::= unary
+                       primary shift-reduce 54     unary ::= primary
 
 State 5:
-          value ::= * object_decl
-          value ::= * array_decl
-          value ::= * STRING
-          value ::= * INTEGER
-          value ::= * FLOAT
-          value ::= * TRUE
-          value ::= * FALSE
-          object_decl ::= * LEFT_BRACE object_items RIGHT_BRACE
+          literal ::= * object
+          object ::= * LEFT_BRACE object_items RIGHT_BRACE
           object_items ::= object_items COMMA IDENTIFIER COLON * expression
-          array_decl ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          literal ::= * array
+          array ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          literal ::= * STRING
+          literal ::= * INTEGER
+          literal ::= * FLOAT
+          literal ::= * TRUE
+          literal ::= * FALSE
           expression ::= * equality
           equality ::= * comparison
           equality ::= * equality EQUAL_EQUAL comparison
@@ -251,41 +260,41 @@ State 5:
           unary ::= * BANG unary
           unary ::= * MINUS unary
           unary ::= * primary
-          primary ::= * value
+          primary ::= * literal
           primary ::= * LEFT_PAREN expression RIGHT_PAREN
 
                          MINUS shift        22     
                           BANG shift        23     
                   LEFT_BRACKET shift        1      
-                    LEFT_BRACE shift        26     
+                    LEFT_BRACE shift        25     
                     LEFT_PAREN shift        3      
-                        STRING shift-reduce 12     value ::= STRING
-                       INTEGER shift-reduce 13     value ::= INTEGER
-                         FLOAT shift-reduce 14     value ::= FLOAT
-                          TRUE shift-reduce 15     value ::= TRUE
-                         FALSE shift-reduce 16     value ::= FALSE
-                         value shift-reduce 56     primary ::= value
-                   object_decl shift-reduce 10     value ::= object_decl
-                    array_decl shift-reduce 11     value ::= array_decl
-                    expression shift-reduce 34     object_items ::= object_items COMMA IDENTIFIER COLON expression
-                      equality shift        42     
-                    comparison shift        32     
-                          term shift        34     
-                        factor shift        37     
-                         unary shift-reduce 50     factor ::= unary
-                       primary shift-reduce 55     unary ::= primary
+                        STRING shift-reduce 32     literal ::= STRING
+                       INTEGER shift-reduce 33     literal ::= INTEGER
+                         FLOAT shift-reduce 34     literal ::= FLOAT
+                          TRUE shift-reduce 35     literal ::= TRUE
+                         FALSE shift-reduce 36     literal ::= FALSE
+                       literal shift-reduce 55     primary ::= literal
+                        object shift-reduce 24     literal ::= object
+                         array shift-reduce 28     literal ::= array
+                    expression shift-reduce 27     object_items ::= object_items COMMA IDENTIFIER COLON expression
+                      equality shift        41     
+                    comparison shift        31     
+                          term shift        33     
+                        factor shift        36     
+                         unary shift-reduce 49     factor ::= unary
+                       primary shift-reduce 54     unary ::= primary
 
 State 6:
-          value ::= * object_decl
-          value ::= * array_decl
-          value ::= * STRING
-          value ::= * INTEGER
-          value ::= * FLOAT
-          value ::= * TRUE
-          value ::= * FALSE
-          insert_decl ::= INSERT IDENTIFIER INTEGER * expression
-          object_decl ::= * LEFT_BRACE object_items RIGHT_BRACE
-          array_decl ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          insert ::= INSERT IDENTIFIER INTEGER * expression
+          literal ::= * object
+          object ::= * LEFT_BRACE object_items RIGHT_BRACE
+          literal ::= * array
+          array ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          literal ::= * STRING
+          literal ::= * INTEGER
+          literal ::= * FLOAT
+          literal ::= * TRUE
+          literal ::= * FALSE
           expression ::= * equality
           equality ::= * comparison
           equality ::= * equality EQUAL_EQUAL comparison
@@ -304,40 +313,40 @@ State 6:
           unary ::= * BANG unary
           unary ::= * MINUS unary
           unary ::= * primary
-          primary ::= * value
+          primary ::= * literal
           primary ::= * LEFT_PAREN expression RIGHT_PAREN
 
                          MINUS shift        22     
                           BANG shift        23     
                   LEFT_BRACKET shift        1      
-                    LEFT_BRACE shift        26     
+                    LEFT_BRACE shift        25     
                     LEFT_PAREN shift        3      
-                        STRING shift-reduce 12     value ::= STRING
-                       INTEGER shift-reduce 13     value ::= INTEGER
-                         FLOAT shift-reduce 14     value ::= FLOAT
-                          TRUE shift-reduce 15     value ::= TRUE
-                         FALSE shift-reduce 16     value ::= FALSE
-                         value shift-reduce 56     primary ::= value
-                   object_decl shift-reduce 10     value ::= object_decl
-                    array_decl shift-reduce 11     value ::= array_decl
-                    expression shift-reduce 31     insert_decl ::= INSERT IDENTIFIER INTEGER expression
-                      equality shift        42     
-                    comparison shift        32     
-                          term shift        34     
-                        factor shift        37     
-                         unary shift-reduce 50     factor ::= unary
-                       primary shift-reduce 55     unary ::= primary
+                        STRING shift-reduce 32     literal ::= STRING
+                       INTEGER shift-reduce 33     literal ::= INTEGER
+                         FLOAT shift-reduce 34     literal ::= FLOAT
+                          TRUE shift-reduce 35     literal ::= TRUE
+                         FALSE shift-reduce 36     literal ::= FALSE
+                       literal shift-reduce 55     primary ::= literal
+                        object shift-reduce 24     literal ::= object
+                         array shift-reduce 28     literal ::= array
+                    expression shift-reduce 23     insert ::= INSERT IDENTIFIER INTEGER expression
+                      equality shift        41     
+                    comparison shift        31     
+                          term shift        33     
+                        factor shift        36     
+                         unary shift-reduce 49     factor ::= unary
+                       primary shift-reduce 54     unary ::= primary
 
 State 7:
-          value ::= * object_decl
-          value ::= * array_decl
-          value ::= * STRING
-          value ::= * INTEGER
-          value ::= * FLOAT
-          value ::= * TRUE
-          value ::= * FALSE
-          object_decl ::= * LEFT_BRACE object_items RIGHT_BRACE
-          array_decl ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          literal ::= * object
+          object ::= * LEFT_BRACE object_items RIGHT_BRACE
+          literal ::= * array
+          array ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          literal ::= * STRING
+          literal ::= * INTEGER
+          literal ::= * FLOAT
+          literal ::= * TRUE
+          literal ::= * FALSE
           equality ::= equality BANG_EQUAL * comparison
           comparison ::= * term
           comparison ::= * comparison GREATER term
@@ -353,38 +362,38 @@ State 7:
           unary ::= * BANG unary
           unary ::= * MINUS unary
           unary ::= * primary
-          primary ::= * value
+          primary ::= * literal
           primary ::= * LEFT_PAREN expression RIGHT_PAREN
 
                          MINUS shift        22     
                           BANG shift        23     
                   LEFT_BRACKET shift        1      
-                    LEFT_BRACE shift        26     
+                    LEFT_BRACE shift        25     
                     LEFT_PAREN shift        3      
-                        STRING shift-reduce 12     value ::= STRING
-                       INTEGER shift-reduce 13     value ::= INTEGER
-                         FLOAT shift-reduce 14     value ::= FLOAT
-                          TRUE shift-reduce 15     value ::= TRUE
-                         FALSE shift-reduce 16     value ::= FALSE
-                         value shift-reduce 56     primary ::= value
-                   object_decl shift-reduce 10     value ::= object_decl
-                    array_decl shift-reduce 11     value ::= array_decl
-                    comparison shift        31     
-                          term shift        34     
-                        factor shift        37     
-                         unary shift-reduce 50     factor ::= unary
-                       primary shift-reduce 55     unary ::= primary
+                        STRING shift-reduce 32     literal ::= STRING
+                       INTEGER shift-reduce 33     literal ::= INTEGER
+                         FLOAT shift-reduce 34     literal ::= FLOAT
+                          TRUE shift-reduce 35     literal ::= TRUE
+                         FALSE shift-reduce 36     literal ::= FALSE
+                       literal shift-reduce 55     primary ::= literal
+                        object shift-reduce 24     literal ::= object
+                         array shift-reduce 28     literal ::= array
+                    comparison shift        30     
+                          term shift        33     
+                        factor shift        36     
+                         unary shift-reduce 49     factor ::= unary
+                       primary shift-reduce 54     unary ::= primary
 
 State 8:
-          value ::= * object_decl
-          value ::= * array_decl
-          value ::= * STRING
-          value ::= * INTEGER
-          value ::= * FLOAT
-          value ::= * TRUE
-          value ::= * FALSE
-          object_decl ::= * LEFT_BRACE object_items RIGHT_BRACE
-          array_decl ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          literal ::= * object
+          object ::= * LEFT_BRACE object_items RIGHT_BRACE
+          literal ::= * array
+          array ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          literal ::= * STRING
+          literal ::= * INTEGER
+          literal ::= * FLOAT
+          literal ::= * TRUE
+          literal ::= * FALSE
           equality ::= equality EQUAL_EQUAL * comparison
           comparison ::= * term
           comparison ::= * comparison GREATER term
@@ -400,38 +409,38 @@ State 8:
           unary ::= * BANG unary
           unary ::= * MINUS unary
           unary ::= * primary
-          primary ::= * value
+          primary ::= * literal
           primary ::= * LEFT_PAREN expression RIGHT_PAREN
 
                          MINUS shift        22     
                           BANG shift        23     
                   LEFT_BRACKET shift        1      
-                    LEFT_BRACE shift        26     
+                    LEFT_BRACE shift        25     
                     LEFT_PAREN shift        3      
-                        STRING shift-reduce 12     value ::= STRING
-                       INTEGER shift-reduce 13     value ::= INTEGER
-                         FLOAT shift-reduce 14     value ::= FLOAT
-                          TRUE shift-reduce 15     value ::= TRUE
-                         FALSE shift-reduce 16     value ::= FALSE
-                         value shift-reduce 56     primary ::= value
-                   object_decl shift-reduce 10     value ::= object_decl
-                    array_decl shift-reduce 11     value ::= array_decl
-                    comparison shift        33     
-                          term shift        34     
-                        factor shift        37     
-                         unary shift-reduce 50     factor ::= unary
-                       primary shift-reduce 55     unary ::= primary
+                        STRING shift-reduce 32     literal ::= STRING
+                       INTEGER shift-reduce 33     literal ::= INTEGER
+                         FLOAT shift-reduce 34     literal ::= FLOAT
+                          TRUE shift-reduce 35     literal ::= TRUE
+                         FALSE shift-reduce 36     literal ::= FALSE
+                       literal shift-reduce 55     primary ::= literal
+                        object shift-reduce 24     literal ::= object
+                         array shift-reduce 28     literal ::= array
+                    comparison shift        32     
+                          term shift        33     
+                        factor shift        36     
+                         unary shift-reduce 49     factor ::= unary
+                       primary shift-reduce 54     unary ::= primary
 
 State 9:
-          value ::= * object_decl
-          value ::= * array_decl
-          value ::= * STRING
-          value ::= * INTEGER
-          value ::= * FLOAT
-          value ::= * TRUE
-          value ::= * FALSE
-          object_decl ::= * LEFT_BRACE object_items RIGHT_BRACE
-          array_decl ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          literal ::= * object
+          object ::= * LEFT_BRACE object_items RIGHT_BRACE
+          literal ::= * array
+          array ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          literal ::= * STRING
+          literal ::= * INTEGER
+          literal ::= * FLOAT
+          literal ::= * TRUE
+          literal ::= * FALSE
           comparison ::= comparison LESS_EQUAL * term
           term ::= * factor
           term ::= * term PLUS factor
@@ -442,37 +451,37 @@ State 9:
           unary ::= * BANG unary
           unary ::= * MINUS unary
           unary ::= * primary
-          primary ::= * value
+          primary ::= * literal
           primary ::= * LEFT_PAREN expression RIGHT_PAREN
 
                          MINUS shift        22     
                           BANG shift        23     
                   LEFT_BRACKET shift        1      
-                    LEFT_BRACE shift        26     
+                    LEFT_BRACE shift        25     
                     LEFT_PAREN shift        3      
-                        STRING shift-reduce 12     value ::= STRING
-                       INTEGER shift-reduce 13     value ::= INTEGER
-                         FLOAT shift-reduce 14     value ::= FLOAT
-                          TRUE shift-reduce 15     value ::= TRUE
-                         FALSE shift-reduce 16     value ::= FALSE
-                         value shift-reduce 56     primary ::= value
-                   object_decl shift-reduce 10     value ::= object_decl
-                    array_decl shift-reduce 11     value ::= array_decl
-                          term shift        35     
-                        factor shift        37     
-                         unary shift-reduce 50     factor ::= unary
-                       primary shift-reduce 55     unary ::= primary
+                        STRING shift-reduce 32     literal ::= STRING
+                       INTEGER shift-reduce 33     literal ::= INTEGER
+                         FLOAT shift-reduce 34     literal ::= FLOAT
+                          TRUE shift-reduce 35     literal ::= TRUE
+                         FALSE shift-reduce 36     literal ::= FALSE
+                       literal shift-reduce 55     primary ::= literal
+                        object shift-reduce 24     literal ::= object
+                         array shift-reduce 28     literal ::= array
+                          term shift        34     
+                        factor shift        36     
+                         unary shift-reduce 49     factor ::= unary
+                       primary shift-reduce 54     unary ::= primary
 
 State 10:
-          value ::= * object_decl
-          value ::= * array_decl
-          value ::= * STRING
-          value ::= * INTEGER
-          value ::= * FLOAT
-          value ::= * TRUE
-          value ::= * FALSE
-          object_decl ::= * LEFT_BRACE object_items RIGHT_BRACE
-          array_decl ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          literal ::= * object
+          object ::= * LEFT_BRACE object_items RIGHT_BRACE
+          literal ::= * array
+          array ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          literal ::= * STRING
+          literal ::= * INTEGER
+          literal ::= * FLOAT
+          literal ::= * TRUE
+          literal ::= * FALSE
           comparison ::= comparison LESS * term
           term ::= * factor
           term ::= * term PLUS factor
@@ -483,37 +492,37 @@ State 10:
           unary ::= * BANG unary
           unary ::= * MINUS unary
           unary ::= * primary
-          primary ::= * value
+          primary ::= * literal
           primary ::= * LEFT_PAREN expression RIGHT_PAREN
 
                          MINUS shift        22     
                           BANG shift        23     
                   LEFT_BRACKET shift        1      
-                    LEFT_BRACE shift        26     
+                    LEFT_BRACE shift        25     
                     LEFT_PAREN shift        3      
-                        STRING shift-reduce 12     value ::= STRING
-                       INTEGER shift-reduce 13     value ::= INTEGER
-                         FLOAT shift-reduce 14     value ::= FLOAT
-                          TRUE shift-reduce 15     value ::= TRUE
-                         FALSE shift-reduce 16     value ::= FALSE
-                         value shift-reduce 56     primary ::= value
-                   object_decl shift-reduce 10     value ::= object_decl
-                    array_decl shift-reduce 11     value ::= array_decl
-                          term shift        36     
-                        factor shift        37     
-                         unary shift-reduce 50     factor ::= unary
-                       primary shift-reduce 55     unary ::= primary
+                        STRING shift-reduce 32     literal ::= STRING
+                       INTEGER shift-reduce 33     literal ::= INTEGER
+                         FLOAT shift-reduce 34     literal ::= FLOAT
+                          TRUE shift-reduce 35     literal ::= TRUE
+                         FALSE shift-reduce 36     literal ::= FALSE
+                       literal shift-reduce 55     primary ::= literal
+                        object shift-reduce 24     literal ::= object
+                         array shift-reduce 28     literal ::= array
+                          term shift        35     
+                        factor shift        36     
+                         unary shift-reduce 49     factor ::= unary
+                       primary shift-reduce 54     unary ::= primary
 
 State 11:
-          value ::= * object_decl
-          value ::= * array_decl
-          value ::= * STRING
-          value ::= * INTEGER
-          value ::= * FLOAT
-          value ::= * TRUE
-          value ::= * FALSE
-          object_decl ::= * LEFT_BRACE object_items RIGHT_BRACE
-          array_decl ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          literal ::= * object
+          object ::= * LEFT_BRACE object_items RIGHT_BRACE
+          literal ::= * array
+          array ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          literal ::= * STRING
+          literal ::= * INTEGER
+          literal ::= * FLOAT
+          literal ::= * TRUE
+          literal ::= * FALSE
           comparison ::= comparison GREATER_EQUAL * term
           term ::= * factor
           term ::= * term PLUS factor
@@ -524,37 +533,37 @@ State 11:
           unary ::= * BANG unary
           unary ::= * MINUS unary
           unary ::= * primary
-          primary ::= * value
+          primary ::= * literal
           primary ::= * LEFT_PAREN expression RIGHT_PAREN
 
                          MINUS shift        22     
                           BANG shift        23     
                   LEFT_BRACKET shift        1      
-                    LEFT_BRACE shift        26     
+                    LEFT_BRACE shift        25     
                     LEFT_PAREN shift        3      
-                        STRING shift-reduce 12     value ::= STRING
-                       INTEGER shift-reduce 13     value ::= INTEGER
-                         FLOAT shift-reduce 14     value ::= FLOAT
-                          TRUE shift-reduce 15     value ::= TRUE
-                         FALSE shift-reduce 16     value ::= FALSE
-                         value shift-reduce 56     primary ::= value
-                   object_decl shift-reduce 10     value ::= object_decl
-                    array_decl shift-reduce 11     value ::= array_decl
-                          term shift        39     
-                        factor shift        37     
-                         unary shift-reduce 50     factor ::= unary
-                       primary shift-reduce 55     unary ::= primary
+                        STRING shift-reduce 32     literal ::= STRING
+                       INTEGER shift-reduce 33     literal ::= INTEGER
+                         FLOAT shift-reduce 34     literal ::= FLOAT
+                          TRUE shift-reduce 35     literal ::= TRUE
+                         FALSE shift-reduce 36     literal ::= FALSE
+                       literal shift-reduce 55     primary ::= literal
+                        object shift-reduce 24     literal ::= object
+                         array shift-reduce 28     literal ::= array
+                          term shift        38     
+                        factor shift        36     
+                         unary shift-reduce 49     factor ::= unary
+                       primary shift-reduce 54     unary ::= primary
 
 State 12:
-          value ::= * object_decl
-          value ::= * array_decl
-          value ::= * STRING
-          value ::= * INTEGER
-          value ::= * FLOAT
-          value ::= * TRUE
-          value ::= * FALSE
-          object_decl ::= * LEFT_BRACE object_items RIGHT_BRACE
-          array_decl ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          literal ::= * object
+          object ::= * LEFT_BRACE object_items RIGHT_BRACE
+          literal ::= * array
+          array ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          literal ::= * STRING
+          literal ::= * INTEGER
+          literal ::= * FLOAT
+          literal ::= * TRUE
+          literal ::= * FALSE
           comparison ::= comparison GREATER * term
           term ::= * factor
           term ::= * term PLUS factor
@@ -565,177 +574,37 @@ State 12:
           unary ::= * BANG unary
           unary ::= * MINUS unary
           unary ::= * primary
-          primary ::= * value
+          primary ::= * literal
           primary ::= * LEFT_PAREN expression RIGHT_PAREN
 
                          MINUS shift        22     
                           BANG shift        23     
                   LEFT_BRACKET shift        1      
-                    LEFT_BRACE shift        26     
+                    LEFT_BRACE shift        25     
                     LEFT_PAREN shift        3      
-                        STRING shift-reduce 12     value ::= STRING
-                       INTEGER shift-reduce 13     value ::= INTEGER
-                         FLOAT shift-reduce 14     value ::= FLOAT
-                          TRUE shift-reduce 15     value ::= TRUE
-                         FALSE shift-reduce 16     value ::= FALSE
-                         value shift-reduce 56     primary ::= value
-                   object_decl shift-reduce 10     value ::= object_decl
-                    array_decl shift-reduce 11     value ::= array_decl
-                          term shift        41     
-                        factor shift        37     
-                         unary shift-reduce 50     factor ::= unary
-                       primary shift-reduce 55     unary ::= primary
+                        STRING shift-reduce 32     literal ::= STRING
+                       INTEGER shift-reduce 33     literal ::= INTEGER
+                         FLOAT shift-reduce 34     literal ::= FLOAT
+                          TRUE shift-reduce 35     literal ::= TRUE
+                         FALSE shift-reduce 36     literal ::= FALSE
+                       literal shift-reduce 55     primary ::= literal
+                        object shift-reduce 24     literal ::= object
+                         array shift-reduce 28     literal ::= array
+                          term shift        40     
+                        factor shift        36     
+                         unary shift-reduce 49     factor ::= unary
+                       primary shift-reduce 54     unary ::= primary
 
 State 13:
-          type_spec ::= * type
-          type ::= * enum_decl
-          type ::= * struct_decl
-          type ::= * union_decl
-          type ::= * sarray_decl
-          type ::= * PRIM
-          enum_decl ::= * ENUM LEFT_BRACE enum_items RIGHT_BRACE
-          struct_decl ::= * STRUCT LEFT_BRACE struct_items RIGHT_BRACE
-          struct_items ::= IDENTIFIER * type_spec
-          union_decl ::= * UNION LEFT_BRACE union_items RIGHT_BRACE
-          sarray_decl ::= * sarray_dims type
-          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET
-          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims
-
-                  LEFT_BRACKET shift        56     
-                        STRUCT shift        60     
-                         UNION shift        58     
-                          ENUM shift        62     
-                          PRIM shift-reduce 9      type ::= PRIM
-                          type shift-reduce 4      type_spec ::= type
-                     type_spec shift-reduce 21     struct_items ::= IDENTIFIER type_spec
-                     enum_decl shift-reduce 5      type ::= enum_decl
-                   struct_decl shift-reduce 6      type ::= struct_decl
-                    union_decl shift-reduce 7      type ::= union_decl
-                   sarray_decl shift-reduce 8      type ::= sarray_decl
-                   sarray_dims shift        20     
-
-State 14:
-          type_spec ::= * type
-          type ::= * enum_decl
-          type ::= * struct_decl
-          type ::= * union_decl
-          type ::= * sarray_decl
-          type ::= * PRIM
-          enum_decl ::= * ENUM LEFT_BRACE enum_items RIGHT_BRACE
-          struct_decl ::= * STRUCT LEFT_BRACE struct_items RIGHT_BRACE
-          union_decl ::= * UNION LEFT_BRACE union_items RIGHT_BRACE
-          union_items ::= IDENTIFIER * type_spec
-          sarray_decl ::= * sarray_dims type
-          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET
-          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims
-
-                  LEFT_BRACKET shift        56     
-                        STRUCT shift        60     
-                         UNION shift        58     
-                          ENUM shift        62     
-                          PRIM shift-reduce 9      type ::= PRIM
-                          type shift-reduce 4      type_spec ::= type
-                     type_spec shift-reduce 24     union_items ::= IDENTIFIER type_spec
-                     enum_decl shift-reduce 5      type ::= enum_decl
-                   struct_decl shift-reduce 6      type ::= struct_decl
-                    union_decl shift-reduce 7      type ::= union_decl
-                   sarray_decl shift-reduce 8      type ::= sarray_decl
-                   sarray_dims shift        20     
-
-State 15:
-          type_spec ::= * type
-          type ::= * enum_decl
-          type ::= * struct_decl
-          type ::= * union_decl
-          type ::= * sarray_decl
-          type ::= * PRIM
-          enum_decl ::= * ENUM LEFT_BRACE enum_items RIGHT_BRACE
-          struct_decl ::= * STRUCT LEFT_BRACE struct_items RIGHT_BRACE
-          union_decl ::= * UNION LEFT_BRACE union_items RIGHT_BRACE
-          union_items ::= union_items COMMA IDENTIFIER * type_spec
-          sarray_decl ::= * sarray_dims type
-          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET
-          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims
-
-                  LEFT_BRACKET shift        56     
-                        STRUCT shift        60     
-                         UNION shift        58     
-                          ENUM shift        62     
-                          PRIM shift-reduce 9      type ::= PRIM
-                          type shift-reduce 4      type_spec ::= type
-                     type_spec shift-reduce 25     union_items ::= union_items COMMA IDENTIFIER type_spec
-                     enum_decl shift-reduce 5      type ::= enum_decl
-                   struct_decl shift-reduce 6      type ::= struct_decl
-                    union_decl shift-reduce 7      type ::= union_decl
-                   sarray_decl shift-reduce 8      type ::= sarray_decl
-                   sarray_dims shift        20     
-
-State 16:
-          type_spec ::= * type
-          type ::= * enum_decl
-          type ::= * struct_decl
-          type ::= * union_decl
-          type ::= * sarray_decl
-          type ::= * PRIM
-          enum_decl ::= * ENUM LEFT_BRACE enum_items RIGHT_BRACE
-          struct_decl ::= * STRUCT LEFT_BRACE struct_items RIGHT_BRACE
-          struct_items ::= struct_items COMMA IDENTIFIER * type_spec
-          union_decl ::= * UNION LEFT_BRACE union_items RIGHT_BRACE
-          sarray_decl ::= * sarray_dims type
-          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET
-          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims
-
-                  LEFT_BRACKET shift        56     
-                        STRUCT shift        60     
-                         UNION shift        58     
-                          ENUM shift        62     
-                          PRIM shift-reduce 9      type ::= PRIM
-                          type shift-reduce 4      type_spec ::= type
-                     type_spec shift-reduce 22     struct_items ::= struct_items COMMA IDENTIFIER type_spec
-                     enum_decl shift-reduce 5      type ::= enum_decl
-                   struct_decl shift-reduce 6      type ::= struct_decl
-                    union_decl shift-reduce 7      type ::= union_decl
-                   sarray_decl shift-reduce 8      type ::= sarray_decl
-                   sarray_dims shift        20     
-
-State 17:
-          type_spec ::= * type
-          type ::= * enum_decl
-          type ::= * struct_decl
-          type ::= * union_decl
-          type ::= * sarray_decl
-          type ::= * PRIM
-          enum_decl ::= * ENUM LEFT_BRACE enum_items RIGHT_BRACE
-          struct_decl ::= * STRUCT LEFT_BRACE struct_items RIGHT_BRACE
-          union_decl ::= * UNION LEFT_BRACE union_items RIGHT_BRACE
-          sarray_decl ::= * sarray_dims type
-          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET
-          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims
-          create_decl ::= CREATE IDENTIFIER * type_spec
-
-                  LEFT_BRACKET shift        56     
-                        STRUCT shift        60     
-                         UNION shift        58     
-                          ENUM shift        62     
-                          PRIM shift-reduce 9      type ::= PRIM
-                          type shift-reduce 4      type_spec ::= type
-                     type_spec shift-reduce 29     create_decl ::= CREATE IDENTIFIER type_spec
-                     enum_decl shift-reduce 5      type ::= enum_decl
-                   struct_decl shift-reduce 6      type ::= struct_decl
-                    union_decl shift-reduce 7      type ::= union_decl
-                   sarray_decl shift-reduce 8      type ::= sarray_decl
-                   sarray_dims shift        20     
-
-State 18:
-          value ::= * object_decl
-          value ::= * array_decl
-          value ::= * STRING
-          value ::= * INTEGER
-          value ::= * FLOAT
-          value ::= * TRUE
-          value ::= * FALSE
-          object_decl ::= * LEFT_BRACE object_items RIGHT_BRACE
-          array_decl ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          literal ::= * object
+          object ::= * LEFT_BRACE object_items RIGHT_BRACE
+          literal ::= * array
+          array ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          literal ::= * STRING
+          literal ::= * INTEGER
+          literal ::= * FLOAT
+          literal ::= * TRUE
+          literal ::= * FALSE
           term ::= term MINUS * factor
           factor ::= * unary
           factor ::= * factor STAR unary
@@ -743,36 +612,36 @@ State 18:
           unary ::= * BANG unary
           unary ::= * MINUS unary
           unary ::= * primary
-          primary ::= * value
+          primary ::= * literal
           primary ::= * LEFT_PAREN expression RIGHT_PAREN
 
                          MINUS shift        22     
                           BANG shift        23     
                   LEFT_BRACKET shift        1      
-                    LEFT_BRACE shift        26     
+                    LEFT_BRACE shift        25     
                     LEFT_PAREN shift        3      
-                        STRING shift-reduce 12     value ::= STRING
-                       INTEGER shift-reduce 13     value ::= INTEGER
-                         FLOAT shift-reduce 14     value ::= FLOAT
-                          TRUE shift-reduce 15     value ::= TRUE
-                         FALSE shift-reduce 16     value ::= FALSE
-                         value shift-reduce 56     primary ::= value
-                   object_decl shift-reduce 10     value ::= object_decl
-                    array_decl shift-reduce 11     value ::= array_decl
-                        factor shift        38     
-                         unary shift-reduce 50     factor ::= unary
-                       primary shift-reduce 55     unary ::= primary
+                        STRING shift-reduce 32     literal ::= STRING
+                       INTEGER shift-reduce 33     literal ::= INTEGER
+                         FLOAT shift-reduce 34     literal ::= FLOAT
+                          TRUE shift-reduce 35     literal ::= TRUE
+                         FALSE shift-reduce 36     literal ::= FALSE
+                       literal shift-reduce 55     primary ::= literal
+                        object shift-reduce 24     literal ::= object
+                         array shift-reduce 28     literal ::= array
+                        factor shift        37     
+                         unary shift-reduce 49     factor ::= unary
+                       primary shift-reduce 54     unary ::= primary
 
-State 19:
-          value ::= * object_decl
-          value ::= * array_decl
-          value ::= * STRING
-          value ::= * INTEGER
-          value ::= * FLOAT
-          value ::= * TRUE
-          value ::= * FALSE
-          object_decl ::= * LEFT_BRACE object_items RIGHT_BRACE
-          array_decl ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+State 14:
+          literal ::= * object
+          object ::= * LEFT_BRACE object_items RIGHT_BRACE
+          literal ::= * array
+          array ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          literal ::= * STRING
+          literal ::= * INTEGER
+          literal ::= * FLOAT
+          literal ::= * TRUE
+          literal ::= * FALSE
           term ::= term PLUS * factor
           factor ::= * unary
           factor ::= * factor STAR unary
@@ -780,250 +649,372 @@ State 19:
           unary ::= * BANG unary
           unary ::= * MINUS unary
           unary ::= * primary
-          primary ::= * value
+          primary ::= * literal
           primary ::= * LEFT_PAREN expression RIGHT_PAREN
 
                          MINUS shift        22     
                           BANG shift        23     
                   LEFT_BRACKET shift        1      
-                    LEFT_BRACE shift        26     
+                    LEFT_BRACE shift        25     
                     LEFT_PAREN shift        3      
-                        STRING shift-reduce 12     value ::= STRING
-                       INTEGER shift-reduce 13     value ::= INTEGER
-                         FLOAT shift-reduce 14     value ::= FLOAT
-                          TRUE shift-reduce 15     value ::= TRUE
-                         FALSE shift-reduce 16     value ::= FALSE
-                         value shift-reduce 56     primary ::= value
-                   object_decl shift-reduce 10     value ::= object_decl
-                    array_decl shift-reduce 11     value ::= array_decl
-                        factor shift        40     
-                         unary shift-reduce 50     factor ::= unary
-                       primary shift-reduce 55     unary ::= primary
+                        STRING shift-reduce 32     literal ::= STRING
+                       INTEGER shift-reduce 33     literal ::= INTEGER
+                         FLOAT shift-reduce 34     literal ::= FLOAT
+                          TRUE shift-reduce 35     literal ::= TRUE
+                         FALSE shift-reduce 36     literal ::= FALSE
+                       literal shift-reduce 55     primary ::= literal
+                        object shift-reduce 24     literal ::= object
+                         array shift-reduce 28     literal ::= array
+                        factor shift        39     
+                         unary shift-reduce 49     factor ::= unary
+                       primary shift-reduce 54     unary ::= primary
 
-State 20:
-          type ::= * enum_decl
-          type ::= * struct_decl
-          type ::= * union_decl
-          type ::= * sarray_decl
+State 15:
           type ::= * PRIM
-          enum_decl ::= * ENUM LEFT_BRACE enum_items RIGHT_BRACE
-          struct_decl ::= * STRUCT LEFT_BRACE struct_items RIGHT_BRACE
-          union_decl ::= * UNION LEFT_BRACE union_items RIGHT_BRACE
-          sarray_decl ::= * sarray_dims type
-          sarray_decl ::= sarray_dims * type
+          type ::= * enum
+          enum ::= * ENUM LEFT_BRACE enum_items RIGHT_BRACE
+          type ::= * struct
+          struct ::= * STRUCT LEFT_BRACE struct_items RIGHT_BRACE
+          struct_items ::= IDENTIFIER * type
+          type ::= * union
+          union ::= * UNION LEFT_BRACE union_items RIGHT_BRACE
+          type ::= * sarray
+          sarray ::= * sarray_dims type
           sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET
           sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims
 
-                  LEFT_BRACKET shift        56     
-                        STRUCT shift        60     
-                         UNION shift        58     
-                          ENUM shift        62     
-                          PRIM shift-reduce 9      type ::= PRIM
-                          type shift-reduce 26     sarray_decl ::= sarray_dims type
-                     enum_decl shift-reduce 5      type ::= enum_decl
-                   struct_decl shift-reduce 6      type ::= struct_decl
-                    union_decl shift-reduce 7      type ::= union_decl
-                   sarray_decl shift-reduce 8      type ::= sarray_decl
-                   sarray_dims shift        20     
+                  LEFT_BRACKET shift        55     
+                        STRUCT shift        59     
+                         UNION shift        57     
+                          ENUM shift        61     
+                          PRIM shift-reduce 1      type ::= PRIM
+                          type shift-reduce 8      struct_items ::= IDENTIFIER type
+                          enum shift-reduce 2      type ::= enum
+                        struct shift-reduce 6      type ::= struct
+                         union shift-reduce 10     type ::= union
+                        sarray shift-reduce 14     type ::= sarray
+                   sarray_dims shift        17     
+
+State 16:
+          type ::= * PRIM
+          type ::= * enum
+          enum ::= * ENUM LEFT_BRACE enum_items RIGHT_BRACE
+          type ::= * struct
+          struct ::= * STRUCT LEFT_BRACE struct_items RIGHT_BRACE
+          type ::= * union
+          union ::= * UNION LEFT_BRACE union_items RIGHT_BRACE
+          union_items ::= IDENTIFIER * type
+          type ::= * sarray
+          sarray ::= * sarray_dims type
+          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET
+          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims
+
+                  LEFT_BRACKET shift        55     
+                        STRUCT shift        59     
+                         UNION shift        57     
+                          ENUM shift        61     
+                          PRIM shift-reduce 1      type ::= PRIM
+                          type shift-reduce 12     union_items ::= IDENTIFIER type
+                          enum shift-reduce 2      type ::= enum
+                        struct shift-reduce 6      type ::= struct
+                         union shift-reduce 10     type ::= union
+                        sarray shift-reduce 14     type ::= sarray
+                   sarray_dims shift        17     
+
+State 17:
+          type ::= * PRIM
+          type ::= * enum
+          enum ::= * ENUM LEFT_BRACE enum_items RIGHT_BRACE
+          type ::= * struct
+          struct ::= * STRUCT LEFT_BRACE struct_items RIGHT_BRACE
+          type ::= * union
+          union ::= * UNION LEFT_BRACE union_items RIGHT_BRACE
+          type ::= * sarray
+          sarray ::= * sarray_dims type
+          sarray ::= sarray_dims * type
+          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET
+          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims
+
+                  LEFT_BRACKET shift        55     
+                        STRUCT shift        59     
+                         UNION shift        57     
+                          ENUM shift        61     
+                          PRIM shift-reduce 1      type ::= PRIM
+                          type shift-reduce 15     sarray ::= sarray_dims type
+                          enum shift-reduce 2      type ::= enum
+                        struct shift-reduce 6      type ::= struct
+                         union shift-reduce 10     type ::= union
+                        sarray shift-reduce 14     type ::= sarray
+                   sarray_dims shift        17     
+
+State 18:
+          type ::= * PRIM
+          type ::= * enum
+          enum ::= * ENUM LEFT_BRACE enum_items RIGHT_BRACE
+          type ::= * struct
+          struct ::= * STRUCT LEFT_BRACE struct_items RIGHT_BRACE
+          type ::= * union
+          union ::= * UNION LEFT_BRACE union_items RIGHT_BRACE
+          union_items ::= union_items COMMA IDENTIFIER * type
+          type ::= * sarray
+          sarray ::= * sarray_dims type
+          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET
+          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims
+
+                  LEFT_BRACKET shift        55     
+                        STRUCT shift        59     
+                         UNION shift        57     
+                          ENUM shift        61     
+                          PRIM shift-reduce 1      type ::= PRIM
+                          type shift-reduce 13     union_items ::= union_items COMMA IDENTIFIER type
+                          enum shift-reduce 2      type ::= enum
+                        struct shift-reduce 6      type ::= struct
+                         union shift-reduce 10     type ::= union
+                        sarray shift-reduce 14     type ::= sarray
+                   sarray_dims shift        17     
+
+State 19:
+          type ::= * PRIM
+          type ::= * enum
+          enum ::= * ENUM LEFT_BRACE enum_items RIGHT_BRACE
+          type ::= * struct
+          struct ::= * STRUCT LEFT_BRACE struct_items RIGHT_BRACE
+          struct_items ::= struct_items COMMA IDENTIFIER * type
+          type ::= * union
+          union ::= * UNION LEFT_BRACE union_items RIGHT_BRACE
+          type ::= * sarray
+          sarray ::= * sarray_dims type
+          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET
+          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims
+
+                  LEFT_BRACKET shift        55     
+                        STRUCT shift        59     
+                         UNION shift        57     
+                          ENUM shift        61     
+                          PRIM shift-reduce 1      type ::= PRIM
+                          type shift-reduce 9      struct_items ::= struct_items COMMA IDENTIFIER type
+                          enum shift-reduce 2      type ::= enum
+                        struct shift-reduce 6      type ::= struct
+                         union shift-reduce 10     type ::= union
+                        sarray shift-reduce 14     type ::= sarray
+                   sarray_dims shift        17     
+
+State 20:
+          type ::= * PRIM
+          type ::= * enum
+          enum ::= * ENUM LEFT_BRACE enum_items RIGHT_BRACE
+          type ::= * struct
+          struct ::= * STRUCT LEFT_BRACE struct_items RIGHT_BRACE
+          type ::= * union
+          union ::= * UNION LEFT_BRACE union_items RIGHT_BRACE
+          type ::= * sarray
+          sarray ::= * sarray_dims type
+          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET
+          sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims
+          create ::= CREATE IDENTIFIER * type
+
+                  LEFT_BRACKET shift        55     
+                        STRUCT shift        59     
+                         UNION shift        57     
+                          ENUM shift        61     
+                          PRIM shift-reduce 1      type ::= PRIM
+                          type shift-reduce 19     create ::= CREATE IDENTIFIER type
+                          enum shift-reduce 2      type ::= enum
+                        struct shift-reduce 6      type ::= struct
+                         union shift-reduce 10     type ::= union
+                        sarray shift-reduce 14     type ::= sarray
+                   sarray_dims shift        17     
 
 State 21:
-          value ::= * object_decl
-          value ::= * array_decl
-          value ::= * STRING
-          value ::= * INTEGER
-          value ::= * FLOAT
-          value ::= * TRUE
-          value ::= * FALSE
-          object_decl ::= * LEFT_BRACE object_items RIGHT_BRACE
-          array_decl ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          literal ::= * object
+          object ::= * LEFT_BRACE object_items RIGHT_BRACE
+          literal ::= * array
+          array ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          literal ::= * STRING
+          literal ::= * INTEGER
+          literal ::= * FLOAT
+          literal ::= * TRUE
+          literal ::= * FALSE
           factor ::= factor SLASH * unary
           unary ::= * BANG unary
           unary ::= * MINUS unary
           unary ::= * primary
-          primary ::= * value
+          primary ::= * literal
           primary ::= * LEFT_PAREN expression RIGHT_PAREN
 
                          MINUS shift        22     
                           BANG shift        23     
                   LEFT_BRACKET shift        1      
-                    LEFT_BRACE shift        26     
+                    LEFT_BRACE shift        25     
                     LEFT_PAREN shift        3      
-                        STRING shift-reduce 12     value ::= STRING
-                       INTEGER shift-reduce 13     value ::= INTEGER
-                         FLOAT shift-reduce 14     value ::= FLOAT
-                          TRUE shift-reduce 15     value ::= TRUE
-                         FALSE shift-reduce 16     value ::= FALSE
-                         value shift-reduce 56     primary ::= value
-                   object_decl shift-reduce 10     value ::= object_decl
-                    array_decl shift-reduce 11     value ::= array_decl
-                         unary shift-reduce 52     factor ::= factor SLASH unary
-                       primary shift-reduce 55     unary ::= primary
+                        STRING shift-reduce 32     literal ::= STRING
+                       INTEGER shift-reduce 33     literal ::= INTEGER
+                         FLOAT shift-reduce 34     literal ::= FLOAT
+                          TRUE shift-reduce 35     literal ::= TRUE
+                         FALSE shift-reduce 36     literal ::= FALSE
+                       literal shift-reduce 55     primary ::= literal
+                        object shift-reduce 24     literal ::= object
+                         array shift-reduce 28     literal ::= array
+                         unary shift-reduce 51     factor ::= factor SLASH unary
+                       primary shift-reduce 54     unary ::= primary
 
 State 22:
-          value ::= * object_decl
-          value ::= * array_decl
-          value ::= * STRING
-          value ::= * INTEGER
-          value ::= * FLOAT
-          value ::= * TRUE
-          value ::= * FALSE
-          object_decl ::= * LEFT_BRACE object_items RIGHT_BRACE
-          array_decl ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          literal ::= * object
+          object ::= * LEFT_BRACE object_items RIGHT_BRACE
+          literal ::= * array
+          array ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          literal ::= * STRING
+          literal ::= * INTEGER
+          literal ::= * FLOAT
+          literal ::= * TRUE
+          literal ::= * FALSE
           unary ::= * BANG unary
           unary ::= * MINUS unary
           unary ::= MINUS * unary
           unary ::= * primary
-          primary ::= * value
+          primary ::= * literal
           primary ::= * LEFT_PAREN expression RIGHT_PAREN
 
                          MINUS shift        22     
                           BANG shift        23     
                   LEFT_BRACKET shift        1      
-                    LEFT_BRACE shift        26     
+                    LEFT_BRACE shift        25     
                     LEFT_PAREN shift        3      
-                        STRING shift-reduce 12     value ::= STRING
-                       INTEGER shift-reduce 13     value ::= INTEGER
-                         FLOAT shift-reduce 14     value ::= FLOAT
-                          TRUE shift-reduce 15     value ::= TRUE
-                         FALSE shift-reduce 16     value ::= FALSE
-                         value shift-reduce 56     primary ::= value
-                   object_decl shift-reduce 10     value ::= object_decl
-                    array_decl shift-reduce 11     value ::= array_decl
-                         unary shift-reduce 54     unary ::= MINUS unary
-                       primary shift-reduce 55     unary ::= primary
+                        STRING shift-reduce 32     literal ::= STRING
+                       INTEGER shift-reduce 33     literal ::= INTEGER
+                         FLOAT shift-reduce 34     literal ::= FLOAT
+                          TRUE shift-reduce 35     literal ::= TRUE
+                         FALSE shift-reduce 36     literal ::= FALSE
+                       literal shift-reduce 55     primary ::= literal
+                        object shift-reduce 24     literal ::= object
+                         array shift-reduce 28     literal ::= array
+                         unary shift-reduce 53     unary ::= MINUS unary
+                       primary shift-reduce 54     unary ::= primary
 
 State 23:
-          value ::= * object_decl
-          value ::= * array_decl
-          value ::= * STRING
-          value ::= * INTEGER
-          value ::= * FLOAT
-          value ::= * TRUE
-          value ::= * FALSE
-          object_decl ::= * LEFT_BRACE object_items RIGHT_BRACE
-          array_decl ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          literal ::= * object
+          object ::= * LEFT_BRACE object_items RIGHT_BRACE
+          literal ::= * array
+          array ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          literal ::= * STRING
+          literal ::= * INTEGER
+          literal ::= * FLOAT
+          literal ::= * TRUE
+          literal ::= * FALSE
           unary ::= * BANG unary
           unary ::= BANG * unary
           unary ::= * MINUS unary
           unary ::= * primary
-          primary ::= * value
+          primary ::= * literal
           primary ::= * LEFT_PAREN expression RIGHT_PAREN
 
                          MINUS shift        22     
                           BANG shift        23     
                   LEFT_BRACKET shift        1      
-                    LEFT_BRACE shift        26     
+                    LEFT_BRACE shift        25     
                     LEFT_PAREN shift        3      
-                        STRING shift-reduce 12     value ::= STRING
-                       INTEGER shift-reduce 13     value ::= INTEGER
-                         FLOAT shift-reduce 14     value ::= FLOAT
-                          TRUE shift-reduce 15     value ::= TRUE
-                         FALSE shift-reduce 16     value ::= FALSE
-                         value shift-reduce 56     primary ::= value
-                   object_decl shift-reduce 10     value ::= object_decl
-                    array_decl shift-reduce 11     value ::= array_decl
-                         unary shift-reduce 53     unary ::= BANG unary
-                       primary shift-reduce 55     unary ::= primary
+                        STRING shift-reduce 32     literal ::= STRING
+                       INTEGER shift-reduce 33     literal ::= INTEGER
+                         FLOAT shift-reduce 34     literal ::= FLOAT
+                          TRUE shift-reduce 35     literal ::= TRUE
+                         FALSE shift-reduce 36     literal ::= FALSE
+                       literal shift-reduce 55     primary ::= literal
+                        object shift-reduce 24     literal ::= object
+                         array shift-reduce 28     literal ::= array
+                         unary shift-reduce 52     unary ::= BANG unary
+                       primary shift-reduce 54     unary ::= primary
 
 State 24:
-          value ::= * object_decl
-          value ::= * array_decl
-          value ::= * STRING
-          value ::= * INTEGER
-          value ::= * FLOAT
-          value ::= * TRUE
-          value ::= * FALSE
-          object_decl ::= * LEFT_BRACE object_items RIGHT_BRACE
-          array_decl ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          literal ::= * object
+          object ::= * LEFT_BRACE object_items RIGHT_BRACE
+          literal ::= * array
+          array ::= * LEFT_BRACKET array_items RIGHT_BRACKET
+          literal ::= * STRING
+          literal ::= * INTEGER
+          literal ::= * FLOAT
+          literal ::= * TRUE
+          literal ::= * FALSE
           factor ::= factor STAR * unary
           unary ::= * BANG unary
           unary ::= * MINUS unary
           unary ::= * primary
-          primary ::= * value
+          primary ::= * literal
           primary ::= * LEFT_PAREN expression RIGHT_PAREN
 
                          MINUS shift        22     
                           BANG shift        23     
                   LEFT_BRACKET shift        1      
-                    LEFT_BRACE shift        26     
+                    LEFT_BRACE shift        25     
                     LEFT_PAREN shift        3      
-                        STRING shift-reduce 12     value ::= STRING
-                       INTEGER shift-reduce 13     value ::= INTEGER
-                         FLOAT shift-reduce 14     value ::= FLOAT
-                          TRUE shift-reduce 15     value ::= TRUE
-                         FALSE shift-reduce 16     value ::= FALSE
-                         value shift-reduce 56     primary ::= value
-                   object_decl shift-reduce 10     value ::= object_decl
-                    array_decl shift-reduce 11     value ::= array_decl
-                         unary shift-reduce 51     factor ::= factor STAR unary
-                       primary shift-reduce 55     unary ::= primary
+                        STRING shift-reduce 32     literal ::= STRING
+                       INTEGER shift-reduce 33     literal ::= INTEGER
+                         FLOAT shift-reduce 34     literal ::= FLOAT
+                          TRUE shift-reduce 35     literal ::= TRUE
+                         FALSE shift-reduce 36     literal ::= FALSE
+                       literal shift-reduce 55     primary ::= literal
+                        object shift-reduce 24     literal ::= object
+                         array shift-reduce 28     literal ::= array
+                         unary shift-reduce 50     factor ::= factor STAR unary
+                       primary shift-reduce 54     unary ::= primary
 
 State 25:
-     (58) main ::= in *
-          in ::= in * state SEMICOLON
-          state ::= * query
-          query ::= * delete_decl
-          query ::= * create_decl
-          query ::= * insert_decl
-          create_decl ::= * CREATE IDENTIFIER type_spec
-          delete_decl ::= * DELETE IDENTIFIER
-          insert_decl ::= * INSERT IDENTIFIER INTEGER expression
-
-                             $ reduce       58     main ::= in
-                        CREATE shift        63     
-                        DELETE shift        54     
-                        INSERT shift        53     
-                         query shift-reduce 0      state ::= query
-                   create_decl shift-reduce 2      query ::= create_decl
-                   delete_decl shift-reduce 1      query ::= delete_decl
-                   insert_decl shift-reduce 3      query ::= insert_decl
-                         state shift        64     
-
-State 26:
-          object_decl ::= LEFT_BRACE * object_items RIGHT_BRACE
+          object ::= LEFT_BRACE * object_items RIGHT_BRACE
           object_items ::= * IDENTIFIER COLON expression
           object_items ::= * object_items COMMA IDENTIFIER COLON expression
 
-                    IDENTIFIER shift        48     
-                  object_items shift        44     
+                    IDENTIFIER shift        47     
+                  object_items shift        43     
 
-State 27:
+State 26:
           sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET
-     (27) sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET *
+     (16) sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET *
           sarray_dims ::= * LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims
           sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET * sarray_dims
 
-                  LEFT_BRACKET shift        56     
-                  LEFT_BRACKET reduce       27      ** Parsing conflict **
-                   sarray_dims shift-reduce 28     sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims
-                     {default} reduce       27     sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET
+                  LEFT_BRACKET shift        55     
+                  LEFT_BRACKET reduce       16      ** Parsing conflict **
+                   sarray_dims shift-reduce 17     sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims
+                     {default} reduce       16     sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET
+
+State 27:
+          union ::= UNION LEFT_BRACE * union_items RIGHT_BRACE
+          union_items ::= * IDENTIFIER type
+          union_items ::= * union_items COMMA IDENTIFIER type
+
+                    IDENTIFIER shift        16     
+                   union_items shift        44     
 
 State 28:
-          union_decl ::= UNION LEFT_BRACE * union_items RIGHT_BRACE
-          union_items ::= * IDENTIFIER type_spec
-          union_items ::= * union_items COMMA IDENTIFIER type_spec
+          struct ::= STRUCT LEFT_BRACE * struct_items RIGHT_BRACE
+          struct_items ::= * IDENTIFIER type
+          struct_items ::= * struct_items COMMA IDENTIFIER type
 
-                    IDENTIFIER shift        14     
-                   union_items shift        45     
+                    IDENTIFIER shift        15     
+                  struct_items shift        45     
 
 State 29:
-          struct_decl ::= STRUCT LEFT_BRACE * struct_items RIGHT_BRACE
-          struct_items ::= * IDENTIFIER type_spec
-          struct_items ::= * struct_items COMMA IDENTIFIER type_spec
-
-                    IDENTIFIER shift        13     
-                  struct_items shift        46     
-
-State 30:
-          enum_decl ::= ENUM LEFT_BRACE * enum_items RIGHT_BRACE
+          enum ::= ENUM LEFT_BRACE * enum_items RIGHT_BRACE
           enum_items ::= * IDENTIFIER
           enum_items ::= * enum_items COMMA IDENTIFIER
 
-                    IDENTIFIER shift-reduce 18     enum_items ::= IDENTIFIER
-                    enum_items shift        47     
+                    IDENTIFIER shift-reduce 4      enum_items ::= IDENTIFIER
+                    enum_items shift        46     
+
+State 30:
+     (40) equality ::= equality BANG_EQUAL comparison *
+          comparison ::= comparison * GREATER term
+          comparison ::= comparison * GREATER_EQUAL term
+          comparison ::= comparison * LESS term
+          comparison ::= comparison * LESS_EQUAL term
+
+                       GREATER shift        12     
+                 GREATER_EQUAL shift        11     
+                          LESS shift        10     
+                    LESS_EQUAL shift        9      
+                     {default} reduce       40     equality ::= equality BANG_EQUAL comparison
 
 State 31:
-     (41) equality ::= equality BANG_EQUAL comparison *
+     (38) equality ::= comparison *
           comparison ::= comparison * GREATER term
           comparison ::= comparison * GREATER_EQUAL term
           comparison ::= comparison * LESS term
@@ -1033,10 +1024,10 @@ State 31:
                  GREATER_EQUAL shift        11     
                           LESS shift        10     
                     LESS_EQUAL shift        9      
-                     {default} reduce       41     equality ::= equality BANG_EQUAL comparison
+                     {default} reduce       38     equality ::= comparison
 
 State 32:
-     (39) equality ::= comparison *
+     (39) equality ::= equality EQUAL_EQUAL comparison *
           comparison ::= comparison * GREATER term
           comparison ::= comparison * GREATER_EQUAL term
           comparison ::= comparison * LESS term
@@ -1046,223 +1037,215 @@ State 32:
                  GREATER_EQUAL shift        11     
                           LESS shift        10     
                     LESS_EQUAL shift        9      
-                     {default} reduce       39     equality ::= comparison
+                     {default} reduce       39     equality ::= equality EQUAL_EQUAL comparison
 
 State 33:
-     (40) equality ::= equality EQUAL_EQUAL comparison *
-          comparison ::= comparison * GREATER term
-          comparison ::= comparison * GREATER_EQUAL term
-          comparison ::= comparison * LESS term
-          comparison ::= comparison * LESS_EQUAL term
+     (41) comparison ::= term *
+          term ::= term * PLUS factor
+          term ::= term * MINUS factor
 
-                       GREATER shift        12     
-                 GREATER_EQUAL shift        11     
-                          LESS shift        10     
-                    LESS_EQUAL shift        9      
-                     {default} reduce       40     equality ::= equality EQUAL_EQUAL comparison
+                          PLUS shift        14     
+                         MINUS shift        13     
+                     {default} reduce       41     comparison ::= term
 
 State 34:
-     (42) comparison ::= term *
+     (45) comparison ::= comparison LESS_EQUAL term *
           term ::= term * PLUS factor
           term ::= term * MINUS factor
 
-                          PLUS shift        19     
-                         MINUS shift        18     
-                     {default} reduce       42     comparison ::= term
+                          PLUS shift        14     
+                         MINUS shift        13     
+                     {default} reduce       45     comparison ::= comparison LESS_EQUAL term
 
 State 35:
-     (46) comparison ::= comparison LESS_EQUAL term *
+     (44) comparison ::= comparison LESS term *
           term ::= term * PLUS factor
           term ::= term * MINUS factor
 
-                          PLUS shift        19     
-                         MINUS shift        18     
-                     {default} reduce       46     comparison ::= comparison LESS_EQUAL term
+                          PLUS shift        14     
+                         MINUS shift        13     
+                     {default} reduce       44     comparison ::= comparison LESS term
 
 State 36:
-     (45) comparison ::= comparison LESS term *
-          term ::= term * PLUS factor
-          term ::= term * MINUS factor
+     (46) term ::= factor *
+          factor ::= factor * STAR unary
+          factor ::= factor * SLASH unary
 
-                          PLUS shift        19     
-                         MINUS shift        18     
-                     {default} reduce       45     comparison ::= comparison LESS term
+                         SLASH shift        21     
+                          STAR shift        24     
+                     {default} reduce       46     term ::= factor
 
 State 37:
-     (47) term ::= factor *
+     (48) term ::= term MINUS factor *
           factor ::= factor * STAR unary
           factor ::= factor * SLASH unary
 
                          SLASH shift        21     
                           STAR shift        24     
-                     {default} reduce       47     term ::= factor
+                     {default} reduce       48     term ::= term MINUS factor
 
 State 38:
-     (49) term ::= term MINUS factor *
-          factor ::= factor * STAR unary
-          factor ::= factor * SLASH unary
+     (43) comparison ::= comparison GREATER_EQUAL term *
+          term ::= term * PLUS factor
+          term ::= term * MINUS factor
 
-                         SLASH shift        21     
-                          STAR shift        24     
-                     {default} reduce       49     term ::= term MINUS factor
+                          PLUS shift        14     
+                         MINUS shift        13     
+                     {default} reduce       43     comparison ::= comparison GREATER_EQUAL term
 
 State 39:
-     (44) comparison ::= comparison GREATER_EQUAL term *
-          term ::= term * PLUS factor
-          term ::= term * MINUS factor
-
-                          PLUS shift        19     
-                         MINUS shift        18     
-                     {default} reduce       44     comparison ::= comparison GREATER_EQUAL term
-
-State 40:
-     (48) term ::= term PLUS factor *
+     (47) term ::= term PLUS factor *
           factor ::= factor * STAR unary
           factor ::= factor * SLASH unary
 
                          SLASH shift        21     
                           STAR shift        24     
-                     {default} reduce       48     term ::= term PLUS factor
+                     {default} reduce       47     term ::= term PLUS factor
 
-State 41:
-     (43) comparison ::= comparison GREATER term *
+State 40:
+     (42) comparison ::= comparison GREATER term *
           term ::= term * PLUS factor
           term ::= term * MINUS factor
 
-                          PLUS shift        19     
-                         MINUS shift        18     
-                     {default} reduce       43     comparison ::= comparison GREATER term
+                          PLUS shift        14     
+                         MINUS shift        13     
+                     {default} reduce       42     comparison ::= comparison GREATER term
 
-State 42:
-     (38) expression ::= equality *
+State 41:
+     (37) expression ::= equality *
           equality ::= equality * EQUAL_EQUAL comparison
           equality ::= equality * BANG_EQUAL comparison
 
                     BANG_EQUAL shift        7      
                    EQUAL_EQUAL shift        8      
-                     {default} reduce       38     expression ::= equality
+                     {default} reduce       37     expression ::= equality
 
-State 43:
-          array_decl ::= LEFT_BRACKET array_items * RIGHT_BRACKET
+State 42:
+          array ::= LEFT_BRACKET array_items * RIGHT_BRACKET
           array_items ::= array_items * COMMA expression
 
-                 RIGHT_BRACKET shift-reduce 35     array_decl ::= LEFT_BRACKET array_items RIGHT_BRACKET
+                 RIGHT_BRACKET shift-reduce 29     array ::= LEFT_BRACKET array_items RIGHT_BRACKET
                          COMMA shift        4      
 
-State 44:
-          object_decl ::= LEFT_BRACE object_items * RIGHT_BRACE
+State 43:
+          object ::= LEFT_BRACE object_items * RIGHT_BRACE
           object_items ::= object_items * COMMA IDENTIFIER COLON expression
 
-                   RIGHT_BRACE shift-reduce 32     object_decl ::= LEFT_BRACE object_items RIGHT_BRACE
-                         COMMA shift        51     
+                   RIGHT_BRACE shift-reduce 25     object ::= LEFT_BRACE object_items RIGHT_BRACE
+                         COMMA shift        50     
+
+State 44:
+          union ::= UNION LEFT_BRACE union_items * RIGHT_BRACE
+          union_items ::= union_items * COMMA IDENTIFIER type
+
+                   RIGHT_BRACE shift-reduce 11     union ::= UNION LEFT_BRACE union_items RIGHT_BRACE
+                         COMMA shift        56     
 
 State 45:
-          union_decl ::= UNION LEFT_BRACE union_items * RIGHT_BRACE
-          union_items ::= union_items * COMMA IDENTIFIER type_spec
+          struct ::= STRUCT LEFT_BRACE struct_items * RIGHT_BRACE
+          struct_items ::= struct_items * COMMA IDENTIFIER type
 
-                   RIGHT_BRACE shift-reduce 23     union_decl ::= UNION LEFT_BRACE union_items RIGHT_BRACE
-                         COMMA shift        57     
+                   RIGHT_BRACE shift-reduce 7      struct ::= STRUCT LEFT_BRACE struct_items RIGHT_BRACE
+                         COMMA shift        58     
 
 State 46:
-          struct_decl ::= STRUCT LEFT_BRACE struct_items * RIGHT_BRACE
-          struct_items ::= struct_items * COMMA IDENTIFIER type_spec
-
-                   RIGHT_BRACE shift-reduce 20     struct_decl ::= STRUCT LEFT_BRACE struct_items RIGHT_BRACE
-                         COMMA shift        59     
-
-State 47:
-          enum_decl ::= ENUM LEFT_BRACE enum_items * RIGHT_BRACE
+          enum ::= ENUM LEFT_BRACE enum_items * RIGHT_BRACE
           enum_items ::= enum_items * COMMA IDENTIFIER
 
-                   RIGHT_BRACE shift-reduce 17     enum_decl ::= ENUM LEFT_BRACE enum_items RIGHT_BRACE
-                         COMMA shift        61     
+                   RIGHT_BRACE shift-reduce 3      enum ::= ENUM LEFT_BRACE enum_items RIGHT_BRACE
+                         COMMA shift        60     
 
-State 48:
+State 47:
           object_items ::= IDENTIFIER * COLON expression
 
                          COLON shift        2      
 
-State 49:
+State 48:
           primary ::= LEFT_PAREN expression * RIGHT_PAREN
 
-                   RIGHT_PAREN shift-reduce 57     primary ::= LEFT_PAREN expression RIGHT_PAREN
+                   RIGHT_PAREN shift-reduce 56     primary ::= LEFT_PAREN expression RIGHT_PAREN
 
-State 50:
+State 49:
           object_items ::= object_items COMMA IDENTIFIER * COLON expression
 
                          COLON shift        5      
 
-State 51:
+State 50:
           object_items ::= object_items COMMA * IDENTIFIER COLON expression
 
-                    IDENTIFIER shift        50     
+                    IDENTIFIER shift        49     
 
-State 52:
-          insert_decl ::= INSERT IDENTIFIER * INTEGER expression
+State 51:
+          insert ::= INSERT IDENTIFIER * INTEGER expression
 
                        INTEGER shift        6      
 
-State 53:
-          insert_decl ::= INSERT * IDENTIFIER INTEGER expression
+State 52:
+          insert ::= INSERT * IDENTIFIER INTEGER expression
 
-                    IDENTIFIER shift        52     
+                    IDENTIFIER shift        51     
+
+State 53:
+          delete ::= DELETE * IDENTIFIER
+
+                    IDENTIFIER shift-reduce 21     delete ::= DELETE IDENTIFIER
 
 State 54:
-          delete_decl ::= DELETE * IDENTIFIER
-
-                    IDENTIFIER shift-reduce 30     delete_decl ::= DELETE IDENTIFIER
-
-State 55:
           sarray_dims ::= LEFT_BRACKET INTEGER * RIGHT_BRACKET
           sarray_dims ::= LEFT_BRACKET INTEGER * RIGHT_BRACKET sarray_dims
 
-                 RIGHT_BRACKET shift        27     
+                 RIGHT_BRACKET shift        26     
 
-State 56:
+State 55:
           sarray_dims ::= LEFT_BRACKET * INTEGER RIGHT_BRACKET
           sarray_dims ::= LEFT_BRACKET * INTEGER RIGHT_BRACKET sarray_dims
 
-                       INTEGER shift        55     
+                       INTEGER shift        54     
+
+State 56:
+          union_items ::= union_items COMMA * IDENTIFIER type
+
+                    IDENTIFIER shift        18     
 
 State 57:
-          union_items ::= union_items COMMA * IDENTIFIER type_spec
+          union ::= UNION * LEFT_BRACE union_items RIGHT_BRACE
 
-                    IDENTIFIER shift        15     
+                    LEFT_BRACE shift        27     
 
 State 58:
-          union_decl ::= UNION * LEFT_BRACE union_items RIGHT_BRACE
+          struct_items ::= struct_items COMMA * IDENTIFIER type
+
+                    IDENTIFIER shift        19     
+
+State 59:
+          struct ::= STRUCT * LEFT_BRACE struct_items RIGHT_BRACE
 
                     LEFT_BRACE shift        28     
 
-State 59:
-          struct_items ::= struct_items COMMA * IDENTIFIER type_spec
-
-                    IDENTIFIER shift        16     
-
 State 60:
-          struct_decl ::= STRUCT * LEFT_BRACE struct_items RIGHT_BRACE
+          enum_items ::= enum_items COMMA * IDENTIFIER
+
+                    IDENTIFIER shift-reduce 5      enum_items ::= enum_items COMMA IDENTIFIER
+
+State 61:
+          enum ::= ENUM * LEFT_BRACE enum_items RIGHT_BRACE
 
                     LEFT_BRACE shift        29     
 
-State 61:
-          enum_items ::= enum_items COMMA * IDENTIFIER
-
-                    IDENTIFIER shift-reduce 19     enum_items ::= enum_items COMMA IDENTIFIER
-
 State 62:
-          enum_decl ::= ENUM * LEFT_BRACE enum_items RIGHT_BRACE
+          create ::= CREATE * IDENTIFIER type
 
-                    LEFT_BRACE shift        30     
+                    IDENTIFIER shift        20     
 
 State 63:
-          create_decl ::= CREATE * IDENTIFIER type_spec
+      (0) statement ::= query SEMICOLON *
 
-                    IDENTIFIER shift        17     
+                             $ reduce       0      statement ::= query SEMICOLON
 
 State 64:
-          in ::= in state * SEMICOLON
+          statement ::= query * SEMICOLON
 
-                     SEMICOLON shift-reduce 60     in ::= in state SEMICOLON
+                     SEMICOLON shift        63     
 
 ----------------------------------------------------
 Symbols:
@@ -1308,34 +1291,31 @@ The first-set of non-terminals is shown after the name.
    37: TRUE
    38: FALSE
    39: query: CREATE DELETE INSERT
-   40: create_decl: CREATE
-   41: delete_decl: DELETE
-   42: insert_decl: INSERT
+   40: create: CREATE
+   41: delete: DELETE
+   42: insert: INSERT
    43: type: LEFT_BRACKET STRUCT UNION ENUM PRIM
-   44: type_spec: LEFT_BRACKET STRUCT UNION ENUM PRIM
-   45: enum_decl: ENUM
-   46: enum_items: IDENTIFIER
-   47: struct_decl: STRUCT
-   48: struct_items: IDENTIFIER
-   49: union_decl: UNION
-   50: union_items: IDENTIFIER
-   51: sarray_decl: LEFT_BRACKET
-   52: sarray_dims: LEFT_BRACKET
-   53: value: LEFT_BRACKET LEFT_BRACE STRING INTEGER FLOAT TRUE FALSE
-   54: object_decl: LEFT_BRACE
-   55: object_items: IDENTIFIER
-   56: array_decl: LEFT_BRACKET
-   57: array_items: MINUS BANG LEFT_BRACKET LEFT_BRACE LEFT_PAREN STRING INTEGER FLOAT TRUE FALSE
-   58: expression: MINUS BANG LEFT_BRACKET LEFT_BRACE LEFT_PAREN STRING INTEGER FLOAT TRUE FALSE
-   59: equality: MINUS BANG LEFT_BRACKET LEFT_BRACE LEFT_PAREN STRING INTEGER FLOAT TRUE FALSE
-   60: comparison: MINUS BANG LEFT_BRACKET LEFT_BRACE LEFT_PAREN STRING INTEGER FLOAT TRUE FALSE
-   61: term: MINUS BANG LEFT_BRACKET LEFT_BRACE LEFT_PAREN STRING INTEGER FLOAT TRUE FALSE
-   62: factor: MINUS BANG LEFT_BRACKET LEFT_BRACE LEFT_PAREN STRING INTEGER FLOAT TRUE FALSE
-   63: unary: MINUS BANG LEFT_BRACKET LEFT_BRACE LEFT_PAREN STRING INTEGER FLOAT TRUE FALSE
-   64: primary: LEFT_BRACKET LEFT_BRACE LEFT_PAREN STRING INTEGER FLOAT TRUE FALSE
-   65: main: <lambda> CREATE DELETE INSERT
-   66: in: <lambda> CREATE DELETE INSERT
-   67: state: CREATE DELETE INSERT
+   44: enum: ENUM
+   45: enum_items: IDENTIFIER
+   46: struct: STRUCT
+   47: struct_items: IDENTIFIER
+   48: union: UNION
+   49: union_items: IDENTIFIER
+   50: sarray: LEFT_BRACKET
+   51: sarray_dims: LEFT_BRACKET
+   52: literal: LEFT_BRACKET LEFT_BRACE STRING INTEGER FLOAT TRUE FALSE
+   53: object: LEFT_BRACE
+   54: object_items: IDENTIFIER
+   55: array: LEFT_BRACKET
+   56: array_items: MINUS BANG LEFT_BRACKET LEFT_BRACE LEFT_PAREN STRING INTEGER FLOAT TRUE FALSE
+   57: expression: MINUS BANG LEFT_BRACKET LEFT_BRACE LEFT_PAREN STRING INTEGER FLOAT TRUE FALSE
+   58: equality: MINUS BANG LEFT_BRACKET LEFT_BRACE LEFT_PAREN STRING INTEGER FLOAT TRUE FALSE
+   59: comparison: MINUS BANG LEFT_BRACKET LEFT_BRACE LEFT_PAREN STRING INTEGER FLOAT TRUE FALSE
+   60: term: MINUS BANG LEFT_BRACKET LEFT_BRACE LEFT_PAREN STRING INTEGER FLOAT TRUE FALSE
+   61: factor: MINUS BANG LEFT_BRACKET LEFT_BRACE LEFT_PAREN STRING INTEGER FLOAT TRUE FALSE
+   62: unary: MINUS BANG LEFT_BRACKET LEFT_BRACE LEFT_PAREN STRING INTEGER FLOAT TRUE FALSE
+   63: primary: LEFT_BRACKET LEFT_BRACE LEFT_PAREN STRING INTEGER FLOAT TRUE FALSE
+   64: statement: CREATE DELETE INSERT
 ----------------------------------------------------
 Syntax-only Symbols:
 The following symbols never carry semantic content.
@@ -1343,67 +1323,63 @@ The following symbols never carry semantic content.
 $ PLUS MINUS SLASH STAR BANG BANG_EQUAL EQUAL_EQUAL GREATER GREATER_EQUAL
 LESS LESS_EQUAL NOT CARET PERCENT PIPE AMPERSAND SEMICOLON COLON
 LEFT_BRACKET RIGHT_BRACKET LEFT_BRACE RIGHT_BRACE LEFT_PAREN RIGHT_PAREN
-COMMA STRUCT UNION ENUM TRUE FALSE main in state
+COMMA CREATE DELETE INSERT STRUCT UNION ENUM TRUE FALSE statement
 ----------------------------------------------------
 Rules:
-   0: state ::= query.
-   1: query ::= delete_decl.
-   2: query ::= create_decl.
-   3: query ::= insert_decl.
-   4: type_spec ::= type.
-   5: type ::= enum_decl.
-   6: type ::= struct_decl.
-   7: type ::= union_decl.
-   8: type ::= sarray_decl.
-   9: type ::= PRIM.
-  10: value ::= object_decl.
-  11: value ::= array_decl.
-  12: value ::= STRING.
-  13: value ::= INTEGER.
-  14: value ::= FLOAT.
-  15: value ::= TRUE.
-  16: value ::= FALSE.
-  17: enum_decl ::= ENUM LEFT_BRACE enum_items RIGHT_BRACE.
-  18: enum_items ::= IDENTIFIER.
-  19: enum_items ::= enum_items COMMA IDENTIFIER.
-  20: struct_decl ::= STRUCT LEFT_BRACE struct_items RIGHT_BRACE.
-  21: struct_items ::= IDENTIFIER type_spec.
-  22: struct_items ::= struct_items COMMA IDENTIFIER type_spec.
-  23: union_decl ::= UNION LEFT_BRACE union_items RIGHT_BRACE.
-  24: union_items ::= IDENTIFIER type_spec.
-  25: union_items ::= union_items COMMA IDENTIFIER type_spec.
-  26: sarray_decl ::= sarray_dims type.
-  27: sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET.
-  28: sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims.
-  29: create_decl ::= CREATE IDENTIFIER type_spec.
-  30: delete_decl ::= DELETE IDENTIFIER.
-  31: insert_decl ::= INSERT IDENTIFIER INTEGER expression.
-  32: object_decl ::= LEFT_BRACE object_items RIGHT_BRACE.
-  33: object_items ::= IDENTIFIER COLON expression.
-  34: object_items ::= object_items COMMA IDENTIFIER COLON expression.
-  35: array_decl ::= LEFT_BRACKET array_items RIGHT_BRACKET.
-  36: array_items ::= expression.
-  37: array_items ::= array_items COMMA expression.
-  38: expression ::= equality.
-  39: equality ::= comparison.
-  40: equality ::= equality EQUAL_EQUAL comparison.
-  41: equality ::= equality BANG_EQUAL comparison.
-  42: comparison ::= term.
-  43: comparison ::= comparison GREATER term.
-  44: comparison ::= comparison GREATER_EQUAL term.
-  45: comparison ::= comparison LESS term.
-  46: comparison ::= comparison LESS_EQUAL term.
-  47: term ::= factor.
-  48: term ::= term PLUS factor.
-  49: term ::= term MINUS factor.
-  50: factor ::= unary.
-  51: factor ::= factor STAR unary.
-  52: factor ::= factor SLASH unary.
-  53: unary ::= BANG unary.
-  54: unary ::= MINUS unary.
-  55: unary ::= primary.
-  56: primary ::= value.
-  57: primary ::= LEFT_PAREN expression RIGHT_PAREN.
-  58: main ::= in.
-  59: in ::=.
-  60: in ::= in state SEMICOLON.
+   0: statement ::= query SEMICOLON.
+   1: type ::= PRIM.
+   2: type ::= enum.
+   3: enum ::= ENUM LEFT_BRACE enum_items RIGHT_BRACE.
+   4: enum_items ::= IDENTIFIER.
+   5: enum_items ::= enum_items COMMA IDENTIFIER.
+   6: type ::= struct.
+   7: struct ::= STRUCT LEFT_BRACE struct_items RIGHT_BRACE.
+   8: struct_items ::= IDENTIFIER type.
+   9: struct_items ::= struct_items COMMA IDENTIFIER type.
+  10: type ::= union.
+  11: union ::= UNION LEFT_BRACE union_items RIGHT_BRACE.
+  12: union_items ::= IDENTIFIER type.
+  13: union_items ::= union_items COMMA IDENTIFIER type.
+  14: type ::= sarray.
+  15: sarray ::= sarray_dims type.
+  16: sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET.
+  17: sarray_dims ::= LEFT_BRACKET INTEGER RIGHT_BRACKET sarray_dims.
+  18: query ::= create.
+  19: create ::= CREATE IDENTIFIER type.
+  20: query ::= delete.
+  21: delete ::= DELETE IDENTIFIER.
+  22: query ::= insert.
+  23: insert ::= INSERT IDENTIFIER INTEGER expression.
+  24: literal ::= object.
+  25: object ::= LEFT_BRACE object_items RIGHT_BRACE.
+  26: object_items ::= IDENTIFIER COLON expression.
+  27: object_items ::= object_items COMMA IDENTIFIER COLON expression.
+  28: literal ::= array.
+  29: array ::= LEFT_BRACKET array_items RIGHT_BRACKET.
+  30: array_items ::= expression.
+  31: array_items ::= array_items COMMA expression.
+  32: literal ::= STRING.
+  33: literal ::= INTEGER.
+  34: literal ::= FLOAT.
+  35: literal ::= TRUE.
+  36: literal ::= FALSE.
+  37: expression ::= equality.
+  38: equality ::= comparison.
+  39: equality ::= equality EQUAL_EQUAL comparison.
+  40: equality ::= equality BANG_EQUAL comparison.
+  41: comparison ::= term.
+  42: comparison ::= comparison GREATER term.
+  43: comparison ::= comparison GREATER_EQUAL term.
+  44: comparison ::= comparison LESS term.
+  45: comparison ::= comparison LESS_EQUAL term.
+  46: term ::= factor.
+  47: term ::= term PLUS factor.
+  48: term ::= term MINUS factor.
+  49: factor ::= unary.
+  50: factor ::= factor STAR unary.
+  51: factor ::= factor SLASH unary.
+  52: unary ::= BANG unary.
+  53: unary ::= MINUS unary.
+  54: unary ::= primary.
+  55: primary ::= literal.
+  56: primary ::= LEFT_PAREN expression RIGHT_PAREN.

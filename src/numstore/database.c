@@ -7,15 +7,13 @@
 #include "core/intf/io.h"      // i_touch
 #include "core/math/random.h"  // TODO
 
-#include "numstore/paging/pager.h"         // pager
-#include "numstore/query/query_provider.h" // qspce
-#include "numstore/virtual_machine.h"      // vm
+#include "numstore/paging/pager.h"    // pager
+#include "numstore/virtual_machine.h" // vm
 
 DEFINE_DBG_ASSERT_I (database, database, d)
 {
   ASSERT (d);
   ASSERT (d->pager);
-  ASSERT (d->qspce);
 }
 
 static const char *TAG = "Database";
@@ -25,11 +23,9 @@ db_open (const string fname, error *e)
 {
   database *ret = NULL;
   pager *p = NULL;
-  query_provider *q = NULL;
 
   ret = i_malloc (1, sizeof *ret);
   p = pgr_open (fname, e);
-  q = query_provider_create (e);
 
   if (ret == NULL)
     {
@@ -38,13 +34,12 @@ db_open (const string fname, error *e)
           "%s Failed to allocate database", TAG);
       goto failed;
     }
-  if (!(p && q))
+  if (!p)
     {
       goto failed;
     }
 
   ret->pager = p;
-  ret->qspce = q;
 
   return ret;
 
@@ -57,10 +52,6 @@ failed:
     {
       err_t_log_swallow (pgr_close (p, &_e), _e);
     }
-  if (q)
-    {
-      query_provider_free (q);
-    }
   return NULL;
 }
 
@@ -68,7 +59,6 @@ err_t
 db_close (database *d, error *e)
 {
   database_assert (d);
-  query_provider_free (d->qspce);
   pgr_close (d->pager, e);
   i_free (d);
   return err_t_from (e);

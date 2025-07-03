@@ -1,11 +1,6 @@
 #include "numstore/cursor/cursor.h"
-
-#include "core/errors/error.h" // TODO
-#include "core/intf/types.h"   // TODO
-
-#include "numstore/hash_map/hm.h" // hm
-#include "numstore/query/queries/insert.h"
-#include "numstore/rptree/rptree.h" // rptree
+#include "numstore/hash_map/hm.h"
+#include "numstore/rptree/rptree.h"
 
 DEFINE_DBG_ASSERT_I (cursor, cursor, c)
 {

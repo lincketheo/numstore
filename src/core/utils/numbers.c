@@ -7,6 +7,7 @@
 #include "core/intf/types.h"   // i32 / f32
 #include "core/utils/bounds.h" // SAFE_...
 #include "core/utils/macros.h" // is_num
+#include <math.h>
 
 err_t
 parse_i32_expect (i32 *dest, const string data, error *e)
@@ -261,4 +262,78 @@ TEST (parse_f32_expect)
     .len = i_unsafe_strlen ("1e40"),
   };
   test_assert_int_equal (parse_f32_expect (&out, s5, &e), ERR_ARITH);
+}
+
+float
+py_mod_f32 (float num, float denom)
+{
+  if (denom == 0.0f)
+    {
+      return INFINITY;
+    }
+
+  float rem = num - denom * (int)(num / denom);
+
+  if ((rem < 0.0f && denom > 0.0f) || (rem > 0.0f && denom < 0.0f))
+    {
+      rem += denom;
+    }
+
+  return rem;
+}
+
+TEST (py_mod_f32)
+{
+  /* +num , +denom  (generic) */
+  test_assert (py_mod_f32 (5.5f, 2.0f) == 1.5f);
+
+  /* –num , +denom  (Python keeps denom’s sign) */
+  test_assert (py_mod_f32 (-5.5f, 2.0f) == 0.5f);
+
+  /* +num , –denom  */
+  test_assert (py_mod_f32 (5.5f, -2.0f) == -0.5f);
+
+  /* –num , –denom  */
+  test_assert (py_mod_f32 (-5.5f, -2.0f) == -1.5f);
+
+  /* exact multiple (remainder 0) */
+  test_assert (py_mod_f32 (4.0f, 2.0f) == 0.0f);
+
+  /* zero numerator */
+  test_assert (py_mod_f32 (0.0f, 3.3f) == 0.0f);
+
+  /* denominator 0 ⇒ +INF  (sentinel-style) */
+  test_assert (isinf (py_mod_f32 (7.0f, 0.0f)));
+}
+
+i32
+py_mod_i32 (i32 num, i32 denom)
+{
+  i32 r = num % denom;
+  if ((r != 0) && ((r < 0) != (denom < 0)))
+    {
+      r += denom;
+    }
+  return r;
+}
+
+TEST (py_mod_i32)
+{
+  /* +num , +denom  */
+  test_assert (py_mod_i32 (5, 3) == 2);
+
+  /* –num , +denom  */
+  test_assert (py_mod_i32 (-5, 3) == 1);
+
+  /* +num , –denom  */
+  test_assert (py_mod_i32 (5, -3) == -1);
+
+  /* –num , –denom  */
+  test_assert (py_mod_i32 (-5, -3) == -2);
+
+  /* exact multiple (remainder 0) */
+  test_assert (py_mod_i32 (9, 3) == 0);
+
+  /* zero numerator */
+  test_assert (py_mod_i32 (0, 7) == 0);
 }

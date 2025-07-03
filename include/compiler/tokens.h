@@ -1,10 +1,10 @@
 #pragma once
 
+#include "compiler/ast/statement.h"
 #include "core/ds/strings.h" // TODO
 
-#include "numstore/query/queries/create.h" // TODO
-#include "numstore/query/query.h"          // TODO
-#include "numstore/type/types.h"           // TODO
+#include "compiler/ast/query.h"  // TODO
+#include "numstore/type/types.h" // TODO
 
 typedef enum
 {
@@ -24,11 +24,13 @@ typedef enum
   TT_LESS_EQUAL,    // <=
 
   //       Fancy Operators
-  TT_NOT,       // ~
-  TT_CARET,     // ^
-  TT_PERCENT,   // %
-  TT_PIPE,      // |
-  TT_AMPERSAND, // &
+  TT_NOT,                 // ~
+  TT_CARET,               // ^
+  TT_PERCENT,             // %
+  TT_PIPE,                // |
+  TT_PIPE_PIPE,           // ||
+  TT_AMPERSAND,           // &
+  TT_AMPERSAND_AMPERSAND, // &&
 
   //        Other One char tokens
   TT_SEMICOLON,     // ;
@@ -100,12 +102,12 @@ typedef struct
 {
   union
   {
-    string str;   // STRING or IDENTIFIER
-    i32 integer;  // TT_INTEGER
-    f32 floating; // TT_FLOAT
-    prim_t prim;  // TT_PRIM
-    query q;      // TT_OP_CODE
-    error e;      // TT_ERROR
+    string str;      // STRING or IDENTIFIER
+    i32 integer;     // TT_INTEGER
+    f32 floating;    // TT_FLOAT
+    prim_t prim;     // TT_PRIM
+    statement *stmt; // The First TT_OP_CODE
+    error e;         // TT_ERROR
   };
   token_t type;
 } token;

@@ -25,6 +25,20 @@ void cbuffer_discard_all (cbuffer *b);
 u32 cbuffer_read (void *dest, u32 size, u32 n, cbuffer *b);
 u32 cbuffer_copy (void *dest, u32 size, u32 n, const cbuffer *b);
 u32 cbuffer_write (const void *src, u32 size, u32 n, cbuffer *b);
+#define cbuffer_read_expect(dest, size, n, b)     \
+  do                                              \
+    {                                             \
+      u32 read = cbuffer_read (dest, size, n, b); \
+      ASSERT (read == n);                         \
+    }                                             \
+  while (0)
+#define cbuffer_write_expect(src, size, n, b)        \
+  do                                                 \
+    {                                                \
+      u32 written = cbuffer_write (src, size, n, b); \
+      ASSERT (written == n);                         \
+    }                                                \
+  while (0)
 
 ///////////////////////// CBuffer Read / Write
 u32 cbuffer_cbuffer_move (cbuffer *dest, u32 size, u32 n, cbuffer *src);

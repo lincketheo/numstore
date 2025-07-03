@@ -10,6 +10,8 @@
   3. Refactor query_provider to allocate statements instead of queries
   4. Refactor compiler to allocate to the correct places 
 
+- Support backslash in strings for special characters
+
 ------------
 --- BUGS ---
 ------------
