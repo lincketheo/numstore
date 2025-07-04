@@ -59,9 +59,9 @@ struct literal_s
     object obj;
     array arr;
     string str;
-    i64 integer;
-    f128 decimal;
-    cf128 cplx;
+    i32 integer;
+    f32 decimal;
+    cf64 cplx;
   };
 };
 

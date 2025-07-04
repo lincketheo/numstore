@@ -1,14 +1,15 @@
+-----------------
+--- REFACTORS ---
+-----------------
+
+- cmplx > cmplx and other binary expressions are not allowed 
+  in python. Right now I'm just doing it. Take those out and 
+  fix tests 
+    - Hotspots: literal.c
+
 ----------------
 --- FEATURES ---
 ----------------
-
-- Statement allocation context refactor
-  Get statements to be in control of compiler allocations rather than queries so that 
-  we can support embedded queries in the future.
-  1. Remove qalloc from query
-  2. Create statement and get AST working
-  3. Refactor query_provider to allocate statements instead of queries
-  4. Refactor compiler to allocate to the correct places 
 
 - Support backslash in strings for special characters
 
@@ -24,6 +25,9 @@
    should be supported, but I don't want to just slap a NULL on it 
    and be good
 
-2. The 2 char token test is failing because my logic is wrong 
-   
-   Step through it and fix it
+2. Fix broken tests in scanner.c 
+   - I know they should work if you just allocate a statement before 
+     but I want to get them to work without a statement.
+      - Add a test with unallocated statement 
+        Shouldn't block (blocks now)
+      

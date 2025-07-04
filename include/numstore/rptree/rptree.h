@@ -5,7 +5,6 @@
 
 #include "numstore/paging/pager.h"           // TODO
 #include "numstore/paging/types/hash_leaf.h" // TODO
-#include "numstore/rptree/internal/seek.h"   // TODO
 
 typedef struct rptree_s rptree;
 
@@ -51,8 +50,12 @@ pgno rpt_pg0 (rptree *r);
  * Returns ERR (< 0) on failure or number of elements read
  */
 sb_size rpt_read (
-    u8 *dest, t_size size, b_size n, b_size nskip,
-    rptree *r, error *e);
+    u8 *dest,
+    t_size size,
+    b_size n,
+    b_size nskip,
+    rptree *r,
+    error *e);
 
 /**
  * Scans the exact same way as read, but
@@ -61,8 +64,12 @@ sb_size rpt_read (
  * if [dest] is present, writes deleted data to dest
  */
 sb_size rpt_delete (
-    u8 *dest, t_size size, b_size n, b_size nskip,
-    rptree *r, error *e);
+    u8 *dest,
+    t_size size,
+    b_size n,
+    b_size nskip,
+    rptree *r,
+    error *e);
 
 /**
  * Inserts data at the current seek position
@@ -72,8 +79,10 @@ sb_size rpt_delete (
  *      - ERR_CORRUPT - Expects inner nodes and data lists
  */
 sb_size rpt_insert (
-    const u8 *src, t_size size, b_size n,
-    rptree *r, error *e);
+    const u8 *src,
+    b_size n,
+    rptree *r,
+    error *e);
 
 /**
  * (Over) writes data at the current seek position
@@ -85,5 +94,8 @@ sb_size rpt_insert (
  *      - ERR_CORRUPT - Expects inner nodes and data lists
  */
 sb_size rpt_write (
-    const u8 *src, t_size size, b_size n, b_size nskip,
-    rptree *r, error *e);
+    const u8 *src,
+    b_size n,
+    b_size nskip,
+    rptree *r,
+    error *e);

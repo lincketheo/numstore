@@ -151,7 +151,7 @@ in_read_and_set_ptrs (inner_node *dest, u8 raw[PAGE_SIZE], error *e)
           *dest->nkeys, (p_size)IN_MAX_KEYS, PAGE_SIZE);
     }
 
-  dest->keys = (b_size *)(&raw[PAGE_SIZE - *dest->nkeys]);
+  dest->keys = (b_size *)(&raw[PAGE_SIZE - *dest->nkeys * sizeof *dest->keys]);
 
   err_t_wrap (in_validate (dest, e), e);
 
@@ -251,7 +251,7 @@ in_get_leaf (const inner_node *in, p_size idx)
 {
   valid_inner_node_assert (in);
 
-  ASSERT (idx < *in->nkeys);
+  ASSERT (idx < *in->nkeys + 1);
 
   pgno leaf = in->leafs[idx];
 

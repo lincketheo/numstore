@@ -1,8 +1,10 @@
 #include "numstore/rptree/internal/dli.h"
 
+#include "core/errors/error.h"
 #include "core/utils/macros.h" // TODO
 
-#include "numstore/config.h"                 // TODO
+#include "numstore/config.h" // TODO
+#include "numstore/paging/page.h"
 #include "numstore/paging/pager.h"           // TODO
 #include "numstore/paging/types/data_list.h" // TODO
 #include "numstore/rptree/mem_inner_node.h"  // TODO
@@ -27,7 +29,6 @@ static inline void
 dli_s_save_right (dli_s *d, p_size idx0)
 {
   dli_s_assert (d);
-  ASSERT (d->temp_buf == NULL);
 
   p_size used = dl_used (&d->page->dl);
   ASSERT (used >= idx0);
@@ -41,13 +42,17 @@ dli_s_save_right (dli_s *d, p_size idx0)
     }
 }
 
-static void
-dli_s_create (dli_s *dest, dli_params p)
+static err_t
+dli_s_create (dli_s *dest, dli_params p, error *e)
 {
   ASSERT (dest);
-  ASSERT (p.start->type == PG_DATA_LIST);
 
-  page *page = pgr_make_writable (p.pager, p.start);
+  const page *start = pgr_get (PG_DATA_LIST, p.start, p.pager, e);
+  if (start == NULL)
+    {
+      return err_t_from (e);
+    }
+  page *page = pgr_make_writable (p.pager, start);
 
   *dest = (dli_s){
     // temp_buf, tbl = dli_save_right
@@ -56,11 +61,13 @@ dli_s_create (dli_s *dest, dli_params p)
     .pager = p.pager,
   };
 
-  meminode_create (&dest->out, p.start->pg);
+  meminode_create (&dest->out, p.start);
 
   dli_s_save_right (dest, p.idx0);
 
   dli_s_assert (dest);
+
+  return SUCCESS;
 }
 
 static page *
@@ -109,16 +116,10 @@ dli_s_write_once (
 }
 
 static sb_size
-dli_s_write (
-    dli_s *r,
-    const u8 *src,
-    t_size size,
-    b_size n,
-    error *e)
+dli_s_write (dli_s *r, const u8 *src, b_size n, error *e)
 {
   dli_s_assert (r);
   ASSERT (src);
-  ASSERT (size > 0);
   ASSERT (n);
 
   page *cur = r->page;                     // Current working page
@@ -130,7 +131,17 @@ dli_s_write (
    * Write all input data
    * and link them up correctly
    */
-  b_size total = r->tbl + size * n;
+  b_size total = r->tbl + n;
+
+  /**
+   * This is how much we "could" insert given our in memory node.
+   * So it's a lot more than 1 page - e.g. 1 page * number of pages
+   * we can write to fill an internal node
+   *
+   * = 1 page - used + (1 page) * (how many pages can we store in memory)
+   *
+   * because the in memory pages are not dynamic
+   */
   b_size avail = DL_DATA_SIZE - dl_used (&r->page->dl) + DL_DATA_SIZE * meminode_avail (&r->out);
 
   total = MIN (total, avail);
@@ -138,7 +149,7 @@ dli_s_write (
   ASSERT (total > r->tbl); // We can fit at least 1 key - so there's more than tbl
   while (written < total - r->tbl)
     {
-      p_size nbytes = total - written;
+      p_size nbytes = total - r->tbl - written;
 
       cur = dli_s_write_once (r, cur, &nbytes, src + written, e);
       if (cur == NULL)
@@ -181,7 +192,7 @@ dli_s_write (
    */
   dl_set_next (&cur->dl, last_link);
 
-  return written;
+  return written - r->tbl;
 }
 
 sb_size
@@ -189,9 +200,9 @@ _rpt_dli (mem_inner_node *dest, dli_params p, error *e)
 {
   dli_s d;
 
-  dli_s_create (&d, p);
+  err_t_wrap (dli_s_create (&d, p, e), e);
 
-  sb_size ret = dli_s_write (&d, p.src, p.size, p.n, e);
+  sb_size ret = dli_s_write (&d, p.src, p.n, e);
   if (ret >= 0)
     {
       *dest = d.out;

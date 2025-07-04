@@ -55,6 +55,7 @@ typedef f16 cf32[2];
 typedef float _Complex cf64;
 typedef double _Complex cf128;
 typedef long double _Complex cf256;
+#define I (__extension__ 1.0iF)
 
 typedef i8 ci16[2];
 typedef i16 ci32[2];

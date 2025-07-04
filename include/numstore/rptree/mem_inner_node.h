@@ -63,4 +63,6 @@ typedef struct
 
 meminode_kv meminode_pop_left (mem_inner_node *r, pgno exp);
 
+meminode_kv meminode_get_right (mem_inner_node *r);
+
 void meminode_write_max (inner_node *dest, mem_inner_node *m);

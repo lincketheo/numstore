@@ -340,18 +340,21 @@ enum_t_deserialize (enum_t *dest, deserializer *src, lalloc *a, error *e)
       /**
        * (KLEN
        */
-      if (!dsrlizr_read_u16 (&en.keys[i].len, src))
+      u16 klen;
+      if (!dsrlizr_read_u16 (&klen, src))
         {
           goto early_termination;
         }
 
-      char *data = lmalloc (a, en.keys[i].len, 1);
-      if (data == NULL)
+      en.keys[i] = (string){
+        .len = (u32)klen,
+        .data = lmalloc (a, klen, 1),
+      };
+
+      if (en.keys[i].data == NULL)
         {
           return enum_t_nomem ("Allocating key", e);
         }
-
-      en.keys[i].data = data;
 
       /**
        * KEY)

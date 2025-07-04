@@ -146,12 +146,7 @@ fetch_existing_starting_leaf (
 }
 
 err_t
-hm_get (
-    hm *h,
-    variable *dest,
-    lalloc *alloc,
-    const string key,
-    error *e)
+hm_get (hm *h, variable *dest, lalloc *alloc, const string key, error *e)
 {
   // Center yourself on the starting leaf node
   spgno start = fetch_existing_starting_leaf (h, key, e);
@@ -189,6 +184,7 @@ hm_get (
                   "for variable: %.*s",
                   TAG, key.len, key.data);
             }
+          return ret;
         }
 
       // Read next

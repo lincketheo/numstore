@@ -37,7 +37,7 @@ void i_log_internal (
 #define LOG_DEBUG
 #define LOG_INFO
 #define LOG_WARN
-// #define LOG_ERROR
+#define LOG_ERROR
 #define LOG_ASSERT
 #define LOG_PASSED
 #define LOG_FAILURE

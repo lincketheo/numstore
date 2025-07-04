@@ -19,7 +19,6 @@ typedef struct
   const page *start; // Starting page (should be a data list)
   pager *pager;      // Pager for creating new pages
   const u8 *src;     // Data to read from
-  t_size size;       // Size of each element to consume
   b_size n;          // Number of elements to write
   b_size nskip;      // Stride
 } dlw_params;

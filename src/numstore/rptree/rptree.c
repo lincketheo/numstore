@@ -12,14 +12,37 @@
 #include "numstore/rptree/internal/dlr.h"    // TODO
 #include "numstore/rptree/internal/dlw.h"    // TODO
 #include "numstore/rptree/internal/ini.h"    // ini
-#include "numstore/rptree/internal/seek.h"   // TODO
 
-DEFINE_DBG_ASSERT_I (rptree, rptree, r)
+// static const char *TAG = "R+Tree";
+
+/**
+ * A "seek result" is the response to a seek call
+ * on a rpt tree.
+ *
+ * It contains:
+ * 1. A resulting Data List page - (where am I?)
+ * 2. Where we are in the global database (gidx)
+ * 3. Where we are in the local page (lidx)
+ * 4. Stack (and length) of previous pages we visited to get here
+ */
+typedef struct
+{
+  pgno pg;     // The page number of the page we traversed
+  p_size lidx; // Choice of the leaf we went with
+} seek_v;      // rpt stack value
+
+typedef struct
+{
+  pgno pg;          // The page we landed on
+  seek_v stack[20]; // A stack of previous inner nodes and choices
+  u32 sp;           // Stack pointer (also the length of the stack)
+} seek_r;
+
+DEFINE_DBG_ASSERT_I (seek_r, seek_r, r)
 {
   ASSERT (r);
+  ASSERT (r->sp <= 20);
 }
-
-static const char *TAG = "R+Tree";
 
 struct rptree_s
 {
@@ -28,15 +51,10 @@ struct rptree_s
    */
   struct
   {
-    b_size gidx;  // The global byte I'm on
-    b_size lidx;  // The local byte (within the page I'm on)
-    bool writing; // If true, _rw else _r
-    union
-    {
-      const page *cur_r; // Current page we're on
-      page *cur_rw;      // Writable
-    };
+    b_size gidx; // The global byte I'm on
+    b_size lidx; // The local byte (within the page I'm on)
     bool eof;
+    pgno pg;
   };
 
   /**
@@ -51,6 +69,15 @@ struct rptree_s
   pager *pager;
   pgno pg0;
 };
+
+DEFINE_DBG_ASSERT_I (rptree, rptree, r)
+{
+  ASSERT (r);
+  if (r->is_seeked)
+    {
+      seek_r_assert (&r->seek);
+    }
+}
 
 //////////////////////////////// LIFECYCLE
 
@@ -85,8 +112,6 @@ rpt_open (spgno pg0, pager *p, error *e)
       goto failed;
     }
 
-  ret->writing = false;
-  ret->cur_r = pg;
   ret->seek = (seek_r){ 0 };
   ret->is_seeked = false;
   ret->pager = p;
@@ -106,24 +131,194 @@ rpt_close (rptree *r)
   i_free (r);
 }
 
+/////////////////////////////////////////////////////////////////////
+////////////// SECTION: rpt_seek
+
+// Forward declaration
+static err_t rpt_seek_recurs (
+    rptree *r,
+    b_size byte,
+    const page *cur,
+    error *e);
+
 err_t
 rpt_seek (rptree *r, b_size b, error *e)
 {
   rptree_assert (r);
 
-  seek_params params = {
-    .starting_page = r->cur_r,
-    .pager = r->pager,
-    .whereto = b,
-    .scap = 10,
+  const page *start = pgr_get (PG_DATA_LIST | PG_INNER_NODE, r->pg0, r->pager, e);
+  if (start == NULL)
+    {
+      return err_t_from (e);
+    }
+
+  r->seek = (seek_r){
+    // .stack
+    .sp = 0,
   };
 
-  err_t_wrap (_rpt_seek (&r->seek, params, e), e);
+  r->gidx = 0;
+  r->lidx = 0;
+
+  err_t_wrap (rpt_seek_recurs (r, b, start, e), e);
 
   r->is_seeked = true;
 
   return SUCCESS;
 }
+
+static err_t
+rpt_seek_push_top (rptree *r, pgno pg, p_size lidx, error *e)
+{
+  rptree_assert (r);
+
+  // Check for seek stack overflow
+  if (r->seek.sp == 20)
+    {
+      return error_causef (
+          e, ERR_PAGE_STACK_OVERFLOW,
+          "Seek: Page stack overflow");
+    }
+
+  // Push element to the top of the stack
+  r->seek.stack[r->seek.sp++] = (seek_v){
+    .pg = pg,
+    .lidx = lidx,
+  };
+
+  return SUCCESS;
+}
+
+err_t
+rpt_seek_push_bottom (rptree *r, const page *p, p_size lidx, error *e)
+{
+  rptree_assert (r);
+
+  if (r->seek.sp == 20)
+    {
+      return error_causef (
+          e, ERR_PAGE_STACK_OVERFLOW,
+          "Seek: Page stack overflow");
+    }
+
+  // Shift stack up 1 to make room
+  for (u32 i = r->seek.sp++; i > 0; --i)
+    {
+      r->seek.stack[i] = r->seek.stack[i - 1];
+    }
+
+  /**
+   * Push res to the bottom
+   */
+  r->seek.stack[0] = (seek_v){
+    .pg = p->pg,
+    .lidx = lidx,
+  };
+
+  return SUCCESS;
+}
+
+static inline err_t
+rpt_seek_recurs_inner_node (
+    rptree *r,
+    b_size byte,
+    const page *cur,
+    error *e)
+{
+  rptree_assert (r);
+  ASSERT (cur);
+
+  // First, pick the index of the leaf we want to traverse
+  r->lidx = in_choose_lidx (&cur->in, byte);
+
+  // Push it onto the top of the stack
+  err_t_wrap (rpt_seek_push_top (r, cur->pg, r->lidx, e), e);
+
+  // Fetch the key and value at that location
+  pgno next = in_get_leaf (&cur->in, r->lidx);
+  b_size nleft = r->lidx > 0 ? in_get_key (&cur->in, r->lidx - 1) : 0;
+
+  /**
+   * We are "skipping" [nleft] bytes so add that
+   * to gidx and subtract it from our next query index
+   * for the layer down
+   *
+   * This is one of the key steps of a Rope
+   */
+  ASSERT (byte >= nleft);
+  r->gidx += nleft;
+  byte -= nleft;
+
+  /**
+   * Fetch the next page, which can either be
+   * an inner node or a data list
+   */
+  cur = pgr_get (PG_INNER_NODE | PG_DATA_LIST, next, r->pager, e);
+
+  if (cur == NULL)
+    {
+      return err_t_from (e);
+    }
+
+  return rpt_seek_recurs (r, byte, cur, e);
+}
+
+static inline void
+rpt_seek_recurs_data_list (
+    rptree *r,
+    b_size byte,
+    const page *cur)
+{
+  rptree_assert (r);
+  ASSERT (cur);
+
+  /**
+   * Clip the byte to the maximum of this node
+   * Otherwise, set it to the requested byte
+   */
+  if ((p_size)byte >= dl_used (&cur->dl))
+    {
+      r->lidx = dl_used (&cur->dl);
+    }
+  else
+    {
+      r->lidx = byte;
+    }
+
+  // Update global idx and final result page
+  r->gidx += r->lidx;
+  r->seek.pg = cur->pg;
+}
+
+err_t
+rpt_seek_recurs (
+    rptree *r,
+    b_size byte,
+    const page *cur,
+    error *e)
+{
+  rptree_assert (r);
+  switch (cur->type)
+    {
+    case PG_INNER_NODE:
+      {
+        return rpt_seek_recurs_inner_node (r, byte, cur, e);
+      }
+    case PG_DATA_LIST:
+      {
+        rpt_seek_recurs_data_list (r, byte, cur);
+        return SUCCESS;
+      }
+    default:
+      {
+        // pgr_get_expect protects us from this branch
+        UNREACHABLE ();
+      }
+    }
+}
+
+/////////////////////////////////////////////////////////////////////
+////////////// Utils
 
 b_size
 rpt_tell (rptree *r)
@@ -146,6 +341,7 @@ rpt_pg0 (rptree *r)
   return r->pg0;
 }
 
+/**
 static sb_size
 rpt_read_contiguous (u8 *dest, b_size bytes, rptree *r, error *e)
 {
@@ -157,9 +353,9 @@ rpt_read_contiguous (u8 *dest, b_size bytes, rptree *r, error *e)
 
   while (read < bytes)
     {
-      if (dl_used (&r->cur_r->dl) == r->lidx)
+      if (dl_used (&NULL->dl) == r->lidx)
         {
-          pgno _next = dl_get_next (&r->cur_r->dl);
+          pgno _next = dl_get_next (&NULL->dl);
 
           // We are at the end
           if (_next == 0)
@@ -173,13 +369,13 @@ rpt_read_contiguous (u8 *dest, b_size bytes, rptree *r, error *e)
             {
               return err_t_from (e);
             }
-          r->cur_r = next;
+          NULL = next;
 
           r->lidx = 0;
         }
 
       p_size _read = dl_read (
-          &r->cur_r->dl,
+          &NULL->dl,
           dest ? dest + read : NULL,
           r->lidx,
           bytes - read);
@@ -192,18 +388,27 @@ rpt_read_contiguous (u8 *dest, b_size bytes, rptree *r, error *e)
 
   return SUCCESS;
 }
+*/
 
 sb_size
 rpt_read (
-    u8 *dest, t_size size, b_size n, b_size nskip,
-    rptree *r, error *e)
+    u8 *dest,
+    t_size size,
+    b_size n,
+    b_size nskip,
+    rptree *r,
+    error *e)
 {
   ASSERT (dest);
   ASSERT (size > 0);
   ASSERT (n > 0);
   ASSERT (nskip >= 1);
   rptree_assert (r);
+  (void)e;
 
+  UNREACHABLE ();
+
+  /**
   b_size toread = size * n;
 
   if (nskip == 1)
@@ -215,9 +420,7 @@ rpt_read (
           return toread;
         }
 
-      /**
-       * Next should either == 0 or 1 * size
-       */
+      // Next should either == 0 or 1 * size
       ASSERT ((b_size)nbytes <= size * n);
       if (nbytes % size != 0)
         {
@@ -239,9 +442,7 @@ rpt_read (
 
       read += next;
 
-      /**
-       * Next should either == 0 or 1 * size
-       */
+      // Next should either == 0 or 1 * size
       if (next == 0)
         {
           ASSERT (read % size == 0);
@@ -280,12 +481,17 @@ rpt_read (
     }
 
   return SUCCESS;
+  */
 }
 
 sb_size
 rpt_delete (
-    u8 *dest, t_size size, b_size n, b_size nskip,
-    rptree *r, error *e)
+    u8 *dest,
+    t_size size,
+    b_size n,
+    b_size nskip,
+    rptree *r,
+    error *e)
 {
   (void)dest;
   rptree_assert (r);
@@ -296,7 +502,7 @@ rpt_delete (
     .n = n,
     .nskip = nskip,
     .idx0 = r->lidx,
-    .start = r->cur_r,
+    .start = NULL, // NULL,
     .pager = r->pager,
   };
 
@@ -305,8 +511,12 @@ rpt_delete (
 
 sb_size
 rpt_take (
-    u8 *dest, t_size size, b_size n, b_size nskip,
-    rptree *r, error *e)
+    u8 *dest,
+    t_size size,
+    b_size n,
+    b_size nskip,
+    rptree *r,
+    error *e)
 {
   rptree_assert (r);
 
@@ -316,20 +526,20 @@ rpt_take (
     .n = n,
     .nskip = nskip,
     .idx0 = r->lidx,
-    .start = r->cur_r,
+    .start = NULL,
     .pager = r->pager,
   };
 
   return _rpt_dld (params, e);
 }
 
+/////////////////////////////////////////////////////////////////////
+////////////// SECTION: rpt_insert
+
 sb_size
-rpt_insert (
-    const u8 *src, t_size size, b_size n,
-    rptree *r, error *e)
+rpt_insert (const u8 *src, b_size n, rptree *r, error *e)
 {
   ASSERT (src);
-  ASSERT (size > 0);
   ASSERT (n > 0);
   rptree_assert (r);
 
@@ -348,15 +558,14 @@ rpt_insert (
 
   dli_params params = {
     .idx0 = r->lidx,
-    .start = r->cur_r,
+    .start = r->seek.pg,
     .pager = r->pager,
     .src = src,
-    .size = size,
     .n = n,
     .fill_factor = 1,
   };
 
-  // This is the return value because it's the bottom layer
+  // This is the return value because it's the bottom layer (e.g. the data)
   sb_size written = _rpt_dli (&out, params, e);
   if (written < 0)
     {
@@ -375,11 +584,7 @@ rpt_insert (
       seek_v next = r->seek.stack[i];
 
       // Fetch that page
-      const page *cur_r = pgr_get (
-          PG_INNER_NODE,
-          next.pg,
-          r->pager,
-          e);
+      const page *cur_r = pgr_get (PG_INNER_NODE, next.pg, r->pager, e);
 
       if (cur_r == NULL)
         {
@@ -423,7 +628,10 @@ rpt_insert (
             }
 
           // Push this new node to the bottom of the stack
-          err_t_wrap (_rpt_seek_r_push_bottom (&r->seek, cur, 0, e), e);
+          err_t_wrap (rpt_seek_push_bottom (r, cur, 0, e), e);
+
+          // Update the root node
+          r->pg0 = cur->pg;
 
           // New page size has 0 size so
           // start at 0 key
@@ -462,19 +670,21 @@ rpt_insert (
   return written;
 }
 
+/////////////////////////////////////////////////////////////////////
+////////////// SECTION: rpt_write
+
 sb_size
 rpt_write (
-    const u8 *src, t_size size, b_size n, b_size nskip,
+    const u8 *src, b_size n, b_size nskip,
     rptree *r, error *e)
 {
   rptree_assert (r);
 
   dlw_params params = {
     .idx0 = r->lidx,
-    .start = r->cur_r,
+    .start = NULL,
     .pager = r->pager,
     .src = src,
-    .size = size,
     .n = n,
     .nskip = nskip,
   };

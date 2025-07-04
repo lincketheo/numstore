@@ -5,7 +5,7 @@ all: debug                     # `make` = debug build
 ###############################
 ##### Compiler & Global Flags
 CC      ?= gcc
-CFLAGS   = -I./include         
+CFLAGS   = -I./include
 
 SHARED ?= 1
 ifeq ($(SHARED),1)
@@ -21,8 +21,7 @@ LEMPAR       := ./tools/lemon/lempar.c
 PARSER_C     := ./src/compiler/parser.c      
 
 $(LEMON): $(LEMON_SRC)
-	@echo "  CC      $@"
-	@$(CC) -o $@ $<
+	$(CC) -o $@ $<
 
 $(PARSER_C): $(LEMON) $(GRAMMAR) $(LEMPAR)
 	@echo "  LEMON   $(@F)"
@@ -36,7 +35,7 @@ OBJ       := $(SRC:.c=.o)
 
 ###############################
 ##### Apps 
-APPS      := nstorec nstores test
+APPS      := nstorec nstores test cursor nspprint
 
 APP_SRC   := $(addprefix apps/,$(addsuffix .c,$(APPS)))
 APP_OBJ   := $(APP_SRC:.c=.o)
@@ -52,14 +51,12 @@ release: clean $(APPS)
 ###############################
 ##### Compile Rule
 %.o: %.c | $(PARSER_C)
-	@echo "  CC      $<"
-	@$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@ $(LFLAGS)
 
 ###############################
 ##### Link Targets
 $(APPS): %: apps/%.o $(OBJ)
-	@echo "  LD      $@"
-	@$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ $(LFLAGS)
 
 ###############################
 ##### Utilities

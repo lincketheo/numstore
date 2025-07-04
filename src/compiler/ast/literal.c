@@ -1,14 +1,13 @@
 #include "compiler/ast/literal.h"
 
+#include "core/dev/assert.h"
 #include "core/dev/testing.h"
 #include "core/ds/strings.h"
 #include "core/errors/error.h"
 #include "core/intf/logging.h"
+#include "core/intf/math.h"
 #include "core/utils/numbers.h"
 #include "core/utils/strings.h"
-
-#include <complex.h>
-#include <math.h>
 
 static const char *ARRAY_BUILDER_TAG = "Array Value Builder";
 static const char *OBJECT_BUILDER_TAG = "Object Value Builder";
@@ -146,6 +145,8 @@ literal_t_tostr (literal_t t)
       return "LT_COMPLEX";
     case LT_BOOL:
       return "LT_BOOL";
+    default:
+      UNREACHABLE ();
     }
 }
 
@@ -557,81 +558,64 @@ arb_build (array *dest, array_builder *b, error *e)
     }                                                                 \
   while (0)
 
-#define BOOL_NUMBER_TYPE_COERCE_CABS(dest, OP, right)                     \
-  do                                                                      \
-    {                                                                     \
-      /* int OP int -> bool */                                            \
-      if ((dest)->type == LT_INTEGER && (right)->type == LT_INTEGER)      \
-        {                                                                 \
-          (dest)->bl = (dest)->integer OP (right)->integer;               \
-          (dest)->type = LT_BOOL;                                         \
-          return SUCCESS;                                                 \
-        }                                                                 \
-                                                                          \
-      /* dec OP dec -> bool */                                            \
-      else if ((dest)->type == LT_DECIMAL && (right)->type == LT_DECIMAL) \
-        {                                                                 \
-          (dest)->bl = (dest)->decimal OP (right)->decimal;               \
-          (dest)->type = LT_BOOL;                                         \
-          return SUCCESS;                                                 \
-        }                                                                 \
-                                                                          \
-      /* |cmplx| OP |cmplx| -> bool */                                    \
-      else if ((dest)->type == LT_COMPLEX && (right)->type == LT_COMPLEX) \
-        {                                                                 \
-          (dest)->bl = cabs ((dest)->cplx) OP cabs ((right)->cplx);       \
-          (dest)->type = LT_BOOL;                                         \
-          return SUCCESS;                                                 \
-        }                                                                 \
-                                                                          \
-      /* |cmplx| OP dec -> bool */                                        \
-      else if ((dest)->type == LT_COMPLEX && (right)->type == LT_DECIMAL) \
-        {                                                                 \
-          (dest)->bl = cabs ((dest)->cplx) OP (right)->decimal;           \
-          (dest)->type = LT_BOOL;                                         \
-          return SUCCESS;                                                 \
-        }                                                                 \
-                                                                          \
-      /* |cmplx| OP int -> bool */                                        \
-      else if ((dest)->type == LT_COMPLEX && (right)->type == LT_INTEGER) \
-        {                                                                 \
-          (dest)->bl = cabs ((dest)->cplx) OP (right)->integer;           \
-          (dest)->type = LT_BOOL;                                         \
-          return SUCCESS;                                                 \
-        }                                                                 \
-                                                                          \
-      /* dec OP int -> bool */                                            \
-      else if ((dest)->type == LT_DECIMAL && (right)->type == LT_INTEGER) \
-        {                                                                 \
-          (dest)->bl = (dest)->decimal OP (right)->integer;               \
-          (dest)->type = LT_BOOL;                                         \
-          return SUCCESS;                                                 \
-        }                                                                 \
-                                                                          \
-      /* int OP dec -> bool */                                            \
-      else if ((dest)->type == LT_INTEGER && (right)->type == LT_DECIMAL) \
-        {                                                                 \
-          (dest)->bl = (dest)->integer OP (right)->decimal;               \
-          (dest)->type = LT_BOOL;                                         \
-          return SUCCESS;                                                 \
-        }                                                                 \
-                                                                          \
-      /* int OP |cmplx| -> bool */                                        \
-      else if ((dest)->type == LT_INTEGER && (right)->type == LT_COMPLEX) \
-        {                                                                 \
-          (dest)->bl = (dest)->integer OP cabs ((right)->cplx);           \
-          (dest)->type = LT_BOOL;                                         \
-          return SUCCESS;                                                 \
-        }                                                                 \
-                                                                          \
-      /* dec OP |cmplx| -> bool */                                        \
-      else if ((dest)->type == LT_DECIMAL && (right)->type == LT_COMPLEX) \
-        {                                                                 \
-          (dest)->bl = (dest)->decimal OP cabs ((right)->cplx);           \
-          (dest)->type = LT_BOOL;                                         \
-          return SUCCESS;                                                 \
-        }                                                                 \
-    }                                                                     \
+#define BOOL_NUMBER_TYPE_COERCE_CABS(dest, OP, right)                                   \
+  do                                                                                    \
+    {                                                                                   \
+      /* int OP int -> bool */                                                          \
+      if ((dest)->type == LT_INTEGER && (right)->type == LT_INTEGER)                    \
+        {                                                                               \
+          (dest)->bl = (dest)->integer OP (right)->integer;                             \
+          (dest)->type = LT_BOOL;                                                       \
+          return SUCCESS;                                                               \
+        }                                                                               \
+                                                                                        \
+      /* dec OP dec -> bool */                                                          \
+      else if ((dest)->type == LT_DECIMAL && (right)->type == LT_DECIMAL)               \
+        {                                                                               \
+          (dest)->bl = (dest)->decimal OP (right)->decimal;                             \
+          (dest)->type = LT_BOOL;                                                       \
+          return SUCCESS;                                                               \
+        }                                                                               \
+                                                                                        \
+      /* |cmplx| OP |cmplx| -> bool */                                                  \
+      else if ((dest)->type == LT_COMPLEX && (right)->type == LT_COMPLEX)               \
+        {                                                                               \
+          (dest)->bl = i_cabs_sqrd_64 ((dest)->cplx) OP i_cabs_sqrd_64 ((right)->cplx); \
+          (dest)->type = LT_BOOL;                                                       \
+          return SUCCESS;                                                               \
+        }                                                                               \
+      /* dec OP int -> bool */                                                          \
+      else if ((dest)->type == LT_DECIMAL && (right)->type == LT_INTEGER)               \
+        {                                                                               \
+          (dest)->bl = (dest)->decimal OP (right)->integer;                             \
+          (dest)->type = LT_BOOL;                                                       \
+          return SUCCESS;                                                               \
+        }                                                                               \
+                                                                                        \
+      /* int OP dec -> bool */                                                          \
+      else if ((dest)->type == LT_INTEGER && (right)->type == LT_DECIMAL)               \
+        {                                                                               \
+          (dest)->bl = (dest)->integer OP (right)->decimal;                             \
+          (dest)->type = LT_BOOL;                                                       \
+          return SUCCESS;                                                               \
+        }                                                                               \
+                                                                                        \
+      /* int OP |cmplx| -> bool */                                                      \
+      else if ((dest)->type == LT_INTEGER && (right)->type == LT_COMPLEX)               \
+        {                                                                               \
+          (dest)->bl = (dest)->integer OP i_cabs_sqrd_64 ((right)->cplx);               \
+          (dest)->type = LT_BOOL;                                                       \
+          return SUCCESS;                                                               \
+        }                                                                               \
+                                                                                        \
+      /* dec OP |cmplx| -> bool */                                                      \
+      else if ((dest)->type == LT_DECIMAL && (right)->type == LT_COMPLEX)               \
+        {                                                                               \
+          (dest)->bl = (dest)->decimal OP i_cabs_sqrd_64 ((right)->cplx);               \
+          (dest)->type = LT_BOOL;                                                       \
+          return SUCCESS;                                                               \
+        }                                                                               \
+    }                                                                                   \
   while (0)
 
 /**
@@ -783,7 +767,7 @@ literal_truthy (const literal *v)
       }
     case LT_COMPLEX:
       {
-        return cabs (v->cplx) != 0.0;
+        return i_cabs_sqrd_64 (v->cplx) != 0.0;
       }
     case LT_STRING:
       {
@@ -796,6 +780,10 @@ literal_truthy (const literal *v)
     case LT_ARRAY:
       {
         return v->arr.len != 0;
+      }
+    default:
+      {
+        UNREACHABLE ();
       }
     }
 }
@@ -912,61 +900,61 @@ TEST (literal_plus_literal)
   b = (literal){ .type = LT_DECIMAL, .decimal = 2.75 };
   test_assert (literal_plus_literal (&a, &b, &alc, &err) == SUCCESS);
   test_assert (a.type == LT_DECIMAL);
-  test_assert (fabsl (a.decimal - 4.0) < 1e-12);
+  test_assert (i_fabs_32 (a.decimal - 4.0f) < 1e-12);
 
   // Integer + Decimal
   a = (literal){ .type = LT_INTEGER, .integer = 2 };
   b = (literal){ .type = LT_DECIMAL, .decimal = 5.5 };
   test_assert (literal_plus_literal (&a, &b, &alc, &err) == SUCCESS);
   test_assert (a.type == LT_DECIMAL);
-  test_assert (fabsl (a.decimal - 7.5) < 1e-12);
+  test_assert (i_fabs_32 (a.decimal - 7.5f) < 1e-12);
 
   // Decimal + Integer
   a = (literal){ .type = LT_DECIMAL, .decimal = 3.5 };
   b = (literal){ .type = LT_INTEGER, .integer = 2 };
   test_assert (literal_plus_literal (&a, &b, &alc, &err) == SUCCESS);
   test_assert (a.type == LT_DECIMAL);
-  test_assert (fabsl (a.decimal - 5.5) < 1e-12);
+  test_assert (i_fabs_32 (a.decimal - 5.5f) < 1e-12);
 
   // Complex + Complex
   a = (literal){ .type = LT_COMPLEX, .cplx = 1.0 + 2.0 * I };
   b = (literal){ .type = LT_COMPLEX, .cplx = 3.0 + 4.0 * I };
   test_assert (literal_plus_literal (&a, &b, &alc, &err) == SUCCESS);
   test_assert (a.type == LT_COMPLEX);
-  test_assert (creal (a.cplx) == 4.0);
-  test_assert (cimag (a.cplx) == 6.0);
+  test_assert (i_creal_64 (a.cplx) == 4.0);
+  test_assert (i_cimag_64 (a.cplx) == 6.0);
 
   // Complex + Integer
   a = (literal){ .type = LT_COMPLEX, .cplx = 1.0 + 2.0 * I };
   b = (literal){ .type = LT_INTEGER, .integer = 5 };
   test_assert (literal_plus_literal (&a, &b, &alc, &err) == SUCCESS);
   test_assert (a.type == LT_COMPLEX);
-  test_assert (creal (a.cplx) == 6.0);
-  test_assert (cimag (a.cplx) == 2.0);
+  test_assert (i_creal_64 (a.cplx) == 6.0);
+  test_assert (i_cimag_64 (a.cplx) == 2.0);
 
   // Complex + Decimal
   a = (literal){ .type = LT_COMPLEX, .cplx = -1.0 + 0.5 * I };
   b = (literal){ .type = LT_DECIMAL, .decimal = 2.5 };
   test_assert (literal_plus_literal (&a, &b, &alc, &err) == SUCCESS);
   test_assert (a.type == LT_COMPLEX);
-  test_assert (creal (a.cplx) == 1.5);
-  test_assert (cimag (a.cplx) == 0.5);
+  test_assert (i_creal_64 (a.cplx) == 1.5);
+  test_assert (i_cimag_64 (a.cplx) == 0.5);
 
   // Integer + Complex
   a = (literal){ .type = LT_INTEGER, .integer = 2 };
   b = (literal){ .type = LT_COMPLEX, .cplx = 0.0 + 3.0 * I };
   test_assert (literal_plus_literal (&a, &b, &alc, &err) == SUCCESS);
   test_assert (a.type == LT_COMPLEX);
-  test_assert (creal (a.cplx) == 2.0);
-  test_assert (cimag (a.cplx) == 3.0);
+  test_assert (i_creal_64 (a.cplx) == 2.0);
+  test_assert (i_cimag_64 (a.cplx) == 3.0);
 
   // Decimal + Complex
   a = (literal){ .type = LT_DECIMAL, .decimal = 4.75 };
   b = (literal){ .type = LT_COMPLEX, .cplx = -1.0 + 0.25 * I };
   test_assert (literal_plus_literal (&a, &b, &alc, &err) == SUCCESS);
   test_assert (a.type == LT_COMPLEX);
-  test_assert (creal (a.cplx) == 3.75);
-  test_assert (cimag (a.cplx) == 0.25);
+  test_assert (i_creal_64 (a.cplx) == 3.75);
+  test_assert (i_cimag_64 (a.cplx) == 0.25);
 
   literal_pair invalid_combos[] = {
     { LT_BOOL, LT_BOOL },
@@ -1051,61 +1039,61 @@ TEST (literal_minus_literal)
   b = (literal){ .type = LT_DECIMAL, .decimal = 1.25 };
   test_assert (literal_minus_literal (&a, &b, &err) == SUCCESS);
   test_assert (a.type == LT_DECIMAL);
-  test_assert (fabsl (a.decimal - 4.25) < 1e-12);
+  test_assert (i_fabs_32 (a.decimal - 4.25f) < 1e-12);
 
   // Integer - Decimal
   a = (literal){ .type = LT_INTEGER, .integer = 3 };
   b = (literal){ .type = LT_DECIMAL, .decimal = 0.5 };
   test_assert (literal_minus_literal (&a, &b, &err) == SUCCESS);
   test_assert (a.type == LT_DECIMAL);
-  test_assert (fabsl (a.decimal - 2.5) < 1e-12);
+  test_assert (i_fabs_32 (a.decimal - 2.5f) < 1e-12);
 
   // Decimal - Integer
   a = (literal){ .type = LT_DECIMAL, .decimal = 4.0 };
   b = (literal){ .type = LT_INTEGER, .integer = 1 };
   test_assert (literal_minus_literal (&a, &b, &err) == SUCCESS);
   test_assert (a.type == LT_DECIMAL);
-  test_assert (fabsl (a.decimal - 3.0) < 1e-12);
+  test_assert (i_fabs_32 (a.decimal - 3.0f) < 1e-12);
 
   // Complex - Complex
   a = (literal){ .type = LT_COMPLEX, .cplx = 5.0 + 6.0 * I };
   b = (literal){ .type = LT_COMPLEX, .cplx = 1.0 + 2.0 * I };
   test_assert (literal_minus_literal (&a, &b, &err) == SUCCESS);
   test_assert (a.type == LT_COMPLEX);
-  test_assert (creal (a.cplx) == 4.0);
-  test_assert (cimag (a.cplx) == 4.0);
+  test_assert (i_creal_64 (a.cplx) == 4.0);
+  test_assert (i_cimag_64 (a.cplx) == 4.0);
 
   // Complex - Integer
   a = (literal){ .type = LT_COMPLEX, .cplx = 2.0 + 3.0 * I };
   b = (literal){ .type = LT_INTEGER, .integer = 1 };
   test_assert (literal_minus_literal (&a, &b, &err) == SUCCESS);
   test_assert (a.type == LT_COMPLEX);
-  test_assert (creal (a.cplx) == 1.0);
-  test_assert (cimag (a.cplx) == 3.0);
+  test_assert (i_creal_64 (a.cplx) == 1.0);
+  test_assert (i_cimag_64 (a.cplx) == 3.0);
 
   // Complex - Decimal
   a = (literal){ .type = LT_COMPLEX, .cplx = 4.0 + 2.0 * I };
   b = (literal){ .type = LT_DECIMAL, .decimal = 1.5 };
   test_assert (literal_minus_literal (&a, &b, &err) == SUCCESS);
   test_assert (a.type == LT_COMPLEX);
-  test_assert (creal (a.cplx) == 2.5);
-  test_assert (cimag (a.cplx) == 2.0);
+  test_assert (i_creal_64 (a.cplx) == 2.5);
+  test_assert (i_cimag_64 (a.cplx) == 2.0);
 
   // Integer - Complex
   a = (literal){ .type = LT_INTEGER, .integer = 3 };
   b = (literal){ .type = LT_COMPLEX, .cplx = 1.0 + 1.0 * I };
   test_assert (literal_minus_literal (&a, &b, &err) == SUCCESS);
   test_assert (a.type == LT_COMPLEX);
-  test_assert (creal (a.cplx) == 2.0);
-  test_assert (cimag (a.cplx) == -1.0);
+  test_assert (i_creal_64 (a.cplx) == 2.0);
+  test_assert (i_cimag_64 (a.cplx) == -1.0);
 
   // Decimal - Complex
   a = (literal){ .type = LT_DECIMAL, .decimal = 3.0 };
   b = (literal){ .type = LT_COMPLEX, .cplx = 1.0 + 0.5 * I };
   test_assert (literal_minus_literal (&a, &b, &err) == SUCCESS);
   test_assert (a.type == LT_COMPLEX);
-  test_assert (creal (a.cplx) == 2.0);
-  test_assert (cimag (a.cplx) == -0.5);
+  test_assert (i_creal_64 (a.cplx) == 2.0);
+  test_assert (i_cimag_64 (a.cplx) == -0.5);
 
   // Object - Object
   // Array - Array
@@ -1194,61 +1182,61 @@ TEST (literal_star_literal)
   b = (literal){ .type = LT_DECIMAL, .decimal = 2.0 };
   test_assert (literal_star_literal (&a, &b, &err) == SUCCESS);
   test_assert (a.type == LT_DECIMAL);
-  test_assert (fabsl (a.decimal - 3.0) < 1e-12);
+  test_assert (i_fabs_32 (a.decimal - 3.0f) < 1e-12);
 
   // Integer * Decimal
   a = (literal){ .type = LT_INTEGER, .integer = 2 };
   b = (literal){ .type = LT_DECIMAL, .decimal = 4.5 };
   test_assert (literal_star_literal (&a, &b, &err) == SUCCESS);
   test_assert (a.type == LT_DECIMAL);
-  test_assert (fabsl (a.decimal - 9.0) < 1e-12);
+  test_assert (i_fabs_32 (a.decimal - 9.0f) < 1e-12);
 
   // Decimal * Integer
   a = (literal){ .type = LT_DECIMAL, .decimal = 2.5 };
   b = (literal){ .type = LT_INTEGER, .integer = 2 };
   test_assert (literal_star_literal (&a, &b, &err) == SUCCESS);
   test_assert (a.type == LT_DECIMAL);
-  test_assert (fabsl (a.decimal - 5.0) < 1e-12);
+  test_assert (i_fabs_32 (a.decimal - 5.0f) < 1e-12);
 
   // Complex * Complex
   a = (literal){ .type = LT_COMPLEX, .cplx = 1.0 + 2.0 * I };
   b = (literal){ .type = LT_COMPLEX, .cplx = 2.0 + 3.0 * I };
   test_assert (literal_star_literal (&a, &b, &err) == SUCCESS);
   test_assert (a.type == LT_COMPLEX);
-  test_assert (creal (a.cplx) == -4.0);
-  test_assert (cimag (a.cplx) == 7.0);
+  test_assert (i_creal_64 (a.cplx) == -4.0);
+  test_assert (i_cimag_64 (a.cplx) == 7.0);
 
   // Complex * Integer
   a = (literal){ .type = LT_COMPLEX, .cplx = 1.5 + 0.5 * I };
   b = (literal){ .type = LT_INTEGER, .integer = 2 };
   test_assert (literal_star_literal (&a, &b, &err) == SUCCESS);
   test_assert (a.type == LT_COMPLEX);
-  test_assert (creal (a.cplx) == 3.0);
-  test_assert (cimag (a.cplx) == 1.0);
+  test_assert (i_creal_64 (a.cplx) == 3.0);
+  test_assert (i_cimag_64 (a.cplx) == 1.0);
 
   // Complex * Decimal
   a = (literal){ .type = LT_COMPLEX, .cplx = 2.0 + 3.0 * I };
   b = (literal){ .type = LT_DECIMAL, .decimal = 2.0 };
   test_assert (literal_star_literal (&a, &b, &err) == SUCCESS);
   test_assert (a.type == LT_COMPLEX);
-  test_assert (creal (a.cplx) == 4.0);
-  test_assert (cimag (a.cplx) == 6.0);
+  test_assert (i_creal_64 (a.cplx) == 4.0);
+  test_assert (i_cimag_64 (a.cplx) == 6.0);
 
   // Integer * Complex
   a = (literal){ .type = LT_INTEGER, .integer = 2 };
   b = (literal){ .type = LT_COMPLEX, .cplx = 3.0 + 4.0 * I };
   test_assert (literal_star_literal (&a, &b, &err) == SUCCESS);
   test_assert (a.type == LT_COMPLEX);
-  test_assert (creal (a.cplx) == 6.0);
-  test_assert (cimag (a.cplx) == 8.0);
+  test_assert (i_creal_64 (a.cplx) == 6.0);
+  test_assert (i_cimag_64 (a.cplx) == 8.0);
 
   // Decimal * Complex
   a = (literal){ .type = LT_DECIMAL, .decimal = 1.5 };
   b = (literal){ .type = LT_COMPLEX, .cplx = 4.0 + 2.0 * I };
   test_assert (literal_star_literal (&a, &b, &err) == SUCCESS);
   test_assert (a.type == LT_COMPLEX);
-  test_assert (creal (a.cplx) == 6.0);
-  test_assert (cimag (a.cplx) == 3.0);
+  test_assert (i_creal_64 (a.cplx) == 6.0);
+  test_assert (i_cimag_64 (a.cplx) == 3.0);
 
   // Object + Object
   // Array + Array
@@ -1337,44 +1325,44 @@ TEST (literal_slash_literal)
   b = (literal){ .type = LT_DECIMAL, .decimal = 3.0 };
   test_assert (literal_slash_literal (&a, &b, &err) == SUCCESS);
   test_assert (a.type == LT_DECIMAL);
-  test_assert (fabsl (a.decimal - 3.0) < 1e-12);
+  test_assert (i_fabs_32 (a.decimal - 3.0f) < 1e-12);
 
   // Integer / Decimal
   a = (literal){ .type = LT_INTEGER, .integer = 6 };
   b = (literal){ .type = LT_DECIMAL, .decimal = 2.0 };
   test_assert (literal_slash_literal (&a, &b, &err) == SUCCESS);
   test_assert (a.type == LT_DECIMAL);
-  test_assert (fabsl (a.decimal - 3.0) < 1e-12);
+  test_assert (i_fabs_32 (a.decimal - 3.0f) < 1e-12);
 
   // Decimal / Integer
   a = (literal){ .type = LT_DECIMAL, .decimal = 4.5 };
   b = (literal){ .type = LT_INTEGER, .integer = 3 };
   test_assert (literal_slash_literal (&a, &b, &err) == SUCCESS);
   test_assert (a.type == LT_DECIMAL);
-  test_assert (fabsl (a.decimal - 1.5) < 1e-12);
+  test_assert (i_fabs_32 (a.decimal - 1.5f) < 1e-12);
 
   // Complex / Complex
   a = (literal){ .type = LT_COMPLEX, .cplx = 4.0 + 2.0 * I };
   b = (literal){ .type = LT_COMPLEX, .cplx = 1.0 + 1.0 * I };
   test_assert (literal_slash_literal (&a, &b, &err) == SUCCESS);
   test_assert (a.type == LT_COMPLEX);
-  test_assert (creal (a.cplx) != 0.0 || cimag (a.cplx) != 0.0); // sanity check
+  test_assert (i_creal_64 (a.cplx) != 0.0 || i_cimag_64 (a.cplx) != 0.0); // sanity check
 
   // Complex / Integer
   a = (literal){ .type = LT_COMPLEX, .cplx = 6.0 + 2.0 * I };
   b = (literal){ .type = LT_INTEGER, .integer = 2 };
   test_assert (literal_slash_literal (&a, &b, &err) == SUCCESS);
   test_assert (a.type == LT_COMPLEX);
-  test_assert (creal (a.cplx) == 3.0);
-  test_assert (cimag (a.cplx) == 1.0);
+  test_assert (i_creal_64 (a.cplx) == 3.0);
+  test_assert (i_cimag_64 (a.cplx) == 1.0);
 
   // Complex / Decimal
   a = (literal){ .type = LT_COMPLEX, .cplx = 8.0 + 4.0 * I };
   b = (literal){ .type = LT_DECIMAL, .decimal = 2.0 };
   test_assert (literal_slash_literal (&a, &b, &err) == SUCCESS);
   test_assert (a.type == LT_COMPLEX);
-  test_assert (creal (a.cplx) == 4.0);
-  test_assert (cimag (a.cplx) == 2.0);
+  test_assert (i_creal_64 (a.cplx) == 4.0);
+  test_assert (i_cimag_64 (a.cplx) == 2.0);
 
   // Integer / Complex
   a = (literal){ .type = LT_INTEGER, .integer = 4 };
@@ -3365,8 +3353,8 @@ TEST (literal_minus)
   a = (literal){ .type = LT_COMPLEX, .cplx = 2.0 + 3.0 * I };
   test_assert (literal_minus (&a, &err) == SUCCESS);
   test_assert (a.type == LT_COMPLEX);
-  test_assert (creal (a.cplx) == -2.0);
-  test_assert (cimag (a.cplx) == -3.0);
+  test_assert (i_creal_64 (a.cplx) == -2.0);
+  test_assert (i_cimag_64 (a.cplx) == -3.0);
 
   // -True (should fail)
   a = (literal){ .type = LT_BOOL, .bl = true };
@@ -3521,17 +3509,17 @@ i_log_literal (literal *v)
       }
     case LT_INTEGER:
       {
-        i_log_info ("%lld\n", v->integer);
+        i_log_info ("%d\n", v->integer);
         return;
       }
     case LT_DECIMAL:
       {
-        i_log_info ("%Lf\n", v->decimal);
+        i_log_info ("%f\n", v->decimal);
         return;
       }
     case LT_COMPLEX:
       {
-        i_log_info ("%f %f\n", creal (v->cplx), cimag (v->cplx));
+        i_log_info ("%f %f\n", i_creal_64 (v->cplx), i_cimag_64 (v->cplx));
         return;
       }
     case LT_BOOL:

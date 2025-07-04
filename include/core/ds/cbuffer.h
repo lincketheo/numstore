@@ -13,7 +13,9 @@ typedef struct
 } cbuffer;
 
 #define cbuffer_create_from(data) cbuffer_create ((u8 *)data, sizeof data)
+#define cbuffer_create_full_from(data) cbuffer_create_with ((u8 *)data, sizeof data, sizeof data)
 cbuffer cbuffer_create (u8 *data, u32 cap);
+cbuffer cbuffer_create_with (u8 *data, u32 cap, u32 len);
 
 ///////////////////////// Utils
 bool cbuffer_isempty (const cbuffer *b);

@@ -4,7 +4,7 @@
 
 typedef struct
 {
-  u16 len;
+  u32 len;
   char *data;
 } string;
 

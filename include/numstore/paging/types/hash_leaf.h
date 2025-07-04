@@ -37,9 +37,9 @@ typedef struct
 #define HL_NEXT_OFST ((p_size)(HL_HEDR_OFST + sizeof (pgh)))
 #define HL_DATA_OFST ((p_size)(HL_NEXT_OFST + sizeof (pgno)))
 
-_Static_assert (PAGE_SIZE > HL_DATA_OFST + 10,
-                "Hash Leaf: PAGE_SIZE must be > HL_DATA_OFST "
-                "plus at least 10 extra bytes of data");
+_Static_assert(PAGE_SIZE > HL_DATA_OFST + 10,
+               "Hash Leaf: PAGE_SIZE must be > HL_DATA_OFST "
+               "plus at least 10 extra bytes of data");
 #define HL_DATA_LEN ((p_size)(PAGE_SIZE - HL_DATA_OFST))
 
 err_t hl_validate (const hash_leaf *p, error *e);

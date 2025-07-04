@@ -16,6 +16,13 @@ DEFINE_DBG_ASSERT_I (var_hash_entry, var_hash_entry, v)
 
 static const char *TAG = "Variable";
 
+void
+i_log_variable (variable *v)
+{
+  ASSERT (v);
+  i_log_info ("Variable: %.*s Pg0: %" PRpgno "\n", v->vname.len, v->vname.data, v->pg0);
+}
+
 err_t
 var_hash_entry_create (
     var_hash_entry *dest,

@@ -14,6 +14,8 @@ typedef struct
   pgno pg0;
 } variable;
 
+void i_log_variable (variable *v);
+
 /**
  * The hash table representation of a variable
  * Serialized and everything

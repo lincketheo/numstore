@@ -1,4 +1,5 @@
 #include "numstore/virtual_machine.h"
+#include "compiler/ast/query.h"
 #include "compiler/parser.h"
 #include "core/ds/cbuffer.h"
 #include "core/intf/stdlib.h"
@@ -87,7 +88,9 @@ create_query_execute (vm *v)
     {
       i_log_create (&v->active.stmt->q.create);
       error e = error_create (NULL);
-      err_t ret = cursor_create (v->c, &v->active.stmt->q.create, &e);
+      create_query create = v->active.stmt->q.create;
+
+      err_t ret = cursor_create (v->c, create.vname, create.type, &e);
       if (ret)
         {
           error_log_consume (&e);
@@ -140,7 +143,8 @@ delete_query_execute (vm *v)
     {
       i_log_delete (&v->active.stmt->q.delete);
       error e = error_create (NULL);
-      err_t ret = cursor_delete (v->c, &v->active.stmt->q.delete, &e);
+      delete_query delete = v->active.stmt->q.delete;
+      err_t ret = cursor_delete (v->c, delete.vname, &e);
       if (ret)
         {
           error_log_consume (&e);
@@ -193,7 +197,7 @@ insert_query_execute (vm *v)
     {
       i_log_insert (&v->active.stmt->q.insert);
       error e = error_create (NULL);
-      err_t ret = cursor_insert (v->c, &v->active.stmt->q.insert, &e);
+      err_t ret = ERR_IO; // TODO cursor_insert (v->c, &v->active.stmt->q.insert, &e);
       if (ret)
         {
           error_log_consume (&e);

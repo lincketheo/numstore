@@ -494,16 +494,18 @@ struct_t_deserialize (
 
   for (u32 i = 0; i < len; ++i)
     {
-      string key;
-
       // Read the string key length
-      if (!dsrlizr_read_u16 (&key.len, src))
+      u16 klen;
+      if (!dsrlizr_read_u16 (&klen, src))
         {
           goto early_termination;
         }
 
+      string key = {
+        .len = klen,
+        .data = lmalloc (a, key.len, 1),
+      };
       // Read the string data
-      key.data = lmalloc (a, key.len, 1);
       if (key.data == NULL)
         {
           return struct_t_nomem ("Allocating key", e);

@@ -41,3 +41,5 @@ err_t hm_get (
 err_t hm_insert (hm *h, const variable var, error *e);
 
 err_t hm_delete (hm *h, const string vname, error *e);
+
+err_t hm_update (hm *h, const variable var, error *e);

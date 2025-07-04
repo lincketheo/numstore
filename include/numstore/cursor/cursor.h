@@ -1,9 +1,10 @@
 #pragma once
 
-#include "compiler/ast/query.h" // create_query
-#include "core/errors/error.h"  // error
+#include "core/ds/cbuffer.h"
+#include "core/errors/error.h" // error
 
 #include "numstore/paging/pager.h" // pager
+#include "numstore/type/types/prim.h"
 
 typedef struct cursor_s cursor;
 
@@ -11,10 +12,26 @@ cursor *cursor_open (pager *p, error *e);
 void cursor_close (cursor *c);
 
 // CREATE
-err_t cursor_create (cursor *c, create_query *q, error *e);
+err_t cursor_create (
+    cursor *c,
+    string vname,
+    type type,
+    error *e);
 
 // DELETE
-err_t cursor_delete (cursor *c, delete_query *q, error *e);
+err_t cursor_delete (
+    cursor *c,
+    string vname,
+    error *e);
 
 // INSERT
-err_t cursor_insert (cursor *c, insert_query *q, error *e);
+err_t cursor_insert (
+    cursor *c,
+    string vname,    // The variable to insert data into
+    b_size start,    // The starting index
+    b_size len,      // The length of data (in [vname]'s type)
+    cbuffer *source, // The source to feed data into
+    error *e);
+
+err_t cursor_execute (cursor *c, error *e);
+bool cursor_idle (cursor *c);

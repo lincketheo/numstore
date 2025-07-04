@@ -43,13 +43,12 @@
  */
 typedef struct
 {
-  p_size idx0;       // What byte we are starting on in this node
-  const page *start; // Starting page (should be a data list)
-  pager *pager;      // Pager for creating new pages
-  const u8 *src;     // Data to read from
-  t_size size;       // Size of each element to consume
-  b_size n;          // Number of elements to write
-  f32 fill_factor;   // Percent of nodes to fill when splitting
+  p_size idx0;     // What byte we are starting on in this node
+  pgno start;      // Starting page (should be a data list)
+  pager *pager;    // Pager for creating new pages
+  const u8 *src;   // Data to read from
+  b_size n;        // Number of elements to write
+  f32 fill_factor; // Percent of nodes to fill when splitting
 } dli_params;
 
 sb_size _rpt_dli (mem_inner_node *dest, dli_params params, error *e);

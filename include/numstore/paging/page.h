@@ -18,7 +18,6 @@ typedef enum
   PG_INNER_NODE = (1 << 1),
   PG_HASH_PAGE = (1 << 2),
   PG_HASH_LEAF = (1 << 3),
-  PG_UNKNOWN = (1 << 4),
 } page_type;
 
 #define PG_ANY (PG_DATA_LIST | PG_INNER_NODE | PG_HASH_LEAF | PG_HASH_PAGE)

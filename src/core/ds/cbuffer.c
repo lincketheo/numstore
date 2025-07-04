@@ -36,6 +36,21 @@ cbuffer_create (u8 *data, u32 cap)
   };
 }
 
+cbuffer
+cbuffer_create_with (u8 *data, u32 cap, u32 len)
+{
+  ASSERT (data);
+  ASSERT (cap > 0);
+  ASSERT (len <= cap);
+  return (cbuffer){
+    .head = len % cap,
+    .tail = 0,
+    .cap = cap,
+    .data = data,
+    .isfull = len == cap,
+  };
+}
+
 ///////////////////////// Utils
 bool
 cbuffer_isempty (const cbuffer *b)
