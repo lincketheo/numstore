@@ -27,11 +27,11 @@ typedef struct
 #define HP_HEDR_OFST ((p_size)0)
 #define HP_HASH_OFST ((p_size)(HP_HEDR_OFST + sizeof (pgno)))
 
-_Static_assert (PAGE_SIZE > HP_HASH_OFST + 10 * sizeof (hash_page),
-                "Hash Page: PAGE_SIZE must be > HP_HASH_OFST "
-                "plus at least 10 extra hashes");
+_Static_assert(PAGE_SIZE > HP_HASH_OFST + 10 * sizeof (hash_page),
+               "Hash Page: PAGE_SIZE must be > HP_HASH_OFST "
+               "plus at least 10 extra hashes");
 #define HP_NHASHES ((p_size)((PAGE_SIZE - HP_HASH_OFST) / sizeof (pgno)))
-_Static_assert (HP_NHASHES > 10, "Hash Page: HP_NHASHES must be > 10");
+_Static_assert(HP_NHASHES > 10, "Hash Page: HP_NHASHES must be > 10");
 
 err_t hp_validate (const hash_page *d, error *e);
 void hp_init_empty (hash_page *hp);

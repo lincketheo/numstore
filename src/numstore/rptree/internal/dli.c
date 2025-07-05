@@ -110,7 +110,7 @@ dli_s_write_once (
   /**
    * Write as many elements to this node as possible
    */
-  *nbytes = dl_write (&cur->dl, src, *nbytes);
+  *nbytes = dl_append (&cur->dl, src, *nbytes);
 
   return cur;
 }

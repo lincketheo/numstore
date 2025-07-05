@@ -10,6 +10,7 @@
 #include "numstore/paging/pager.h"
 #include "numstore/type/types.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 
 #define err_t_abort(expr, e)                         \
@@ -40,6 +41,7 @@ error *e = &_e;
 cursor *c;
 pager *p;
 u32 write_data[2048];
+u32 insert_data[] = { 20, 90, 11, 10, 1 };
 u32 read_data[2048];
 
 void
@@ -86,6 +88,8 @@ main ()
 
   init_write_data ();
   cbuffer source = cbuffer_create_full_from (write_data);
+  cbuffer dest = cbuffer_create_from (read_data);
+  cbuffer insert_source = cbuffer_create_full_from (insert_data);
 
   err_t_abort (cursor_create (c, cq.vname, cq.type, e), e);
   err_t_abort (cursor_insert (c, cq.vname, 0, arrlen (write_data), &source, e), e);
@@ -94,6 +98,26 @@ main ()
     {
       err_t_abort (cursor_execute (c, e), e);
     }
+
+  err_t_abort (cursor_write (c, cq.vname, 5, arrlen (insert_data), 3, &insert_source, e), e);
+
+  while (!cursor_idle (c))
+    {
+      err_t_abort (cursor_execute (c, e), e);
+    }
+
+  err_t_abort (cursor_read (c, cq.vname, 0, arrlen (read_data), 1, &dest, e), e);
+
+  while (!cursor_idle (c))
+    {
+      err_t_abort (cursor_execute (c, e), e);
+    }
+
+  for (u32 i = 0; i < arrlen (read_data) - 1; ++i)
+    {
+      printf ("%d\n", read_data[i]);
+    }
+  printf ("\n");
 
   _cursor_close ();
 }

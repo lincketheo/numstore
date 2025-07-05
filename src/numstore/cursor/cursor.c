@@ -15,6 +15,8 @@ static const char *TAG = "Cursor";
 typedef enum
 {
   CS_INSERT,
+  CS_READ,
+  CS_WRITE,
   CS_IDLE,
 } cursor_state;
 
@@ -37,6 +39,32 @@ struct cursor_s
       u8 _var_space[2048];
       lalloc var_space;
     } insert;
+
+    struct
+    {
+      rptree *r;
+      variable var;
+      t_size size;
+      b_size from;
+      b_size n;
+      b_size stride;
+      cbuffer *dest;
+      u8 _var_space[2048];
+      lalloc var_space;
+    } read;
+
+    struct
+    {
+      rptree *r;
+      variable var;
+      t_size size;
+      b_size from;
+      b_size n;
+      b_size stride;
+      cbuffer *source;
+      u8 _var_space[2048];
+      lalloc var_space;
+    } write;
   };
 };
 
@@ -80,6 +108,16 @@ cursor_close (cursor *c)
     case CS_INSERT:
       {
         rpt_close (c->insert.r);
+        break;
+      }
+    case CS_READ:
+      {
+        rpt_close (c->read.r);
+        break;
+      }
+    case CS_WRITE:
+      {
+        rpt_close (c->read.r);
         break;
       }
     case CS_IDLE:
@@ -187,6 +225,7 @@ static err_t
 cursor_insert_execute (cursor *c, error *e)
 {
   cursor_assert (c);
+  ASSERT (c->state == CS_INSERT);
 
   // Read into a temporary packet - TODO - can we do this with 0 memcpy's?
   u8 packet[2048];
@@ -222,6 +261,165 @@ cursor_insert_execute (cursor *c, error *e)
 }
 
 err_t
+cursor_read (
+    cursor *c,
+    string vname,
+    b_size from,
+    b_size n,
+    b_size stride,
+    cbuffer *dest,
+    error *e)
+{
+  cursor_assert (c);
+  ASSERT (c->state == CS_IDLE);
+
+  variable var;
+  c->read.var_space = lalloc_create_from (c->read._var_space);
+
+  err_t_wrap (hm_get (c->h, &var, &c->read.var_space, vname, e), e);
+
+  t_size size = type_byte_size (&var.type);
+
+  rptree *r = rpt_open (var.pg0, c->p, e);
+  if (r == NULL)
+    {
+      return err_t_from (e);
+    }
+
+  c->read.r = r;
+  c->read.var = var;
+  c->read.size = size;
+  c->read.from = from;
+  c->read.n = n;
+  c->read.stride = stride;
+  c->read.dest = dest;
+  c->state = CS_READ;
+
+  return SUCCESS;
+}
+
+err_t
+cursor_read_execute (
+    cursor *c,
+    error *e)
+{
+  cursor_assert (c);
+  ASSERT (c->state == CS_READ);
+
+  // Write into a temporary packet - TODO - can we do this with 0 memcpy's?
+  u8 packet[2048];
+
+  err_t_wrap (rpt_seek (c->read.r, c->read.from * c->read.size, e), e);
+
+  sb_size read = rpt_read (
+      packet,
+      c->read.size,
+      2048 / c->read.size,
+      c->read.stride,
+      c->read.r, e);
+  if (read < 0)
+    {
+      return (err_t)read;
+    }
+
+  if (read > 0)
+    {
+      cbuffer_write (packet, c->read.size, read, c->read.dest);
+    }
+
+  c->read.n -= read;
+  c->read.from += read * c->read.stride;
+
+  // Finished
+  if (c->read.n == 0 || rpt_eof (c->read.r))
+    {
+      rpt_close (c->read.r);
+      c->state = CS_IDLE;
+    }
+
+  return SUCCESS;
+}
+
+err_t
+cursor_write (
+    cursor *c,
+    string vname,
+    b_size from,
+    b_size n,
+    b_size stride,
+    cbuffer *source,
+    error *e)
+{
+  cursor_assert (c);
+  ASSERT (c->state == CS_IDLE);
+
+  variable var;
+  c->write.var_space = lalloc_create_from (c->write._var_space);
+
+  err_t_wrap (hm_get (c->h, &var, &c->write.var_space, vname, e), e);
+
+  t_size size = type_byte_size (&var.type);
+
+  rptree *r = rpt_open (var.pg0, c->p, e);
+  if (r == NULL)
+    {
+      return err_t_from (e);
+    }
+
+  c->write.r = r;
+  c->write.var = var;
+  c->write.size = size;
+  c->write.from = from;
+  c->write.n = n;
+  c->write.stride = stride;
+  c->write.source = source;
+  c->state = CS_WRITE;
+
+  return SUCCESS;
+}
+
+err_t
+cursor_write_execute (
+    cursor *c,
+    error *e)
+{
+  cursor_assert (c);
+  ASSERT (c->state == CS_WRITE);
+
+  // Read into a temporary packet
+  // - TODO - can we do this with 0 memcpy's?
+  u8 packet[2048];
+  u32 read = cbuffer_read (packet, 1, 2048, c->write.source);
+
+  ASSERT (read <= c->write.n * c->write.size);
+
+  err_t_wrap (rpt_seek (c->write.r, c->write.from * c->write.size, e), e);
+  sb_size written = rpt_write (
+      packet,
+      c->write.size,
+      read / c->write.size,
+      c->write.stride,
+      c->write.r, e);
+
+  if (written < 0)
+    {
+      return (err_t)written;
+    }
+
+  c->write.n -= written;
+  c->write.from += written * c->write.stride;
+
+  // Finished
+  if (c->write.n == 0 || rpt_eof (c->write.r))
+    {
+      rpt_close (c->write.r);
+      c->state = CS_IDLE;
+    }
+
+  return SUCCESS;
+}
+
+err_t
 cursor_execute (cursor *c, error *e)
 {
   cursor_assert (c);
@@ -232,6 +430,14 @@ cursor_execute (cursor *c, error *e)
     case CS_INSERT:
       {
         return cursor_insert_execute (c, e);
+      }
+    case CS_READ:
+      {
+        return cursor_read_execute (c, e);
+      }
+    case CS_WRITE:
+      {
+        return cursor_write_execute (c, e);
       }
     default:
       {

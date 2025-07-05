@@ -84,7 +84,7 @@ dl_init_empty (data_list *d)
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 p_size
-dl_write (data_list *d, const u8 *src, p_size bytes)
+dl_append (data_list *d, const u8 *src, p_size bytes)
 {
   valid_data_list_assert (d);
   ASSERT (src);
@@ -103,6 +103,33 @@ dl_write (data_list *d, const u8 *src, p_size bytes)
     }
 
   return next;
+}
+
+p_size
+dl_write (data_list *d, const u8 *src, p_size offset, p_size bytes)
+{
+  valid_data_list_assert (d);
+  ASSERT (bytes > 0);
+
+  p_size dlen = *d->blen;
+  u8 *base = d->data;
+
+  ASSERT (offset <= dlen);
+
+  if (offset == dlen)
+    {
+      return 0;
+    }
+
+  p_size avail = dlen - offset;
+  p_size toread = MIN (avail, bytes);
+
+  if (toread > 0 && src)
+    {
+      i_memcpy (base + offset, src, toread);
+    }
+
+  return toread;
 }
 
 p_size

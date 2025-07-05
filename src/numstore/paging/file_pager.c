@@ -81,7 +81,7 @@ fpgr_open (const string fname, error *e)
 TEST (fpgr_open)
 {
   error e = error_create (NULL);
-  _Static_assert (PAGE_SIZE > 2, "PAGE_SIZE should be > 2 for file_pager test");
+  _Static_assert(PAGE_SIZE > 2, "PAGE_SIZE should be > 2 for file_pager test");
 
   // The temp file name
   char _tmpl[] = "/tmp/fpgr_testXXXXXX";

@@ -13,7 +13,7 @@
 #include "numstore/rptree/internal/dlw.h"    // TODO
 #include "numstore/rptree/internal/ini.h"    // ini
 
-// static const char *TAG = "R+Tree";
+static const char *TAG = "R+Tree";
 
 /**
  * A "seek result" is the response to a seek call
@@ -159,6 +159,7 @@ rpt_seek (rptree *r, b_size b, error *e)
 
   r->gidx = 0;
   r->lidx = 0;
+  r->eof = false;
 
   err_t_wrap (rpt_seek_recurs (r, b, start, e), e);
 
@@ -278,7 +279,20 @@ rpt_seek_recurs_data_list (
    */
   if ((p_size)byte >= dl_used (&cur->dl))
     {
+      /**
+       * Proof that this case is only entered on the last
+       * data list page:
+       *
+       *    0 < bytes < right key  (chose the far left key)
+       *    or
+       *    Left key < bytes < right key
+       *    or
+       *    left key < bytes < LENGTH (chose the far right key)
+       *
+       * TODO - finish this proof
+       */
       r->lidx = dl_used (&cur->dl);
+      r->eof = true;
     }
   else
     {
@@ -288,6 +302,7 @@ rpt_seek_recurs_data_list (
   // Update global idx and final result page
   r->gidx += r->lidx;
   r->seek.pg = cur->pg;
+  r->pg = r->seek.pg;
 }
 
 err_t
@@ -341,25 +356,38 @@ rpt_pg0 (rptree *r)
   return r->pg0;
 }
 
-/**
+/////////////////////////////////////////////////////////////////////
+////////////// SECTION: rpt_read
+
 static sb_size
 rpt_read_contiguous (u8 *dest, b_size bytes, rptree *r, error *e)
 {
   ASSERT (bytes);
   ASSERT (bytes > 0);
+  ASSERT (r->is_seeked);
+  ok_error_assert (e);
   rptree_assert (r);
 
   b_size read = 0;
 
+  const page *cur = pgr_get (PG_DATA_LIST, r->pg, r->pager, e);
+  if (cur == NULL)
+    {
+      bad_error_assert (e);
+      return err_t_from (e);
+    }
+
   while (read < bytes)
     {
-      if (dl_used (&NULL->dl) == r->lidx)
+      // Filled up
+      if (dl_used (&cur->dl) == r->lidx)
         {
-          pgno _next = dl_get_next (&NULL->dl);
+          pgno _next = dl_get_next (&cur->dl);
 
           // We are at the end
           if (_next == 0)
             {
+              r->eof = true;
               return read;
             }
 
@@ -367,15 +395,18 @@ rpt_read_contiguous (u8 *dest, b_size bytes, rptree *r, error *e)
           const page *next = pgr_get (PG_DATA_LIST, _next, r->pager, e);
           if (next == NULL)
             {
+              bad_error_assert (e);
               return err_t_from (e);
             }
-          NULL = next;
+          cur = next;
+          r->pg = cur->pg;
 
           r->lidx = 0;
         }
 
+      ASSERT (bytes > read);
       p_size _read = dl_read (
-          &NULL->dl,
+          &cur->dl,
           dest ? dest + read : NULL,
           r->lidx,
           bytes - read);
@@ -386,42 +417,45 @@ rpt_read_contiguous (u8 *dest, b_size bytes, rptree *r, error *e)
 
   ASSERT (read == bytes);
 
-  return SUCCESS;
+  return read;
 }
-*/
 
 sb_size
 rpt_read (
     u8 *dest,
     t_size size,
     b_size n,
-    b_size nskip,
+    b_size stride,
     rptree *r,
     error *e)
 {
   ASSERT (dest);
   ASSERT (size > 0);
   ASSERT (n > 0);
-  ASSERT (nskip >= 1);
+  ASSERT (stride >= 1);
   rptree_assert (r);
-  (void)e;
 
-  UNREACHABLE ();
-
-  /**
-  b_size toread = size * n;
-
-  if (nskip == 1)
+  // First, seek to the position we want
+  if (!r->is_seeked)
     {
-      sb_size nbytes = rpt_read_contiguous (dest, toread, r, e);
+      err_t_wrap (rpt_seek (r, 0, e), e);
+    }
 
+  b_size btoread = size * n;
+
+  // Make 1 contiguous read if no stride
+  if (stride == 1)
+    {
+      sb_size nbytes = rpt_read_contiguous (dest, btoread, r, e);
       if (nbytes < 0)
         {
-          return toread;
+          bad_error_assert (e);
+          return btoread;
         }
 
-      // Next should either == 0 or 1 * size
-      ASSERT ((b_size)nbytes <= size * n);
+      ASSERT ((b_size)nbytes <= btoread);
+
+      // Check if we could read a multiple of size bytes
       if (nbytes % size != 0)
         {
           return error_causef (
@@ -433,63 +467,70 @@ rpt_read (
       return nbytes / size;
     }
 
-  b_size read = 0;
+  // Otherwise do expected routine of skips
+  b_size bread = 0;
   sb_size next;
 
-  while (read < toread)
+  while (bread < btoread)
     {
-      next = rpt_read_contiguous (dest + read, size, r, e);
+      // Read [size] bytes
+      next = rpt_read_contiguous (dest + bread, size, r, e);
+      if (next < 0)
+        {
+          bad_error_assert (e);
+          return err_t_from (e);
+        }
+      bread += next;
 
-      read += next;
-
-      // Next should either == 0 or 1 * size
       if (next == 0)
         {
-          ASSERT (read % size == 0);
-          return read / size;
+          ASSERT (bread % size == 0);
+          return bread / size;
         }
       else if (next != size)
         {
           return error_causef (
               e, ERR_CORRUPT,
-              "%s: Premature EOF", TAG);
+              "%s: Premature EOF while reading", TAG);
         }
 
-      // Skip values
-      next = rpt_read_contiguous (NULL, size * (nskip - 1), r, e);
+      ASSERT (next > 0);
+
+      // Skip (size * (stride - 1)) bytes
+      next = rpt_read_contiguous (NULL, size * (stride - 1), r, e);
       if (next < 0)
         {
+          bad_error_assert (e);
           return err_t_from (e);
         }
-
-      ASSERT ((b_size)next <= size * (nskip - 1));
-      if ((b_size)next < size * (nskip - 1))
+      // We read a non multiple of size - format error
+      if (next % size != 0)
         {
-          if (next % size != 0)
-            {
-              // TODO - better error message
-              return error_causef (
-                  e, ERR_CORRUPT,
-                  "%s Premature EOF", TAG);
-            }
+          return error_causef (
+              e, ERR_CORRUPT,
+              "%s Premature EOF while reading", TAG);
+        }
 
-          // We've reached the end
-          ASSERT (read % size == 0);
-          return read / size;
-          return SUCCESS;
+      if (rpt_eof (r))
+        {
+          ASSERT (bread % size == 0);
+          return bread / size;
         }
     }
 
-  return SUCCESS;
-  */
+  ASSERT (bread == btoread);
+  return bread / size;
 }
+
+/////////////////////////////////////////////////////////////////////
+////////////// SECTION: rpt_delete
 
 sb_size
 rpt_delete (
     u8 *dest,
     t_size size,
     b_size n,
-    b_size nskip,
+    b_size stride,
     rptree *r,
     error *e)
 {
@@ -500,7 +541,7 @@ rpt_delete (
     .dest = NULL,
     .size = size,
     .n = n,
-    .nskip = nskip,
+    .nskip = stride,
     .idx0 = r->lidx,
     .start = NULL, // NULL,
     .pager = r->pager,
@@ -514,7 +555,7 @@ rpt_take (
     u8 *dest,
     t_size size,
     b_size n,
-    b_size nskip,
+    b_size stride,
     rptree *r,
     error *e)
 {
@@ -524,7 +565,7 @@ rpt_take (
     .dest = dest,
     .size = size,
     .n = n,
-    .nskip = nskip,
+    .nskip = stride,
     .idx0 = r->lidx,
     .start = NULL,
     .pager = r->pager,
@@ -673,21 +714,173 @@ rpt_insert (const u8 *src, b_size n, rptree *r, error *e)
 /////////////////////////////////////////////////////////////////////
 ////////////// SECTION: rpt_write
 
-sb_size
-rpt_write (
-    const u8 *src, b_size n, b_size nskip,
-    rptree *r, error *e)
+static sb_size
+rpt_write_contiguous (
+    const u8 *src,
+    b_size bytes,
+    rptree *r,
+    error *e)
 {
+  ASSERT (bytes);
+  ASSERT (bytes > 0);
+  ASSERT (r->is_seeked);
+  ok_error_assert (e);
   rptree_assert (r);
 
-  dlw_params params = {
-    .idx0 = r->lidx,
-    .start = NULL,
-    .pager = r->pager,
-    .src = src,
-    .n = n,
-    .nskip = nskip,
-  };
+  b_size written = 0;
 
-  return _rpt_dlw (params, e);
+  const page *cur = pgr_get (PG_DATA_LIST, r->pg, r->pager, e);
+  if (cur == NULL)
+    {
+      bad_error_assert (e);
+      return err_t_from (e);
+    }
+
+  while (written < bytes)
+    {
+      // Filled up
+      if (dl_used (&cur->dl) == r->lidx)
+        {
+          pgno _next = dl_get_next (&cur->dl);
+
+          // We are at the end
+          if (_next == 0)
+            {
+              r->eof = true;
+              return written;
+            }
+
+          // Fetch the next page
+          const page *next = pgr_get (PG_DATA_LIST, _next, r->pager, e);
+          if (next == NULL)
+            {
+              bad_error_assert (e);
+              return err_t_from (e);
+            }
+          cur = next;
+          r->pg = cur->pg;
+
+          r->lidx = 0;
+        }
+
+      ASSERT (bytes > written);
+
+      page *_cur = pgr_make_writable (r->pager, cur);
+      ASSERT (cur != NULL); // Temporary until we throw for make_writable
+
+      p_size _write = dl_write (
+          &_cur->dl,
+          src ? src + written : NULL,
+          r->lidx,
+          bytes - written);
+
+      written += _write;
+      r->lidx += _write;
+    }
+
+  ASSERT (written == bytes);
+
+  return written;
+}
+
+sb_size
+rpt_write (
+    const u8 *src,
+    t_size size,
+    b_size n,
+    b_size stride,
+    rptree *r,
+    error *e)
+{
+  ASSERT (src);
+  ASSERT (size > 0);
+  ASSERT (n > 0);
+  ASSERT (stride >= 1);
+  rptree_assert (r);
+
+  // First, seek to the position we want
+  if (!r->is_seeked)
+    {
+      err_t_wrap (rpt_seek (r, 0, e), e);
+    }
+
+  b_size btowrite = size * n;
+
+  // Make 1 contiguous write if no stride
+  if (stride == 1)
+    {
+      sb_size nbytes = rpt_write_contiguous (src, btowrite, r, e);
+      if (nbytes < 0)
+        {
+          bad_error_assert (e);
+          return btowrite;
+        }
+
+      ASSERT ((b_size)nbytes <= btowrite);
+
+      // Check if we could write a multiple of size bytes
+      if (nbytes % size != 0)
+        {
+          return error_causef (
+              e, ERR_CORRUPT,
+              "%s: Premature EOF", TAG);
+        }
+
+      ASSERT (nbytes % size == 0);
+      return nbytes / size;
+    }
+
+  // Otherwise do expected routine of skips
+  b_size bwrite = 0;
+  sb_size next;
+
+  while (bwrite < btowrite)
+    {
+      // Read [size] bytes
+      next = rpt_write_contiguous (src + bwrite, size, r, e);
+      if (next < 0)
+        {
+          bad_error_assert (e);
+          return err_t_from (e);
+        }
+      bwrite += next;
+
+      if (next == 0)
+        {
+          ASSERT (bwrite % size == 0);
+          return bwrite / size;
+        }
+      else if (next != size)
+        {
+          return error_causef (
+              e, ERR_CORRUPT,
+              "%s: Premature EOF while writing", TAG);
+        }
+
+      ASSERT (next > 0);
+
+      // Skip (size * (stride - 1)) bytes
+      next = rpt_write_contiguous (NULL, size * (stride - 1), r, e);
+      if (next < 0)
+        {
+          bad_error_assert (e);
+          return err_t_from (e);
+        }
+      // We write a non multiple of size - format error
+      if (next % size != 0)
+        {
+          return error_causef (
+              e, ERR_CORRUPT,
+              "%s Premature EOF while writing", TAG);
+        }
+
+      if (rpt_eof (r))
+        {
+          ASSERT (bwrite % size == 0);
+          return bwrite / size;
+        }
+    }
+
+  ASSERT (bwrite == btowrite);
+  return bwrite / size;
 }

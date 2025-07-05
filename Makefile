@@ -35,7 +35,7 @@ OBJ       := $(SRC:.c=.o)
 
 ###############################
 ##### Apps 
-APPS      := nstorec nstores test cursor nspprint
+APPS      := nstorec nstores test cursor nspprint analyze
 
 APP_SRC   := $(addprefix apps/,$(addsuffix .c,$(APPS)))
 APP_OBJ   := $(APP_SRC:.c=.o)

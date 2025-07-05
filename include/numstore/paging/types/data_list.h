@@ -47,7 +47,8 @@ void dl_init_empty (data_list *d);
  * Writes as much data from [src] as it can (up until bytes)
  * Returns the number of bytes written
  */
-p_size dl_write (data_list *d, const u8 *src, p_size bytes);
+p_size dl_append (data_list *d, const u8 *src, p_size bytes);
+p_size dl_write (data_list *d, const u8 *src, p_size offset, p_size bytes);
 
 /**
  * Reads as much data from [d] into [dest] as it

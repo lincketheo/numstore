@@ -33,5 +33,25 @@ err_t cursor_insert (
     cbuffer *source, // The source to feed data into
     error *e);
 
+// READ
+err_t cursor_read (
+    cursor *c,
+    string vname,
+    b_size from,
+    b_size n,
+    b_size stride,
+    cbuffer *dest,
+    error *e);
+
+// WRITE
+err_t cursor_write (
+    cursor *c,
+    string vname,
+    b_size from,
+    b_size n,
+    b_size stride,
+    cbuffer *dest,
+    error *e);
+
 err_t cursor_execute (cursor *c, error *e);
 bool cursor_idle (cursor *c);

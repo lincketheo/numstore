@@ -45,15 +45,15 @@ pgno rpt_pg0 (rptree *r);
 /**
  * Reads maximum of [n] elements into [dest], each element
  * of size [size] (so [dest] needs to be at least n * size
- * bytes long) while skipping [nskip] elements every read
+ * bytes long) while skipping [stride] elements every read
  *
  * Returns ERR (< 0) on failure or number of elements read
  */
 sb_size rpt_read (
     u8 *dest,
-    t_size size,
-    b_size n,
-    b_size nskip,
+    t_size size, // Size of each element to read
+    b_size n,    // Number of elements to read
+    b_size stride,
     rptree *r,
     error *e);
 
@@ -67,7 +67,7 @@ sb_size rpt_delete (
     u8 *dest,
     t_size size,
     b_size n,
-    b_size nskip,
+    b_size stride,
     rptree *r,
     error *e);
 
@@ -87,7 +87,7 @@ sb_size rpt_insert (
 /**
  * (Over) writes data at the current seek position
  *
- * If [nskip]
+ * If [stride]
  *
  * Errors:
  *   - From pgr_get_expect
@@ -95,7 +95,8 @@ sb_size rpt_insert (
  */
 sb_size rpt_write (
     const u8 *src,
+    t_size size,
     b_size n,
-    b_size nskip,
+    b_size stride,
     rptree *r,
     error *e);
