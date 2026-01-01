@@ -69,8 +69,6 @@ But those will be released in v0.2.0.
 
 I'm a solo developer working on this only a few hours a week in my free time and I have very little time—so it's slow. Still, I expect v0.1.0 to be released February 1st. It won't include concurrency support—just strict serial transactions with a global database lock—but all my algorithms are designed and the code works barring bugs.
 
-If you're interested in staying in the loop, send me an email at lincketheo@gmail.com
-
 ---
 
 *Numstore is open source and available on GitLab at gitlab.com/lincketheo/numstore. More details coming soon.*
