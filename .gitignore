@@ -3,7 +3,7 @@
 .clang
 .cache
 compile_commands.json
-tags
+**tags**
 *.db
 *.nsdb
 *.wal
