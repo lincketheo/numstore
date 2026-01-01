@@ -9,4 +9,4 @@ pages:
     paths:
       - public
   only:
-    - main  # or master, depending on your default branch
+    - master 
