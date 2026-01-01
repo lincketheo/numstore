@@ -19,18 +19,15 @@
 
 #include <numstore/pager/dirty_page_table.h>
 
-#include <numstore/core/adptv_hash_table.h>
 #include <numstore/core/assert.h>
 #include <numstore/core/bytes.h>
 #include <numstore/core/clock_allocator.h>
 #include <numstore/core/deserializer.h>
 #include <numstore/core/error.h>
-#include <numstore/core/hash_table.h>
 #include <numstore/core/ht_models.h>
 #include <numstore/core/random.h>
 #include <numstore/core/serializer.h>
 #include <numstore/core/spx_latch.h>
-#include <numstore/intf/logging.h>
 #include <numstore/intf/types.h>
 #include <numstore/test/testing.h>
 
@@ -40,31 +37,6 @@ DEFINE_DBG_ASSERT (
     struct dpg_table, dirty_pg_table, d, {
       ASSERT (d);
     })
-
-static bool
-dpg_entry_equals (const struct hnode *left, const struct hnode *right)
-{
-  struct dpg_entry *_left = container_of (left, struct dpg_entry, node);
-  struct dpg_entry *_right = container_of (right, struct dpg_entry, node);
-
-  spx_latch_lock_s (&_left->l);
-  spx_latch_lock_s (&_right->l);
-
-  bool ret = _left->pg == _right->pg;
-
-  spx_latch_unlock_s (&_right->l);
-  spx_latch_unlock_s (&_left->l);
-
-  return ret;
-}
-
-static void
-dpg_entry_key_init (struct dpg_entry *dest, pgno pg)
-{
-  dest->pg = pg;
-  hnode_init (&dest->node, pg);
-  spx_latch_init (&dest->l);
-}
 
 // Lifecycle
 struct dpg_table *
@@ -76,25 +48,11 @@ dpgt_open (error *e)
       return NULL;
     }
 
-  struct adptv_htable_settings settings = {
-    .max_load_factor = 8,
-    .min_load_factor = 1,
-    .rehashing_work = 28,
-    .max_size = 2048,
-    .min_size = 10,
-  };
+  ht_init_dpt (&ret->table, ret->_table, MEMORY_PAGE_LEN);
 
-  err_t result = adptv_htable_init (&ret->t, settings, e);
+  err_t result = clck_alloc_open (&ret->alloc, sizeof (struct dpg_entry), MEMORY_PAGE_LEN, e);
   if (result != SUCCESS)
     {
-      i_free (ret);
-      return NULL;
-    }
-
-  result = clck_alloc_open (&ret->alloc, sizeof (struct dpg_entry), 100000, e);
-  if (result != SUCCESS)
-    {
-      adptv_htable_free (&ret->t);
       i_free (ret);
       return NULL;
     }
@@ -108,90 +66,84 @@ void
 dpgt_close (struct dpg_table *t)
 {
   DBG_ASSERT (dirty_pg_table, t);
-  spx_latch_lock_x (&t->l);
-  adptv_htable_free (&t->t);
-  spx_latch_unlock_x (&t->l);
   clck_alloc_close (&t->alloc);
   i_free (t);
-}
-
-#ifndef NTEST
-
-struct dpgt_eq_ctx
-{
-  struct dpg_table *other;
-  bool ret;
-};
-
-static void
-dpgt_eq_foreach (struct hnode *node, void *_ctx)
-{
-  struct dpgt_eq_ctx *ctx = _ctx;
-  if (ctx->ret == false)
-    {
-      return;
-    }
-
-  struct dpg_entry *dpe = container_of (node, struct dpg_entry, node);
-  spx_latch_lock_s (&dpe->l);
-
-  struct dpg_entry candidate;
-  dpg_entry_key_init (&candidate, dpe->pg);
-
-  struct hnode *other_node = adptv_htable_lookup (&ctx->other->t, &candidate.node, dpg_entry_equals);
-
-  if (other_node == NULL)
-    {
-      ctx->ret = false;
-      spx_latch_unlock_s (&dpe->l);
-      return;
-    }
-
-  struct dpg_entry *other_dpe = container_of (other_node, struct dpg_entry, node);
-
-  spx_latch_lock_s (&other_dpe->l);
-
-  bool equal = other_dpe->pg == dpe->pg;
-  equal = equal && other_dpe->rec_lsn == dpe->rec_lsn;
-  ctx->ret = equal;
-
-  spx_latch_unlock_s (&dpe->l);
-  spx_latch_unlock_s (&other_dpe->l);
 }
 
 bool
 dpgt_equal (struct dpg_table *left, struct dpg_table *right)
 {
+  u32 left_len = 0;
+  bool ret = false;
+
   spx_latch_lock_s (&left->l);
   spx_latch_lock_s (&right->l);
 
-  if (adptv_htable_size (&left->t) != adptv_htable_size (&right->t))
+  for (u32 i = 0; i < arrlen (left->_table); ++i)
     {
-      spx_latch_unlock_s (&right->l);
-      spx_latch_unlock_s (&left->l);
-      return false;
+      hentry_dpt entry = left->_table[i];
+
+      if (entry.present)
+        {
+          left_len++;
+
+          hdata_dpt dpe = entry.data;
+
+          hdata_dpt rcand;
+          switch (ht_get_dpt (&right->table, &rcand, dpe.key))
+            {
+            case HTAR_SUCCESS:
+              {
+                bool equal = rcand.value->pg == dpe.value->pg;
+                equal = equal && rcand.value->rec_lsn == dpe.value->rec_lsn;
+                if (!equal)
+                  {
+                    goto theend;
+                  }
+                break;
+              }
+            case HTAR_DOESNT_EXIST:
+              {
+                goto theend;
+              }
+            }
+        }
     }
 
-  struct dpgt_eq_ctx ctx = {
-    .other = right,
-    .ret = true,
-  };
-  adptv_htable_foreach (&left->t, dpgt_eq_foreach, &ctx);
+  u32 right_len = 0;
+  for (u32 i = 0; i < arrlen (right->_table); ++i)
+    {
+      hentry_dpt entry = right->_table[i];
 
-  spx_latch_unlock_s (&right->l);
+      if (entry.present)
+        {
+          right_len++;
+        }
+    }
+
+  ret = left_len == right_len;
+
+theend:
   spx_latch_unlock_s (&left->l);
+  spx_latch_unlock_s (&right->l);
 
-  return ctx.ret;
+  return ret;
 }
-
-#endif
 
 void
 dpgt_rand_populate (struct dpg_table *dpt)
 {
-  u32 len = adptv_htable_size (&dpt->t);
+  u32 len = 0;
 
-  len = randu32r (0, MEMORY_PAGE_LEN - len);
+  for (u32 i = 0; i < arrlen (dpt->_table); i++)
+    {
+      if (dpt->_table[i].present)
+        {
+          len++;
+        }
+    }
+
+  len = randu32r (0, arrlen (dpt->_table) - len);
 
   for (u32 i = 0; i < len; ++i)
     {
@@ -202,19 +154,6 @@ dpgt_rand_populate (struct dpg_table *dpt)
     }
 }
 
-static void
-i_log_dpg_entry (struct hnode *node, void *_log_level)
-{
-  int *log_level = _log_level;
-  struct dpg_entry *dpe = container_of (node, struct dpg_entry, node);
-
-  spx_latch_lock_s (&dpe->l);
-
-  i_printf (*log_level, "%" PRpgno " %" PRspgno "\n", dpe->pg, dpe->rec_lsn);
-
-  spx_latch_unlock_s (&dpe->l);
-}
-
 void
 i_log_dpgt (int log_level, struct dpg_table *dpt)
 {
@@ -222,7 +161,19 @@ i_log_dpgt (int log_level, struct dpg_table *dpt)
 
   i_log (log_level, "================ Dirty Page Table START ================\n");
   i_printf (log_level, "txid recLSN\n");
-  adptv_htable_foreach (&dpt->t, i_log_dpg_entry, &log_level);
+  for (u32 i = 0; i < arrlen (dpt->_table); ++i)
+    {
+      const hentry_dpt e = dpt->_table[i];
+
+      if (e.present)
+        {
+          spx_latch_lock_s (&e.data.value->l);
+
+          i_printf (log_level, "%" PRpgno " %" PRspgno "\n", e.data.value->pg, e.data.value->rec_lsn);
+
+          spx_latch_unlock_s (&e.data.value->l);
+        }
+    }
   i_log (log_level, "================ Dirty Page Table END ================\n");
 
   spx_latch_unlock_s (&dpt->l);
@@ -243,18 +194,20 @@ dpgt_add (struct dpg_table *t, pgno pg, lsn rec_lsn, error *e)
       return error_change_causef (e, ERR_DPGT_FULL, "Not enough space in the dirty page table");
     }
 
-  v->pg = pg;
-  v->rec_lsn = rec_lsn;
+  hdata_dpt data = {
+    .key = pg,
+    .value = v,
+  };
+
+  // Expect because clock allocator and txn table have the same size
+
+  ht_insert_expect_dpt (&t->table, data);
+
+  *v = (struct dpg_entry){
+    .rec_lsn = rec_lsn,
+    .pg = pg,
+  };
   spx_latch_init (&v->l);
-  hnode_init (&v->node, pg);
-
-  if (adptv_htable_insert (&t->t, &v->node, e))
-    {
-      clck_alloc_free (&t->alloc, v);
-      spx_latch_unlock_x (&t->l);
-      return e->cause_code;
-    }
-
   spx_latch_unlock_x (&t->l);
 
   return SUCCESS;
@@ -265,25 +218,30 @@ dpe_get (struct dpg_entry *dest, struct dpg_table *t, pgno pg)
 {
   DBG_ASSERT (dirty_pg_table, t);
 
+  hdata_dpt _dest;
+
   spx_latch_lock_s (&t->l);
 
-  struct dpg_entry key;
-  dpg_entry_key_init (&key, pg);
+  hta_res res = ht_get_dpt (&t->table, &_dest, pg);
 
-  struct hnode *node = adptv_htable_lookup (&t->t, &key.node, dpg_entry_equals);
-  if (node == NULL)
+  switch (res)
     {
-      spx_latch_unlock_s (&t->l);
-      return false;
+    case HTAR_DOESNT_EXIST:
+      {
+        spx_latch_unlock_s (&t->l);
+        return false;
+      }
+    case HTAR_SUCCESS:
+      {
+        spx_latch_lock_s (&_dest.value->l);
+        *dest = *_dest.value;
+        spx_latch_unlock_s (&_dest.value->l);
+
+        spx_latch_unlock_s (&t->l);
+        return true;
+      }
     }
-
-  struct dpg_entry *dpe = container_of (node, struct dpg_entry, node);
-  spx_latch_lock_s (&dpe->l);
-  *dest = *dpe;
-  spx_latch_unlock_s (&dpe->l);
-
-  spx_latch_unlock_s (&t->l);
-  return true;
+  return false;
 }
 
 struct dpg_entry
@@ -293,16 +251,12 @@ dpgt_get_expect (struct dpg_table *t, pgno pg)
 
   spx_latch_lock_s (&t->l);
 
-  struct dpg_entry key;
-  dpg_entry_key_init (&key, pg);
+  hdata_dpt dest;
+  ht_get_expect_dpt (&t->table, &dest, pg);
 
-  struct hnode *node = adptv_htable_lookup (&t->t, &key.node, dpg_entry_equals);
-  ASSERT (node);
-  struct dpg_entry *dpe = container_of (node, struct dpg_entry, node);
-
-  spx_latch_lock_s (&dpe->l);
-  struct dpg_entry ret = *dpe;
-  spx_latch_unlock_s (&dpe->l);
+  spx_latch_lock_s (&dest.value->l);
+  struct dpg_entry ret = *dest.value;
+  spx_latch_unlock_s (&dest.value->l);
 
   spx_latch_unlock_s (&t->l);
 
@@ -314,16 +268,12 @@ dpgt_update (struct dpg_table *d, pgno pg, lsn new_rec_lsn)
 {
   spx_latch_lock_s (&d->l);
 
-  struct dpg_entry key;
-  dpg_entry_key_init (&key, pg);
+  hdata_dpt dest;
+  ht_get_expect_dpt (&d->table, &dest, pg);
 
-  struct hnode *node = adptv_htable_lookup (&d->t, &key.node, dpg_entry_equals);
-  ASSERT (node);
-  struct dpg_entry *dpe = container_of (node, struct dpg_entry, node);
-
-  spx_latch_lock_x (&dpe->l);
-  dpe->rec_lsn = new_rec_lsn;
-  spx_latch_unlock_x (&dpe->l);
+  spx_latch_lock_x (&dest.value->l);
+  dest.value->rec_lsn = new_rec_lsn;
+  spx_latch_unlock_x (&dest.value->l);
 
   spx_latch_unlock_s (&d->l);
 }
@@ -335,122 +285,89 @@ dpgt_remove (struct dpg_table *t, pgno pg)
 
   spx_latch_lock_x (&t->l);
 
-  struct dpg_entry key;
-  dpg_entry_key_init (&key, pg);
-
-  struct hnode *node = adptv_htable_lookup (&t->t, &key.node, dpg_entry_equals);
-
-  if (node == NULL)
+  hdata_dpt dest;
+  hta_res res = ht_delete_dpt (&t->table, &dest, pg);
+  switch (res)
     {
-      spx_latch_unlock_x (&t->l);
-      return false;
+    case HTAR_SUCCESS:
+      {
+        clck_alloc_free (&t->alloc, dest.value);
+        spx_latch_unlock_x (&t->l);
+        return true;
+      }
+    case HTAR_DOESNT_EXIST:
+      {
+        spx_latch_unlock_x (&t->l);
+        return false;
+      }
     }
-
-  struct hnode *deleted = NULL;
-  if (adptv_htable_delete (&deleted, &t->t, node, dpg_entry_equals, NULL))
-    {
-      spx_latch_unlock_x (&t->l);
-      return false;
-    }
-
-  ASSERT (deleted != NULL);
-  struct dpg_entry *dpe = container_of (deleted, struct dpg_entry, node);
-  clck_alloc_free (&t->alloc, dpe);
-
-  spx_latch_unlock_x (&t->l);
-  return true;
+  UNREACHABLE ();
 }
 
 void
 dpgt_remove_expect (struct dpg_table *t, pgno pg)
 {
+  hdata_dpt dest;
   spx_latch_lock_x (&t->l);
-
-  struct dpg_entry key;
-  dpg_entry_key_init (&key, pg);
-
-  struct hnode *node = adptv_htable_lookup (&t->t, &key.node, dpg_entry_equals);
-  ASSERT (node != NULL);
-
-  struct hnode *deleted = NULL;
-  err_t result = adptv_htable_delete (&deleted, &t->t, node, dpg_entry_equals, NULL);
-  ASSERT (result == SUCCESS);
-  ASSERT (deleted != NULL);
-
-  struct dpg_entry *dpe = container_of (deleted, struct dpg_entry, node);
-  clck_alloc_free (&t->alloc, dpe);
-
+  ht_delete_expect_dpt (&t->table, &dest, pg);
+  clck_alloc_free (&t->alloc, dest.value);
   spx_latch_unlock_x (&t->l);
-}
-
-struct min_rec_lsn_ctx
-{
-  lsn min;
-};
-
-static void
-find_min_rec_lsn (struct hnode *node, void *vctx)
-{
-  struct min_rec_lsn_ctx *ctx = vctx;
-  struct dpg_entry *dpe = container_of (node, struct dpg_entry, node);
-
-  spx_latch_lock_s (&dpe->l);
-  lsn rec_lsn = dpe->rec_lsn;
-  spx_latch_unlock_s (&dpe->l);
-
-  if (rec_lsn < ctx->min)
-    {
-      ctx->min = rec_lsn;
-    }
 }
 
 lsn
 dpgt_min_rec_lsn (struct dpg_table *d)
 {
-  struct min_rec_lsn_ctx ctx = { .min = (lsn)-1 };
-
   spx_latch_lock_s (&d->l);
-  adptv_htable_foreach (&d->t, find_min_rec_lsn, &ctx);
-  spx_latch_unlock_s (&d->l);
 
-  return ctx.min;
-}
-
-struct merge_dpg_ctx
-{
-  struct dpg_table *dest;
-};
-
-static void
-merge_dpg_entry (struct hnode *node, void *vctx)
-{
-  struct merge_dpg_ctx *ctx = vctx;
-  struct dpg_entry *src_dpe = container_of (node, struct dpg_entry, node);
-
-  // Try to find existing entry in dest
-  struct hnode *dest_node = adptv_htable_lookup (&ctx->dest->t, &src_dpe->node, dpg_entry_equals);
-
-  if (dest_node != NULL)
+  lsn ret = (lsn)-1;
+  for (p_size i = 0; i < arrlen (d->_table); ++i)
     {
-      // Entry already exists, no need to insert
-      return;
+      hentry_dpt *entry = &d->_table[i];
+      if (entry->present)
+        {
+          spx_latch_lock_s (&entry->data.value->l);
+          lsn rec_lsn = entry->data.value->rec_lsn;
+          spx_latch_unlock_s (&entry->data.value->l);
+
+          if (rec_lsn < ret)
+            {
+              ret = rec_lsn;
+            }
+        }
     }
 
-  // Entry doesn't exist, insert it
-  adptv_htable_insert (&ctx->dest->t, &src_dpe->node, NULL);
+  spx_latch_unlock_s (&d->l);
+
+  return ret;
 }
 
 void
 dpgt_merge_into (struct dpg_table *dest, struct dpg_table *src)
 {
-  struct merge_dpg_ctx ctx = {
-    .dest = dest,
-  };
-
   spx_latch_lock_s (&src->l);
   spx_latch_lock_x (&dest->l);
 
-  adptv_htable_foreach (&src->t, merge_dpg_entry, &ctx);
+  for (p_size i = 0; i < arrlen (src->_table); ++i)
+    {
+      hentry_dpt *entry = &src->_table[i];
+      if (entry->present)
+        {
+          hdata_dpt data;
+          switch (ht_delete_dpt (&dest->table, &data, entry->data.key))
+            {
+            case HTAR_DOESNT_EXIST:
+              {
+                ht_insert_expect_dpt (&dest->table, entry->data);
+                break;
+              }
+            case HTAR_SUCCESS:
+              {
+                ht_insert_expect_dpt (&dest->table, entry->data);
+                break;
+              }
+            }
+        }
+    }
 
   spx_latch_unlock_x (&dest->l);
   spx_latch_unlock_s (&src->l);
@@ -459,43 +376,35 @@ dpgt_merge_into (struct dpg_table *dest, struct dpg_table *src)
 //////////////////////////////////////////////////
 ///// Serialization / Deserialization for checkpoint
 
-struct dpg_serialize_ctx
-{
-  struct serializer s;
-};
-
-static void
-dpg_entry_serialize (struct hnode *node, void *vctx)
-{
-  struct dpg_serialize_ctx *ctx = vctx;
-  struct dpg_entry *dpe = container_of (node, struct dpg_entry, node);
-
-  spx_latch_lock_s (&dpe->l);
-  pgno pg = dpe->pg;
-  lsn l = dpe->rec_lsn;
-  spx_latch_unlock_s (&dpe->l);
-
-  // Page
-  srlizr_write_expect (&ctx->s, (u8 *)&pg, sizeof (pg));
-
-  // lsn
-  srlizr_write_expect (&ctx->s, (u8 *)&l, sizeof (l));
-}
-
 u32
 dpgt_serialize (u8 dest[MAX_DPGT_SRL_SIZE], struct dpg_table *t)
 {
-  struct dpg_serialize_ctx ctx = {
-    .s = srlizr_create (dest, MAX_DPGT_SRL_SIZE),
-  };
+  struct serializer s = srlizr_create (dest, MAX_DPGT_SRL_SIZE);
 
   spx_latch_lock_s (&t->l);
 
-  adptv_htable_foreach (&t->t, dpg_entry_serialize, &ctx);
+  for (u32 i = 0; i < arrlen (t->_table); ++i)
+    {
+      if (t->_table[i].present)
+        {
+          hdata_dpt e = t->_table[i].data;
+
+          spx_latch_lock_s (&e.value->l);
+          pgno pg = e.value->pg;
+          lsn l = e.value->rec_lsn;
+          spx_latch_unlock_s (&e.value->l);
+
+          // Page
+          srlizr_write_expect (&s, (u8 *)&pg, sizeof (pg));
+
+          // lsn
+          srlizr_write_expect (&s, (u8 *)&l, sizeof (l));
+        }
+    }
 
   spx_latch_unlock_s (&t->l);
 
-  return ctx.s.dlen;
+  return s.dlen;
 }
 
 struct dpg_table *
@@ -546,7 +455,6 @@ void
 dpgt_crash (struct dpg_table *t)
 {
   DBG_ASSERT (dirty_pg_table, t);
-  adptv_htable_free (&t->t);
   clck_alloc_close (&t->alloc);
   i_free (t);
 }

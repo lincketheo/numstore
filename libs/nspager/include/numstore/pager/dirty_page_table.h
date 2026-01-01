@@ -19,27 +19,33 @@
  *   TODO: Add description for dirty_page_table.h
  */
 
-#include <numstore/core/adptv_hash_table.h>
 #include <numstore/core/bytes.h>
 #include <numstore/core/clock_allocator.h>
 #include <numstore/core/error.h>
-#include <numstore/core/hash_table.h>
 #include <numstore/intf/types.h>
 
 #include <config.h>
 
 struct dpg_entry
 {
-  pgno pg;
   lsn rec_lsn;
+  pgno pg;
   struct spx_latch l;
-  struct hnode node;
 };
+
+#define VTYPE struct dpg_entry *
+#define KTYPE pgno
+#define SUFFIX dpt
+#include <numstore/core/robin_hood_ht.h>
+#undef VTYPE
+#undef KTYPE
+#undef SUFFIX
 
 struct dpg_table
 {
-  struct adptv_htable t;
+  hash_table_dpt table;
   struct clck_alloc alloc;
+  hentry_dpt _table[MEMORY_PAGE_LEN];
   struct spx_latch l;
 };
 
@@ -50,6 +56,7 @@ void dpgt_close (struct dpg_table *t);
 // UTILS
 void dpgt_rand_populate (struct dpg_table *dpt);
 void i_log_dpgt (int log_level, struct dpg_table *dpt);
+bool dpgt_equal (struct dpg_table *left, struct dpg_table *right);
 lsn dpgt_min_rec_lsn (struct dpg_table *d);
 void dpgt_merge_into (struct dpg_table *dest, struct dpg_table *src);
 
@@ -74,5 +81,4 @@ struct dpg_table *dpgt_deserialize (const u8 *src, u32 dlen, error *e);
 
 #ifndef NTEST
 void dpgt_crash (struct dpg_table *t);
-bool dpgt_equal (struct dpg_table *left, struct dpg_table *right);
 #endif

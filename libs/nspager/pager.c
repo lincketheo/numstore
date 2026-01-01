@@ -1942,7 +1942,14 @@ pgr_restart_analysis (struct pager *p, struct aries_ctx *ctx, error *e)
             txnt_merge_into (&ctx->txt, &log_rec->ckpt_end.att, &ctx->txns, e);
 
             // FOR each entry in LogRec.Dirty_PageLst
-            u32 ckpt_dpt_count = adptv_htable_size (&log_rec->ckpt_end.dpt->t);
+            u32 ckpt_dpt_count = 0;
+            for (p_size i = 0; i < arrlen (log_rec->ckpt_end.dpt->_table); ++i)
+              {
+                if (log_rec->ckpt_end.dpt->_table[i].present)
+                  {
+                    ckpt_dpt_count++;
+                  }
+              }
 
             dpgt_merge_into (ctx->dpt, log_rec->ckpt_end.dpt);
 
