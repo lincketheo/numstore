@@ -45,6 +45,11 @@ jobs:
           name: build
           path: build/
 
+      - name: Restore executable permissions
+        run: |
+          # Find all test executables and make them executable
+          find ./build -type f -path "*/apps/test" -exec chmod +x {} \;
+
       - name: Install dependencies
         run: |
           apt-get update -qq
@@ -55,7 +60,7 @@ jobs:
           set -e  # Exit on first error
 
           # Find all test executables
-          TEST_EXES=$(find ./build -type f -path "*/apps/test" -executable)
+          TEST_EXES=$(find ./build -type f -path "*/apps/test")
 
           if [ -z "$TEST_EXES" ]; then
             echo "ERROR: No test executables found matching ./build/**/apps/test"
