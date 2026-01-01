@@ -1,0 +1,35 @@
+#pragma once
+
+/*
+ * Copyright 2025 Theo Lincke
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Description:
+ *   TODO: Add description for config.h
+ */
+
+#include <numstore/intf/types.h>
+
+#define PAGE_SIZE ((p_size)2048)
+#define MEMORY_PAGE_LEN ((u32)100)
+#define MAX_VSTR 10000
+#define MAX_TSTR 10000
+#define TXN_TBL_SIZE 512
+#define WAL_BUFFER_CAP 1000000
+#define MAX_NUPD_SIZE 200
+#define CURSOR_POOL_SIZE 100
+#define CLI_MAX_FILTERS 32
+#define MAX_TIDS 1000
+
+void i_log_config (void);

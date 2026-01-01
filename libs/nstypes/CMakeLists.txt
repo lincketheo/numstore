@@ -1,0 +1,11 @@
+file(GLOB NSTYPES_SRC CONFIGURE_DEPENDS *.c)
+file(GLOB NSTYPES_TEST_SRC CONFIGURE_DEPENDS "testing/*.c")
+
+add_ns_library(nstypes
+  SOURCES
+    ${NSTYPES_SRC}
+  TEST_SOURCES
+    ${NSTYPES_TEST_SRC}
+  DEPENDENCIES 
+    ${LIBS}/nscore 
+)

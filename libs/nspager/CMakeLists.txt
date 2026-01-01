@@ -1,0 +1,11 @@
+file(GLOB NSPAGER_SRC CONFIGURE_DEPENDS *.c)
+file(GLOB NSPAGER_TEST_SRC CONFIGURE_DEPENDS "testing/*.c")
+
+add_ns_library(nspager
+  SOURCES
+    ${NSPAGER_SRC}
+  TEST_SOURCES
+    ${NSPAGER_TEST_SRC}
+  DEPENDENCIES
+    ${LIBS}/nscore
+)

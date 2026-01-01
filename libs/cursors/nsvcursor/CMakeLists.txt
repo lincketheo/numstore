@@ -1,0 +1,12 @@
+file(GLOB NSVCURSOR_SRC CONFIGURE_DEPENDS *.c)
+file(GLOB NSVCURSOR_TEST_SRC CONFIGURE_DEPENDS "testing/*.c")
+
+add_ns_library(nsvcursor
+  SOURCES
+    ${NSVCURSOR_SRC}
+  TEST_SOURCES
+    ${NSVCURSOR_TEST_SRC}
+  DEPENDENCIES
+    ${LIBS}/nspager
+    ${LIBS}/nstypes
+)

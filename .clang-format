@@ -1,0 +1,6 @@
+BasedOnStyle: GNU
+IndentWidth: 2
+ColumnLimit: 0
+AlignTrailingComments: true
+AllowShortBlocksOnASingleLine: Always
+#AllowShortIfStatementsOnASingleLine: AllIfsAndElse
