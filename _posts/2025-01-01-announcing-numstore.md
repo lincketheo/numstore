@@ -9,7 +9,7 @@ Consider these use cases:
 - I want to pull slices of time-series sensor data across multiple dimensions
 - I want to efficiently store and query multi-dimensional numerical arrays
 
-A relational database wouldn't handle this very well. Sure, there are binary blobs, but those aren't treated as first-class citizens. You end up serializing/deserializing entire objects just to access a single element. It's clunky, slow, and fundamentally not designed for how machine learning workloads actually operate.
+A relational database wouldn't handle this very well. There are binary blobs, but those aren't treated as first-class citizens. You end up serializing/deserializing entire objects just to access a single element. It's clunky, slow, and fundamentally not designed for how machine learning workloads actually operate.
 
 ## Numpy and Data Locality
 
@@ -21,20 +21,13 @@ Right now, without a WAL, numstore achieves back-of-the-napkin **640+ MB/s susta
 
 ## How the R+Tree Works
 
-A R+Tree is a Rope data structure but instead of a binary tree, it's a B+tree variant. The key insight: rather than storing keys to data elements, **the keys are counts of elements in each subtree**.
-
-Here's why that matters:
-
-In a traditional B+tree, if you want to find the 1000th element, you need to know its key value. In a R+Tree, each internal node stores how many elements are in its left and right subtrees. To find the 1000th element:
-
-1. Start at root, check left subtree count
-2. If left count ≥ 1000, go left
-3. If left count < 1000, go right and look for element (1000 - left_count)
-4. Recurse until you hit a leaf
+A R+Tree is a Rope data structure but instead of a binary tree, it's a B+tree variant. The key insight: rather than storing keys to data elements, **the keys are counts of elements in each subtree**. Text editors use ropes all the time for efficient data insertion in the middle of documents, this is just an extension into a the database world. 
 
 This gives you O(log n) access to the n-th element without needing to maintain sorted keys. For insertions and deletions, you just update the counts as you rebalance—which you're doing anyway in a B+tree.
 
-The real power shows up in range operations. Want elements 1000 through 2000? The tree can efficiently:
+I'll say that again, **Numstore is like a file system where instead of copy write copy (O(n) mutations in the middle), it allows for O(log N) internal mutations. This is fundamentally a new shift in thinking for files. 
+
+Want elements 1000 through 2000? The tree can efficiently:
 - Locate element 1000 using count-based navigation
 - Stream elements 1000-2000 sequentially from the leaf nodes
 - Handle strided access (every k-th element) by skipping within and between leaf nodes
@@ -45,25 +38,22 @@ Combined with the fact that leaf nodes store contiguous byte arrays, you get cac
 
 ## How It Works
 
-Numstore operates using the following operation codes:
+Numstore breaks down its operation into the following operation codes:
+(Note convention is numbers that refer to a byte value are prefixed by `b`. Numbers that refer to units of values 
 
-**CREATE** - Initialize a new data store
+Housekeeping Operations:
+**CREATE** - Initialize a new "variable" (e.g. a file)
+**DELETE** - Remove a variable
 
-**DELETE** - Remove a data store
-
-**INSERT offset** - Inserts data at `[offset]`
-
-**READ start:stride:end** - Reads strided data from start to end with byte stride `[stride]`
-
-**REMOVE start:stride:end** - Removes data from start to end with byte stride `[stride]`
-
-**WRITE start:stride:end** - Writes data from start to end with byte stride `[stride]`
-
-The strided access pattern is what makes this particularly useful for multi-dimensional arrays—you can efficiently pull slices without reading entire blocks.
+Data Manipulation Operations:
+**INSERT boffset** - Inserts bytes at byte offset `[boffset]`
+**READ bsize bstart stride nelems** - Reads strided data from byte offset `[bstart]` end with elemenet stride `[stride]` where each element is `[bsize]` bytes.
+**REMOVE bsize bstart stride nelems** - Removes strided data from an offset
+**WRITE start:stride:end** - Writes strided data from a byte offset
 
 ## What's Next
 
-I'm a solo developer working on this 2-4 hours a week and I have very little time - so its slow. Still I suspect v0.1.0 to be released feb 1st. It won't include concurrency support - just strict serial transactions with a global database lock, but all my algorithms are designed.
+I'm a solo developer working on this 2-4 hours a week and I have very little time - so its slow. Still I suspect v0.1.0 to be released feb 1st. It won't include concurrency support - just strict serial transactions with a global database lock, but all my algorithms are designed and the code works barring bugs.
 
 If you're interested in staying in the loop, send me an email at lincketheo@gmail.com
 

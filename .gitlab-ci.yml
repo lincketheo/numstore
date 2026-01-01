@@ -1,7 +1,7 @@
 stages:
   - build
   - test
-  - pages
+  - deploy
 
 variables:
   # Exit immediately if any command fails
