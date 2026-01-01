@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/web/src/assets/logo.png" alt="NumStore Logo" width="200"/>
+  <img src="docs/logo.svg" alt="NumStore Logo" width="200"/>
 </p>
 
 # NumStore
