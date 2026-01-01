@@ -22,47 +22,6 @@ When I say log N, I really mean it takes log N to find the location. Once it's f
 
 It's written entirely in C with just the lemon parser as a dependency and some posix apis (with a wrapper - I haven't prioritized testing cross platform, but I designed it in a way to work cross platform. That feature will come soon).
 
----
-
-## 🏆 TODO
-
-NumStore is currently in **active development** (v0.0.1). The API is stabilizing but may change before the 1.0 release.
-
-- ✅ Core storage engine and R+Tree rebalance algorithm / pager
-- ✅ Basic Transaction support
-- 🚧 Crash Recovery 
-    - TODO:
-        - Finish Checkpoints 
-- 🚧 Concurrency
-    - TODO:
-        - Verify lock table works
-        - Add latches everywhere they need to be 
-        - Add thread pool library some places:
-            - WAL should be double buffered
-            - Checkpoints should run in a background thread 
-        - The whole latch idea is rough and buggy. example1 fails sporadically due to a deadlock
-- 🚧 Java / Python Bindings
-- 🚧 Performance optimization
-    - TODO:
-        - Optimize the WAL 
-            - Combine 1 fsync for multiple commits 
-            - Write tombstones as small log records (they don't need to be a full page) (x2 speed up)
-            - Make a page request tombstone list method to request a chain of tombstones (x2 speed up)
-- 🚧 Cross platform support 
-    - TODO:
-        - The os layer is defined, just not fully disciplined. I feel confident this is a 1-2 week full time task
-- 🚧 Benchmarks and plots against other databases and / or linux file system
-Failing tests
-
-[FAILURE ]: spx_latch_x_waits_for_multiple_s
-[FAILURE ]: aries_checkpoint_with_active_transactions
-[FAILURE ]: aries_crash_before_commit
-[FAILURE ]: aries_crash_before_commit_multiple
-[FAILURE ]: aries_rollback_with_crash_recovery
-[FAILURE ]: aries_rollback_clr_not_undone
-
----
-
 ## 🚀 Features
 
 - **Persistent Storage**: Automatic persistence with undo redo write-ahead logging (WAL) using ARIES

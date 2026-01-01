@@ -48,9 +48,9 @@ dpgt_open (error *e)
       return NULL;
     }
 
-  ht_init_dpt (&ret->table, ret->_table, MEMORY_PAGE_LEN);
+  ht_init_dpt (&ret->table, ret->_table, arrlen (ret->_table));
 
-  err_t result = clck_alloc_open (&ret->alloc, sizeof (struct dpg_entry), MEMORY_PAGE_LEN, e);
+  err_t result = clck_alloc_open (&ret->alloc, sizeof (struct dpg_entry), arrlen (ret->_table), e);
   if (result != SUCCESS)
     {
       i_free (ret);

@@ -45,7 +45,7 @@ struct dpg_table
 {
   hash_table_dpt table;
   struct clck_alloc alloc;
-  hentry_dpt _table[MEMORY_PAGE_LEN];
+  hentry_dpt _table[100000];
   struct spx_latch l;
 };
 
