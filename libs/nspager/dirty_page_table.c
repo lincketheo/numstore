@@ -28,6 +28,7 @@
 #include <numstore/core/random.h>
 #include <numstore/core/serializer.h>
 #include <numstore/core/spx_latch.h>
+#include <numstore/intf/logging.h>
 #include <numstore/intf/types.h>
 #include <numstore/test/testing.h>
 
