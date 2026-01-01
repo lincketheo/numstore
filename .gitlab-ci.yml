@@ -1,82 +1,12 @@
-stages:
-  - build
-  - test
-
-variables:
-  # Exit immediately if any command fails
-  GIT_STRATEGY: clone
-
-build:
-  stage: build
-  image: gcc:latest
-  before_script:
-    # Install required dependencies
-    - apt-get update -qq
-    - apt-get install -y -qq cmake make valgrind libbacktrace-dev
+pages:
+  stage: deploy
+  image: ruby:2.7
   script:
-    - make comprehensive
+    - gem install jekyll bundler
+    - bundle install
+    - bundle exec jekyll build -d public
   artifacts:
     paths:
-      - build/
-    expire_in: 1 hour
-
-valgrind_tests:
-  stage: test
-  image: gcc:latest
-  dependencies:
-    - build
-  before_script:
-    - apt-get update -qq
-    - apt-get install -y -qq valgrind libbacktrace-dev
-  script:
-    - |
-      set -e  # Exit on first error
-
-      # Find all test executables
-      TEST_EXES=$(find ./build -type f -path "*/apps/test" -executable)
-
-      if [ -z "$TEST_EXES" ]; then
-        echo "ERROR: No test executables found matching ./build/**/apps/test"
-        exit 1
-      fi
-
-      echo "Found test executables:"
-      echo "$TEST_EXES"
-      echo ""
-
-      # Track if any test fails
-      FAILED=0
-
-      # Run each test executable under valgrind
-      for TEST_EXE in $TEST_EXES; do
-        BUILD_DIR=$(dirname "$TEST_EXE")
-        echo "========================================"
-        echo "Running valgrind on: $TEST_EXE"
-        echo "Build directory: $BUILD_DIR"
-        echo "========================================"
-
-        cd "$BUILD_DIR"
-
-        # Run valgrind with the same parameters as in Makefile
-        if ! ./test; then
-          echo "FAILED: Valgrind test failed for $TEST_EXE"
-          FAILED=1
-        else
-          echo "PASSED: Valgrind test passed for $TEST_EXE"
-        fi
-
-        echo ""
-        cd - > /dev/null
-      done
-
-      # Exit with error if any test failed
-      if [ $FAILED -ne 0 ]; then
-        echo "========================================"
-        echo "ERROR: One or more valgrind tests failed"
-        echo "========================================"
-        exit 1
-      fi
-
-      echo "========================================"
-      echo "SUCCESS: All valgrind tests passed"
-      echo "========================================"
+      - public
+  only:
+    - main  # or master, depending on your default branch
