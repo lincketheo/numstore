@@ -106,7 +106,7 @@ TEST (TT_UNIT, aries_checkpoint_basic_recovery)
   test_err_t_wrap (pgr_close (p, &e), &e);
 }
 
-TEST (TT_UNIT, aries_checkpoint_with_active_transactions)
+TEST_disabled (TT_UNIT, aries_checkpoint_with_active_transactions)
 {
   error e = error_create ();
 

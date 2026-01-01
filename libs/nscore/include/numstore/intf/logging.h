@@ -72,7 +72,7 @@ void i_log_flush (void);
 ///////// FORCE IT HERE
 
 #undef I_LOG_LEVEL
-#define I_LOG_LEVEL LOG_DEBUG
+#define I_LOG_LEVEL LOG_NONE
 
 ////////////////////////////////////////////////////////////
 ///////// LEVELS

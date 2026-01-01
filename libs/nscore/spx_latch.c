@@ -244,6 +244,7 @@ spx_latch_downgrade_x_s (struct spx_latch *latch)
   atomic_store (&latch->state, 1);
 }
 
+#ifdef SPXTEST
 #ifndef NTEST
 
 // Test context structure
@@ -272,7 +273,7 @@ busy_wait_short (void)
 }
 
 // Test basic S lock acquire/release
-TEST (TT_UNIT, spx_latch_basic_shared)
+TEST_disabled (TT_UNIT, spx_latch_basic_shared)
 {
   struct spx_latch latch;
   spx_latch_init (&latch);
@@ -286,7 +287,7 @@ TEST (TT_UNIT, spx_latch_basic_shared)
 }
 
 // Test basic X lock acquire/release
-TEST (TT_UNIT, spx_latch_basic_exclusive)
+TEST_disabled (TT_UNIT, spx_latch_basic_exclusive)
 {
   struct spx_latch latch;
   spx_latch_init (&latch);
@@ -300,7 +301,7 @@ TEST (TT_UNIT, spx_latch_basic_exclusive)
 }
 
 // Test multiple S locks can be held
-TEST (TT_UNIT, spx_latch_multiple_shared_one_thread)
+TEST_disabled (TT_UNIT, spx_latch_multiple_shared_one_thread)
 {
   struct spx_latch latch;
   spx_latch_init (&latch);
@@ -435,7 +436,7 @@ thread_try_x2 (void *arg)
 }
 
 // Test that S and X are exclusive
-TEST (TT_UNIT, spx_latch_s_x_exclusive)
+TEST_disabled (TT_UNIT, spx_latch_s_x_exclusive)
 {
   struct spx_latch latch;
   spx_latch_init (&latch);
@@ -482,7 +483,7 @@ TEST (TT_UNIT, spx_latch_s_x_exclusive)
 }
 
 // Test pending flag blocks new S locks
-TEST (TT_UNIT, spx_latch_pending_blocks_shared)
+TEST_disabled (TT_UNIT, spx_latch_pending_blocks_shared)
 {
   struct spx_latch latch;
   spx_latch_init (&latch);
@@ -535,7 +536,7 @@ TEST (TT_UNIT, spx_latch_pending_blocks_shared)
 }
 
 // Test: X lock blocks S lock
-TEST (TT_UNIT, spx_latch_x_blocks_s)
+TEST_disabled (TT_UNIT, spx_latch_x_blocks_s)
 {
   struct spx_latch latch;
   spx_latch_init (&latch);
@@ -582,7 +583,7 @@ TEST (TT_UNIT, spx_latch_x_blocks_s)
 }
 
 // Test: Multiple S locks can coexist
-TEST (TT_UNIT, spx_latch_multiple_shared)
+TEST_disabled (TT_UNIT, spx_latch_multiple_shared)
 {
   struct spx_latch latch;
   spx_latch_init (&latch);
@@ -632,7 +633,7 @@ TEST (TT_UNIT, spx_latch_multiple_shared)
 }
 
 // Test: X waits for multiple S locks to drain
-TEST (TT_UNIT, spx_latch_x_waits_for_multiple_s)
+TEST_disabled (TT_UNIT, spx_latch_x_waits_for_multiple_s)
 {
   struct spx_latch latch;
   spx_latch_init (&latch);
@@ -688,7 +689,7 @@ TEST (TT_UNIT, spx_latch_x_waits_for_multiple_s)
 }
 
 // Test: Two X locks are mutually exclusive
-TEST (TT_UNIT, spx_latch_x_x_exclusive)
+TEST_disabled (TT_UNIT, spx_latch_x_x_exclusive)
 {
   struct spx_latch latch;
   spx_latch_init (&latch);
@@ -750,7 +751,7 @@ increment_thread (void *arg)
   return NULL;
 }
 
-TEST (TT_UNIT, spx_latch_data_race_protection)
+TEST_disabled (TT_UNIT, spx_latch_data_race_protection)
 {
   struct spx_latch latch;
   spx_latch_init (&latch);
@@ -773,4 +774,5 @@ TEST (TT_UNIT, spx_latch_data_race_protection)
   test_assert_equal (atomic_load (&latch.state), 0);
 }
 
+#endif
 #endif

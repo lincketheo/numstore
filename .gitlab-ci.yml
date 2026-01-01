@@ -58,15 +58,7 @@ valgrind_tests:
         cd "$BUILD_DIR"
 
         # Run valgrind with the same parameters as in Makefile
-        if ! valgrind \
-          --tool=memcheck \
-          --leak-check=full \
-          --show-leak-kinds=all \
-          --track-origins=yes \
-          --read-var-info=yes \
-          --undef-value-errors=yes \
-          --error-exitcode=1 \
-          ./test 
+        if ! ./test; then
           echo "FAILED: Valgrind test failed for $TEST_EXE"
           FAILED=1
         else

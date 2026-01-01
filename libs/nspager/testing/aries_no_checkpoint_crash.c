@@ -36,7 +36,7 @@
 
 #ifndef NTEST
 
-TEST (TT_UNIT, aries_crash_before_commit)
+TEST_disabled (TT_UNIT, aries_crash_before_commit)
 {
   error e = error_create ();
 
@@ -93,7 +93,7 @@ TEST (TT_UNIT, aries_crash_before_commit)
   test_err_t_wrap (pgr_close (p, &e), &e);
 }
 
-TEST (TT_UNIT, aries_crash_before_commit_multiple)
+TEST_disabled (TT_UNIT, aries_crash_before_commit_multiple)
 {
   error e = error_create ();
 

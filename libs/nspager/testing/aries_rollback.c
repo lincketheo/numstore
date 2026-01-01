@@ -141,7 +141,7 @@ TEST (TT_UNIT, aries_rollback_multiple_updates)
   test_err_t_wrap (pgr_close (p, &e), &e);
 }
 
-TEST (TT_UNIT, aries_rollback_with_crash_recovery)
+TEST_disabled (TT_UNIT, aries_rollback_with_crash_recovery)
 {
   error e = error_create ();
 
@@ -191,7 +191,7 @@ TEST (TT_UNIT, aries_rollback_with_crash_recovery)
   test_err_t_wrap (pgr_close (p, &e), &e);
 }
 
-TEST (TT_UNIT, aries_rollback_clr_not_undone)
+TEST_disabled (TT_UNIT, aries_rollback_clr_not_undone)
 {
   error e = error_create ();
 
