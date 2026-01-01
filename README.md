@@ -12,7 +12,7 @@ Numstore is a database for contiguous bytes.
 
 It's essentially a file system, but in a database format with log N mutations in the middle.
 
-I got the idea of an "R+Tree" which is just a rope equivalent to a B+Tree that keeps track of the count of bytes each node stores. It's designed for:
+Numstore got its idea of an "R+Tree" which is just a rope equivalent to a B+Tree that keeps track of the count of bytes each node stores. It's designed for:
 
 - log N Insertions anywhere in the byte stream (compared to N insertions in traditional file systems) 
 - log N deletions anywhere in the byte stream
