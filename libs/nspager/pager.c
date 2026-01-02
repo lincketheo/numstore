@@ -17,6 +17,7 @@
  *   TODO: Add description for pager.c
  */
 
+#include "numstore/pager/lt_lock.h"
 #include <file_pager.h>
 
 #include <numstore/core/adptv_hash_table.h>
@@ -33,6 +34,7 @@
 #include <numstore/pager.h>
 #include <numstore/pager/data_list.h>
 #include <numstore/pager/dirty_page_table.h>
+#include <numstore/pager/lock_table.h>
 #include <numstore/pager/page.h>
 #include <numstore/pager/page_h.h>
 #include <numstore/pager/root_node.h>
@@ -90,6 +92,8 @@ struct pager
   struct file_pager fp;
   struct wal ww;
   bool restarting;
+  struct lockt *lt;
+  struct thread_pool *tp;
 
   struct dpg_table *dpt;
   struct txn_table tnxt;
@@ -580,7 +584,7 @@ pgr_is_new_guard (struct pager *p, bool *isnew, error *e)
 }
 
 struct pager *
-pgr_open (const char *fname, const char *walname, error *e)
+pgr_open (const char *fname, const char *walname, struct lockt *lt, struct thread_pool *tp, error *e)
 {
   struct pager *ret = NULL;
   struct dpg_table *dpt = NULL;
@@ -629,6 +633,8 @@ pgr_open (const char *fname, const char *walname, error *e)
     ret->dpt = dpt;
     ret->clock = 0;
     ret->next_tid = 1;
+    ret->lt = lt;
+    ret->tp = tp;
   }
 
   if (is_new)
@@ -1313,6 +1319,9 @@ pgr_new (page_h *dest, struct pager *p, struct txn *tx, enum page_type type, err
    */
   err_t_wrap (pgr_get (&root_node, PG_ROOT_NODE, ROOT_PGNO, p, e), e);
 
+  // S(fstmbst)
+  struct lt_lock *fstmbst = lockt_lock (p->lt, LOCK_FSTMBST, (union lt_lock_data){ 0 }, LM_S, tx, e);
+
   pgno ftpg = rn_get_first_tmbst (page_h_ro (&root_node));
   ret = pgr_make_writable (p, tx, &root_node, e);
   if (ret)
@@ -1340,6 +1349,23 @@ pgr_new (page_h *dest, struct pager *p, struct txn *tx, enum page_type type, err
           pgr_release_no_tx (p, &root_node, PG_ROOT_NODE, e);
           return ret;
         }
+    }
+
+  // S(tmbst(ftpg))
+  struct lt_lock *tmbst = lockt_lock (p->lt, LOCK_TMBST, (union lt_lock_data){ .tmbst_pg = ftpg }, LM_S, tx, e);
+  if (tmbst == NULL)
+    {
+      pgr_cancel_w (p, &root_node);
+      pgr_release_no_tx (p, &root_node, PG_ROOT_NODE, e);
+      return ret;
+    }
+
+  // S -> X(fstmbst)
+  if ((ret = lockt_upgrade (p->lt, fstmbst, LM_X, e)))
+    {
+      pgr_cancel_w (p, &root_node);
+      pgr_release_no_tx (p, &root_node, PG_ROOT_NODE, e);
+      return ret;
     }
 
   // Update root node's first tombstone link

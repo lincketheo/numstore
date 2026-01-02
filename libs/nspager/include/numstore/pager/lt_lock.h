@@ -55,6 +55,7 @@ struct lt_lock
     LOCK_VAR,
     LOCK_VAR_NEXT,
     LOCK_RPTREE,
+    LOCK_TMBST,
   } type;
 
   union lt_lock_data
@@ -63,6 +64,7 @@ struct lt_lock
     pgno var_root;
     pgno var_root_next;
     pgno rptree_root;
+    pgno tmbst_pg;
   } data;
 
   struct gr_lock *lock;        // The actual lock (shared between the lock key)

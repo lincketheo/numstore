@@ -29,22 +29,24 @@
 
 #include <config.h>
 
-struct nsfsllt
+struct lockt
 {
   struct clck_alloc gr_lock_alloc; // Allocate gr locks
   struct adptv_htable table;       // The table of locks
   struct spx_latch l;              // Thread safety
 };
 
-err_t nsfslt_init (struct nsfsllt *t, error *e);
-void nsfslt_destroy (struct nsfsllt *t);
+err_t lockt_init (struct lockt *t, error *e);
+void lockt_destroy (struct lockt *t);
 
-err_t nsfslock (
-    struct nsfsllt *t,
+struct lt_lock *lockt_lock (
+    struct lockt *t,
     enum lt_lock_type type,  // The type of lock you want to acquire
     union lt_lock_data data, // The data for this lock
     enum lock_mode mode,     // The lock mode you want
     struct txn *tx,          // Which transaction does this lock belong to
     error *e);
 
-err_t nsfsunlock (struct nsfsllt *t, struct txn *tx, error *e);
+err_t lockt_upgrade (struct lockt *t, struct lt_lock *lock, enum lock_mode mode, error *e);
+
+err_t lockt_unlock (struct lockt *t, struct txn *tx, error *e);
