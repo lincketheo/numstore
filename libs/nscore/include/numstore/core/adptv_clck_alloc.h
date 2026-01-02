@@ -1,138 +1,85 @@
-#ifndef NUMSTORE_CORE_ADPTV_CLCK_ALLOC_H
-#define NUMSTORE_CORE_ADPTV_CLCK_ALLOC_H
+#pragma once
+
+/*
+ * Copyright 2025 Theo Lincke
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Description:
+ *   A dynamic clock allocator that resizes it's allocation pool when 
+ *   it needs more room
+ */
 
 #include <numstore/core/error.h>
 #include <numstore/core/spx_latch.h>
 #include <numstore/intf/types.h>
 
-/**
- * @file adptv_clck_alloc.h
- * @brief Adaptive clock allocator with dynamic capacity adjustment
- *
- * This allocator dynamically grows and shrinks based on usage, similar to
- * adptv_hash_table. It uses two clock allocators during resizing and
- * incrementally migrates elements. Returns integer handles instead of
- * pointers since data location may change during migration.
- */
-
-/**
- * Settings for adaptive clock allocator behavior
- */
-struct adptv_clck_alloc_settings {
-  /**
-   * Number of elements to migrate per allocation operation.
-   * Higher values complete migration faster but increase per-operation latency.
-   */
+struct adptv_clck_alloc_settings
+{
   u32 migration_work;
-
-  /**
-   * Maximum capacity (number of elements). Allocator will not grow beyond this.
-   */
   u32 max_capacity;
-
-  /**
-   * Minimum capacity (number of elements). Allocator will not shrink below this.
-   */
   u32 min_capacity;
 };
 
-/**
- * Default settings for adaptive clock allocator
- */
-#define ADPTV_CLCK_ALLOC_DEFAULT_SETTINGS                                      \
-  (struct adptv_clck_alloc_settings) {                                         \
-    .migration_work = 4, .max_capacity = 1 << 20, /* 1M elements */            \
-    .min_capacity = 16,                                                        \
+#define ADPTV_CLCK_ALLOC_DEFAULT_SETTINGS                           \
+  (struct adptv_clck_alloc_settings)                                \
+  {                                                                 \
+    .migration_work = 4, .max_capacity = 1 << 20, /* 1M elements */ \
+        .min_capacity = 16,                                         \
   }
 
-/**
- * Adaptive clock allocator structure (opaque)
- */
-struct adptv_clck_alloc;
+struct clock_frame
+{
+  bool allocated;  // Is this handle currently allocated?
+  bool in_current; // True if data is in current allocator, false if in prev
+  u32 phys_idx;    // Physical index within the allocator
+};
 
-/**
- * Initialize an adaptive clock allocator
- *
- * @param aca Pointer to allocator structure
- * @param elem_size Size of each element in bytes
- * @param initial_capacity Initial number of elements
- * @param settings Configuration settings
- * @param e Error context
- * @return 0 on success, error code on failure
- */
-int adptv_clck_alloc_init(struct adptv_clck_alloc **aca, size_t elem_size,
-                          u32 initial_capacity,
-                          struct adptv_clck_alloc_settings settings,
-                          error *e);
+struct adptv_clck_alloc
+{
+  void *current_data;
+  bool *current_occupied;
+  u32 current_capacity;
+  u32 current_clock;
 
-/**
- * Allocate an element and return its handle
- *
- * This operation may trigger:
- * - Incremental migration if resizing is in progress
- * - Capacity doubling if allocator is full
- *
- * @param aca Allocator
- * @param e Error context
- * @return Non-negative handle on success, -1 on failure (see error context)
- */
-i32 adptv_clck_alloc_alloc(struct adptv_clck_alloc *aca, error *e);
+  void *prev_data;
+  bool *prev_occupied;
+  u32 prev_capacity;
 
-/**
- * Allocate and zero-initialize an element
- *
- * @param aca Allocator
- * @param e Error context
- * @return Non-negative handle on success, -1 on failure
- */
-i32 adptv_clck_alloc_calloc(struct adptv_clck_alloc *aca, error *e);
+  struct clock_frame *handle_table;
+  u32 handle_capacity;
 
-/**
- * Free an element by its handle
- *
- * This operation may trigger:
- * - Capacity halving if allocator is 25% full or less
- *
- * @param aca Allocator
- * @param handle Element handle returned from alloc/calloc
- * @param e Error context
- */
-void adptv_clck_alloc_free(struct adptv_clck_alloc *aca, i32 handle,
-                           error *e);
+  u32 size;
+  size_t elem_size;
+  u32 migrate_pos;
+  struct adptv_clck_alloc_settings settings;
+  struct spx_latch latch;
+};
 
-/**
- * Get pointer to element data from handle
- *
- * WARNING: Returned pointer is only valid until the next alloc/free operation,
- * as these operations may trigger migration that relocates elements.
- *
- * @param aca Allocator
- * @param handle Element handle
- * @return Pointer to element data, or NULL if handle is invalid
- */
-void *adptv_clck_alloc_get_at(struct adptv_clck_alloc *aca, i32 handle);
+int adptv_clck_alloc_init (
+    struct adptv_clck_alloc *dest,
+    size_t elem_size,
+    u32 initial_capacity,
+    struct adptv_clck_alloc_settings settings,
+    error *e);
+void adptv_clck_alloc_close (struct adptv_clck_alloc *aca);
 
-/**
- * Get current number of allocated elements
- *
- * @param aca Allocator
- * @return Number of allocated elements
- */
-u32 adptv_clck_alloc_size(const struct adptv_clck_alloc *aca);
+i32 adptv_clck_alloc_alloc (struct adptv_clck_alloc *aca, error *e);
+i32 adptv_clck_alloc_calloc (struct adptv_clck_alloc *aca, error *e);
+void adptv_clck_alloc_free (struct adptv_clck_alloc *aca, i32 handle, error *e);
 
-/**
- * Get current capacity
- *
- * @param aca Allocator
- * @return Current capacity (number of elements)
- */
-u32 adptv_clck_alloc_capacity(const struct adptv_clck_alloc *aca);
+void *adptv_clck_alloc_get_at (struct adptv_clck_alloc *aca, i32 handle);
 
-/**
- * Clean up and free allocator resources
- *
- * @param aca Allocator to destroy
- */
-void adptv_clck_alloc_free_allocator(struct adptv_clck_alloc *aca);
-
-#endif // NUMSTORE_CORE_ADPTV_CLCK_ALLOC_H
+// Utils
+u32 adptv_clck_alloc_size (const struct adptv_clck_alloc *aca);
+u32 adptv_clck_alloc_capacity (const struct adptv_clck_alloc *aca);

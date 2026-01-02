@@ -24,48 +24,12 @@
 #include <numstore/intf/stdlib.h>
 #include <string.h>
 
-/**
- * Handle metadata - maps logical handle to physical location
- */
-struct handle_entry {
-  bool allocated;   // Is this handle currently allocated?
-  bool in_current;  // True if data is in current allocator, false if in prev
-  u32 phys_idx;     // Physical index within the allocator
-};
-
-/**
- * Internal structure for adaptive clock allocator
- */
-struct adptv_clck_alloc {
-  // Current allocator
-  void *current_data;
-  bool *current_occupied;
-  u32 current_capacity;
-  u32 current_clock;
-
-  // Previous allocator (used during migration)
-  void *prev_data;
-  bool *prev_occupied;
-  u32 prev_capacity;
-
-  // Handle management
-  struct handle_entry *handle_table;
-  u32 handle_capacity;
-
-  // Global state
-  u32 size;      // Number of allocated elements
-  size_t elem_size;
-  u32 migrate_pos;
-  struct adptv_clck_alloc_settings settings;
-  struct spx_latch latch;
-};
-
-/**
- * Helper: Allocate memory for clock allocator (data + occupied bitmap)
- */
 static void *
-allocate_clck_memory (u32 capacity, size_t elem_size, bool **occupied_out,
-                      error *e)
+allocate_clck_memory (
+    u32 capacity,
+    size_t elem_size,
+    bool **occupied_out,
+    error *e)
 {
   size_t data_size = capacity * elem_size;
   size_t occupied_size = capacity * sizeof (bool);
@@ -83,19 +47,12 @@ allocate_clck_memory (u32 capacity, size_t elem_size, bool **occupied_out,
   return data;
 }
 
-/**
- * Helper: Get pointer to element in an allocator
- */
 static inline void *
 get_element_ptr (void *data, u32 index, size_t elem_size)
 {
   return (char *)data + (index * elem_size);
 }
 
-/**
- * Helper: Find next free slot in allocator using clock algorithm
- * Returns physical index or -1 if full
- */
 static i32
 find_free_slot (void *data, bool *occupied, u32 *clock, u32 capacity)
 {
@@ -112,15 +69,12 @@ find_free_slot (void *data, bool *occupied, u32 *clock, u32 capacity)
   return -1;
 }
 
-/**
- * Helper: Finish all pending migration from prev to current
- */
 static void
 finish_migration (struct adptv_clck_alloc *aca)
 {
   if (aca->prev_data == NULL)
     {
-      return;  // No migration in progress
+      return; // No migration in progress
     }
 
   // Migrate all elements that are still in prev
@@ -135,7 +89,7 @@ finish_migration (struct adptv_clck_alloc *aca)
                                         aca->current_occupied,
                                         &aca->current_clock,
                                         aca->current_capacity);
-          ASSERT (new_idx >= 0);  // Must have space
+          ASSERT (new_idx >= 0); // Must have space
 
           // Copy data
           void *src = get_element_ptr (aca->prev_data, old_idx, aca->elem_size);
@@ -159,24 +113,20 @@ finish_migration (struct adptv_clck_alloc *aca)
   aca->migrate_pos = 0;
 }
 
-/**
- * Helper: Trigger resize (expand or shrink)
- */
 static int
-trigger_resize (struct adptv_clck_alloc *aca, u32 new_capacity,
-                error *e)
+trigger_resize (
+    struct adptv_clck_alloc *aca,
+    u32 new_capacity,
+    error *e)
 {
-  // Finish any pending migration first
   finish_migration (aca);
 
-  // Allocate new current allocator
   bool *new_occupied;
-  void *new_data
-      = allocate_clck_memory (new_capacity, aca->elem_size, &new_occupied, e);
+  void *new_data = allocate_clck_memory (new_capacity, aca->elem_size, &new_occupied, e);
+
   if (new_data == NULL)
     {
-      return error_change_causef (e, ERR_NOMEM,
-                                  "Failed to allocate new capacity");
+      return error_change_causef (e, ERR_NOMEM, "Failed to allocate new capacity");
     }
 
   // Move current to prev
@@ -203,12 +153,10 @@ trigger_resize (struct adptv_clck_alloc *aca, u32 new_capacity,
   // Resize handle table if expanding
   if (new_capacity > aca->handle_capacity)
     {
-      struct handle_entry *new_handles
-          = i_malloc (new_capacity, sizeof (struct handle_entry), e);
+      struct clock_frame *new_handles = i_malloc (new_capacity, sizeof (struct clock_frame), e);
       if (new_handles == NULL)
         {
-          return error_change_causef (e, ERR_NOMEM,
-                                      "Failed to resize handle table");
+          return error_change_causef (e, ERR_NOMEM, "Failed to resize handle table");
         }
 
       // Copy old entries
@@ -234,42 +182,25 @@ trigger_resize (struct adptv_clck_alloc *aca, u32 new_capacity,
 }
 
 int
-adptv_clck_alloc_init (struct adptv_clck_alloc **aca_out, size_t elem_size,
-                       u32 initial_capacity,
-                       struct adptv_clck_alloc_settings settings,
-                       error *e)
+adptv_clck_alloc_init (
+    struct adptv_clck_alloc *aca,
+    size_t elem_size,
+    u32 initial_capacity,
+    struct adptv_clck_alloc_settings settings,
+    error *e)
 {
-  ASSERT (aca_out);
+  ASSERT (aca);
   ASSERT (elem_size > 0);
   ASSERT (initial_capacity > 0);
+  ASSERT (settings.min_capacity == 0 || initial_capacity >= settings.min_capacity);
+  ASSERT (settings.max_capacity == 0 || initial_capacity <= settings.max_capacity);
 
-  struct adptv_clck_alloc *aca = i_malloc (1, sizeof (*aca), e);
-  if (aca == NULL)
-    {
-      return error_change_causef (e, ERR_NOMEM,
-                                  "Failed to allocate adptv_clck_alloc");
-    }
-
-  // Apply settings
   aca->settings = settings;
-
-  // Clamp initial capacity to min/max
-  if (initial_capacity < aca->settings.min_capacity)
-    {
-      initial_capacity = aca->settings.min_capacity;
-    }
-  if (initial_capacity > aca->settings.max_capacity)
-    {
-      initial_capacity = aca->settings.max_capacity;
-    }
-
   aca->elem_size = elem_size;
   aca->size = 0;
   aca->migrate_pos = 0;
 
-  // Allocate current allocator
-  aca->current_data = allocate_clck_memory (initial_capacity, elem_size,
-                                            &aca->current_occupied, e);
+  aca->current_data = allocate_clck_memory (initial_capacity, elem_size, &aca->current_occupied, e);
   if (aca->current_data == NULL)
     {
       i_free (aca);
@@ -285,8 +216,7 @@ adptv_clck_alloc_init (struct adptv_clck_alloc **aca_out, size_t elem_size,
   aca->prev_capacity = 0;
 
   // Allocate handle table
-  aca->handle_table
-      = i_malloc (initial_capacity, sizeof (struct handle_entry), e);
+  aca->handle_table = i_malloc (initial_capacity, sizeof (struct clock_frame), e);
   if (aca->handle_table == NULL)
     {
       i_free (aca->current_data);
@@ -302,7 +232,6 @@ adptv_clck_alloc_init (struct adptv_clck_alloc **aca_out, size_t elem_size,
 
   spx_latch_init (&aca->latch);
 
-  *aca_out = aca;
   return SUCCESS;
 }
 
@@ -358,9 +287,7 @@ adptv_clck_alloc_alloc (struct adptv_clck_alloc *aca, error *e)
     }
 
   // Find free slot in current allocator
-  i32 phys_idx
-      = find_free_slot (aca->current_data, aca->current_occupied,
-                        &aca->current_clock, aca->current_capacity);
+  i32 phys_idx = find_free_slot (aca->current_data, aca->current_occupied, &aca->current_clock, aca->current_capacity);
   if (phys_idx == -1)
     {
       spx_latch_unlock_x (&aca->latch);
@@ -486,7 +413,7 @@ adptv_clck_alloc_capacity (const struct adptv_clck_alloc *aca)
 }
 
 void
-adptv_clck_alloc_free_allocator (struct adptv_clck_alloc *aca)
+adptv_clck_alloc_close (struct adptv_clck_alloc *aca)
 {
   ASSERT (aca);
 
@@ -504,8 +431,6 @@ adptv_clck_alloc_free_allocator (struct adptv_clck_alloc *aca)
     {
       i_free (aca->handle_table);
     }
-
-  i_free (aca);
 }
 
 #include <numstore/test/testing.h>
@@ -513,7 +438,7 @@ adptv_clck_alloc_free_allocator (struct adptv_clck_alloc *aca)
 TEST (TT_UNIT, adptv_clck_alloc_basic)
 {
   error e = error_create ();
-  struct adptv_clck_alloc *aca;
+  struct adptv_clck_alloc aca;
   struct adptv_clck_alloc_settings settings = {
     .migration_work = 4,
     .max_capacity = 1024,
@@ -521,37 +446,37 @@ TEST (TT_UNIT, adptv_clck_alloc_basic)
   };
 
   test_err_t_wrap (adptv_clck_alloc_init (&aca, sizeof (i32), 8, settings, &e), &e);
-  test_assert_int_equal (adptv_clck_alloc_size (aca), 0);
-  test_assert_int_equal (adptv_clck_alloc_capacity (aca), 8);
+  test_assert_int_equal (adptv_clck_alloc_size (&aca), 0);
+  test_assert_int_equal (adptv_clck_alloc_capacity (&aca), 8);
 
   // Allocate and write
-  i32 h1 = adptv_clck_alloc_alloc (aca, &e);
+  i32 h1 = adptv_clck_alloc_alloc (&aca, &e);
   test_err_t_wrap (e.cause_code, &e);
   test_assert (h1 >= 0);
 
-  i32 *p1 = (i32 *)adptv_clck_alloc_get_at (aca, h1);
+  i32 *p1 = (i32 *)adptv_clck_alloc_get_at (&aca, h1);
   *p1 = 42;
 
-  i32 h2 = adptv_clck_alloc_calloc (aca, &e);
+  i32 h2 = adptv_clck_alloc_calloc (&aca, &e);
   test_err_t_wrap (e.cause_code, &e);
-  i32 *p2 = (i32 *)adptv_clck_alloc_get_at (aca, h2);
+  i32 *p2 = (i32 *)adptv_clck_alloc_get_at (&aca, h2);
   test_assert_int_equal (*p2, 0);
   *p2 = 100;
 
-  test_assert_int_equal (*((i32 *)adptv_clck_alloc_get_at (aca, h1)), 42);
-  test_assert_int_equal (*((i32 *)adptv_clck_alloc_get_at (aca, h2)), 100);
+  test_assert_int_equal (*((i32 *)adptv_clck_alloc_get_at (&aca, h1)), 42);
+  test_assert_int_equal (*((i32 *)adptv_clck_alloc_get_at (&aca, h2)), 100);
 
   // Free and verify
-  adptv_clck_alloc_free (aca, h1, &e);
-  test_assert (adptv_clck_alloc_get_at (aca, h1) == NULL);
+  adptv_clck_alloc_free (&aca, h1, &e);
+  test_assert (adptv_clck_alloc_get_at (&aca, h1) == NULL);
 
-  adptv_clck_alloc_free_allocator (aca);
+  adptv_clck_alloc_close (&aca);
 }
 
 TEST (TT_UNIT, adptv_clck_alloc_resize_up)
 {
   error e = error_create ();
-  struct adptv_clck_alloc *aca;
+  struct adptv_clck_alloc aca;
   struct adptv_clck_alloc_settings settings = {
     .migration_work = 2,
     .max_capacity = 256,
@@ -564,50 +489,50 @@ TEST (TT_UNIT, adptv_clck_alloc_resize_up)
   // Allocate 4 elements
   for (u32 i = 0; i < 4; ++i)
     {
-      handles[i] = adptv_clck_alloc_alloc (aca, &e);
+      handles[i] = adptv_clck_alloc_alloc (&aca, &e);
       test_err_t_wrap (e.cause_code, &e);
-      u32 *ptr = (u32 *)adptv_clck_alloc_get_at (aca, handles[i]);
+      u32 *ptr = (u32 *)adptv_clck_alloc_get_at (&aca, handles[i]);
       *ptr = i * 10;
     }
 
-  test_assert_int_equal (adptv_clck_alloc_capacity (aca), 4);
+  test_assert_int_equal (adptv_clck_alloc_capacity (&aca), 4);
 
   // Verify before resize
   for (u32 i = 0; i < 4; ++i)
     {
-      u32 *p = (u32 *)adptv_clck_alloc_get_at (aca, handles[i]);
+      u32 *p = (u32 *)adptv_clck_alloc_get_at (&aca, handles[i]);
       test_assert_int_equal (*p, i * 10);
     }
 
   // Trigger expansion
-  handles[4] = adptv_clck_alloc_alloc (aca, &e);
+  handles[4] = adptv_clck_alloc_alloc (&aca, &e);
   test_err_t_wrap (e.cause_code, &e);
-  test_assert_int_equal (adptv_clck_alloc_capacity (aca), 8);
+  test_assert_int_equal (adptv_clck_alloc_capacity (&aca), 8);
 
   // Verify old values after resize
   for (u32 i = 0; i < 4; ++i)
     {
-      u32 *p = (u32 *)adptv_clck_alloc_get_at (aca, handles[i]);
+      u32 *p = (u32 *)adptv_clck_alloc_get_at (&aca, handles[i]);
       test_assert_int_equal (*p, i * 10);
     }
 
-  u32 *ptr = (u32 *)adptv_clck_alloc_get_at (aca, handles[4]);
+  u32 *ptr = (u32 *)adptv_clck_alloc_get_at (&aca, handles[4]);
   *ptr = 40;
 
   // Verify all 5 values
   for (u32 i = 0; i < 5; ++i)
     {
-      u32 *p = (u32 *)adptv_clck_alloc_get_at (aca, handles[i]);
+      u32 *p = (u32 *)adptv_clck_alloc_get_at (&aca, handles[i]);
       test_assert_int_equal (*p, i * 10);
     }
 
-  adptv_clck_alloc_free_allocator (aca);
+  adptv_clck_alloc_close (&aca);
 }
 
 TEST (TT_UNIT, adptv_clck_alloc_resize_down)
 {
   error e = error_create ();
-  struct adptv_clck_alloc *aca;
+  struct adptv_clck_alloc aca;
   struct adptv_clck_alloc_settings settings = {
     .migration_work = 4,
     .max_capacity = 256,
@@ -619,36 +544,36 @@ TEST (TT_UNIT, adptv_clck_alloc_resize_down)
   i32 handles[17];
   for (u32 i = 0; i < 16; ++i)
     {
-      handles[i] = adptv_clck_alloc_alloc (aca, &e);
+      handles[i] = adptv_clck_alloc_alloc (&aca, &e);
       test_err_t_wrap (e.cause_code, &e);
-      u64 *ptr = (u64 *)adptv_clck_alloc_get_at (aca, handles[i]);
+      u64 *ptr = (u64 *)adptv_clck_alloc_get_at (&aca, handles[i]);
       *ptr = i * 1000;
     }
 
   // Trigger expansion to 32
-  handles[16] = adptv_clck_alloc_alloc (aca, &e);
+  handles[16] = adptv_clck_alloc_alloc (&aca, &e);
   test_err_t_wrap (e.cause_code, &e);
-  u64 *ptr = (u64 *)adptv_clck_alloc_get_at (aca, handles[16]);
+  u64 *ptr = (u64 *)adptv_clck_alloc_get_at (&aca, handles[16]);
   *ptr = 16000;
-  test_assert_int_equal (adptv_clck_alloc_capacity (aca), 32);
+  test_assert_int_equal (adptv_clck_alloc_capacity (&aca), 32);
 
   // Free to trigger shrinkage
   for (u32 i = 0; i < 9; ++i)
     {
-      adptv_clck_alloc_free (aca, handles[i], &e);
+      adptv_clck_alloc_free (&aca, handles[i], &e);
       test_err_t_wrap (e.cause_code, &e);
     }
 
-  test_assert_int_equal (adptv_clck_alloc_size (aca), 8);
-  test_assert_int_equal (adptv_clck_alloc_capacity (aca), 16);
+  test_assert_int_equal (adptv_clck_alloc_size (&aca), 8);
+  test_assert_int_equal (adptv_clck_alloc_capacity (&aca), 16);
 
   // Verify remaining values
   for (u32 i = 9; i < 17; ++i)
     {
-      u64 *p = (u64 *)adptv_clck_alloc_get_at (aca, handles[i]);
+      u64 *p = (u64 *)adptv_clck_alloc_get_at (&aca, handles[i]);
       test_fail_if_null (p);
       test_assert_int_equal (*p, i * 1000);
     }
 
-  adptv_clck_alloc_free_allocator (aca);
+  adptv_clck_alloc_close (&aca);
 }
