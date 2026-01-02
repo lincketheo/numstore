@@ -42,7 +42,6 @@ err_t walos_close (struct wal_ostream *w, error *e);
 
 // Writing
 err_t walos_flush_to (struct wal_ostream *w, lsn l, error *e);
-err_t walos_flush_all (struct wal_ostream *w, error *e);
 err_t walos_write_all (struct wal_ostream *w, u32 *checksum, const void *data, u32 len, error *e);
 lsn walos_get_next_lsn (struct wal_ostream *w);
 err_t walos_truncate (struct wal_ostream *w, u64 howmuch, error *e);

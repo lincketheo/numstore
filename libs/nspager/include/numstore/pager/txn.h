@@ -22,6 +22,7 @@
 #include <numstore/core/hash_table.h>
 #include <numstore/core/spx_latch.h>
 #include <numstore/intf/types.h>
+#include <numstore/pager/lt_lock.h>
 
 struct txn_data
 {
@@ -70,13 +71,16 @@ struct txn_data
 
 struct txn
 {
-  txid tid;
-  struct txn_data data;
-  struct spx_latch l;
-  struct hnode node;
+  txid tid;              // Transaction id
+  struct txn_data data;  // The transaction data
+  struct hnode node;     // The node that indicates where this txn is in the att
+  struct lt_lock *locks; // All held locks for this transaction
+  struct spx_latch l;    // Thread safety
 };
 
 void txn_init (struct txn *dest, txid tid, struct txn_data data);
 void txn_update (struct txn *t, struct txn_data data);
 bool txn_data_equal (struct txn_data *left, struct txn_data *right);
 void txn_key_init (struct txn *dest, txid tid);
+struct lt_lock *txn_newlock (struct txn *t, enum lt_lock_type type, union lt_lock_data data, enum lock_mode mode, error *e);
+void txn_free_all_locks (struct txn *t);

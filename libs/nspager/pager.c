@@ -18,7 +18,6 @@
  */
 
 #include <file_pager.h>
-#include <numstore/pager.h>
 
 #include <numstore/core/adptv_hash_table.h>
 #include <numstore/core/assert.h>
@@ -31,6 +30,7 @@
 #include <numstore/intf/logging.h>
 #include <numstore/intf/os.h>
 #include <numstore/intf/types.h>
+#include <numstore/pager.h>
 #include <numstore/pager/data_list.h>
 #include <numstore/pager/dirty_page_table.h>
 #include <numstore/pager/page.h>
@@ -62,6 +62,7 @@ enum
   PW_ACCESS = 1u << 0, // Only used for readable
   PW_DIRTY = 1u << 1,  // Only used for readable
   PW_PRESENT = 1u << 2,
+  PW_X = 1u << 3,
 };
 
 static inline bool
@@ -106,9 +107,6 @@ struct pager
   // CACHE
   lsn master_lsn;
   pgno first_tombstone;
-
-  // Checkpoint state
-  lsn ckpt_begin_lsn;
 };
 
 DEFINE_DBG_ASSERT (
@@ -188,29 +186,31 @@ failed:
 static err_t pgr_restart (struct pager *p, struct aries_ctx *ctx, error *e);
 
 static inline err_t
-pgr_evict (struct pager *p, struct page_frame *mp, error *e)
+pgr_flush (struct pager *p, struct page_frame *mp, error *e)
 {
   DBG_ASSERT (pager, p);
   ASSERT (pf_check (mp, PW_PRESENT));
-  ASSERT (mp->pin == 0); // TODO - latch
-  ASSERT (mp->wsibling == -1);
+  ASSERT (!pf_check (mp, PW_X));
 
   // Only need to write it out if it's dirty
   if (pf_check (mp, PW_DIRTY))
     {
-      i_log_trace ("Evicting page: %" PRpgno " from the pager\n", mp->page.pg);
+      i_log_trace ("Flushing page: %" PRpgno " from the pager\n", mp->page.pg);
       i_log_trace ("Page: %" PRpgno " is dirty, flushing to wal\n", mp->page.pg);
 
       if (p->wal_enabled)
         {
           /**
+           * WAL Invariant: Flush to wal before flushing to disk
+           *
            * When we're in analysis phase we're reading and there's
            * no point in writing pages during evict because we SHOULDN't
            * be creating new data.
            */
           if (!p->restarting)
             {
-              err_t_wrap (wal_flush_all (&p->ww, e), e);
+              lsn plsn = page_get_page_lsn (&mp->page);
+              err_t_wrap (wal_flush_to (&p->ww, plsn, e), e);
             }
         }
 
@@ -222,6 +222,19 @@ pgr_evict (struct pager *p, struct page_frame *mp, error *e)
       dpgt_remove (p->dpt, mp->page.pg);
     }
 
+  return SUCCESS;
+}
+
+static inline err_t
+pgr_evict (struct pager *p, struct page_frame *mp, error *e)
+{
+  DBG_ASSERT (pager, p);
+  ASSERT (pf_check (mp, PW_PRESENT));
+  ASSERT (!pf_check (mp, PW_X));
+  ASSERT (mp->pin == 0);
+
+  err_t_wrap (pgr_flush (p, mp, e), e);
+
   ht_delete_expect_idx (&p->pgno_to_value, NULL, mp->page.pg);
   mp->flags = 0;
   pf_clr (mp, PW_PRESENT);
@@ -232,12 +245,8 @@ pgr_evict (struct pager *p, struct page_frame *mp, error *e)
 static inline err_t
 pgr_evict_all (struct pager *pg, error *e)
 {
+  // Should be called when there are no PW_X in the db
   DBG_ASSERT (pager, pg);
-
-  i_log_trace ("Pager before evict all:\n");
-  i_log_page_table (LOG_TRACE, pg);
-
-  err_t ret = SUCCESS;
 
   for (u32 i = 0; i < MEMORY_PAGE_LEN; ++i)
     {
@@ -245,14 +254,27 @@ pgr_evict_all (struct pager *pg, error *e)
 
       if (pf_check (mp, PW_PRESENT))
         {
-          if (ret)
-            {
-              pgr_evict (pg, mp, NULL);
-            }
-          else
-            {
-              ret = pgr_evict (pg, mp, e);
-            }
+          pgr_evict (pg, mp, e);
+        }
+
+      pg->clock = (pg->clock + 1) % MEMORY_PAGE_LEN;
+    }
+
+  return e->cause_code;
+}
+
+static inline err_t
+pgr_flush_all (struct pager *pg, error *e)
+{
+  DBG_ASSERT (pager, pg);
+
+  for (u32 i = 0; i < MEMORY_PAGE_LEN; ++i)
+    {
+      struct page_frame *mp = &pg->pages[pg->clock];
+
+      if (pf_check (mp, PW_PRESENT) && !pf_check (mp, PW_X))
+        {
+          pgr_flush (pg, mp, e);
         }
 
       pg->clock = (pg->clock + 1) % MEMORY_PAGE_LEN;
@@ -372,6 +394,7 @@ pgr_new_extend (page_h *dest, struct pager *p, struct txn *tx, error *e)
     pgw->flags = 0;
     pgw->wsibling = -1;
     pf_set (pgw, PW_PRESENT);
+    pf_set (pgw, PW_X);
   }
   spx_latch_unlock_x (&p->l);
 
@@ -547,8 +570,8 @@ pgr_is_new_guard (struct pager *p, bool *isnew, error *e)
 
   page root;
 
-  err_t_wrap (fpgr_read (&p->fp, root.raw, 0, e), e);
-  root.pg = 0;
+  err_t_wrap (fpgr_read (&p->fp, root.raw, ROOT_PGNO, e), e);
+  root.pg = ROOT_PGNO;
 
   p->master_lsn = rn_get_master_lsn (&root);
   p->first_tombstone = rn_get_first_tmbst (&root);
@@ -811,7 +834,7 @@ pgr_commit (struct pager *p, struct txn *tx, error *e)
         }
 
       // Flush the wal to the expected lsn
-      err_t_wrap (wal_flush_all (&p->ww, e), e);
+      err_t_wrap (wal_flush_to (&p->ww, l, e), e);
 
       // Append an end log to the wal
       l = wal_append_end_log (&p->ww, tx->tid, l, e);
@@ -834,78 +857,76 @@ pgr_commit (struct pager *p, struct txn *tx, error *e)
   return SUCCESS;
 }
 
+static err_t
+pgr_update_master_lsn (struct pager *p, lsn mlsn, error *e)
+{
+  // BEGIN TXN
+  struct txn tx;
+  err_t_wrap (pgr_begin_txn (&tx, p, e), e);
+
+  // GET ROOT
+  page_h root = page_h_create ();
+  if (pgr_get_writable (&root, &tx, PG_ROOT_NODE, 0, p, e))
+    {
+      return e->cause_code;
+    }
+
+  // UPDATE MLSN
+  rn_set_master_lsn (page_h_w (&root), mlsn);
+
+  // SAVE (don't release yet, we'll evict it)
+  if (pgr_save (p, &root, PG_ROOT_NODE, e))
+    {
+      goto theend;
+    }
+
+  // COMMIT
+  if (pgr_commit (p, &tx, e))
+    {
+      goto theend;
+    }
+
+  /**
+   * Flush root node to disk. It doesn't hurt. Technically we don't need to 
+   * but if we want checkpoint to be "done" after this call, root page should be persisted (forced) 
+   * to disk
+   */
+  if (pgr_flush (p, root.pgr, e))
+    {
+      goto theend;
+    }
+
+theend:
+  pgr_release (p, &root, PG_ROOT_NODE, e);
+  return e->cause_code;
+}
+
 err_t
 pgr_checkpoint (struct pager *p, error *e)
 {
   if (p->wal_enabled)
     {
-      slsn l = wal_append_ckpt_begin (&p->ww, e);
-      err_t_wrap (l, e);
+      // BEGIN CHECKPOINT
+      slsn mlsn = wal_append_ckpt_begin (&p->ww, e);
+      err_t_wrap (mlsn, e);
 
-      // Store the begin LSN for use in checkpoint_end
-      p->ckpt_begin_lsn = l;
+      // FLUSH PAGES
+      err_t_wrap (pgr_evict_all (p, e), e);
 
-      // Write the checkpoint end record
-      slsn ckpt_lsn = wal_append_ckpt_end (&p->ww, &p->tnxt, p->dpt, e);
-      if (ckpt_lsn < 0)
+      // END CHECKPOINT
+      slsn end_lsn = wal_append_ckpt_end (&p->ww, &p->tnxt, p->dpt, e);
+      if (end_lsn < 0)
         {
           return e->cause_code;
         }
 
-      struct txn tx;
-      err_t_wrap (pgr_begin_txn (&tx, p, e), e);
+      // Flush the wal so that master lsn is accurate
+      err_t_wrap (wal_flush_to (&p->ww, end_lsn, e), e);
 
-      // Update the master LSN on the root page to point to this checkpoint
-      // This is NOT part of a transaction - it's a system-level operation
-      page_h root = page_h_create ();
-      err_t ret = pgr_get_writable (&root, &tx, PG_ROOT_NODE, 0, p, e);
-      if (ret)
-        {
-          return ret;
-        }
+      // Update master lsn
+      err_t_wrap (pgr_update_master_lsn (p, mlsn, e), e);
 
-      // Set the master LSN to point to the BEGIN checkpoint LSN
-      // (not the END checkpoint LSN - recovery expects BEGIN)
-      rn_set_master_lsn (page_h_w (&root), p->ckpt_begin_lsn);
-
-      // Save the root page to log the change and update the page LSN
-      ret = pgr_save (p, &root, PG_ROOT_NODE, e);
-      if (ret)
-        {
-          pgr_release (p, &root, PG_ROOT_NODE, e);
-          return ret;
-        }
-
-      // Get the page LSN after saving
-      lsn root_lsn = page_get_page_lsn (page_h_ro (&root));
-
-      // Flush the root page to disk immediately so master_lsn persists across crashes
-      ret = fpgr_write (&p->fp, page_h_ro (&root)->raw, 0, e);
-      if (ret)
-        {
-          pgr_release (p, &root, PG_ROOT_NODE, e);
-          return ret;
-        }
-
-      // Release the page
-      ret = pgr_release (p, &root, PG_ROOT_NODE, e);
-      if (ret)
-        {
-          return ret;
-        }
-
-      // Flush WAL to ensure all records are persisted
-      ret = wal_flush_all (&p->ww, e);
-      if (ret)
-        {
-          return ret;
-        }
-
-      err_t_wrap (pgr_commit (p, &tx, e), e);
-
-      i_log_info ("Checkpoint written at LSN %" PRlsn "\n", ckpt_lsn);
-
-      return SUCCESS;
+      i_log_info ("Checkpoint written at LSN %" PRlsn "\n", mlsn);
     }
   return SUCCESS;
 }
@@ -1103,6 +1124,7 @@ pgr_make_writable_no_tx (struct pager *p, page_h *h, error *e)
   pgw->wsibling = -1;
   pgw->flags = 0;
   pf_set (pgw, PW_PRESENT);
+  pf_set (pgw, PW_X);
   i_memcpy (pgw->page.raw, h->pgr->page.raw, PAGE_SIZE);
   pgw->page.pg = h->pgr->page.pg;
 
@@ -1289,7 +1311,7 @@ pgr_new (page_h *dest, struct pager *p, struct txn *tx, enum page_type type, err
    * First, we'll check the tombstone to see if we can
    * dish out a new page that's already been deleted
    */
-  err_t_wrap (pgr_get (&root_node, PG_ROOT_NODE, 0, p, e), e);
+  err_t_wrap (pgr_get (&root_node, PG_ROOT_NODE, ROOT_PGNO, p, e), e);
 
   pgno ftpg = rn_get_first_tmbst (page_h_ro (&root_node));
   ret = pgr_make_writable (p, tx, &root_node, e);
@@ -1503,6 +1525,7 @@ pgr_release (struct pager *p, page_h *h, int flags, error *e)
 {
   DBG_ASSERT (pager, p);
   ASSERT (h->mode == PHM_X || h->mode == PHM_S);
+  ASSERT (pf_check (h->pgr, PW_PRESENT));
 
   i_log_trace ("Releasing %" PRpgno "\n", page_h_pgno (h));
 
@@ -1527,7 +1550,8 @@ pgr_flush_wall (struct pager *p, error *e)
 {
   if (p->wal_enabled)
     {
-      return wal_flush_all (&p->ww, e);
+      // TODO - make cleaner
+      return wal_flush_to (&p->ww, p->ww.wf.current_ostream->flushed_lsn + cbuffer_len (&p->ww.wf.current_ostream->buffer), e);
     }
   UNREACHABLE ();
 }
@@ -2198,7 +2222,7 @@ pgr_restart_undo (struct pager *p, struct aries_ctx *ctx, error *e)
                   },
                   e);
               err_t_wrap (l, e);
-              err_t_wrap (wal_flush_all (&p->ww, e), e);
+              err_t_wrap (wal_flush_to (&p->ww, l, e), e);
 
               // Page.LSN = LgLSN
               page_set_page_lsn (page_h_w (&ph), l);

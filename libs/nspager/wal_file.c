@@ -278,48 +278,71 @@ walf_write_ckpt_end (struct wal_file *w, const struct wal_rec_hdr_write *r, erro
   DBG_ASSERT (wal_file, w);
   ASSERT (r->type == WL_CKPT_END);
 
-  spx_latch_lock_x (&w->l);
-
-  err_t_wrap_goto (walf_lazy_ostream_init (w, e), theend, e);
-
-  u32 checksum = checksum_init ();
-  wlh t = r->type;
-
-  u32 attsize = txnt_get_serialize_size (r->ckpt_end.att);
+  void *att_serialized = NULL;
   u8 dpgt_serialized[MAX_DPGT_SRL_SIZE];
-  u32 dptsize = dpgt_serialize (dpgt_serialized, r->ckpt_end.dpt);
+  u32 attsize = 0;
+  u32 dptsize = 0;
 
-  err_t_wrap (walos_write_all (w->current_ostream, &checksum, &t, sizeof (wlh), e), e);
-  err_t_wrap (walos_write_all (w->current_ostream, &checksum, &attsize, sizeof (attsize), e), e);
-  err_t_wrap (walos_write_all (w->current_ostream, &checksum, &dptsize, sizeof (dptsize), e), e);
+  // Capture ATT / DPT state and serialize
+  {
+    spx_latch_lock_s (&r->ckpt_end.att->l);
+    spx_latch_lock_s (&r->ckpt_end.dpt->l);
 
-  // Transaction table
-  if (attsize > 0)
-    {
-      void *att_serialized = i_malloc (attsize, 1, e);
-      if (att_serialized == NULL)
-        {
-          goto theend;
-        }
-      txnt_serialize (att_serialized, attsize, r->ckpt_end.att);
+    // ATT
+    attsize = txnt_get_serialize_size (r->ckpt_end.att);
+    if (attsize > 0)
+      {
+        att_serialized = i_malloc (attsize, 1, e);
+        if (att_serialized == NULL)
+          {
+            spx_latch_unlock_s (&r->ckpt_end.dpt->l);
+            spx_latch_unlock_s (&r->ckpt_end.att->l);
+            return e->cause_code;
+          }
+        txnt_serialize (att_serialized, attsize, r->ckpt_end.att);
+      }
 
-      err_t ret = walos_write_all (w->current_ostream, &checksum, att_serialized, attsize, e);
-      i_free (att_serialized);
+    // DPT
+    dptsize = dpgt_serialize (dpgt_serialized, r->ckpt_end.dpt);
 
-      err_t_wrap_goto (ret, theend, e);
-    }
+    spx_latch_unlock_s (&r->ckpt_end.dpt->l);
+    spx_latch_unlock_s (&r->ckpt_end.att->l);
+  }
 
-  // Dirty page table
-  if (dptsize > 0)
-    {
-      err_t_wrap_goto (walos_write_all (w->current_ostream, &checksum, dpgt_serialized, dptsize, e), theend, e);
-    }
+  // Write WAL
+  {
+    spx_latch_lock_x (&w->l);
+    err_t_wrap_goto (walf_lazy_ostream_init (w, e), cleanup, e);
 
-  err_t_wrap (walos_write_all (w->current_ostream, NULL, &checksum, sizeof (u32), e), e);
+    u32 checksum = checksum_init ();
+    wlh t = r->type;
 
-theend:
-  spx_latch_unlock_x (&w->l);
-  return SUCCESS;
+    err_t_wrap_goto (walos_write_all (w->current_ostream, &checksum, &t, sizeof (wlh), e), cleanup, e);
+    err_t_wrap_goto (walos_write_all (w->current_ostream, &checksum, &attsize, sizeof (attsize), e), cleanup, e);
+    err_t_wrap_goto (walos_write_all (w->current_ostream, &checksum, &dptsize, sizeof (dptsize), e), cleanup, e);
+
+    // Transaction table
+    if (attsize > 0)
+      {
+        err_t_wrap_goto (walos_write_all (w->current_ostream, &checksum, att_serialized, attsize, e), cleanup, e);
+      }
+
+    // Dirty page table
+    if (dptsize > 0)
+      {
+        err_t_wrap_goto (walos_write_all (w->current_ostream, &checksum, dpgt_serialized, dptsize, e), cleanup, e);
+      }
+
+    err_t_wrap_goto (walos_write_all (w->current_ostream, NULL, &checksum, sizeof (u32), e), cleanup, e);
+
+  cleanup:
+    spx_latch_unlock_x (&w->l);
+    if (att_serialized)
+      {
+        i_free (att_serialized);
+      }
+    return e->cause_code;
+  }
 }
 
 slsn
@@ -876,11 +899,11 @@ walf_read (struct wal_rec_hdr_read *dest, lsn *rlsn, struct wal_file *w, error *
 }
 
 err_t
-walf_flush_all (struct wal_file *w, error *e)
+walf_flush_to (struct wal_file *w, lsn l, error *e)
 {
   DBG_ASSERT (wal_file, w);
   err_t_wrap (walf_lazy_ostream_init (w, e), e);
-  return walos_flush_all (w->current_ostream, e);
+  return walos_flush_to (w->current_ostream, l, e);
 }
 
 #ifndef NTEST

@@ -17,7 +17,8 @@
  *   TODO: Add description for lock_table.c
  */
 
-#include <lock_table.h>
+#include "numstore/pager/txn.h"
+#include <numstore/pager/lock_table.h>
 
 #include <numstore/core/adptv_hash_table.h>
 #include <numstore/core/assert.h>
@@ -30,15 +31,15 @@
 #include <numstore/core/spx_latch.h>
 
 static void
-lt_lock_init_key (struct lt_lock *dest, enum lt_lock_type type, union lt_lock_data data, struct txn *tx)
+lt_lock_init_key (struct lt_lock *dest)
 {
   ASSERT (dest);
 
-  char hcode[sizeof (data) + sizeof (u8)];
-  hcode[0] = type;
+  char hcode[sizeof (dest->data) + sizeof (u8)];
+  hcode[0] = dest->type;
   u32 hcodelen = 1;
 
-  switch (type)
+  switch (dest->type)
     {
     case LOCK_DB:
     case LOCK_ROOT:
@@ -50,29 +51,28 @@ lt_lock_init_key (struct lt_lock *dest, enum lt_lock_type type, union lt_lock_da
       }
     case LOCK_VHPOS:
       {
-        hcodelen += i_memcpy (&hcode[hcodelen], &data.vhpos, sizeof (data.vhpos));
+        hcodelen += i_memcpy (&hcode[hcodelen], &dest->data.vhpos, sizeof (dest->data.vhpos));
         break;
       }
     case LOCK_VAR:
       {
-        hcodelen += i_memcpy (&hcode[hcodelen], &data.vhpos, sizeof (data.vhpos));
+        hcodelen += i_memcpy (&hcode[hcodelen], &dest->data.vhpos, sizeof (dest->data.vhpos));
         break;
       }
     case LOCK_VAR_NEXT:
       {
-        hcodelen += i_memcpy (&hcode[hcodelen], &data.var_root_next, sizeof (data.var_root_next));
+        hcodelen += i_memcpy (&hcode[hcodelen], &dest->data.var_root_next, sizeof (dest->data.var_root_next));
         break;
       }
     case LOCK_RPTREE:
       {
-        hcodelen += i_memcpy (&hcode[hcodelen], &data.rptree_root, sizeof (data.rptree_root));
+        hcodelen += i_memcpy (&hcode[hcodelen], &dest->data.rptree_root, sizeof (dest->data.rptree_root));
         break;
       }
     }
 
-  dest->type = type;
-  dest->parent_tid = tx->tid;
-  dest->data = data;
+  dest->type = dest->type;
+  dest->data = dest->data;
 
   struct cstring lock_type_hcode = {
     .data = hcode,
@@ -80,14 +80,6 @@ lt_lock_init_key (struct lt_lock *dest, enum lt_lock_type type, union lt_lock_da
   };
 
   hnode_init (&dest->lock_type_node, fnv1a_hash (lock_type_hcode));
-  hnode_init (&dest->txn_node, (u32) (tx->tid % U32_MAX));
-}
-
-static void
-lt_lock_init_txn_key (struct lt_lock *dest, struct txn *tx)
-{
-  dest->parent_tid = tx->tid;
-  hnode_init (&dest->txn_node, (u32) (tx->tid % U32_MAX));
 }
 
 static bool
@@ -143,15 +135,6 @@ lt_lock_eq (const struct hnode *left, const struct hnode *right)
   UNREACHABLE ();
 }
 
-static bool
-lt_txn_lock_eq (const struct hnode *left, const struct hnode *right)
-{
-  const struct lt_lock *_left = container_of (left, struct lt_lock, txn_node);
-  const struct lt_lock *_right = container_of (right, struct lt_lock, txn_node);
-
-  return _left->parent_tid == _right->parent_tid;
-}
-
 err_t
 nsfslt_init (struct nsfsllt *t, error *e)
 {
@@ -174,13 +157,6 @@ nsfslt_init (struct nsfsllt *t, error *e)
       return e->cause_code;
     }
 
-  if (adptv_htable_init (&t->txn_index, settings, e))
-    {
-      clck_alloc_close (&t->gr_lock_alloc);
-      adptv_htable_free (&t->table);
-      return e->cause_code;
-    }
-
   spx_latch_init (&t->l);
 
   return SUCCESS;
@@ -192,21 +168,25 @@ nsfslt_destroy (struct nsfsllt *t)
   // TODO - wait for all locks?
   clck_alloc_close (&t->gr_lock_alloc);
   adptv_htable_free (&t->table);
-  adptv_htable_free (&t->txn_index);
 }
 
 err_t
 nsfslock (
     struct nsfsllt *t,
-    struct lt_lock *lock,
     enum lt_lock_type type,
     union lt_lock_data data,
     enum lock_mode mode,
     struct txn *tx,
     error *e)
 {
+  struct lt_lock *lock = txn_newlock (tx, type, data, mode, e);
+  if (lock == NULL)
+    {
+      return e->cause_code;
+    }
+
   // Initialize the lock key
-  lt_lock_init_key (lock, type, data, tx);
+  lt_lock_init_key (lock);
 
   // Lock the hash table
   spx_latch_lock_x (&t->l);
@@ -266,37 +246,14 @@ nsfslock (
           clck_alloc_free (&t->gr_lock_alloc, _lock);
         }
       spx_latch_unlock_x (&t->l);
+
+      panic ("free txn lock!");
+
       return e->cause_code;
     }
 
-  // Insert into transaction index
-  struct hnode *txn_node = adptv_htable_lookup (&t->txn_index, &lock->txn_node, lt_txn_lock_eq);
-  if (txn_node != NULL)
-    {
-      // Transaction already has locks - add to linked list
-      struct lt_lock *txn_head = container_of (txn_node, struct lt_lock, txn_node);
-      lock->next = txn_head->next;
-      txn_head->next = lock;
-    }
-  else
-    {
-      // First lock for this transaction
-      lock->next = NULL;
-      if (adptv_htable_insert (&t->txn_index, &lock->txn_node, e))
-        {
-          // Rollback: remove from lock type table
-          adptv_htable_delete (NULL, &t->table, &lock->lock_type_node, lt_lock_eq, e);
-          gr_unlock (_lock, mode);
-          if (node == NULL) // We created this lock
-            {
-              clck_alloc_free (&t->gr_lock_alloc, _lock);
-            }
-          spx_latch_unlock_x (&t->l);
-          return e->cause_code;
-        }
-    }
-
   spx_latch_unlock_x (&t->l);
+
   return SUCCESS;
 }
 
@@ -308,23 +265,9 @@ nsfsunlock (struct nsfsllt *t, struct txn *tx, error *e)
 
   spx_latch_lock_x (&t->l);
 
-  // Lookup transaction's lock list
-  struct lt_lock txn_key;
-  lt_lock_init_txn_key (&txn_key, tx);
+  // Iterate through all locks and remove them from the main table
+  struct lt_lock *curr = tx->locks;
 
-  struct hnode *txn_node = adptv_htable_lookup (&t->txn_index, &txn_key.txn_node, lt_txn_lock_eq);
-  if (txn_node == NULL)
-    {
-      // No locks for this transaction
-      spx_latch_unlock_x (&t->l);
-      return SUCCESS;
-    }
-
-  // Remove from transaction index
-  adptv_htable_delete (NULL, &t->txn_index, &txn_key.txn_node, lt_txn_lock_eq, e);
-
-  // Walk the linked list and unlock everything
-  struct lt_lock *curr = container_of (txn_node, struct lt_lock, txn_node);
   while (curr != NULL)
     {
       struct lt_lock *next = curr->next;
@@ -343,9 +286,13 @@ nsfsunlock (struct nsfsllt *t, struct txn *tx, error *e)
           clck_alloc_free (&t->gr_lock_alloc, gr_lock_ptr);
         }
 
+      curr->lock = NULL;
       curr = next;
     }
 
+  txn_free_all_locks (tx);
+
   spx_latch_unlock_x (&t->l);
+
   return SUCCESS;
 }

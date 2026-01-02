@@ -374,6 +374,22 @@ dpgt_merge_into (struct dpg_table *dest, struct dpg_table *src)
   spx_latch_unlock_s (&src->l);
 }
 
+u32
+dpgt_get_size (struct dpg_table *d)
+{
+  u32 ret = 0;
+  spx_latch_lock_s (&d->l);
+  for (u32 i = 0; i < arrlen (d->_table); ++i)
+    {
+      if (d->_table[i].present)
+        {
+          ret++;
+        }
+    }
+  spx_latch_unlock_s (&d->l);
+  return ret;
+}
+
 //////////////////////////////////////////////////
 ///// Serialization / Deserialization for checkpoint
 

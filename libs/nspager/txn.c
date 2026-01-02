@@ -17,6 +17,7 @@
  *   TODO: Add description for txn.c
  */
 
+#include "numstore/intf/os.h"
 #include <numstore/pager/txn.h>
 
 #include <numstore/core/hash_table.h>
@@ -59,4 +60,47 @@ txn_key_init (struct txn *dest, txid tid)
   dest->tid = tid;
   hnode_init (&dest->node, tid);
   spx_latch_init (&dest->l);
+}
+
+struct lt_lock *
+txn_newlock (struct txn *t, enum lt_lock_type type, union lt_lock_data data, enum lock_mode mode, error *e)
+{
+  struct lt_lock *lock = i_malloc (1, sizeof *lock, e);
+  if (lock == NULL)
+    {
+      return NULL;
+    }
+  lock->type = type;
+  lock->mode = mode;
+  lock->data = data;
+
+  spx_latch_lock_x (&t->l);
+
+  lock->next = t->locks;
+  t->locks = lock;
+
+  spx_latch_unlock_x (&t->l);
+
+  return lock;
+}
+
+void
+txn_free_all_locks (struct txn *t)
+{
+  spx_latch_lock_x (&t->l);
+  struct lt_lock *cur = t->locks;
+  t->locks = NULL;
+  spx_latch_lock_x (&t->l);
+
+  while (cur)
+    {
+      spx_latch_lock_x (&cur->l); // TODO - do I need to do this?
+
+      ASSERT (cur->lock == NULL);
+      struct lt_lock *next = cur->next;
+      gr_unlock (cur->lock, cur->mode);
+      i_free (cur);
+
+      cur = next;
+    }
 }

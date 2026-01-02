@@ -106,7 +106,7 @@ TEST (TT_UNIT, aries_checkpoint_basic_recovery)
   test_err_t_wrap (pgr_close (p, &e), &e);
 }
 
-TEST_disabled (TT_UNIT, aries_checkpoint_with_active_transactions)
+TEST (TT_UNIT, aries_checkpoint_with_active_transactions)
 {
   error e = error_create ();
 
@@ -164,7 +164,7 @@ TEST_disabled (TT_UNIT, aries_checkpoint_with_active_transactions)
   {
     page_h pg = page_h_create ();
 
-    test_err_t_wrap (pgr_get (&pg, PG_ROOT_NODE, 0, p, &e), &e);
+    test_err_t_wrap (pgr_get (&pg, PG_ROOT_NODE, ROOT_PGNO, p, &e), &e);
     // Note: first_tmbst may be stale after fuzzy checkpoint recovery
     // because it's checkpointed with uncommitted allocations
     lsn master_lsn = rn_get_master_lsn (page_h_ro (&pg));

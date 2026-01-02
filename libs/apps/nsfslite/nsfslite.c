@@ -24,11 +24,10 @@
 #include <numstore/intf/logging.h>
 #include <numstore/intf/os.h>
 #include <numstore/pager.h>
+#include <numstore/pager/lock_table.h>
 #include <numstore/rptree/_rebalance.h>
 #include <numstore/rptree/rptree_cursor.h>
 #include <numstore/var/var_cursor.h>
-
-#include "lock_table.h"
 
 #include <pthread.h>
 

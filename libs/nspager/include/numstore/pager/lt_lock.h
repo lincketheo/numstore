@@ -19,12 +19,9 @@
  *   TODO: Add description for lock_table.h
  */
 
-#include <numstore/core/adptv_hash_table.h>
-#include <numstore/core/clock_allocator.h>
 #include <numstore/core/gr_lock.h>
 #include <numstore/core/hash_table.h>
 #include <numstore/core/spx_latch.h>
-#include <numstore/pager/txn.h>
 
 #include <config.h>
 
@@ -68,37 +65,9 @@ struct lt_lock
     pgno rptree_root;
   } data;
 
-  // The gr lock reference (shared between the lock hash key)
-  struct gr_lock *lock;
-  enum lock_mode mode;
-
-  // Node for the lock in the table
-  struct hnode lock_type_node;
-  struct hnode txn_node;
-
-  txid parent_tid;
-  struct lt_lock *next;
+  struct gr_lock *lock;        // The actual lock (shared between the lock key)
+  enum lock_mode mode;         // Lock mode locked under (S, X, SI, etc)
+  struct hnode lock_type_node; // Node for the lock type in the table
+  struct lt_lock *next;        // Next lock in this transaction id
+  struct spx_latch l;          // For thread safety
 };
-
-struct nsfsllt
-{
-  // Allocates locks for the lock table
-  struct clck_alloc gr_lock_alloc;
-  struct adptv_htable table;
-  struct adptv_htable txn_index;
-  struct spx_latch l;
-};
-
-err_t nsfslt_init (struct nsfsllt *t, error *e);
-void nsfslt_destroy (struct nsfsllt *t);
-
-err_t nsfslock (
-    struct nsfsllt *t,
-    struct lt_lock *lock,
-    enum lt_lock_type type,
-    union lt_lock_data data,
-    enum lock_mode mode,
-    struct txn *tx,
-    error *e);
-
-err_t nsfsunlock (struct nsfsllt *t, struct txn *tx, error *e);
