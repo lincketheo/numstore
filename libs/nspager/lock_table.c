@@ -46,6 +46,7 @@ lt_lock_init_key (struct lt_lock *dest)
     case LOCK_FSTMBST:
     case LOCK_MSLSN:
     case LOCK_VHP:
+    case LOCK_TMBST:
       {
         break;
       }
@@ -115,6 +116,10 @@ lt_lock_eq (const struct hnode *left, const struct hnode *right)
       {
         return true;
       }
+    case LOCK_TMBST:
+      {
+        return true;
+      }
     case LOCK_VHPOS:
       {
         return _left->data.vhpos == _right->data.vhpos;
@@ -136,7 +141,7 @@ lt_lock_eq (const struct hnode *left, const struct hnode *right)
 }
 
 err_t
-nsfslt_init (struct nsfsllt *t, error *e)
+lockt_init (struct lockt *t, error *e)
 {
   if (clck_alloc_open (&t->gr_lock_alloc, sizeof (struct gr_lock), 1000, e))
     {
@@ -163,16 +168,16 @@ nsfslt_init (struct nsfsllt *t, error *e)
 }
 
 void
-nsfslt_destroy (struct nsfsllt *t)
+lockt_destroy (struct lockt *t)
 {
   // TODO - wait for all locks?
   clck_alloc_close (&t->gr_lock_alloc);
   adptv_htable_free (&t->table);
 }
 
-err_t
-nsfslock (
-    struct nsfsllt *t,
+struct lt_lock *
+lockt_lock (
+    struct lockt *t,
     enum lt_lock_type type,
     union lt_lock_data data,
     enum lock_mode mode,
@@ -182,7 +187,7 @@ nsfslock (
   struct lt_lock *lock = txn_newlock (tx, type, data, mode, e);
   if (lock == NULL)
     {
-      return e->cause_code;
+      return NULL;
     }
 
   // Initialize the lock key
@@ -215,14 +220,14 @@ nsfslock (
       if (_lock == NULL)
         {
           spx_latch_unlock_x (&t->l);
-          return e->cause_code;
+          return NULL;
         }
 
       if (gr_lock_init (_lock, e))
         {
           clck_alloc_free (&t->gr_lock_alloc, _lock);
           spx_latch_unlock_x (&t->l);
-          return e->cause_code;
+          return NULL;
         }
 
       if (gr_lock (_lock, &(struct gr_lock_waiter){ .mode = mode }, e))
@@ -230,7 +235,7 @@ nsfslock (
           gr_lock_destroy (_lock);
           clck_alloc_free (&t->gr_lock_alloc, _lock);
           spx_latch_unlock_x (&t->l);
-          return e->cause_code;
+          return NULL;
         }
     }
 
@@ -249,8 +254,31 @@ nsfslock (
 
       panic ("free txn lock!");
 
+      return NULL;
+    }
+
+  spx_latch_unlock_x (&t->l);
+
+  return lock;
+}
+
+err_t
+lockt_upgrade (struct lockt *t, struct lt_lock *lock, enum lock_mode mode, error *e)
+{
+  ASSERT (t);
+  ASSERT (lock);
+
+  spx_latch_lock_x (&t->l);
+
+  // Upgrade the lock mode
+  if (gr_lock (lock->lock, &(struct gr_lock_waiter){ .mode = mode }, e))
+    {
+      spx_latch_unlock_x (&t->l);
       return e->cause_code;
     }
+
+  // Update the stored mode
+  lock->mode = mode;
 
   spx_latch_unlock_x (&t->l);
 
@@ -258,7 +286,7 @@ nsfslock (
 }
 
 err_t
-nsfsunlock (struct nsfsllt *t, struct txn *tx, error *e)
+lockt_unlock (struct lockt *t, struct txn *tx, error *e)
 {
   ASSERT (t);
   ASSERT (tx);
