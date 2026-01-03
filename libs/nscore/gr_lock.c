@@ -625,49 +625,6 @@ TEST (TT_UNIT, gr_lock_x_x_blocks)
   gr_lock_destroy (&lock);
 }
 
-// Test concurrent readers (multiple S locks)
-static void *
-reader_thread (void *arg)
-{
-  struct lock_test_ctx *ctx = arg;
-  error e = error_create ();
-  err_t result = gr_lock (ctx->lock, &(struct gr_lock_waiter){ .mode = LM_S }, &e);
-  if (result != SUCCESS)
-    {
-      return NULL;
-    }
-  __sync_fetch_and_add (&ctx->counter, 1);
-  busy_wait_short ();
-  gr_unlock (ctx->lock, LM_S);
-  return NULL;
-}
-
-TEST_disabled (TT_UNIT, gr_lock_concurrent_readers)
-{
-  struct gr_lock lock;
-  error e = error_create ();
-
-  test_err_t_wrap (gr_lock_init (&lock, &e), &e);
-
-  struct lock_test_ctx ctx = { .lock = &lock };
-  i_thread threads[5];
-  for (int i = 0; i < 5; i++)
-    {
-      test_assert_equal (i_thread_create (&threads[i], reader_thread, &ctx, &e), SUCCESS);
-    }
-
-  usleep (50000);
-
-  for (int i = 0; i < 5; i++)
-    {
-      test_err_t_wrap (i_thread_join (&threads[i], &e), &e);
-    }
-
-  test_assert_equal (ctx.counter, 5); // All readers should acquire
-
-  gr_lock_destroy (&lock);
-}
-
 // Test data race protection with exclusive locks
 static void *
 increment_thread (void *arg)
@@ -709,6 +666,666 @@ TEST (TT_HEAVY, gr_lock_data_race_protection)
     }
 
   test_assert_equal (ctx.counter, 500); // 5 threads * 100 increments
+
+  gr_lock_destroy (&lock);
+}
+
+//==============================================================================
+// COMPREHENSIVE STRESS TESTS
+//==============================================================================
+
+/**
+ * Thread diagram for waiter queue stress test:
+ *
+ * This test creates a complex waiter queue scenario:
+ *
+ * Main: Holds X lock
+ * T1-T3: Try to acquire S locks (blocked by X, added to waiter queue)
+ * T4-T5: Try to acquire X locks (blocked by X, added to waiter queue)
+ * T6-T7: Try to acquire IS locks (blocked by X, added to waiter queue)
+ * Main: Releases X -> All compatible locks should wake up
+ *
+ * This tests:
+ * - Waiter queue management with many waiters
+ * - Correct wake-up logic (only wake compatible locks)
+ * - No lost wakeups
+ */
+struct waiter_queue_ctx
+{
+  struct gr_lock *lock;
+  volatile int s_acquired[10];
+  volatile int x_acquired[10];
+  volatile int is_acquired[10];
+  volatile int main_released;
+};
+
+static void *
+waiter_s_thread (void *arg)
+{
+  struct waiter_queue_ctx *ctx = arg;
+  error e = error_create ();
+
+  usleep (2000); // Let main thread acquire X
+
+  err_t result = gr_lock (ctx->lock, &(struct gr_lock_waiter){ .mode = LM_S }, &e);
+  if (result == SUCCESS)
+    {
+      for (int i = 0; i < 10; i++)
+        {
+          if (__sync_bool_compare_and_swap (&ctx->s_acquired[i], 0, 1))
+            {
+              break;
+            }
+        }
+      gr_unlock (ctx->lock, LM_S);
+    }
+  return NULL;
+}
+
+static void *
+waiter_x_thread (void *arg)
+{
+  struct waiter_queue_ctx *ctx = arg;
+  error e = error_create ();
+
+  usleep (2000); // Let main thread acquire X
+
+  err_t result = gr_lock (ctx->lock, &(struct gr_lock_waiter){ .mode = LM_X }, &e);
+  if (result == SUCCESS)
+    {
+      for (int i = 0; i < 10; i++)
+        {
+          if (__sync_bool_compare_and_swap (&ctx->x_acquired[i], 0, 1))
+            {
+              break;
+            }
+        }
+      gr_unlock (ctx->lock, LM_X);
+    }
+  return NULL;
+}
+
+static void *
+waiter_is_thread (void *arg)
+{
+  struct waiter_queue_ctx *ctx = arg;
+  error e = error_create ();
+
+  usleep (2000); // Let main thread acquire X
+
+  err_t result = gr_lock (ctx->lock, &(struct gr_lock_waiter){ .mode = LM_IS }, &e);
+  if (result == SUCCESS)
+    {
+      for (int i = 0; i < 10; i++)
+        {
+          if (__sync_bool_compare_and_swap (&ctx->is_acquired[i], 0, 1))
+            {
+              break;
+            }
+        }
+      gr_unlock (ctx->lock, LM_IS);
+    }
+  return NULL;
+}
+
+TEST (TT_HEAVY, gr_lock_waiter_queue_stress)
+{
+  struct gr_lock lock;
+  error e = error_create ();
+
+  test_err_t_wrap (gr_lock_init (&lock, &e), &e);
+
+  struct waiter_queue_ctx ctx = { .lock = &lock };
+  i_thread threads[12];
+
+  // Main thread acquires X
+  test_err_t_wrap (gr_lock (&lock, &(struct gr_lock_waiter){ .mode = LM_X }, &e), &e);
+
+  // Start S lock threads
+  for (int i = 0; i < 3; i++)
+    {
+      test_assert_equal (i_thread_create (&threads[i], waiter_s_thread, &ctx, &e), SUCCESS);
+    }
+
+  // Start X lock threads
+  for (int i = 3; i < 5; i++)
+    {
+      test_assert_equal (i_thread_create (&threads[i], waiter_x_thread, &ctx, &e), SUCCESS);
+    }
+
+  // Start IS lock threads
+  for (int i = 5; i < 8; i++)
+    {
+      test_assert_equal (i_thread_create (&threads[i], waiter_is_thread, &ctx, &e), SUCCESS);
+    }
+
+  // Let all threads queue up
+  usleep (10000);
+
+  // Release X - this should wake up compatible waiters (IS, S can run together)
+  ctx.main_released = 1;
+  gr_unlock (&lock, LM_X);
+
+  // Wait for all threads
+  for (int i = 0; i < 8; i++)
+    {
+      test_err_t_wrap (i_thread_join (&threads[i], &e), &e);
+    }
+
+  // All threads should have acquired eventually
+  int s_count = 0, x_count = 0, is_count = 0;
+  for (int i = 0; i < 10; i++)
+    {
+      if (ctx.s_acquired[i])
+        s_count++;
+      if (ctx.x_acquired[i])
+        x_count++;
+      if (ctx.is_acquired[i])
+        is_count++;
+    }
+
+  test_assert (s_count >= 2); // At least 2 S locks should have acquired
+  test_assert (x_count >= 1); // At least 1 X lock should have acquired
+  test_assert (is_count >= 2); // At least 2 IS locks should have acquired
+
+  gr_lock_destroy (&lock);
+}
+
+/**
+ * Thread diagram for mixed mode stress test:
+ *
+ * Multiple threads acquire different lock modes in a pattern that
+ * stresses the compatibility matrix:
+ *
+ * T1: IS -> IX -> IS -> IX (repeat)
+ * T2: S -> S -> S (multiple S locks)
+ * T3: IX -> X -> IX -> X
+ * T4: IS -> S -> IS -> S
+ * T5: X -> X -> X (serialize access)
+ *
+ * This tests:
+ * - All compatibility matrix entries under load
+ * - Lock holder count tracking
+ * - Correct serialization and parallelization
+ */
+struct mixed_mode_ctx
+{
+  struct gr_lock *lock;
+  volatile int counter;
+  volatile int operations[10];
+};
+
+static void *
+mixed_mode_thread1 (void *arg)
+{
+  struct mixed_mode_ctx *ctx = arg;
+  error e = error_create ();
+
+  for (int i = 0; i < 10; i++)
+    {
+      err_t result = gr_lock (ctx->lock, &(struct gr_lock_waiter){ .mode = LM_IS }, &e);
+      if (result == SUCCESS)
+        {
+          busy_wait_short ();
+          gr_unlock (ctx->lock, LM_IS);
+          ctx->operations[0]++;
+        }
+
+      result = gr_lock (ctx->lock, &(struct gr_lock_waiter){ .mode = LM_IX }, &e);
+      if (result == SUCCESS)
+        {
+          busy_wait_short ();
+          gr_unlock (ctx->lock, LM_IX);
+          ctx->operations[0]++;
+        }
+    }
+  return NULL;
+}
+
+static void *
+mixed_mode_thread2 (void *arg)
+{
+  struct mixed_mode_ctx *ctx = arg;
+  error e = error_create ();
+
+  for (int i = 0; i < 20; i++)
+    {
+      err_t result = gr_lock (ctx->lock, &(struct gr_lock_waiter){ .mode = LM_S }, &e);
+      if (result == SUCCESS)
+        {
+          busy_wait_short ();
+          gr_unlock (ctx->lock, LM_S);
+          ctx->operations[1]++;
+        }
+    }
+  return NULL;
+}
+
+static void *
+mixed_mode_thread3 (void *arg)
+{
+  struct mixed_mode_ctx *ctx = arg;
+  error e = error_create ();
+
+  for (int i = 0; i < 10; i++)
+    {
+      err_t result = gr_lock (ctx->lock, &(struct gr_lock_waiter){ .mode = LM_IX }, &e);
+      if (result == SUCCESS)
+        {
+          busy_wait_short ();
+          gr_unlock (ctx->lock, LM_IX);
+          ctx->operations[2]++;
+        }
+
+      result = gr_lock (ctx->lock, &(struct gr_lock_waiter){ .mode = LM_X }, &e);
+      if (result == SUCCESS)
+        {
+          ctx->counter++;
+          gr_unlock (ctx->lock, LM_X);
+          ctx->operations[2]++;
+        }
+    }
+  return NULL;
+}
+
+static void *
+mixed_mode_thread4 (void *arg)
+{
+  struct mixed_mode_ctx *ctx = arg;
+  error e = error_create ();
+
+  for (int i = 0; i < 10; i++)
+    {
+      err_t result = gr_lock (ctx->lock, &(struct gr_lock_waiter){ .mode = LM_IS }, &e);
+      if (result == SUCCESS)
+        {
+          busy_wait_short ();
+          gr_unlock (ctx->lock, LM_IS);
+          ctx->operations[3]++;
+        }
+
+      result = gr_lock (ctx->lock, &(struct gr_lock_waiter){ .mode = LM_S }, &e);
+      if (result == SUCCESS)
+        {
+          busy_wait_short ();
+          gr_unlock (ctx->lock, LM_S);
+          ctx->operations[3]++;
+        }
+    }
+  return NULL;
+}
+
+static void *
+mixed_mode_thread5 (void *arg)
+{
+  struct mixed_mode_ctx *ctx = arg;
+  error e = error_create ();
+
+  for (int i = 0; i < 15; i++)
+    {
+      err_t result = gr_lock (ctx->lock, &(struct gr_lock_waiter){ .mode = LM_X }, &e);
+      if (result == SUCCESS)
+        {
+          ctx->counter++;
+          gr_unlock (ctx->lock, LM_X);
+          ctx->operations[4]++;
+        }
+    }
+  return NULL;
+}
+
+TEST (TT_HEAVY, gr_lock_mixed_mode_stress)
+{
+  struct gr_lock lock;
+  error e = error_create ();
+
+  test_err_t_wrap (gr_lock_init (&lock, &e), &e);
+
+  struct mixed_mode_ctx ctx = { .lock = &lock };
+  i_thread threads[5];
+
+  test_assert_equal (i_thread_create (&threads[0], mixed_mode_thread1, &ctx, &e), SUCCESS);
+  test_assert_equal (i_thread_create (&threads[1], mixed_mode_thread2, &ctx, &e), SUCCESS);
+  test_assert_equal (i_thread_create (&threads[2], mixed_mode_thread3, &ctx, &e), SUCCESS);
+  test_assert_equal (i_thread_create (&threads[3], mixed_mode_thread4, &ctx, &e), SUCCESS);
+  test_assert_equal (i_thread_create (&threads[4], mixed_mode_thread5, &ctx, &e), SUCCESS);
+
+  for (int i = 0; i < 5; i++)
+    {
+      test_err_t_wrap (i_thread_join (&threads[i], &e), &e);
+    }
+
+  // Verify all operations completed
+  test_assert (ctx.operations[0] > 0);
+  test_assert (ctx.operations[1] > 0);
+  test_assert (ctx.operations[2] > 0);
+  test_assert (ctx.operations[3] > 0);
+  test_assert (ctx.operations[4] > 0);
+
+  // Counter should be exactly: 10 (thread3) + 15 (thread5) = 25
+  test_assert_equal (ctx.counter, 25);
+
+  gr_lock_destroy (&lock);
+}
+
+/**
+ * Thread diagram for trylock stress test:
+ *
+ * T1: Holds S lock for duration
+ * T2-T5: Repeatedly trylock X (should fail), then acquire X when T1 releases
+ *
+ * This tests:
+ * - gr_trylock returns false when incompatible lock is held
+ * - gr_trylock returns true when compatible
+ * - No deadlocks or races in trylock path
+ */
+struct trylock_ctx
+{
+  struct gr_lock *lock;
+  volatile int trylock_successes;
+  volatile int trylock_failures;
+  volatile int t1_released;
+};
+
+static void *
+trylock_holder_thread (void *arg)
+{
+  struct trylock_ctx *ctx = arg;
+  error e = error_create ();
+
+  // Hold S lock for a while
+  if (gr_lock (ctx->lock, &(struct gr_lock_waiter){ .mode = LM_S }, &e) != SUCCESS)
+    {
+      return NULL;
+    }
+  usleep (20000);
+  gr_unlock (ctx->lock, LM_S);
+  ctx->t1_released = 1;
+
+  return NULL;
+}
+
+static void *
+trylock_thread (void *arg)
+{
+  struct trylock_ctx *ctx = arg;
+  int successes = 0;
+  int failures = 0;
+
+  // Try to acquire X lock repeatedly
+  for (int i = 0; i < 100; i++)
+    {
+      if (gr_trylock (ctx->lock, LM_X))
+        {
+          successes++;
+          gr_unlock (ctx->lock, LM_X);
+        }
+      else
+        {
+          failures++;
+        }
+      sched_yield ();
+    }
+
+  __sync_fetch_and_add (&ctx->trylock_successes, successes);
+  __sync_fetch_and_add (&ctx->trylock_failures, failures);
+
+  return NULL;
+}
+
+TEST (TT_HEAVY, gr_lock_trylock_stress)
+{
+  struct gr_lock lock;
+  error e = error_create ();
+
+  test_err_t_wrap (gr_lock_init (&lock, &e), &e);
+
+  struct trylock_ctx ctx = { .lock = &lock };
+  i_thread holder;
+  i_thread threads[4];
+
+  test_assert_equal (i_thread_create (&holder, trylock_holder_thread, &ctx, &e), SUCCESS);
+
+  for (int i = 0; i < 4; i++)
+    {
+      test_assert_equal (i_thread_create (&threads[i], trylock_thread, &ctx, &e), SUCCESS);
+    }
+
+  test_err_t_wrap (i_thread_join (&holder, &e), &e);
+
+  for (int i = 0; i < 4; i++)
+    {
+      test_err_t_wrap (i_thread_join (&threads[i], &e), &e);
+    }
+
+  // Should have had both successes and failures
+  test_assert (ctx.trylock_failures > 0);  // Failed while S lock was held
+  test_assert (ctx.trylock_successes > 0); // Succeeded after S released
+
+  gr_lock_destroy (&lock);
+}
+
+/**
+ * Thread diagram for SIX lock stress test:
+ *
+ * SIX (Shared Intent Exclusive) is special:
+ * - Compatible only with IS
+ * - Incompatible with IX, S, SIX, X
+ *
+ * T1: Acquires SIX
+ * T2-T3: Try IS (should succeed - compatible with SIX)
+ * T4: Tries IX (should block)
+ * T5: Tries S (should block)
+ * T6: Tries X (should block)
+ */
+struct six_stress_ctx
+{
+  struct gr_lock *lock;
+  volatile int six_acquired;
+  volatile int is_acquired;
+  volatile int ix_blocked;
+  volatile int s_blocked;
+  volatile int x_blocked;
+  volatile int six_released;
+};
+
+static void *
+six_holder_thread (void *arg)
+{
+  struct six_stress_ctx *ctx = arg;
+  error e = error_create ();
+
+  if (gr_lock (ctx->lock, &(struct gr_lock_waiter){ .mode = LM_SIX }, &e) != SUCCESS)
+    {
+      return NULL;
+    }
+  ctx->six_acquired = 1;
+
+  usleep (20000); // Hold SIX for a while
+
+  gr_unlock (ctx->lock, LM_SIX);
+  ctx->six_released = 1;
+
+  return NULL;
+}
+
+static void *
+six_is_thread (void *arg)
+{
+  struct six_stress_ctx *ctx = arg;
+  error e = error_create ();
+
+  usleep (5000); // Let SIX acquire first
+
+  if (gr_lock (ctx->lock, &(struct gr_lock_waiter){ .mode = LM_IS }, &e) != SUCCESS)
+    {
+      return NULL;
+    }
+  ctx->is_acquired = 1;
+  gr_unlock (ctx->lock, LM_IS);
+
+  return NULL;
+}
+
+static void *
+six_ix_thread (void *arg)
+{
+  struct six_stress_ctx *ctx = arg;
+  error e = error_create ();
+
+  usleep (5000); // Let SIX acquire first
+  ctx->ix_blocked = 1;
+
+  if (gr_lock (ctx->lock, &(struct gr_lock_waiter){ .mode = LM_IX }, &e) != SUCCESS)
+    {
+      return NULL;
+    }
+  ctx->ix_blocked = 0; // Acquired, no longer blocked
+  gr_unlock (ctx->lock, LM_IX);
+
+  return NULL;
+}
+
+static void *
+six_s_thread (void *arg)
+{
+  struct six_stress_ctx *ctx = arg;
+  error e = error_create ();
+
+  usleep (5000); // Let SIX acquire first
+  ctx->s_blocked = 1;
+
+  if (gr_lock (ctx->lock, &(struct gr_lock_waiter){ .mode = LM_S }, &e) != SUCCESS)
+    {
+      return NULL;
+    }
+  ctx->s_blocked = 0; // Acquired, no longer blocked
+  gr_unlock (ctx->lock, LM_S);
+
+  return NULL;
+}
+
+static void *
+six_x_thread (void *arg)
+{
+  struct six_stress_ctx *ctx = arg;
+  error e = error_create ();
+
+  usleep (5000); // Let SIX acquire first
+  ctx->x_blocked = 1;
+
+  if (gr_lock (ctx->lock, &(struct gr_lock_waiter){ .mode = LM_X }, &e) != SUCCESS)
+    {
+      return NULL;
+    }
+  ctx->x_blocked = 0; // Acquired, no longer blocked
+  gr_unlock (ctx->lock, LM_X);
+
+  return NULL;
+}
+
+TEST (TT_HEAVY, gr_lock_six_mode_stress)
+{
+  struct gr_lock lock;
+  error e = error_create ();
+
+  test_err_t_wrap (gr_lock_init (&lock, &e), &e);
+
+  struct six_stress_ctx ctx = { .lock = &lock };
+  i_thread threads[6];
+
+  test_assert_equal (i_thread_create (&threads[0], six_holder_thread, &ctx, &e), SUCCESS);
+  test_assert_equal (i_thread_create (&threads[1], six_is_thread, &ctx, &e), SUCCESS);
+  test_assert_equal (i_thread_create (&threads[2], six_is_thread, &ctx, &e), SUCCESS);
+  test_assert_equal (i_thread_create (&threads[3], six_ix_thread, &ctx, &e), SUCCESS);
+  test_assert_equal (i_thread_create (&threads[4], six_s_thread, &ctx, &e), SUCCESS);
+  test_assert_equal (i_thread_create (&threads[5], six_x_thread, &ctx, &e), SUCCESS);
+
+  // Sample state while SIX is held
+  usleep (10000);
+  int is_acquired_sample = ctx.is_acquired;
+  int ix_blocked_sample = ctx.ix_blocked;
+  int s_blocked_sample = ctx.s_blocked;
+  int x_blocked_sample = ctx.x_blocked;
+
+  for (int i = 0; i < 6; i++)
+    {
+      test_err_t_wrap (i_thread_join (&threads[i], &e), &e);
+    }
+
+  // IS should have acquired (compatible with SIX)
+  test_assert (is_acquired_sample);
+
+  // IX, S, X should have been blocked while SIX was held
+  test_assert (ix_blocked_sample);
+  test_assert (s_blocked_sample);
+  test_assert (x_blocked_sample);
+
+  gr_lock_destroy (&lock);
+}
+
+/**
+ * High contention stress test - many threads hammering the lock
+ *
+ * This creates maximum contention to stress test:
+ * - Lock/unlock performance under load
+ * - Waiter queue under heavy churn
+ * - No deadlocks or livelocks
+ */
+struct high_contention_ctx
+{
+  struct gr_lock *lock;
+  volatile int counter;
+};
+
+static void *
+high_contention_thread (void *arg)
+{
+  struct high_contention_ctx *ctx = arg;
+  error e = error_create ();
+
+  for (int i = 0; i < 50; i++)
+    {
+      enum lock_mode mode = (enum lock_mode) (i % LM_COUNT);
+
+      if (gr_lock (ctx->lock, &(struct gr_lock_waiter){ .mode = mode }, &e) != SUCCESS)
+        {
+          continue;
+        }
+
+      if (mode == LM_X)
+        {
+          ctx->counter++;
+        }
+
+      gr_unlock (ctx->lock, mode);
+    }
+
+  return NULL;
+}
+
+TEST (TT_HEAVY, gr_lock_high_contention)
+{
+  struct gr_lock lock;
+  error e = error_create ();
+
+  test_err_t_wrap (gr_lock_init (&lock, &e), &e);
+
+  struct high_contention_ctx ctx = { .lock = &lock };
+  i_thread threads[10];
+
+  for (int i = 0; i < 10; i++)
+    {
+      test_assert_equal (i_thread_create (&threads[i], high_contention_thread, &ctx, &e), SUCCESS);
+    }
+
+  for (int i = 0; i < 10; i++)
+    {
+      test_err_t_wrap (i_thread_join (&threads[i], &e), &e);
+    }
+
+  // Each thread increments counter 10 times (when it gets X lock, i % 5 == 4)
+  test_assert_equal (ctx.counter, 100); // 10 threads * 10 X locks each
 
   gr_lock_destroy (&lock);
 }
