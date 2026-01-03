@@ -227,37 +227,41 @@ nsfslite_new (nsfslite *n, nsfslite_txn *tx, const char *name)
       tx = &auto_txn;
     }
 
-  varc_enter_transaction (&vc->vpc, tx);
-
-  struct var_create_params src = {
-    .vname = cstrfcstr (name),
-    .t = (struct type){
-        .type = T_PRIM,
-        .p = U8,
-    },
-  };
-
-  // CREATE VARIABLE
-  if (vpc_new (&vc->vpc, src, &n->e))
-    {
-      varc_cleanup (&vc->vpc, &n->e);
-      goto theend;
-    }
-
   // CREATE RPT ROOT
-  if (rptc_new (&rc->rptc, tx, n->p, &n->e))
-    {
-      varc_cleanup (&vc->vpc, &n->e);
-      rptc_cleanup (&rc->rptc, &n->e);
-      goto theend;
-    }
+  {
+    if (rptc_new (&rc->rptc, tx, n->p, &n->e))
+      {
+        varc_cleanup (&vc->vpc, &n->e);
+        rptc_cleanup (&rc->rptc, &n->e);
+        goto theend;
+      }
 
-  // TODO - update variable
+    ret = rc->rptc.meta_root;
+  }
 
-  ret = rc->rptc.meta_root;
+  {
+    varc_enter_transaction (&vc->vpc, tx);
+
+    struct var_create_params src = {
+      .vname = cstrfcstr (name),
+      .t = (struct type){
+          .type = T_PRIM,
+          .p = U8,
+      },
+      .root = ret,
+    };
+
+    // CREATE VARIABLE
+    if (vpc_new (&vc->vpc, src, &n->e))
+      {
+        varc_cleanup (&vc->vpc, &n->e);
+        goto theend;
+      }
+
+    varc_leave_transaction (&vc->vpc);
+  }
 
   // COMMIT
-  varc_leave_transaction (&vc->vpc);
   if (auto_txn_started)
     {
       if (pgr_commit (n->p, tx, &n->e))

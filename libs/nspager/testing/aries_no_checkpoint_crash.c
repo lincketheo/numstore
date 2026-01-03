@@ -32,7 +32,10 @@
 #include <numstore/test/testing.h>
 #include <numstore/test/testing_test.h>
 
-#include "wal.h"
+#include <config.h>
+#include <wal.h>
+
+#ifndef DUMB_PAGER
 
 #ifndef NTEST
 
@@ -440,4 +443,5 @@ TEST (TT_UNIT, aries_crash_after_commit_before_end_multiple_second_no_commit)
 
   test_err_t_wrap (pgr_close (p, &e), &e);
 }
+#endif
 #endif
