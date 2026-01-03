@@ -24,6 +24,7 @@
  */
 
 #include "nsfslite.h"
+#include "utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,45 +32,23 @@
 
 #define N_ELEMS 200000
 
-#define CHECK(expr)                                                         \
-  do                                                                        \
-    {                                                                       \
-      if ((expr) < 0)                                                       \
-        {                                                                   \
-          fprintf (stderr, "Failed: %s - %s\n", #expr, nsfslite_error (n)); \
-          ret = -1;                                                         \
-          goto cleanup;                                                     \
-        }                                                                   \
-    }                                                                       \
-  while (0)
-
 int
 main (void)
 {
   int ret = 0;
   nsfslite *n = NULL;
-  int *data = malloc (N_ELEMS * sizeof (int));
-  int *read_data = malloc (N_ELEMS * sizeof (int));
-  int *update = malloc (10000 * sizeof (int));
-
-  for (size_t i = 0; i < N_ELEMS; i++)
-    {
-      data[i] = i;
-    }
+  int *data = int_range (N_ELEMS);
 
   unlink ("test12.db");
   unlink ("test12.wal");
 
-  n = nsfslite_open ("test12.db", "test12.wal");
-  if (!n)
-    {
-      fprintf (stderr, "Failed to open database\n");
-      ret = -1;
-      goto cleanup;
-    }
+  // OPEN
+  CHECKN ((n = nsfslite_open ("test12.db", "test12.wal")));
 
+  // NEW VARIABLE
   int64_t id = nsfslite_new (n, NULL, "data");
   CHECK (id);
+  // INSERT
   CHECK (nsfslite_insert (n, id, NULL, data, 0, sizeof (int), N_ELEMS));
 
   for (size_t i = 0; i < 10000; i++)
@@ -78,25 +57,25 @@ main (void)
     }
 
   struct nsfslite_stride wstride = { .bstart = 50000 * sizeof (int), .stride = 1, .nelems = 10000 };
+  // WRITE
   CHECK (nsfslite_write (n, id, NULL, update, sizeof (int), wstride));
 
   struct nsfslite_stride rstride_remove = { .bstart = 100000 * sizeof (int), .stride = 1, .nelems = 50000 };
+  // REMOVE
   CHECK (nsfslite_remove (n, id, NULL, NULL, sizeof (int), rstride_remove));
 
+  // CLOSE
   nsfslite_close (n);
 
-  n = nsfslite_open ("test12.db", "test12.wal");
-  if (!n)
-    {
-      fprintf (stderr, "Failed to reopen database\n");
-      ret = -1;
-      goto cleanup;
-    }
+  // OPEN
+  CHECKN ((n = nsfslite_open ("test12.db", "test12.wal")));
 
+  // GET ID
   id = nsfslite_get_id (n, "data");
   CHECK (id);
 
   size_t remaining = N_ELEMS - 50000;
+  // READ
   struct nsfslite_stride rstride = { .bstart = 0, .stride = 1, .nelems = remaining };
   CHECK (nsfslite_read (n, id, read_data, sizeof (int), rstride));
 
@@ -115,7 +94,9 @@ main (void)
 
 cleanup:
   if (n)
-    nsfslite_close (n);
+    {
+      nsfslite_close (n);
+    }
   free (data);
   free (read_data);
   free (update);
