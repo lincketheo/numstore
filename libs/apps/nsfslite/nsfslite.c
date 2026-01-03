@@ -742,6 +742,12 @@ nsfslite_write (
       goto failed;
     }
 
+  if (c->rptc.state == RPTS_UNSEEKED)
+    {
+      error_causef (&n->e, ERR_INVALID_ARGUMENT, "Tried to write data to a tree with 0 elements\n");
+      goto failed;
+    }
+
   while (c->rptc.state == RPTS_SEEKING)
     {
       if (rptc_seeking_execute (&c->rptc, &n->e))
