@@ -73,7 +73,6 @@ txn_newlock (struct txn *t, enum lt_lock_type type, union lt_lock_data data, enu
   lock->type = type;
   lock->mode = mode;
   lock->data = data;
-  lock->tx = t;
 
   spx_latch_lock_x (&t->l);
 
@@ -83,6 +82,26 @@ txn_newlock (struct txn *t, enum lt_lock_type type, union lt_lock_data data, enu
   spx_latch_unlock_x (&t->l);
 
   return lock;
+}
+
+void
+txn_freelock (struct txn *t, struct lt_lock *lock)
+{
+  if (lock->prev != NULL)
+    {
+      lock->prev->next = lock->next;
+    }
+  if (lock->next != NULL)
+    {
+      lock->next->prev = lock->prev;
+    }
+
+  if (t->locks == lock)
+    {
+      t->locks = lock->next;
+    }
+
+  i_free (lock);
 }
 
 void

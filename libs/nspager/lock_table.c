@@ -17,8 +17,6 @@
  *   TODO: Add description for lock_table.c
  */
 
-#include "numstore/pager/lt_lock.h"
-#include "numstore/pager/txn.h"
 #include <numstore/pager/lock_table.h>
 
 #include <numstore/core/adptv_hash_table.h>
@@ -30,6 +28,8 @@
 #include <numstore/core/hashing.h>
 #include <numstore/core/ht_models.h>
 #include <numstore/core/spx_latch.h>
+#include <numstore/pager/lt_lock.h>
+#include <numstore/pager/txn.h>
 
 static void
 lt_lock_init_key_from_txn (struct lt_lock *dest)
@@ -202,76 +202,75 @@ lockt_lock_once (
       return NULL;
     }
 
+  // Initialize it as a key
   lt_lock_init_key_from_txn (lock);
 
+  // Try to find it if it exists
   struct hnode *node = adptv_htable_lookup (&t->table, &lock->lock_type_node, lt_lock_eq);
-
-  struct gr_lock *_lock = NULL;
 
   // FOUND
   if (node != NULL)
     {
-      // Lock already exists - try fast path
+      // LOCK
       struct lt_lock *existing = container_of (node, struct lt_lock, lock_type_node);
-      _lock = existing->lock;
-      if (gr_lock (_lock, mode, e))
+      struct gr_lock *_gr_lock = existing->lock;
+      if (gr_lock (_gr_lock, mode, e))
         {
+          txn_freelock (tx, lock);
           return NULL;
         }
 
-      if (!gr_trylock (_lock, mode))
+      lock->lock = _gr_lock;
+
+      // INSERT
+      if (adptv_htable_insert (&t->table, &lock->lock_type_node, e))
         {
-          panic ("TODO - lock coupling");
+          gr_unlock (_gr_lock, mode);
+          clck_alloc_free (&t->gr_lock_alloc, _gr_lock);
+          txn_freelock (tx, lock);
+          return NULL;
         }
     }
+
+  // NOT FOUND
   else
     {
-      // No existing lock - create a new one
-      _lock = clck_alloc_alloc (&t->gr_lock_alloc, e);
-      if (_lock == NULL)
+      // ALLOC
+      struct gr_lock *_gr_lock = clck_alloc_alloc (&t->gr_lock_alloc, e);
+      if (_gr_lock == NULL)
         {
-          spx_latch_unlock_x (&t->l);
-          panic ("free lock from txn");
+          txn_freelock (tx, lock);
           return NULL;
         }
 
-      if (gr_lock_init (_lock, e))
+      // INIT
+      if (gr_lock_init (_gr_lock, e))
         {
-          clck_alloc_free (&t->gr_lock_alloc, _lock);
-          spx_latch_unlock_x (&t->l);
-          panic ("free lock from txn");
+          clck_alloc_free (&t->gr_lock_alloc, _gr_lock);
+          txn_freelock (tx, lock);
           return NULL;
         }
 
-      if (gr_lock (_lock, mode, e))
+      // LOCK
+      if (gr_lock (_gr_lock, mode, e))
         {
-          gr_lock_destroy (_lock);
-          clck_alloc_free (&t->gr_lock_alloc, _lock);
-          spx_latch_unlock_x (&t->l);
-          panic ("free lock from txn");
+          gr_lock_destroy (_gr_lock);
+          clck_alloc_free (&t->gr_lock_alloc, _gr_lock);
+          txn_freelock (tx, lock);
+          return NULL;
+        }
+
+      lock->lock = _gr_lock;
+
+      // INSERT
+      if (adptv_htable_insert (&t->table, &lock->lock_type_node, e))
+        {
+          gr_unlock (_gr_lock, mode);
+          clck_alloc_free (&t->gr_lock_alloc, _gr_lock);
+          txn_freelock (tx, lock);
           return NULL;
         }
     }
-
-  // Common path: insert lock into tables
-  lock->lock = _lock;
-
-  // Insert into lock type table
-  if (adptv_htable_insert (&t->table, &lock->lock_type_node, e))
-    {
-      gr_unlock (_lock, mode);
-      if (node == NULL) // We created this lock
-        {
-          clck_alloc_free (&t->gr_lock_alloc, _lock);
-        }
-      spx_latch_unlock_x (&t->l);
-
-      panic ("free txn lock!");
-
-      return NULL;
-    }
-
-  spx_latch_unlock_x (&t->l);
 
   return lock;
 }
@@ -344,47 +343,41 @@ lockt_lock (
 err_t
 lockt_upgrade (struct lockt *t, struct lt_lock *lock, enum lock_mode new_mode, error *e)
 {
-  enum lock_mode old_mode = lock->mode;
-
-  // Check if this is actually an upgrade
-  if (new_mode <= old_mode)
+  if (new_mode <= lock->mode)
     {
-      // Already have sufficient lock
       return SUCCESS;
     }
 
-  // Check if we need to upgrade parent locks too
   int ptype = parent_lock[lock->type];
 
   if (ptype != -1)
     {
       enum lock_mode new_parent_mode = get_parent_mode (new_mode);
-      enum lock_mode old_parent_mode = get_parent_mode (old_mode);
+      enum lock_mode old_parent_mode = get_parent_mode (lock->mode);
 
-      // If parent needs upgrading, upgrade it first
+      // UPGRADE PARENT
       if (new_parent_mode > old_parent_mode)
         {
           struct lt_lock key;
           lt_lock_init_key (&key, ptype, lock->data);
 
+          // FIND PARENT
           struct hnode *_found = adptv_htable_lookup (&t->table, &key.lock_type_node, lt_lock_eq);
+          ASSERT (_found);
           struct lt_lock *found = container_of (_found, struct lt_lock, lock_type_node);
-          ASSERT (found);
 
-          err_t ret = lockt_upgrade (t, found, new_parent_mode, e);
-          if (ret != SUCCESS)
-            {
-              return ret;
-            }
+          // UPGRADE
+          err_t_wrap (lockt_upgrade (t, found, new_parent_mode, e), e);
         }
     }
 
-  if (gr_upgrade (lock->lock, old_mode, new_mode, e))
+  if (gr_upgrade (lock->lock, lock->mode, new_mode, e))
     {
       return e->cause_code;
     }
 
   lock->mode = new_mode;
+
   return SUCCESS;
 }
 
@@ -394,23 +387,20 @@ lockt_unlock (struct lockt *t, struct txn *tx, error *e)
   ASSERT (t);
   ASSERT (tx);
 
-  spx_latch_lock_x (&t->l);
-
-  // Iterate through all locks and remove them from the main table
   struct lt_lock *curr = tx->locks;
 
   while (curr != NULL)
     {
       struct lt_lock *next = curr->next;
 
-      // Remove from lock type table
-      adptv_htable_delete (NULL, &t->table, &curr->lock_type_node, lt_lock_eq, e);
+      // REMOVE
+      err_t_wrap (adptv_htable_delete (NULL, &t->table, &curr->lock_type_node, lt_lock_eq, e), e);
 
-      // Unlock and check if we should free
+      // UNLOCK
       struct gr_lock *gr_lock_ptr = curr->lock;
-
       bool is_free = gr_unlock (gr_lock_ptr, curr->mode);
 
+      // DELETE GR_LOCK IF LAST
       if (is_free)
         {
           gr_lock_destroy (gr_lock_ptr);
@@ -421,9 +411,8 @@ lockt_unlock (struct lockt *t, struct txn *tx, error *e)
       curr = next;
     }
 
+  // FREE LOCKS
   txn_free_all_locks (tx);
-
-  spx_latch_unlock_x (&t->l);
 
   return SUCCESS;
 }

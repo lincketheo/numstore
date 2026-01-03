@@ -72,6 +72,6 @@ struct lt_lock
   enum lock_mode mode;         // Lock mode locked under (S, X, SI, etc)
   struct hnode lock_type_node; // Node for the lock type in the table
   struct lt_lock *next;        // Next lock in this transaction id
+  struct lt_lock *prev;        // Previous lock in this transaction id
   struct spx_latch l;          // For thread safety
-  struct txn *tx;              // Parent txn
 };
