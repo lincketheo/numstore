@@ -39,14 +39,7 @@ main (void)
 {
   int ret = 0;
   nsfslite *n = NULL;
-  int *data = malloc (N_ELEMS * sizeof (int));
-  int *write_data = malloc (WRITE_COUNT * sizeof (int));
-  int *read_data = malloc (N_ELEMS * sizeof (int));
-
-  for (size_t i = 0; i < N_ELEMS; i++)
-    {
-      data[i] = i;
-    }
+  int *data = int_range (N_ELEMS);
   for (size_t i = 0; i < WRITE_COUNT; i++)
     {
       write_data[i] = 77000 + i;
@@ -55,34 +48,30 @@ main (void)
   unlink ("test11.db");
   unlink ("test11.wal");
 
-  n = nsfslite_open ("test11.db", "test11.wal");
-  if (!n)
-    {
-      fprintf (stderr, "Failed to open database\n");
-      ret = -1;
-      goto cleanup;
-    }
+  // OPEN
+  CHECKN ((n = nsfslite_open ("test11.db", "test11.wal")));
 
+  // NEW VARIABLE
   int64_t id = nsfslite_new (n, NULL, "data");
   CHECK (id);
+  // INSERT
   CHECK (nsfslite_insert (n, id, NULL, data, 0, sizeof (int), N_ELEMS));
 
   struct nsfslite_stride wstride = { .bstart = 0, .stride = WRITE_STRIDE, .nelems = WRITE_COUNT };
+  // WRITE
   CHECK (nsfslite_write (n, id, NULL, write_data, sizeof (int), wstride));
 
+  // CLOSE
   nsfslite_close (n);
 
-  n = nsfslite_open ("test11.db", "test11.wal");
-  if (!n)
-    {
-      fprintf (stderr, "Failed to reopen database\n");
-      ret = -1;
-      goto cleanup;
-    }
+  // OPEN
+  CHECKN ((n = nsfslite_open ("test11.db", "test11.wal")));
 
+  // GET ID
   id = nsfslite_get_id (n, "data");
   CHECK (id);
 
+  // READ
   struct nsfslite_stride rstride = { .bstart = 0, .stride = 1, .nelems = N_ELEMS };
   CHECK (nsfslite_read (n, id, read_data, sizeof (int), rstride));
 
@@ -102,7 +91,9 @@ main (void)
 
 cleanup:
   if (n)
-    nsfslite_close (n);
+    {
+      nsfslite_close (n);
+    }
   free (data);
   free (write_data);
   free (read_data);

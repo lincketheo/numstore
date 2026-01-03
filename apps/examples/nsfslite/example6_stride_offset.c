@@ -42,18 +42,13 @@ main (void)
   nsfslite *n = NULL;
   size_t total_size = OFFSET + (N_ELEMS - 1) * STRIDE + 1;
   int *insert_data = calloc (total_size, sizeof (int));
-  int *write_data = malloc (N_ELEMS * sizeof (int));
+  int *write_data = int_range (N_ELEMS);
   int *expected_data = calloc (total_size, sizeof (int));
-  int *read_data = malloc (N_ELEMS * sizeof (int));
+  int *read_data = int_random (N_ELEMS);
 
   for (size_t i = 0; i < total_size; i++)
     {
       insert_data[i] = 1000 + i;
-    }
-
-  for (size_t i = 0; i < N_ELEMS; i++)
-    {
-      write_data[i] = i;
     }
 
   // Build expected result
@@ -66,52 +61,44 @@ main (void)
   unlink ("test6.db");
   unlink ("test6.wal");
 
-  n = nsfslite_open ("test6.db", "test6.wal");
-  if (!n)
-    {
-      fprintf (stderr, "Failed to open database\n");
-      ret = -1;
-      goto cleanup;
-    }
+  // OPEN
+  CHECKN ((n = nsfslite_open ("test6.db", "test6.wal")));
 
+  // NEW VARIABLE
   int64_t id = nsfslite_new (n, NULL, "data");
   CHECK (id);
+
+  // INSERT
   CHECK (nsfslite_insert (n, id, NULL, insert_data, 0, sizeof (int), total_size));
 
+  // WRITE
   struct nsfslite_stride wstride = { .bstart = OFFSET * sizeof (int), .stride = STRIDE, .nelems = N_ELEMS };
   CHECK (nsfslite_write (n, id, NULL, write_data, sizeof (int), wstride));
 
+  // CLOSE
   nsfslite_close (n);
 
-  n = nsfslite_open ("test6.db", "test6.wal");
-  if (!n)
-    {
-      fprintf (stderr, "Failed to reopen database\n");
-      ret = -1;
-      goto cleanup;
-    }
+  // OPEN
+  CHECKN ((n = nsfslite_open ("test6.db", "test6.wal")));
 
+  // GET ID
   id = nsfslite_get_id (n, "data");
   CHECK (id);
 
+  // READ
   struct nsfslite_stride rstride = { .bstart = OFFSET * sizeof (int), .stride = STRIDE, .nelems = N_ELEMS };
   CHECK (nsfslite_read (n, id, read_data, sizeof (int), rstride));
 
-  for (size_t i = 0; i < N_ELEMS; i++)
-    {
-      if (write_data[i] != read_data[i])
-        {
-          fprintf (stderr, "Mismatch at %zu: expected %d, got %d\n", i, write_data[i], read_data[i]);
-          ret = -1;
-          goto cleanup;
-        }
-    }
+  // COMPARE
+  COMPARE (write_data, read_data, N_ELEMS);
 
   printf ("SUCCESS: All %d elements match with stride=%d, offset=%d after reopen\n", N_ELEMS, STRIDE, OFFSET);
 
 cleanup:
   if (n)
-    nsfslite_close (n);
+    {
+      nsfslite_close (n);
+    }
   free (insert_data);
   free (write_data);
   free (expected_data);

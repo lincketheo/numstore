@@ -43,14 +43,10 @@ main (void)
   unlink ("test10.db");
   unlink ("test10.wal");
 
-  n = nsfslite_open ("test10.db", "test10.wal");
-  if (!n)
-    {
-      fprintf (stderr, "Failed to open database\n");
-      ret = -1;
-      goto cleanup;
-    }
+  // OPEN
+  CHECKN ((n = nsfslite_open ("test10.db", "test10.wal")));
 
+  // NEW VARIABLE
   int64_t id = nsfslite_new (n, NULL, "data");
   CHECK (id);
 
@@ -62,27 +58,26 @@ main (void)
           chunk[j] = total_inserted + j;
         }
 
-      CHECK (nsfslite_insert (n, id, NULL, chunk, total_inserted * sizeof (int), sizeof (int), INSERT_SIZE));
+      // INSERT
+  CHECK (nsfslite_insert (n, id, NULL, chunk, total_inserted * sizeof (int), sizeof (int), INSERT_SIZE));
 
       total_inserted += INSERT_SIZE;
     }
 
+  // CLOSE
   nsfslite_close (n);
 
-  n = nsfslite_open ("test10.db", "test10.wal");
-  if (!n)
-    {
-      fprintf (stderr, "Failed to reopen database\n");
-      ret = -1;
-      goto cleanup;
-    }
+  // OPEN
+  CHECKN ((n = nsfslite_open ("test10.db", "test10.wal")));
 
+  // GET ID
   id = nsfslite_get_id (n, "data");
   CHECK (id);
 
   for (size_t i = 0; i < NUM_INSERTS; i++)
     {
-      struct nsfslite_stride rstride = { .bstart = i * INSERT_SIZE * sizeof (int), .stride = 1, .nelems = INSERT_SIZE };
+      // READ
+  struct nsfslite_stride rstride = { .bstart = i * INSERT_SIZE * sizeof (int), .stride = 1, .nelems = INSERT_SIZE };
       CHECK (nsfslite_read (n, id, chunk, sizeof (int), rstride));
 
       for (size_t j = 0; j < INSERT_SIZE; j++)
@@ -101,7 +96,9 @@ main (void)
 
 cleanup:
   if (n)
-    nsfslite_close (n);
+    {
+      nsfslite_close (n);
+    }
   free (chunk);
   return ret;
 }
