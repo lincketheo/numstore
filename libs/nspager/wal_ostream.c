@@ -103,11 +103,11 @@ walos_flush_to_impl (struct wal_ostream *w, lsn l, bool lock, error *e)
       u32 towrite = cbuffer_len (&w->buffer);
 
       // Flush out the entire file to disk
-      if (cbuffer_write_to_file_1_expect (&w->fd, &w->buffer, towrite, e))
-        {
-          goto theend;
-        }
-      cbuffer_write_to_file_2 (&w->buffer, towrite);
+      //if (cbuffer_write_to_file_1_expect (&w->fd, &w->buffer, towrite, e))
+      // {
+      //  goto theend;
+      //}
+      //cbuffer_write_to_file_2 (&w->buffer, towrite);
 
       w->flushed_lsn += towrite;
     }

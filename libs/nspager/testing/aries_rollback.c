@@ -32,7 +32,10 @@
 #include <numstore/test/testing.h>
 #include <numstore/test/testing_test.h>
 
-#include "wal.h"
+#include <config.h>
+#include <wal.h>
+
+#ifndef DUMB_PAGER
 
 #ifndef NTEST
 
@@ -286,4 +289,5 @@ TEST_disabled (TT_UNIT, aries_rollback_clr_not_undone)
   lockt_destroy (&lt);
 }
 
+#endif
 #endif

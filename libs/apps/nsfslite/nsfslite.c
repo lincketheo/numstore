@@ -19,6 +19,7 @@
 
 #include <nsfslite.h>
 
+#include "numstore/rptree/oneoff.h"
 #include <numstore/core/clock_allocator.h>
 #include <numstore/core/error.h>
 #include <numstore/intf/logging.h>
@@ -240,37 +241,41 @@ nsfslite_new (nsfslite *n, nsfslite_txn *tx, const char *name)
       tx = &auto_txn;
     }
 
-  varc_enter_transaction (&vc->vpc, tx);
-
-  struct var_create_params src = {
-    .vname = cstrfcstr (name),
-    .t = (struct type){
-        .type = T_PRIM,
-        .p = U8,
-    },
-  };
-
-  // CREATE VARIABLE
-  if (vpc_new (&vc->vpc, src, &n->e))
-    {
-      varc_cleanup (&vc->vpc, &n->e);
-      goto theend;
-    }
-
   // CREATE RPT ROOT
-  if (rptc_new (&rc->rptc, tx, n->p, &n->e))
-    {
-      varc_cleanup (&vc->vpc, &n->e);
-      rptc_cleanup (&rc->rptc, &n->e);
-      goto theend;
-    }
+  {
+    if (rptc_new (&rc->rptc, tx, n->p, &n->e))
+      {
+        varc_cleanup (&vc->vpc, &n->e);
+        rptc_cleanup (&rc->rptc, &n->e);
+        goto theend;
+      }
 
-  // TODO - update variable
+    ret = rc->rptc.meta_root;
+  }
 
-  ret = rc->rptc.meta_root;
+  {
+    varc_enter_transaction (&vc->vpc, tx);
+
+    struct var_create_params src = {
+      .vname = cstrfcstr (name),
+      .t = (struct type){
+          .type = T_PRIM,
+          .p = U8,
+      },
+      .root = ret,
+    };
+
+    // CREATE VARIABLE
+    if (vpc_new (&vc->vpc, src, &n->e))
+      {
+        varc_cleanup (&vc->vpc, &n->e);
+        goto theend;
+      }
+
+    varc_leave_transaction (&vc->vpc);
+  }
 
   // COMMIT
-  varc_leave_transaction (&vc->vpc);
   if (auto_txn_started)
     {
       if (pgr_commit (n->p, tx, &n->e))
@@ -610,44 +615,10 @@ nsfslite_insert (
 
   rptc_enter_transaction (&c->rptc, tx);
 
-  // SEEK to byte offset
-  if (rptc_start_seek (&c->rptc, bofst, true, &n->e))
+  // DO INSERT
+  if (rptof_insert (&c->rptc, src, bofst, size, nelem, &n->e))
     {
       goto failed;
-    }
-
-  while (c->rptc.state == RPTS_SEEKING)
-    {
-      if (rptc_seeking_execute (&c->rptc, &n->e))
-        {
-          goto failed;
-        }
-    }
-
-  // INSERT
-  u32 nbytes = nelem * size;
-  struct cbuffer srcbuf = cbuffer_create_with ((void *)src, nbytes, nbytes);
-
-  if (rptc_seeked_to_insert (&c->rptc, &srcbuf, nbytes, &n->e))
-    {
-      goto failed;
-    }
-
-  while (c->rptc.state == RPTS_DL_INSERTING)
-    {
-      if (rptc_insert_execute (&c->rptc, &n->e))
-        {
-          goto failed;
-        }
-    }
-
-  // REBALANCE if needed
-  while (c->rptc.state == RPTS_IN_REBALANCING)
-    {
-      if (rptc_rebalance_execute (&c->rptc, &n->e))
-        {
-          goto failed;
-        }
     }
 
   // COMMIT
@@ -746,39 +717,7 @@ nsfslite_write (
 
   rptc_enter_transaction (&c->rptc, tx);
 
-  // SEEK to byte offset
-  if (rptc_start_seek (&c->rptc, stride.bstart, false, &n->e))
-    {
-      goto failed;
-    }
-
-  while (c->rptc.state == RPTS_SEEKING)
-    {
-      if (rptc_seeking_execute (&c->rptc, &n->e))
-        {
-          goto failed;
-        }
-    }
-
-  // WRITE with stride
-  u32 nbytes = stride.nelems * size;
-  struct cbuffer srcbuf = cbuffer_create_with ((void *)src, nbytes, nbytes);
-
-  rptc_seeked_to_write (&c->rptc, &srcbuf, size, stride.stride);
-
-  while (c->rptc.state == RPTS_DL_WRITING)
-    {
-      if (rptc_write_execute (&c->rptc, &n->e))
-        {
-          goto failed;
-        }
-    }
-
-  ASSERT (c->rptc.writer.total_written % size == 0);
-  ssize_t written = c->rptc.writer.total_written / size;
-
-  // Transition back to unseeked
-  if (rptc_write_to_unseeked (&c->rptc, &n->e))
+  if (rptof_write (&c->rptc, src, size, stride.bstart, stride.stride, stride.nelems, &n->e))
     {
       goto failed;
     }
@@ -808,8 +747,7 @@ nsfslite_write (
     }
 #endif
 
-  i_log_trace ("nsfslite_write: success id=%" PRIu64 " tx=%" PRIu64 " written=%zd\n", id, tx->tid, written);
-  return written;
+  return stride.nelems;
 
 failed:
   if (c)
@@ -861,37 +799,11 @@ nsfslite_read (
       goto failed;
     }
 
-  // SEEK to byte offset
-  size_t bofst = stride.bstart;
-  if (rptc_start_seek (&c->rptc, bofst, false, &n->e))
+  ssize_t ret = rptof_read (&c->rptc, dest, size, stride.bstart, stride.stride, stride.nelems, &n->e);
+  if (ret < 0)
     {
       goto failed;
     }
-
-  while (c->rptc.state == RPTS_SEEKING)
-    {
-      if (rptc_seeking_execute (&c->rptc, &n->e))
-        {
-          goto failed;
-        }
-    }
-
-  // READ with stride
-  u32 nbytes = stride.nelems * size;
-  struct cbuffer destbuf = cbuffer_create (dest, nbytes);
-
-  rptc_seeked_to_read (&c->rptc, &destbuf, stride.nelems, size, stride.stride);
-
-  while (c->rptc.state == RPTS_DL_READING)
-    {
-      if (rptc_read_execute (&c->rptc, &n->e))
-        {
-          goto failed;
-        }
-    }
-
-  ASSERT (c->rptc.reader.total_bread % size == 0);
-  ssize_t ret = c->rptc.reader.total_bread / size;
 
   // CLEANUP
   if (rptc_cleanup (&c->rptc, &n->e))
@@ -971,60 +883,10 @@ nsfslite_remove (
 
   rptc_enter_transaction (&c->rptc, tx);
 
-  // SEEK to byte offset
-  if (rptc_start_seek (&c->rptc, stride.bstart, false, &n->e))
+  if (rptof_remove (&c->rptc, dest, size, stride.bstart, stride.stride, stride.nelems, &n->e))
     {
       goto failed;
     }
-
-  while (c->rptc.state == RPTS_SEEKING)
-    {
-      if (rptc_seeking_execute (&c->rptc, &n->e))
-        {
-          goto failed;
-        }
-    }
-
-  // REMOVE with stride
-  u32 nbytes = stride.nelems * size;
-  if (dest)
-    {
-      struct cbuffer destbuf = cbuffer_create (dest, nbytes);
-      if (rptc_seeked_to_remove (&c->rptc, &destbuf, stride.nelems, size, stride.stride, &n->e))
-        {
-          goto failed;
-        }
-    }
-  else
-    {
-      if (rptc_seeked_to_remove (&c->rptc, NULL, stride.nelems, size, stride.stride, &n->e))
-        {
-          goto failed;
-        }
-    }
-
-  while (c->rptc.state == RPTS_DL_REMOVING)
-    {
-      if (rptc_remove_execute (&c->rptc, &n->e))
-        {
-          goto failed;
-        }
-    }
-
-  ASSERT (c->rptc.remover.total_removed % size == 0);
-  ssize_t removed = c->rptc.remover.total_removed / size;
-
-  // REBALANCE if needed
-  if (c->rptc.state == RPTS_IN_REBALANCING)
-    {
-      if (rptc_remove_to_rebalancing_or_unseeked (&c->rptc, &n->e))
-        {
-          goto failed;
-        }
-    }
-
-  // Note: rptree cursor internally updates the rpt_root page with new actual root
-  // No need to call vpc_update
 
   // COMMIT
   rptc_leave_transaction (&c->rptc);
@@ -1052,7 +914,8 @@ nsfslite_remove (
 #endif
 
   i_log_trace ("nsfslite_remove: success id=%" PRIu64 " tx=%" PRIu64 " removed=%zd\n", id, tx->tid, removed);
-  return removed;
+
+  return stride.nelems;
 
 failed:
   if (c)

@@ -46,7 +46,10 @@
 #include <numstore/test/page_fixture.h>
 #include <numstore/test/testing.h>
 
+#include <config.h>
 #include <wal.h>
+
+#ifndef DUMB_PAGER
 
 #define KTYPE pgno
 #define VTYPE u32
@@ -2769,4 +2772,5 @@ pgr_crash (struct pager *p, error *e)
   return e->cause_code;
 }
 
+#endif
 #endif
