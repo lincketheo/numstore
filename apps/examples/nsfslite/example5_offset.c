@@ -69,7 +69,7 @@ main (void)
   CHECK (nsfslite_read (n, id, read_data, sizeof (int), rstride));
 
   // COMPARE
-  COMPARE (data, read_data, N_ELEMS);
+  COMPARE (&data[OFFSET], read_data, N_ELEMS - OFFSET);
 
   printf ("SUCCESS: All %d elements match with offset=%d after reopen\n", N_ELEMS, OFFSET);
 

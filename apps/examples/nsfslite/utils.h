@@ -18,19 +18,19 @@ int_random (size_t size)
   return ret;
 }
 
-#define COMPARE(left, right, size)                                                              \
-  do                                                                                            \
-    {                                                                                           \
-      for (size_t i = 0; i < size; i++)                                                         \
-        {                                                                                       \
-          if (left[i] != right[i])                                                              \
-            {                                                                                   \
-              fprintf (stderr, "Mismatch at %zu: expected %d, got %d\n", i, left[i], right[i]); \
-              ret = -1;                                                                         \
-              goto cleanup;                                                                     \
-            }                                                                                   \
-        }                                                                                       \
-    }                                                                                           \
+#define COMPARE(left, right, size)                                                                  \
+  do                                                                                                \
+    {                                                                                               \
+      for (size_t i = 0; i < size; i++)                                                             \
+        {                                                                                           \
+          if ((left)[i] != (right)[i])                                                              \
+            {                                                                                       \
+              fprintf (stderr, "Mismatch at %zu: expected %d, got %d\n", i, (left)[i], (right)[i]); \
+              ret = -1;                                                                             \
+              goto cleanup;                                                                         \
+            }                                                                                       \
+        }                                                                                           \
+    }                                                                                               \
   while (0)
 
 #define CHECK(expr)                                                         \
