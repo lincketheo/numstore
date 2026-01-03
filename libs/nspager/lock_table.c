@@ -47,9 +47,6 @@ lt_lock_init_key_from_txn (struct lt_lock *dest)
     case LOCK_FSTMBST:
     case LOCK_MSLSN:
     case LOCK_VHP:
-      {
-        break;
-      }
     case LOCK_VHPOS:
       {
         hcodelen += i_memcpy (&hcode[hcodelen], &dest->data.vhpos, sizeof (dest->data.vhpos));
@@ -234,7 +231,6 @@ lockt_lock_once (
       if (_lock == NULL)
         {
           spx_latch_unlock_x (&t->l);
-
           panic ("free lock from txn");
           return NULL;
         }
@@ -243,7 +239,6 @@ lockt_lock_once (
         {
           clck_alloc_free (&t->gr_lock_alloc, _lock);
           spx_latch_unlock_x (&t->l);
-
           panic ("free lock from txn");
           return NULL;
         }
@@ -253,7 +248,6 @@ lockt_lock_once (
           gr_lock_destroy (_lock);
           clck_alloc_free (&t->gr_lock_alloc, _lock);
           spx_latch_unlock_x (&t->l);
-
           panic ("free lock from txn");
           return NULL;
         }
@@ -274,7 +268,7 @@ lockt_lock_once (
 
       panic ("free txn lock!");
 
-      return lock;
+      return NULL;
     }
 
   spx_latch_unlock_x (&t->l);

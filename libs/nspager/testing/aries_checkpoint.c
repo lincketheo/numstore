@@ -42,7 +42,13 @@ TEST (TT_UNIT, aries_checkpoint_basic_recovery)
   test_fail_if (i_remove_quiet ("test.db", &e));
   test_fail_if (i_remove_quiet ("test.wal", &e));
 
-  struct pager *p = pgr_open ("test.db", "test.wal", &e);
+  struct lockt lt;
+  test_err_t_wrap (lockt_init (&lt, &e), &e);
+
+  struct thread_pool *tp = tp_open (&e);
+  test_fail_if_null (tp);
+
+  struct pager *p = pgr_open ("test.db", "test.wal", &lt, tp, &e);
   test_fail_if_null (p);
 
   u8 data[5][DL_DATA_SIZE];
@@ -80,7 +86,7 @@ TEST (TT_UNIT, aries_checkpoint_basic_recovery)
 
   // Crash and recover
   test_fail_if (pgr_crash (p, &e));
-  p = pgr_open ("test.db", "test.wal", &e);
+  p = pgr_open ("test.db", "test.wal", &lt, tp, &e);
   test_fail_if_null (p);
 
   // Verify data survived through checkpoint recovery
@@ -104,6 +110,9 @@ TEST (TT_UNIT, aries_checkpoint_basic_recovery)
   }
 
   test_err_t_wrap (pgr_close (p, &e), &e);
+
+  test_err_t_wrap (tp_free (tp, &e), &e);
+  lockt_destroy (&lt);
 }
 
 TEST (TT_UNIT, aries_checkpoint_with_active_transactions)
@@ -113,7 +122,13 @@ TEST (TT_UNIT, aries_checkpoint_with_active_transactions)
   test_fail_if (i_remove_quiet ("test.db", &e));
   test_fail_if (i_remove_quiet ("test.wal", &e));
 
-  struct pager *p = pgr_open ("test.db", "test.wal", &e);
+  struct lockt lt;
+  test_err_t_wrap (lockt_init (&lt, &e), &e);
+
+  struct thread_pool *tp = tp_open (&e);
+  test_fail_if_null (tp);
+
+  struct pager *p = pgr_open ("test.db", "test.wal", &lt, tp, &e);
   test_fail_if_null (p);
 
   u8 data1[3][DL_DATA_SIZE];
@@ -157,7 +172,7 @@ TEST (TT_UNIT, aries_checkpoint_with_active_transactions)
 
   // Crash with uncommitted transaction
   test_fail_if (pgr_crash (p, &e));
-  p = pgr_open ("test.db", "test.wal", &e);
+  p = pgr_open ("test.db", "test.wal", &lt, tp, &e);
   test_fail_if_null (p);
 
   // Verify: tx1 data should survive, tx2 should be rolled back
@@ -192,6 +207,9 @@ TEST (TT_UNIT, aries_checkpoint_with_active_transactions)
   }
 
   test_err_t_wrap (pgr_close (p, &e), &e);
+
+  test_err_t_wrap (tp_free (tp, &e), &e);
+  lockt_destroy (&lt);
 }
 
 // Test multiple checkpoints and recovery from latest
@@ -202,7 +220,13 @@ TEST (TT_UNIT, aries_checkpoint_multiple_checkpoints)
   test_fail_if (i_remove_quiet ("test.db", &e));
   test_fail_if (i_remove_quiet ("test.wal", &e));
 
-  struct pager *p = pgr_open ("test.db", "test.wal", &e);
+  struct lockt lt;
+  test_err_t_wrap (lockt_init (&lt, &e), &e);
+
+  struct thread_pool *tp = tp_open (&e);
+  test_fail_if_null (tp);
+
+  struct pager *p = pgr_open ("test.db", "test.wal", &lt, tp, &e);
   test_fail_if_null (p);
 
   u8 data1[2][DL_DATA_SIZE];
@@ -286,7 +310,7 @@ TEST (TT_UNIT, aries_checkpoint_multiple_checkpoints)
 
   // Crash and recover - should use latest checkpoint
   test_fail_if (pgr_crash (p, &e));
-  p = pgr_open ("test.db", "test.wal", &e);
+  p = pgr_open ("test.db", "test.wal", &lt, tp, &e);
   test_fail_if_null (p);
 
   // Verify all data survived
@@ -325,6 +349,9 @@ TEST (TT_UNIT, aries_checkpoint_multiple_checkpoints)
   }
 
   test_err_t_wrap (pgr_close (p, &e), &e);
+
+  test_err_t_wrap (tp_free (tp, &e), &e);
+  lockt_destroy (&lt);
 }
 
 // Test checkpoint followed by post-checkpoint activity before crash
@@ -335,7 +362,13 @@ TEST (TT_UNIT, aries_checkpoint_with_post_checkpoint_activity)
   test_fail_if (i_remove_quiet ("test.db", &e));
   test_fail_if (i_remove_quiet ("test.wal", &e));
 
-  struct pager *p = pgr_open ("test.db", "test.wal", &e);
+  struct lockt lt;
+  test_err_t_wrap (lockt_init (&lt, &e), &e);
+
+  struct thread_pool *tp = tp_open (&e);
+  test_fail_if_null (tp);
+
+  struct pager *p = pgr_open ("test.db", "test.wal", &lt, tp, &e);
   test_fail_if_null (p);
 
   u8 data_before[3][DL_DATA_SIZE];
@@ -380,7 +413,7 @@ TEST (TT_UNIT, aries_checkpoint_with_post_checkpoint_activity)
 
   // Crash - recovery should process checkpoint + post-checkpoint log
   test_fail_if (pgr_crash (p, &e));
-  p = pgr_open ("test.db", "test.wal", &e);
+  p = pgr_open ("test.db", "test.wal", &lt, tp, &e);
   test_fail_if_null (p);
 
   // Verify both before and after checkpoint data survived
@@ -409,5 +442,8 @@ TEST (TT_UNIT, aries_checkpoint_with_post_checkpoint_activity)
   }
 
   test_err_t_wrap (pgr_close (p, &e), &e);
+
+  test_err_t_wrap (tp_free (tp, &e), &e);
+  lockt_destroy (&lt);
 }
 #endif

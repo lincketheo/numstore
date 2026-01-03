@@ -686,10 +686,19 @@ TEST (TT_UNIT, pager_open)
     test_fail_if (i_remove_quiet ("test.db", &e));
     test_fail_if (i_remove_quiet ("test.wal", &e));
 
-    struct pager *p = pgr_open ("test.db", "test.wal", &e);
+    struct lockt lt;
+    test_err_t_wrap (lockt_init (&lt, &e), &e);
+
+    struct thread_pool *tp = tp_open (&e);
+    test_fail_if_null (tp);
+
+    struct pager *p = pgr_open ("test.db", "test.wal", &lt, tp, &e);
 
     test_fail_if_null (p);
     test_err_t_wrap (pgr_close (p, &e), &e);
+
+    test_err_t_wrap (tp_free (tp, &e), &e);
+    lockt_destroy (&lt);
   }
 }
 #endif
@@ -701,6 +710,12 @@ TEST (TT_UNIT, pgr_open_basic)
   test_fail_if (i_remove_quiet ("test.db", &e));
   test_fail_if (i_remove_quiet ("test.wal", &e));
 
+  struct lockt lt;
+  test_err_t_wrap (lockt_init (&lt, &e), &e);
+
+  struct thread_pool *tp = tp_open (&e);
+  test_fail_if_null (tp);
+
   i_file fp;
   test_err_t_wrap (i_open_rw (&fp, "test.db", &e), &e);
 
@@ -708,21 +723,21 @@ TEST (TT_UNIT, pgr_open_basic)
 
   /* File is shorter than page size */
   test_fail_if (i_truncate (&fp, PAGE_SIZE - 1, &e));
-  p = pgr_open ("test.db", "test.wal", &e);
+  p = pgr_open ("test.db", "test.wal", &lt, tp, &e);
   test_assert_int_equal (e.cause_code, ERR_CORRUPT);
   test_assert_equal (p, NULL);
   e.cause_code = SUCCESS;
 
   /* Half a page */
   test_fail_if (i_truncate (&fp, PAGE_SIZE / 2, &e));
-  p = pgr_open ("test.db", "test.wal", &e);
+  p = pgr_open ("test.db", "test.wal", &lt, tp, &e);
   test_assert_int_equal (e.cause_code, ERR_CORRUPT);
   test_assert_equal (p, NULL);
   e.cause_code = SUCCESS;
 
   /* 0 pages */
   test_fail_if (i_truncate (&fp, 0, &e));
-  p = pgr_open ("test.db", "test.wal", &e);
+  p = pgr_open ("test.db", "test.wal", &lt, tp, &e);
   test_assert_int_equal (e.cause_code, SUCCESS);
   test_fail_if_null (p);
   test_assert_int_equal ((int)pgr_get_npages (p), 1);
@@ -731,6 +746,9 @@ TEST (TT_UNIT, pgr_open_basic)
   /* Tear down */
   test_fail_if (i_close (&fp, &e));
   test_fail_if (i_unlink ("test.db", &e));
+
+  test_err_t_wrap (tp_free (tp, &e), &e);
+  lockt_destroy (&lt);
 }
 #endif
 
@@ -763,12 +781,21 @@ TEST (TT_UNIT, pgr_close_success)
   test_fail_if (i_remove_quiet ("test.db", &e));
   test_fail_if (i_remove_quiet ("test.wal", &e));
 
-  struct pager *p = pgr_open ("test.db", "test.wal", &e);
+  struct lockt lt;
+  test_err_t_wrap (lockt_init (&lt, &e), &e);
+
+  struct thread_pool *tp = tp_open (&e);
+  test_fail_if_null (tp);
+
+  struct pager *p = pgr_open ("test.db", "test.wal", &lt, tp, &e);
   test_fail_if_null (p);
 
   /* Delete file i_close should fail */
   test_assert_equal (pgr_close (p, &e), SUCCESS);
   test_fail_if (i_remove_quiet ("foo.db", &e));
+
+  test_err_t_wrap (tp_free (tp, &e), &e);
+  lockt_destroy (&lt);
 }
 #endif
 
@@ -1320,7 +1347,7 @@ pgr_new (page_h *dest, struct pager *p, struct txn *tx, enum page_type type, err
   err_t_wrap (pgr_get (&root_node, PG_ROOT_NODE, ROOT_PGNO, p, e), e);
 
   // S(fstmbst)
-  struct lt_lock *fstmbst = lockt_lock (p->lt, LOCK_FSTMBST, (union lt_lock_data){ 0 }, LM_S, tx, e);
+  // struct lt_lock *fstmbst = lockt_lock (p->lt, LOCK_FSTMBST, (union lt_lock_data){ 0 }, LM_S, tx, e);
 
   pgno ftpg = rn_get_first_tmbst (page_h_ro (&root_node));
   ret = pgr_make_writable (p, tx, &root_node, e);
@@ -1352,7 +1379,8 @@ pgr_new (page_h *dest, struct pager *p, struct txn *tx, enum page_type type, err
     }
 
   // S(tmbst(ftpg))
-  struct lt_lock *tmbst = lockt_lock (p->lt, LOCK_TMBST, (union lt_lock_data){ .tmbst_pg = ftpg }, LM_S, tx, e);
+  /**
+  // struct lt_lock *tmbst = lockt_lock (p->lt, LOCK_TMBST, (union lt_lock_data){ .tmbst_pg = ftpg }, LM_S, tx, e);
   if (tmbst == NULL)
     {
       pgr_cancel_w (p, &root_node);
@@ -1367,6 +1395,7 @@ pgr_new (page_h *dest, struct pager *p, struct txn *tx, enum page_type type, err
       pgr_release_no_tx (p, &root_node, PG_ROOT_NODE, e);
       return ret;
     }
+    */
 
   // Update root node's first tombstone link
   pgno ntbst = tmbst_get_next (page_h_ro (dest));

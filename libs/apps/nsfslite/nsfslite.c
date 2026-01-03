@@ -43,7 +43,8 @@ struct nsfslite_s
 {
   struct pager *p;
   struct clck_alloc cursors;
-  struct nsfsllt lt;
+  struct lockt lt;
+  struct thread_pool *tp;
   struct latch l;
   error e;
 
@@ -91,10 +92,28 @@ nsfslite_open (const char *fname, const char *recovery_fname)
       goto failed;
     }
 
+  // Initialize lock table
+  if (lockt_init (&ret->lt, &e))
+    {
+      i_free (ret);
+      goto failed;
+    }
+
+  // Initialize thread pool
+  ret->tp = tp_open (&e);
+  if (ret->tp == NULL)
+    {
+      lockt_destroy (&ret->lt);
+      i_free (ret);
+      goto failed;
+    }
+
   // Create a new pager
-  ret->p = pgr_open (fname, recovery_fname, &ret->e);
+  ret->p = pgr_open (fname, recovery_fname, &ret->lt, ret->tp, &ret->e);
   if (ret->p == NULL)
     {
+      tp_free (ret->tp, &e);
+      lockt_destroy (&ret->lt);
       i_free (ret);
       goto failed;
     }
@@ -114,16 +133,9 @@ nsfslite_open (const char *fname, const char *recovery_fname)
   if (clck_alloc_open (&ret->cursors, sizeof (union cursor), 512, &e) < 0)
     {
       pgr_close (ret->p, &e);
+      tp_free (ret->tp, &e);
+      lockt_destroy (&ret->lt);
       i_free (ret);
-      goto failed;
-    }
-
-  // Open the lock table for 2PL
-  if (nsfslt_init (&ret->lt, &e))
-    {
-      pgr_close (ret->p, &e);
-      i_free (ret);
-      clck_alloc_close (&ret->cursors);
       goto failed;
     }
 
@@ -131,9 +143,10 @@ nsfslite_open (const char *fname, const char *recovery_fname)
   if (i_mutex_create (&ret->dblock, &e) < 0)
     {
       pgr_close (ret->p, &e);
+      tp_free (ret->tp, &e);
+      lockt_destroy (&ret->lt);
       i_free (ret);
       clck_alloc_close (&ret->cursors);
-      nsfslt_destroy (&ret->lt);
       goto failed;
     }
 #endif
@@ -163,7 +176,8 @@ nsfslite_close (nsfslite *n)
 
   pgr_close (n->p, &n->e);
   clck_alloc_close (&n->cursors);
-  nsfslt_destroy (&n->lt);
+  tp_free (n->tp, &n->e);
+  lockt_destroy (&n->lt);
 
   if (n->e.cause_code < 0)
     {
@@ -507,6 +521,7 @@ nsfslite_txn *
 nsfslite_begin_txn (nsfslite *n)
 {
   error e = error_create ();
+
   struct txn *tx = i_malloc (1, sizeof *tx, &e);
   if (tx == NULL)
     {
