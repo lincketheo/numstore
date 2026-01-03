@@ -195,19 +195,15 @@ lockt_lock_once (
     struct txn *tx,
     error *e)
 {
+  // Create the new lock
   struct lt_lock *lock = txn_newlock (tx, type, data, mode, e);
   if (lock == NULL)
     {
       return NULL;
     }
 
-  // Initialize the lock key
   lt_lock_init_key_from_txn (lock);
 
-  // Lock the hash table
-  spx_latch_lock_x (&t->l);
-
-  // Find lock type that intersects this one
   struct hnode *node = adptv_htable_lookup (&t->table, &lock->lock_type_node, lt_lock_eq);
 
   struct gr_lock *_lock = NULL;
@@ -218,6 +214,10 @@ lockt_lock_once (
       // Lock already exists - try fast path
       struct lt_lock *existing = container_of (node, struct lt_lock, lock_type_node);
       _lock = existing->lock;
+      if (gr_lock (_lock, mode, e))
+        {
+          return NULL;
+        }
 
       if (!gr_trylock (_lock, mode))
         {
@@ -243,7 +243,7 @@ lockt_lock_once (
           return NULL;
         }
 
-      if (gr_lock (_lock, &(struct gr_lock_waiter){ .mode = mode }, e))
+      if (gr_lock (_lock, mode, e))
         {
           gr_lock_destroy (_lock);
           clck_alloc_free (&t->gr_lock_alloc, _lock);
@@ -296,13 +296,19 @@ get_parent_mode (enum lock_mode child_mode)
     {
     case LM_IS:
     case LM_S:
-      return LM_IS;
+      {
+        return LM_IS;
+      }
     case LM_IX:
     case LM_SIX:
     case LM_X:
-      return LM_IX;
+      {
+        return LM_IX;
+      }
     case LM_COUNT:
-      UNREACHABLE ();
+      {
+        UNREACHABLE ();
+      }
     }
   UNREACHABLE ();
 }
@@ -316,6 +322,7 @@ lockt_lock (
     struct txn *tx,
     error *e)
 {
+  // First you need to obtain a lock on the parent
   int ptype = parent_lock[type];
 
   if (ptype != -1)
@@ -330,6 +337,7 @@ lockt_lock (
         }
     }
 
+  // Then lock this node
   return lockt_lock_once (t, type, data, mode, tx, e);
 }
 
@@ -371,7 +379,7 @@ lockt_upgrade (struct lockt *t, struct lt_lock *lock, enum lock_mode new_mode, e
         }
     }
 
-  if (gr_upgrade (lock->lock, old_mode, &(struct gr_lock_waiter){ .mode = new_mode }, e))
+  if (gr_upgrade (lock->lock, old_mode, new_mode, e))
     {
       return e->cause_code;
     }

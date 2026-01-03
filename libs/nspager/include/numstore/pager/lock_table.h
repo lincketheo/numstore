@@ -39,6 +39,9 @@ struct lockt
 err_t lockt_init (struct lockt *t, error *e);
 void lockt_destroy (struct lockt *t);
 
+/**
+ * Locks are allocated by tx and appended to the tx list
+ */
 struct lt_lock *lockt_lock (
     struct lockt *t,
     enum lt_lock_type type,  // The type of lock you want to acquire

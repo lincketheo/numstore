@@ -50,8 +50,8 @@ struct gr_lock
 err_t gr_lock_init (struct gr_lock *l, error *e);
 void gr_lock_destroy (struct gr_lock *l);
 
-err_t gr_lock (struct gr_lock *l, struct gr_lock_waiter *waiter, error *e);
+err_t gr_lock (struct gr_lock *l, enum lock_mode mode, error *e);
 bool gr_trylock (struct gr_lock *l, enum lock_mode mode);
 bool gr_unlock (struct gr_lock *l, enum lock_mode mode);
-err_t gr_upgrade (struct gr_lock *l, enum lock_mode old_mode, struct gr_lock_waiter *waiter, error *e);
+err_t gr_upgrade (struct gr_lock *l, enum lock_mode old_mode, enum lock_mode new_mode, error *e);
 const char *gr_lock_mode_name (enum lock_mode mode);
