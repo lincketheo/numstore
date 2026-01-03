@@ -17,6 +17,7 @@
  *   TODO: Add description for gr_lock.c
  */
 
+#include "numstore/core/assert.h"
 #include <numstore/core/gr_lock.h>
 
 #include <numstore/intf/os.h>
@@ -182,6 +183,51 @@ gr_unlock (struct gr_lock *l, enum lock_mode mode)
   return is_last;
 }
 
+err_t
+gr_upgrade (struct gr_lock *l, enum lock_mode old_mode, struct gr_lock_waiter *waiter, error *e)
+{
+  ASSERT (l);
+  ASSERT (waiter);
+  ASSERT (waiter->mode > old_mode);
+
+  i_mutex_lock (&l->mutex);
+
+  ASSERT (l->holder_counts[old_mode] > 0);
+
+  l->holder_counts[old_mode]--;
+
+  while (!is_compatible (l, waiter->mode))
+    {
+      err_t result = i_cond_create (&waiter->cond, e);
+      if (result != SUCCESS)
+        {
+          l->holder_counts[old_mode]++;
+          i_mutex_unlock (&l->mutex);
+          return result;
+        }
+
+      waiter->next = l->waiters;
+      l->waiters = waiter;
+      i_cond_wait (&waiter->cond, &l->mutex);
+
+      struct gr_lock_waiter **ptr = &l->waiters;
+      while (*ptr)
+        {
+          if (*ptr == waiter)
+            {
+              *ptr = waiter->next;
+              break;
+            }
+          ptr = &(*ptr)->next;
+        }
+      i_cond_free (&waiter->cond);
+    }
+
+  l->holder_counts[waiter->mode]++;
+  i_mutex_unlock (&l->mutex);
+
+  return SUCCESS;
+}
 const char *
 gr_lock_mode_name (enum lock_mode mode)
 {

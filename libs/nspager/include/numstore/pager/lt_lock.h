@@ -32,15 +32,16 @@
  *
  * The lock hierarchy goes:
  *
- * database:
- *   root page (page 0)
- *     first tombstone
- *     master lsn
- *   var_hash_page (page 1)
- *     hash_n 
- *   variable
- *     next
- *   rptree (pgno)
+ * database: LOCK_DB
+ *   root page (page 0) LOCK_ROOT
+ *     first tombstone LOCK_FSTMBST
+ *     master lsn LOCK_MLSN
+ *   var_hash_page (page 1) LOCK_VHP
+ *     hash_n LOCK_VHPOS
+ *   variable (pgno) LOCK_VAR
+ *     next LOCK_VAR_NEXT
+ *   rptree (pgno) LOCK_RPTREE
+ *   tmbst (pgno) LOCK_TMBST
  */
 struct lt_lock
 {
@@ -72,4 +73,5 @@ struct lt_lock
   struct hnode lock_type_node; // Node for the lock type in the table
   struct lt_lock *next;        // Next lock in this transaction id
   struct spx_latch l;          // For thread safety
+  struct txn *tx;              // Parent txn
 };

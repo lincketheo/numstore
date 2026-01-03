@@ -17,6 +17,7 @@
  *   TODO: Add description for lock_table.c
  */
 
+#include "numstore/pager/lt_lock.h"
 #include "numstore/pager/txn.h"
 #include <numstore/pager/lock_table.h>
 
@@ -31,7 +32,7 @@
 #include <numstore/core/spx_latch.h>
 
 static void
-lt_lock_init_key (struct lt_lock *dest)
+lt_lock_init_key_from_txn (struct lt_lock *dest)
 {
   ASSERT (dest);
 
@@ -69,6 +70,11 @@ lt_lock_init_key (struct lt_lock *dest)
         hcodelen += i_memcpy (&hcode[hcodelen], &dest->data.rptree_root, sizeof (dest->data.rptree_root));
         break;
       }
+    case LOCK_TMBST:
+      {
+        hcodelen += i_memcpy (&hcode[hcodelen], &dest->data.tmbst_pg, sizeof (dest->data.tmbst_pg));
+        break;
+      }
     }
 
   dest->type = dest->type;
@@ -80,6 +86,15 @@ lt_lock_init_key (struct lt_lock *dest)
   };
 
   hnode_init (&dest->lock_type_node, fnv1a_hash (lock_type_hcode));
+}
+
+static void
+lt_lock_init_key (struct lt_lock *dest, enum lt_lock_type type, union lt_lock_data data)
+{
+  ASSERT (dest);
+  dest->type = type;
+  dest->data = data;
+  lt_lock_init_key_from_txn (dest);
 }
 
 static bool
@@ -131,12 +146,16 @@ lt_lock_eq (const struct hnode *left, const struct hnode *right)
       {
         return _left->data.rptree_root == _right->data.rptree_root;
       }
+    case LOCK_TMBST:
+      {
+        return _left->data.tmbst_pg == _right->data.tmbst_pg;
+      }
     }
   UNREACHABLE ();
 }
 
 err_t
-nsfslt_init (struct nsfsllt *t, error *e)
+lockt_init (struct lockt *t, error *e)
 {
   if (clck_alloc_open (&t->gr_lock_alloc, sizeof (struct gr_lock), 1000, e))
     {
@@ -163,16 +182,16 @@ nsfslt_init (struct nsfsllt *t, error *e)
 }
 
 void
-nsfslt_destroy (struct nsfsllt *t)
+lockt_destroy (struct lockt *t)
 {
   // TODO - wait for all locks?
   clck_alloc_close (&t->gr_lock_alloc);
   adptv_htable_free (&t->table);
 }
 
-err_t
-nsfslock (
-    struct nsfsllt *t,
+static struct lt_lock *
+lockt_lock_once (
+    struct lockt *t,
     enum lt_lock_type type,
     union lt_lock_data data,
     enum lock_mode mode,
@@ -182,11 +201,11 @@ nsfslock (
   struct lt_lock *lock = txn_newlock (tx, type, data, mode, e);
   if (lock == NULL)
     {
-      return e->cause_code;
+      return NULL;
     }
 
   // Initialize the lock key
-  lt_lock_init_key (lock);
+  lt_lock_init_key_from_txn (lock);
 
   // Lock the hash table
   spx_latch_lock_x (&t->l);
@@ -215,14 +234,18 @@ nsfslock (
       if (_lock == NULL)
         {
           spx_latch_unlock_x (&t->l);
-          return e->cause_code;
+
+          panic ("free lock from txn");
+          return NULL;
         }
 
       if (gr_lock_init (_lock, e))
         {
           clck_alloc_free (&t->gr_lock_alloc, _lock);
           spx_latch_unlock_x (&t->l);
-          return e->cause_code;
+
+          panic ("free lock from txn");
+          return NULL;
         }
 
       if (gr_lock (_lock, &(struct gr_lock_waiter){ .mode = mode }, e))
@@ -230,7 +253,9 @@ nsfslock (
           gr_lock_destroy (_lock);
           clck_alloc_free (&t->gr_lock_alloc, _lock);
           spx_latch_unlock_x (&t->l);
-          return e->cause_code;
+
+          panic ("free lock from txn");
+          return NULL;
         }
     }
 
@@ -249,16 +274,120 @@ nsfslock (
 
       panic ("free txn lock!");
 
-      return e->cause_code;
+      return lock;
     }
 
   spx_latch_unlock_x (&t->l);
 
+  return lock;
+}
+
+static const int parent_lock[] = {
+  [LOCK_DB] = -1,
+  [LOCK_ROOT] = LOCK_DB,
+  [LOCK_FSTMBST] = LOCK_ROOT,
+  [LOCK_MSLSN] = LOCK_ROOT,
+  [LOCK_VHP] = LOCK_DB,
+  [LOCK_VHPOS] = LOCK_VHP,
+  [LOCK_VAR] = LOCK_DB,
+  [LOCK_VAR_NEXT] = LOCK_VAR,
+  [LOCK_RPTREE] = LOCK_DB,
+  [LOCK_TMBST] = LOCK_DB,
+};
+
+static inline enum lock_mode
+get_parent_mode (enum lock_mode child_mode)
+{
+  switch (child_mode)
+    {
+    case LM_IS:
+    case LM_S:
+      return LM_IS;
+    case LM_IX:
+    case LM_SIX:
+    case LM_X:
+      return LM_IX;
+    case LM_COUNT:
+      UNREACHABLE ();
+    }
+  UNREACHABLE ();
+}
+
+struct lt_lock *
+lockt_lock (
+    struct lockt *t,
+    enum lt_lock_type type,
+    union lt_lock_data data,
+    enum lock_mode mode,
+    struct txn *tx,
+    error *e)
+{
+  int ptype = parent_lock[type];
+
+  if (ptype != -1)
+    {
+      enum lock_mode pmode = get_parent_mode (mode);
+
+      struct lt_lock *plock = lockt_lock (t, ptype, data, pmode, tx, e);
+
+      if (plock == NULL)
+        {
+          return NULL;
+        }
+    }
+
+  return lockt_lock_once (t, type, data, mode, tx, e);
+}
+
+err_t
+lockt_upgrade (struct lockt *t, struct lt_lock *lock, enum lock_mode new_mode, error *e)
+{
+  enum lock_mode old_mode = lock->mode;
+
+  // Check if this is actually an upgrade
+  if (new_mode <= old_mode)
+    {
+      // Already have sufficient lock
+      return SUCCESS;
+    }
+
+  // Check if we need to upgrade parent locks too
+  int ptype = parent_lock[lock->type];
+
+  if (ptype != -1)
+    {
+      enum lock_mode new_parent_mode = get_parent_mode (new_mode);
+      enum lock_mode old_parent_mode = get_parent_mode (old_mode);
+
+      // If parent needs upgrading, upgrade it first
+      if (new_parent_mode > old_parent_mode)
+        {
+          struct lt_lock key;
+          lt_lock_init_key (&key, ptype, lock->data);
+
+          struct hnode *_found = adptv_htable_lookup (&t->table, &key.lock_type_node, lt_lock_eq);
+          struct lt_lock *found = container_of (_found, struct lt_lock, lock_type_node);
+          ASSERT (found);
+
+          err_t ret = lockt_upgrade (t, found, new_parent_mode, e);
+          if (ret != SUCCESS)
+            {
+              return ret;
+            }
+        }
+    }
+
+  if (gr_upgrade (lock->lock, old_mode, &(struct gr_lock_waiter){ .mode = new_mode }, e))
+    {
+      return e->cause_code;
+    }
+
+  lock->mode = new_mode;
   return SUCCESS;
 }
 
 err_t
-nsfsunlock (struct nsfsllt *t, struct txn *tx, error *e)
+lockt_unlock (struct lockt *t, struct txn *tx, error *e)
 {
   ASSERT (t);
   ASSERT (tx);

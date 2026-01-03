@@ -73,6 +73,7 @@ txn_newlock (struct txn *t, enum lt_lock_type type, union lt_lock_data data, enu
   lock->type = type;
   lock->mode = mode;
   lock->data = data;
+  lock->tx = t;
 
   spx_latch_lock_x (&t->l);
 
