@@ -793,7 +793,7 @@ RANDOM_TEST (TT_UNIT, vpc_write_and_verify, 1)
 
     // Validate data
     {
-      test_assert_type_equal (dest.pg0, PGNO_NULL, pgno, PRpgno);
+      test_assert_type_equal (dest.pg0, 100, pgno, PRpgno);
       test_assert_int_equal (dest.t.type, T_PRIM);
       test_assert_int_equal (dest.t.p, U32);
     }

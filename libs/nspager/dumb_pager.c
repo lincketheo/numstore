@@ -35,7 +35,12 @@ alloc_page_frame (error *e)
 //////// Lifecycle
 
 struct pager *
-pgr_open (const char *fname, const char *walname, error *e)
+pgr_open (
+    const char *fname,
+    const char *walname,
+    struct lockt *t,
+    struct thread_pool *tp,
+    error *e)
 {
   (void)walname; // Unused - no WAL in dumb pager
 
@@ -89,12 +94,6 @@ pgr_close (struct pager *p, error *e)
   err_t ret = fpgr_close (&p->fp, e);
   i_free (p);
   return ret;
-}
-
-void
-pgr_set_thread_pool (struct thread_pool *tp)
-{
-  (void)tp; // Unused - no threading in dumb pager
 }
 
 ///////////////////////////////////////////////////
