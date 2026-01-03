@@ -32,6 +32,18 @@
 #define N_ELEMS 200000
 #define OFFSET 1000
 
+#define CHECK(expr)                                                         \
+  do                                                                        \
+    {                                                                       \
+      if ((expr) < 0)                                                       \
+        {                                                                   \
+          fprintf (stderr, "Failed: %s - %s\n", #expr, nsfslite_error (n)); \
+          ret = -1;                                                         \
+          goto cleanup;                                                     \
+        }                                                                   \
+    }                                                                       \
+  while (0)
+
 int
 main (void)
 {
@@ -57,21 +69,8 @@ main (void)
     }
 
   int64_t id = nsfslite_new (n, NULL, "data");
-  if (id < 0)
-    {
-      fprintf (stderr, "Failed to create variable: %s\n", nsfslite_error (n));
-      ret = -1;
-      goto cleanup;
-    }
-
-  if (nsfslite_write (n, id, NULL, data, sizeof (int),
-                      (struct nsfslite_stride){ .bstart = OFFSET * sizeof (int), .stride = 1, .nelems = N_ELEMS })
-      < 0)
-    {
-      fprintf (stderr, "Failed to write with offset: %s\n", nsfslite_error (n));
-      ret = -1;
-      goto cleanup;
-    }
+  CHECK (id);
+  CHECK (nsfslite_insert (n, id, NULL, data, OFFSET * sizeof (int), sizeof (int), N_ELEMS));
 
   nsfslite_close (n);
 
@@ -84,21 +83,10 @@ main (void)
     }
 
   id = nsfslite_get_id (n, "data");
-  if (id < 0)
-    {
-      fprintf (stderr, "Failed to get id: %s\n", nsfslite_error (n));
-      ret = -1;
-      goto cleanup;
-    }
+  CHECK (id);
 
-  if (nsfslite_read (n, id, read_data, sizeof (int),
-                     (struct nsfslite_stride){ .bstart = OFFSET * sizeof (int), .stride = 1, .nelems = N_ELEMS })
-      < 0)
-    {
-      fprintf (stderr, "Failed to read with offset: %s\n", nsfslite_error (n));
-      ret = -1;
-      goto cleanup;
-    }
+  struct nsfslite_stride rstride = { .bstart = OFFSET * sizeof (int), .stride = 1, .nelems = N_ELEMS };
+  CHECK (nsfslite_read (n, id, read_data, sizeof (int), rstride));
 
   for (size_t i = 0; i < N_ELEMS; i++)
     {

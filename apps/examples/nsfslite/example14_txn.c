@@ -31,6 +31,18 @@
 
 #define N_ELEMS 200000
 
+#define CHECK(expr)                                                         \
+  do                                                                        \
+    {                                                                       \
+      if ((expr) < 0)                                                       \
+        {                                                                   \
+          fprintf (stderr, "Failed: %s - %s\n", #expr, nsfslite_error (n)); \
+          ret = -1;                                                         \
+          goto cleanup;                                                     \
+        }                                                                   \
+    }                                                                       \
+  while (0)
+
 int
 main (void)
 {
@@ -56,12 +68,7 @@ main (void)
     }
 
   int64_t id = nsfslite_new (n, NULL, "data");
-  if (id < 0)
-    {
-      fprintf (stderr, "Failed to create variable: %s\n", nsfslite_error (n));
-      ret = -1;
-      goto cleanup;
-    }
+  CHECK (id);
 
   nsfslite_txn *tx = nsfslite_begin_txn (n);
   if (!tx)
@@ -71,19 +78,8 @@ main (void)
       goto cleanup;
     }
 
-  if (nsfslite_insert (n, id, tx, data, 0, sizeof (int), N_ELEMS) < 0)
-    {
-      fprintf (stderr, "Failed to insert: %s\n", nsfslite_error (n));
-      ret = -1;
-      goto cleanup;
-    }
-
-  if (nsfslite_commit (n, tx) < 0)
-    {
-      fprintf (stderr, "Failed to commit: %s\n", nsfslite_error (n));
-      ret = -1;
-      goto cleanup;
-    }
+  CHECK (nsfslite_insert (n, id, tx, data, 0, sizeof (int), N_ELEMS));
+  CHECK (nsfslite_commit (n, tx));
 
   nsfslite_close (n);
 
@@ -96,21 +92,10 @@ main (void)
     }
 
   id = nsfslite_get_id (n, "data");
-  if (id < 0)
-    {
-      fprintf (stderr, "Failed to get id: %s\n", nsfslite_error (n));
-      ret = -1;
-      goto cleanup;
-    }
+  CHECK (id);
 
-  if (nsfslite_read (n, id, read_data, sizeof (int),
-                     (struct nsfslite_stride){ .bstart = 0, .stride = 1, .nelems = N_ELEMS })
-      < 0)
-    {
-      fprintf (stderr, "Failed to read: %s\n", nsfslite_error (n));
-      ret = -1;
-      goto cleanup;
-    }
+  struct nsfslite_stride rstride = { .bstart = 0, .stride = 1, .nelems = N_ELEMS };
+  CHECK (nsfslite_read (n, id, read_data, sizeof (int), rstride));
 
   for (size_t i = 0; i < N_ELEMS; i++)
     {

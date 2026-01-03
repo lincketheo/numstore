@@ -34,6 +34,18 @@
 #define INSERT_OFFSET 10000
 #define STRIDE 2
 
+#define CHECK(expr)                                                         \
+  do                                                                        \
+    {                                                                       \
+      if ((expr) < 0)                                                       \
+        {                                                                   \
+          fprintf (stderr, "Failed: %s - %s\n", #expr, nsfslite_error (n)); \
+          ret = -1;                                                         \
+          goto cleanup;                                                     \
+        }                                                                   \
+    }                                                                       \
+  while (0)
+
 int
 main (void)
 {
@@ -64,26 +76,9 @@ main (void)
     }
 
   int64_t id = nsfslite_new (n, NULL, "data");
-  if (id < 0)
-    {
-      fprintf (stderr, "Failed to create variable: %s\n", nsfslite_error (n));
-      ret = -1;
-      goto cleanup;
-    }
-
-  if (nsfslite_insert (n, id, NULL, data, 0, sizeof (int), N_ELEMS) < 0)
-    {
-      fprintf (stderr, "Failed to insert: %s\n", nsfslite_error (n));
-      ret = -1;
-      goto cleanup;
-    }
-
-  if (nsfslite_insert (n, id, NULL, insert_data, INSERT_OFFSET * sizeof (int), sizeof (int), INSERT_COUNT) < 0)
-    {
-      fprintf (stderr, "Failed to insert in middle: %s\n", nsfslite_error (n));
-      ret = -1;
-      goto cleanup;
-    }
+  CHECK (id);
+  CHECK (nsfslite_insert (n, id, NULL, data, 0, sizeof (int), N_ELEMS));
+  CHECK (nsfslite_insert (n, id, NULL, insert_data, INSERT_OFFSET * sizeof (int), sizeof (int), INSERT_COUNT));
 
   nsfslite_close (n);
 
@@ -96,22 +91,11 @@ main (void)
     }
 
   id = nsfslite_get_id (n, "data");
-  if (id < 0)
-    {
-      fprintf (stderr, "Failed to get id: %s\n", nsfslite_error (n));
-      ret = -1;
-      goto cleanup;
-    }
+  CHECK (id);
 
   size_t read_count = (N_ELEMS + INSERT_COUNT) / STRIDE;
-  if (nsfslite_read (n, id, read_data, sizeof (int),
-                     (struct nsfslite_stride){ .bstart = 0, .stride = STRIDE, .nelems = read_count })
-      < 0)
-    {
-      fprintf (stderr, "Failed to read with stride: %s\n", nsfslite_error (n));
-      ret = -1;
-      goto cleanup;
-    }
+  struct nsfslite_stride rstride = { .bstart = 0, .stride = STRIDE, .nelems = read_count };
+  CHECK (nsfslite_read (n, id, read_data, sizeof (int), rstride));
 
   printf ("SUCCESS: Inserted %d elements in middle, read %zu with stride=%d after reopen\n", INSERT_COUNT, read_count, STRIDE);
 
