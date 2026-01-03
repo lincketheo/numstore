@@ -30,7 +30,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#define N_ELEMS 200000
+#define N_ELEMS 1000000
 #define STRIDE 5
 
 #define CHECK(expr)                                                         \
@@ -50,26 +50,24 @@ main (void)
 {
   int ret = 0;
   nsfslite *n = NULL;
-  int *insert_data = calloc (STRIDE * N_ELEMS, sizeof (int));
-  int *write_data = malloc (N_ELEMS * sizeof (int));
-  int *expected_data = calloc (STRIDE * N_ELEMS, sizeof (int));
-  int *read_data = calloc (STRIDE * N_ELEMS, sizeof (int));
+  int *insert_data = calloc (N_ELEMS, sizeof (int));
+  int *write_data = calloc (N_ELEMS, sizeof (int));
+  int *expected_data = calloc (N_ELEMS, sizeof (int));
+  int *read_data = calloc (N_ELEMS, sizeof (int));
 
-  // Fill insert_data with baseline values
-  for (size_t i = 0; i < STRIDE * N_ELEMS; i++)
+  for (size_t i = 0; i < N_ELEMS; i++)
     {
       insert_data[i] = 1000 + i;
     }
 
-  // Fill write_data with values to write at stride positions
   for (size_t i = 0; i < N_ELEMS; i++)
     {
       write_data[i] = 2000 + i;
     }
 
-  // Simulate insert, write in memory
-  memcpy (expected_data, insert_data, STRIDE * N_ELEMS * sizeof (int));
-  for (size_t i = 0; i < N_ELEMS; i++)
+  // Build expected result
+  memcpy (expected_data, insert_data, N_ELEMS * sizeof (int));
+  for (size_t i = 0; i < N_ELEMS / STRIDE; i++)
     {
       expected_data[i * STRIDE] = write_data[i];
     }
@@ -87,13 +85,9 @@ main (void)
 
   int64_t id = nsfslite_new (n, NULL, "data");
   CHECK (id);
-  CHECK (nsfslite_insert (n, id, NULL, insert_data, 0, sizeof (int), STRIDE * N_ELEMS));
+  CHECK (nsfslite_insert (n, id, NULL, insert_data, 0, sizeof (int), N_ELEMS));
 
-  struct nsfslite_stride wstride = {
-    .bstart = 0,
-    .stride = STRIDE,
-    .nelems = N_ELEMS,
-  };
+  struct nsfslite_stride wstride = { .bstart = 0, .stride = STRIDE, .nelems = N_ELEMS / STRIDE };
   CHECK (nsfslite_write (n, id, NULL, write_data, sizeof (int), wstride));
 
   nsfslite_close (n);
@@ -109,10 +103,10 @@ main (void)
   id = nsfslite_get_id (n, "data");
   CHECK (id);
 
-  struct nsfslite_stride rstride = { .bstart = 0, .stride = 1, .nelems = STRIDE * N_ELEMS };
+  struct nsfslite_stride rstride = { .bstart = 0, .stride = 1, .nelems = N_ELEMS };
   CHECK (nsfslite_read (n, id, read_data, sizeof (int), rstride));
 
-  for (size_t i = 0; i < STRIDE * N_ELEMS; i++)
+  for (size_t i = 0; i < N_ELEMS; i++)
     {
       if (expected_data[i] != read_data[i])
         {
@@ -122,7 +116,7 @@ main (void)
         }
     }
 
-  printf ("SUCCESS: All %d elements match with stride=%d after reopen\n", STRIDE * N_ELEMS, STRIDE);
+  printf ("SUCCESS: All %d elements match with stride=%d after reopen\n", N_ELEMS, STRIDE);
 
 cleanup:
   if (n)
