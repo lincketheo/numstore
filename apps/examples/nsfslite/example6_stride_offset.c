@@ -24,6 +24,7 @@
  */
 
 #include "nsfslite.h"
+#include "utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,18 +34,6 @@
 #define N_ELEMS 200000
 #define STRIDE 3
 #define OFFSET 500
-
-#define CHECK(expr)                                                         \
-  do                                                                        \
-    {                                                                       \
-      if ((expr) < 0)                                                       \
-        {                                                                   \
-          fprintf (stderr, "Failed: %s - %s\n", #expr, nsfslite_error (n)); \
-          ret = -1;                                                         \
-          goto cleanup;                                                     \
-        }                                                                   \
-    }                                                                       \
-  while (0)
 
 int
 main (void)

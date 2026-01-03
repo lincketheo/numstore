@@ -24,6 +24,7 @@
  */
 
 #include "nsfslite.h"
+#include "utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,18 +32,6 @@
 
 #define N_ELEMS 200000
 #define OFFSET 1000
-
-#define CHECK(expr)                                                         \
-  do                                                                        \
-    {                                                                       \
-      if ((expr) < 0)                                                       \
-        {                                                                   \
-          fprintf (stderr, "Failed: %s - %s\n", #expr, nsfslite_error (n)); \
-          ret = -1;                                                         \
-          goto cleanup;                                                     \
-        }                                                                   \
-    }                                                                       \
-  while (0)
 
 int
 main (void)
@@ -70,7 +59,7 @@ main (void)
 
   int64_t id = nsfslite_new (n, NULL, "data");
   CHECK (id);
-  CHECK (nsfslite_insert (n, id, NULL, data, OFFSET * sizeof (int), sizeof (int), N_ELEMS));
+  CHECK (nsfslite_insert (n, id, NULL, data, 0, sizeof (int), N_ELEMS));
 
   nsfslite_close (n);
 

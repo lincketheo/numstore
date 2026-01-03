@@ -9,6 +9,14 @@ rptof_insert (
     size_t nelem,
     error *e)
 {
+  if (bofst > c->total_size)
+    {
+      return error_causef (
+          e, ERR_INVALID_ARGUMENT,
+          "Byte range: %" PRb_size " exceeds total length: %" PRb_size "\n",
+          bofst, c->total_size);
+    }
+
   b_size nbytes = nelem * size;
   b_size written = 0;
 
