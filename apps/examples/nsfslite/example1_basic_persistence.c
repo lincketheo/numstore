@@ -32,6 +32,18 @@
 
 #define N_ELEMS 200000
 
+#define CHECK(expr)                                                         \
+  do                                                                        \
+    {                                                                       \
+      if ((expr) < 0)                                                       \
+        {                                                                   \
+          fprintf (stderr, "Failed: %s - %s\n", #expr, nsfslite_error (n)); \
+          ret = -1;                                                         \
+          goto cleanup;                                                     \
+        }                                                                   \
+    }                                                                       \
+  while (0)
+
 static inline long
 elapsed_ms (struct timespec s, struct timespec e)
 {
@@ -63,22 +75,12 @@ main (void)
     }
 
   int64_t id = nsfslite_new (n, NULL, "data");
-  if (id < 0)
-    {
-      fprintf (stderr, "Failed to create variable: %s\n", nsfslite_error (n));
-      ret = -1;
-      goto cleanup;
-    }
+  CHECK (id);
 
   struct timespec st, en;
   clock_gettime (CLOCK_MONOTONIC, &st);
 
-  if (nsfslite_insert (n, id, NULL, data, 0, sizeof (int), N_ELEMS) < 0)
-    {
-      fprintf (stderr, "Failed to insert: %s\n", nsfslite_error (n));
-      ret = -1;
-      goto cleanup;
-    }
+  CHECK (nsfslite_insert (n, id, NULL, data, 0, sizeof (int), N_ELEMS));
 
   clock_gettime (CLOCK_MONOTONIC, &en);
   printf ("Time: %ld ms\n", elapsed_ms (st, en));
@@ -93,14 +95,8 @@ main (void)
       goto cleanup;
     }
 
-  if (nsfslite_read (n, id, read_data, sizeof (int),
-                     (struct nsfslite_stride){ .bstart = 0, .stride = 1, .nelems = N_ELEMS })
-      < 0)
-    {
-      fprintf (stderr, "Failed to read: %s\n", nsfslite_error (n));
-      ret = -1;
-      goto cleanup;
-    }
+  struct nsfslite_stride rstride = { .bstart = 0, .stride = 1, .nelems = N_ELEMS };
+  CHECK (nsfslite_read (n, id, read_data, sizeof (int), rstride));
 
   for (size_t i = 0; i < N_ELEMS; i++)
     {

@@ -27,23 +27,51 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 #define N_ELEMS 200000
 #define STRIDE 3
 #define OFFSET 500
 
+#define CHECK(expr)                                                         \
+  do                                                                        \
+    {                                                                       \
+      if ((expr) < 0)                                                       \
+        {                                                                   \
+          fprintf (stderr, "Failed: %s - %s\n", #expr, nsfslite_error (n)); \
+          ret = -1;                                                         \
+          goto cleanup;                                                     \
+        }                                                                   \
+    }                                                                       \
+  while (0)
+
 int
 main (void)
 {
   int ret = 0;
   nsfslite *n = NULL;
-  int *data = malloc (N_ELEMS * sizeof (int));
+  size_t total_size = OFFSET + (N_ELEMS - 1) * STRIDE + 1;
+  int *insert_data = calloc (total_size, sizeof (int));
+  int *write_data = malloc (N_ELEMS * sizeof (int));
+  int *expected_data = calloc (total_size, sizeof (int));
   int *read_data = malloc (N_ELEMS * sizeof (int));
+
+  for (size_t i = 0; i < total_size; i++)
+    {
+      insert_data[i] = 1000 + i;
+    }
 
   for (size_t i = 0; i < N_ELEMS; i++)
     {
-      data[i] = i;
+      write_data[i] = i;
+    }
+
+  // Build expected result
+  memcpy (expected_data, insert_data, total_size * sizeof (int));
+  for (size_t i = 0; i < N_ELEMS; i++)
+    {
+      expected_data[OFFSET + i * STRIDE] = write_data[i];
     }
 
   unlink ("test6.db");
@@ -58,21 +86,11 @@ main (void)
     }
 
   int64_t id = nsfslite_new (n, NULL, "data");
-  if (id < 0)
-    {
-      fprintf (stderr, "Failed to create variable: %s\n", nsfslite_error (n));
-      ret = -1;
-      goto cleanup;
-    }
+  CHECK (id);
+  CHECK (nsfslite_insert (n, id, NULL, insert_data, 0, sizeof (int), total_size));
 
-  if (nsfslite_write (n, id, NULL, data, sizeof (int),
-                      (struct nsfslite_stride){ .bstart = OFFSET * sizeof (int), .stride = STRIDE, .nelems = N_ELEMS })
-      < 0)
-    {
-      fprintf (stderr, "Failed to write with stride+offset: %s\n", nsfslite_error (n));
-      ret = -1;
-      goto cleanup;
-    }
+  struct nsfslite_stride wstride = { .bstart = OFFSET * sizeof (int), .stride = STRIDE, .nelems = N_ELEMS };
+  CHECK (nsfslite_write (n, id, NULL, write_data, sizeof (int), wstride));
 
   nsfslite_close (n);
 
@@ -85,27 +103,16 @@ main (void)
     }
 
   id = nsfslite_get_id (n, "data");
-  if (id < 0)
-    {
-      fprintf (stderr, "Failed to get id: %s\n", nsfslite_error (n));
-      ret = -1;
-      goto cleanup;
-    }
+  CHECK (id);
 
-  if (nsfslite_read (n, id, read_data, sizeof (int),
-                     (struct nsfslite_stride){ .bstart = OFFSET * sizeof (int), .stride = STRIDE, .nelems = N_ELEMS })
-      < 0)
-    {
-      fprintf (stderr, "Failed to read with stride+offset: %s\n", nsfslite_error (n));
-      ret = -1;
-      goto cleanup;
-    }
+  struct nsfslite_stride rstride = { .bstart = OFFSET * sizeof (int), .stride = STRIDE, .nelems = N_ELEMS };
+  CHECK (nsfslite_read (n, id, read_data, sizeof (int), rstride));
 
   for (size_t i = 0; i < N_ELEMS; i++)
     {
-      if (data[i] != read_data[i])
+      if (write_data[i] != read_data[i])
         {
-          fprintf (stderr, "Mismatch at %zu: expected %d, got %d\n", i, data[i], read_data[i]);
+          fprintf (stderr, "Mismatch at %zu: expected %d, got %d\n", i, write_data[i], read_data[i]);
           ret = -1;
           goto cleanup;
         }
@@ -116,7 +123,9 @@ main (void)
 cleanup:
   if (n)
     nsfslite_close (n);
-  free (data);
+  free (insert_data);
+  free (write_data);
+  free (expected_data);
   free (read_data);
   return ret;
 }

@@ -32,6 +32,18 @@
 #define NUM_INSERTS 1000
 #define INSERT_SIZE 200
 
+#define CHECK(expr)                                                         \
+  do                                                                        \
+    {                                                                       \
+      if ((expr) < 0)                                                       \
+        {                                                                   \
+          fprintf (stderr, "Failed: %s - %s\n", #expr, nsfslite_error (n)); \
+          ret = -1;                                                         \
+          goto cleanup;                                                     \
+        }                                                                   \
+    }                                                                       \
+  while (0)
+
 int
 main (void)
 {
@@ -51,12 +63,7 @@ main (void)
     }
 
   int64_t id = nsfslite_new (n, NULL, "data");
-  if (id < 0)
-    {
-      fprintf (stderr, "Failed to create variable: %s\n", nsfslite_error (n));
-      ret = -1;
-      goto cleanup;
-    }
+  CHECK (id);
 
   size_t total_inserted = 0;
   for (size_t i = 0; i < NUM_INSERTS; i++)
@@ -66,12 +73,7 @@ main (void)
           chunk[j] = total_inserted + j;
         }
 
-      if (nsfslite_insert (n, id, NULL, chunk, total_inserted * sizeof (int), sizeof (int), INSERT_SIZE) < 0)
-        {
-          fprintf (stderr, "Failed to insert chunk %zu: %s\n", i, nsfslite_error (n));
-          ret = -1;
-          goto cleanup;
-        }
+      CHECK (nsfslite_insert (n, id, NULL, chunk, total_inserted * sizeof (int), sizeof (int), INSERT_SIZE));
 
       total_inserted += INSERT_SIZE;
     }
@@ -87,23 +89,12 @@ main (void)
     }
 
   id = nsfslite_get_id (n, "data");
-  if (id < 0)
-    {
-      fprintf (stderr, "Failed to get id: %s\n", nsfslite_error (n));
-      ret = -1;
-      goto cleanup;
-    }
+  CHECK (id);
 
   for (size_t i = 0; i < NUM_INSERTS; i++)
     {
-      if (nsfslite_read (n, id, chunk, sizeof (int),
-                         (struct nsfslite_stride){ .bstart = i * INSERT_SIZE * sizeof (int), .stride = 1, .nelems = INSERT_SIZE })
-          < 0)
-        {
-          fprintf (stderr, "Failed to read chunk %zu: %s\n", i, nsfslite_error (n));
-          ret = -1;
-          goto cleanup;
-        }
+      struct nsfslite_stride rstride = { .bstart = i * INSERT_SIZE * sizeof (int), .stride = 1, .nelems = INSERT_SIZE };
+      CHECK (nsfslite_read (n, id, chunk, sizeof (int), rstride));
 
       for (size_t j = 0; j < INSERT_SIZE; j++)
         {
