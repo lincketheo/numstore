@@ -64,52 +64,44 @@ main (void)
   unlink ("test4.db");
   unlink ("test4.wal");
 
-  n = nsfslite_open ("test4.db", "test4.wal");
-  if (!n)
-    {
-      fprintf (stderr, "Failed: nsfslite_open\n");
-      ret = -1;
-      goto cleanup;
-    }
+  // OPEN
+  CHECKN ((n = nsfslite_open ("test4.db", "test4.wal")));
 
+  // NEW VARIABLE
   int64_t id = nsfslite_new (n, NULL, "data");
   CHECK (id);
+
+  // INSERT
   CHECK (nsfslite_insert (n, id, NULL, insert_data, 0, sizeof (int), N_ELEMS));
 
+  // WRITE
   struct nsfslite_stride wstride = { .bstart = 0, .stride = STRIDE, .nelems = N_ELEMS / STRIDE };
   CHECK (nsfslite_write (n, id, NULL, write_data, sizeof (int), wstride));
 
+  // CLOSE
   nsfslite_close (n);
 
-  n = nsfslite_open ("test4.db", "test4.wal");
-  if (!n)
-    {
-      fprintf (stderr, "Failed: nsfslite_open (reopen)\n");
-      ret = -1;
-      goto cleanup;
-    }
+  // OPEN
+  CHECKN ((n = nsfslite_open ("test4.db", "test4.wal")));
 
+  // GET ID
   id = nsfslite_get_id (n, "data");
   CHECK (id);
 
+  // READ
   struct nsfslite_stride rstride = { .bstart = 0, .stride = 1, .nelems = N_ELEMS };
   CHECK (nsfslite_read (n, id, read_data, sizeof (int), rstride));
 
-  for (size_t i = 0; i < N_ELEMS; i++)
-    {
-      if (expected_data[i] != read_data[i])
-        {
-          fprintf (stderr, "Mismatch at %zu: expected %d, got %d\n", i, expected_data[i], read_data[i]);
-          ret = -1;
-          goto cleanup;
-        }
-    }
+  // COMPARE
+  COMPARE (expected_data, read_data, N_ELEMS);
 
   printf ("SUCCESS: All %d elements match with stride=%d after reopen\n", N_ELEMS, STRIDE);
 
 cleanup:
   if (n)
-    nsfslite_close (n);
+    {
+      nsfslite_close (n);
+    }
   free (insert_data);
   free (write_data);
   free (expected_data);
