@@ -41,6 +41,8 @@ main (void)
   int ret = 0;
   nsfslite *n = NULL;
   int *data = int_range (N_ELEMS);
+  int *insert_data = int_random (INSERT_COUNT);
+  int *read_data = int_random (N_ELEMS + INSERT_COUNT);
   for (size_t i = 0; i < INSERT_COUNT; i++)
     {
       insert_data[i] = 66000 + i;
@@ -55,6 +57,7 @@ main (void)
   // NEW VARIABLE
   int64_t id = nsfslite_new (n, NULL, "data");
   CHECK (id);
+
   // INSERT
   CHECK (nsfslite_insert (n, id, NULL, data, 0, sizeof (int), N_ELEMS));
   CHECK (nsfslite_insert (n, id, NULL, insert_data, INSERT_OFFSET * sizeof (int), sizeof (int), INSERT_COUNT));
@@ -69,8 +72,8 @@ main (void)
   id = nsfslite_get_id (n, "data");
   CHECK (id);
 
-  size_t read_count = (N_ELEMS + INSERT_COUNT) / STRIDE;
   // READ
+  size_t read_count = (N_ELEMS + INSERT_COUNT) / STRIDE;
   struct nsfslite_stride rstride = { .bstart = 0, .stride = STRIDE, .nelems = read_count };
   CHECK (nsfslite_read (n, id, read_data, sizeof (int), rstride));
 

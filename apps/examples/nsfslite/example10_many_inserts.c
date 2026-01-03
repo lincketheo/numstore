@@ -59,7 +59,7 @@ main (void)
         }
 
       // INSERT
-  CHECK (nsfslite_insert (n, id, NULL, chunk, total_inserted * sizeof (int), sizeof (int), INSERT_SIZE));
+      CHECK (nsfslite_insert (n, id, NULL, chunk, total_inserted * sizeof (int), sizeof (int), INSERT_SIZE));
 
       total_inserted += INSERT_SIZE;
     }
@@ -77,7 +77,7 @@ main (void)
   for (size_t i = 0; i < NUM_INSERTS; i++)
     {
       // READ
-  struct nsfslite_stride rstride = { .bstart = i * INSERT_SIZE * sizeof (int), .stride = 1, .nelems = INSERT_SIZE };
+      struct nsfslite_stride rstride = { .bstart = i * INSERT_SIZE * sizeof (int), .stride = 1, .nelems = INSERT_SIZE };
       CHECK (nsfslite_read (n, id, chunk, sizeof (int), rstride));
 
       for (size_t j = 0; j < INSERT_SIZE; j++)

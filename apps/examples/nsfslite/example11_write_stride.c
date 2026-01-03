@@ -40,6 +40,9 @@ main (void)
   int ret = 0;
   nsfslite *n = NULL;
   int *data = int_range (N_ELEMS);
+  int *write_data = int_range (WRITE_COUNT);
+  int *read_data = int_range (N_ELEMS);
+
   for (size_t i = 0; i < WRITE_COUNT; i++)
     {
       write_data[i] = 77000 + i;

@@ -38,6 +38,7 @@ main (void)
   int ret = 0;
   nsfslite *n = NULL;
   int *data = int_range (N_ELEMS);
+  int *read_data = int_random (N_ELEMS);
 
   unlink ("test14.db");
   unlink ("test14.wal");
