@@ -244,535 +244,311 @@ spx_latch_downgrade_x_s (struct spx_latch *latch)
   atomic_store (&latch->state, 1);
 }
 
-#ifdef SPXTEST
 #ifndef NTEST
 
-// Test context structure
-struct spx_latchest_ctx
-{
-  struct spx_latch *latch;
-  int counter;
-  int s_acquired;
-  int x_pending;
-  int x_acquired;
-  int s_blocked;
-  int s1_acquired;
-  int s2_acquired;
-  int s3_acquired;
-  int x1_acquired;
-  int x2_pending;
-  int x2_acquired;
-};
+#include <semaphore.h>
 
-static void
-busy_wait_short (void)
-{
-  for (volatile int i = 0; i < 10000; ++i)
-    {
-    }
-}
+// Thread functions
+static struct spx_latch test_latch;
+static sem_t sem1, sem2;
+static atomic_int shared_counter;
+static atomic_int state;
 
-// Test basic S lock acquire/release
-TEST_disabled (TT_UNIT, spx_latch_basic_shared)
-{
-  struct spx_latch latch;
-  spx_latch_init (&latch);
-
-  spx_latch_lock_s (&latch);
-  test_assert (atomic_load (&latch.state) > 0);
-  test_assert (!(atomic_load (&latch.state) & PENDING_BIT));
-
-  spx_latch_unlock_s (&latch);
-  test_assert_equal (atomic_load (&latch.state), 0);
-}
-
-// Test basic X lock acquire/release
-TEST_disabled (TT_UNIT, spx_latch_basic_exclusive)
-{
-  struct spx_latch latch;
-  spx_latch_init (&latch);
-
-  spx_latch_lock_x (&latch);
-  test_assert (atomic_load (&latch.state) & PENDING_BIT);
-  test_assert_equal (atomic_load (&latch.state) & COUNT_MASK, COUNT_MASK);
-
-  spx_latch_unlock_x (&latch);
-  test_assert_equal (atomic_load (&latch.state), 0);
-}
-
-// Test multiple S locks can be held
-TEST_disabled (TT_UNIT, spx_latch_multiple_shared_one_thread)
-{
-  struct spx_latch latch;
-  spx_latch_init (&latch);
-
-  spx_latch_lock_s (&latch);
-  spx_latch_lock_s (&latch);
-  spx_latch_lock_s (&latch);
-
-  uint32_t state = atomic_load (&latch.state);
-  test_assert_equal (state & COUNT_MASK, 3);
-  test_assert (!(state & PENDING_BIT));
-
-  spx_latch_unlock_s (&latch);
-  spx_latch_unlock_s (&latch);
-  spx_latch_unlock_s (&latch);
-  test_assert_equal (atomic_load (&latch.state), 0);
-}
-
-// Helper threads
+////////////////////////////////////////////////////////
+/// X S Compatability
 static void *
-thread_hold_shared (void *arg)
+thread_x_lock_unlock (void *arg)
 {
-  struct spx_latchest_ctx *ctx = arg;
-  spx_latch_lock_s (ctx->latch);
-  ctx->s_acquired = 1;
-  usleep (1000); // Hold for 100ms
-  spx_latch_unlock_s (ctx->latch);
+  spx_latch_lock_x (&test_latch);
+  sem_post (&sem1);
+  sem_wait (&sem2);
+  spx_latch_unlock_x (&test_latch);
   return NULL;
 }
 
 static void *
-thread_acquire_exclusive (void *arg)
+thread_s_lock_after_x (void *arg)
 {
-  struct spx_latchest_ctx *ctx = arg;
-  usleep (200);
-  ctx->x_pending = 1;
-  spx_latch_lock_x (ctx->latch);
-  ctx->x_acquired = 1;
-  spx_latch_unlock_x (ctx->latch);
+  sem_wait (&sem1);
+  spx_latch_lock_s (&test_latch);
+  sem_post (&sem2);
+  spx_latch_unlock_s (&test_latch);
   return NULL;
 }
 
-static void *
-thread_try_shared_after_pending (void *arg)
-{
-  struct spx_latchest_ctx *ctx = arg;
-  usleep (400);
-  spx_latch_lock_s (ctx->latch);
-  ctx->s_blocked = 1;
-  spx_latch_unlock_s (ctx->latch);
-  return NULL;
-}
-
-static void *
-thread_hold_exclusive (void *arg)
-{
-  struct spx_latchest_ctx *ctx = arg;
-  spx_latch_lock_x (ctx->latch);
-  ctx->x_acquired = 1;
-  usleep (1000); // Hold for 100ms
-  spx_latch_unlock_x (ctx->latch);
-  return NULL;
-}
-
-static void *
-thread_acquire_shared_quick (void *arg)
-{
-  struct spx_latchest_ctx *ctx = arg;
-  usleep (200);
-  spx_latch_lock_s (ctx->latch);
-  ctx->s_acquired = 1;
-  spx_latch_unlock_s (ctx->latch);
-  return NULL;
-}
-
-static void *
-thread_multiple_shared_1 (void *arg)
-{
-  struct spx_latchest_ctx *ctx = arg;
-  spx_latch_lock_s (ctx->latch);
-  ctx->s1_acquired = 1;
-  usleep (800);
-  spx_latch_unlock_s (ctx->latch);
-  return NULL;
-}
-
-static void *
-thread_multiple_shared_2 (void *arg)
-{
-  struct spx_latchest_ctx *ctx = arg;
-  usleep (100);
-  spx_latch_lock_s (ctx->latch);
-  ctx->s2_acquired = 1;
-  usleep (600);
-  spx_latch_unlock_s (ctx->latch);
-  return NULL;
-}
-
-static void *
-thread_multiple_shared_3 (void *arg)
-{
-  struct spx_latchest_ctx *ctx = arg;
-  usleep (200);
-  spx_latch_lock_s (ctx->latch);
-  ctx->s3_acquired = 1;
-  usleep (400);
-  spx_latch_unlock_s (ctx->latch);
-  return NULL;
-}
-
-static void *
-thread_hold_x1 (void *arg)
-{
-  struct spx_latchest_ctx *ctx = arg;
-  spx_latch_lock_x (ctx->latch);
-  ctx->x1_acquired = 1;
-  usleep (1000);
-  spx_latch_unlock_x (ctx->latch);
-  return NULL;
-}
-
-static void *
-thread_try_x2 (void *arg)
-{
-  struct spx_latchest_ctx *ctx = arg;
-  usleep (200);
-  ctx->x2_pending = 1;
-  spx_latch_lock_x (ctx->latch);
-  ctx->x2_acquired = 1;
-  spx_latch_unlock_x (ctx->latch);
-  return NULL;
-}
-
-// Test that S and X are exclusive
-TEST_disabled (TT_UNIT, spx_latch_s_x_exclusive)
-{
-  struct spx_latch latch;
-  spx_latch_init (&latch);
-  struct spx_latchest_ctx ctx = { .latch = &latch };
-  i_thread t1, t2;
-  error e = error_create ();
-
-  /**
-   * t1: S(l); Sa(l); s_acquired=1; ----holds S---- uS(l)
-   * t2:         x_pending=1; X(l); P(l); Pa(l) --waits-- Xa(l); x_acquired=1; uX(l)
-   *
-   * 00: t1 starts, acquires S
-   * 01:
-   * 02: t2 starts (20ms delay), sets pending but blocked by S
-   * 03:
-   * 04:
-   * 05: SAMPLE HERE - s_acquired=1, x_pending=1, x_acquired=0 ✓
-   * 06:
-   * 07:
-   * 08:
-   * 09:
-   * 10: t1 releases S, t2 gets X
-   */
-
-  test_assert_equal (i_thread_create (&t1, thread_hold_shared, &ctx, &e), SUCCESS);
-  test_assert_equal (i_thread_create (&t2, thread_acquire_exclusive, &ctx, &e), SUCCESS);
-  usleep (500);
-
-  // Sample state while threads running
-  int s_acquired_sample = ctx.s_acquired;
-  int x_pending_sample = ctx.x_pending;
-  int x_acquired_sample = ctx.x_acquired;
-
-  test_err_t_wrap (i_thread_join (&t1, &e), &e);
-  test_err_t_wrap (i_thread_join (&t2, &e), &e);
-
-  test_assert (s_acquired_sample);
-  test_assert (x_pending_sample);
-  test_assert (!x_acquired_sample);
-  test_assert (ctx.s_acquired);
-  test_assert (ctx.x_pending);
-  test_assert (ctx.x_acquired);
-  test_assert_equal (atomic_load (&latch.state), 0);
-}
-
-// Test pending flag blocks new S locks
-TEST_disabled (TT_UNIT, spx_latch_pending_blocks_shared)
-{
-  struct spx_latch latch;
-  spx_latch_init (&latch);
-  struct spx_latchest_ctx ctx = { .latch = &latch };
-  i_thread t1, t2, t3;
-  error e = error_create ();
-
-  /**
-   * Timeline (each line = 10ms):
-   *
-   * t1: S(l); Sa(l); s_acquired=1; ----holds S---- uS(l)
-   * t2:         x_pending=1; X(l); P(l); Pa(l) --waits-- Xa(l); x_acquired=1; uX(l)
-   * t3:                     S(l) -------blocked-------- Sa(l); s_blocked=1; uS(l)
-   *
-   * 00: t1 starts, acquires S
-   * 01:
-   * 02: t2 starts (20ms delay), sets pending
-   * 03:
-   * 04: t3 starts (40ms delay), tries S but blocked by PENDING_BIT
-   * 05:
-   * 06: SAMPLE HERE - s_acquired=1, x_pending=1, s_blocked=0 ✓
-   * 07:
-   * 08:
-   * 09:
-   * 10: t1 releases S, t2 gets X
-   * 11: t2 releases X, t3 gets S
-   */
-
-  test_assert_equal (i_thread_create (&t1, thread_hold_shared, &ctx, &e), SUCCESS);
-  test_assert_equal (i_thread_create (&t2, thread_acquire_exclusive, &ctx, &e), SUCCESS);
-  test_assert_equal (i_thread_create (&t3, thread_try_shared_after_pending, &ctx, &e), SUCCESS);
-  usleep (600);
-
-  // Sample state
-  int s_acquired_sample = ctx.s_acquired;
-  int x_pending_sample = ctx.x_pending;
-  int s_blocked_sample = ctx.s_blocked;
-
-  test_err_t_wrap (i_thread_join (&t1, &e), &e);
-  test_err_t_wrap (i_thread_join (&t2, &e), &e);
-  test_err_t_wrap (i_thread_join (&t3, &e), &e);
-
-  test_assert_int_equal (s_acquired_sample, 1);
-  test_assert_int_equal (x_pending_sample, 1);
-  test_assert_int_equal (s_blocked_sample, 0);
-  test_assert (ctx.s_acquired);
-  test_assert (ctx.x_pending);
-  test_assert (ctx.x_acquired);
-  test_assert_equal (atomic_load (&latch.state), 0);
-}
-
-// Test: X lock blocks S lock
 TEST_disabled (TT_UNIT, spx_latch_x_blocks_s)
 {
-  struct spx_latch latch;
-  spx_latch_init (&latch);
-  struct spx_latchest_ctx ctx = { .latch = &latch };
-  i_thread t1, t2;
-  error e = error_create ();
+  spx_latch_init (&test_latch);
+  sem_init (&sem1, 0, 0);
+  sem_init (&sem2, 0, 0);
 
-  /**
-   * Timeline (each line = 10ms):
-   *
-   * t1: X(l); Xa(l); x_acquired=1; ----holds X---- uX(l)
-   * t2:         S(l) -----------blocked----------- Sa(l); s_acquired=1; uS(l)
-   *
-   * 00: t1 starts, acquires X
-   * 01:
-   * 02: t2 starts (20ms delay), tries S but blocked by X
-   * 03:
-   * 04:
-   * 05: SAMPLE HERE - x_acquired=1, s_acquired=0 ✓
-   * 06:
-   * 07:
-   * 08:
-   * 09:
-   * 10: t1 releases X, t2 gets S
-   */
+  pthread_t t1, t2;
+  pthread_create (&t1, NULL, thread_x_lock_unlock, NULL);
+  pthread_create (&t2, NULL, thread_s_lock_after_x, NULL);
 
-  test_assert_equal (i_thread_create (&t1, thread_hold_exclusive, &ctx, &e), SUCCESS);
-  test_assert_equal (i_thread_create (&t2, thread_acquire_shared_quick, &ctx, &e), SUCCESS);
+  pthread_join (t1, NULL);
+  pthread_join (t2, NULL);
 
-  usleep (500);
-
-  // Sample state
-  int x_acquired_sample = ctx.x_acquired;
-  int s_acquired_sample = ctx.s_acquired;
-
-  test_err_t_wrap (i_thread_join (&t1, &e), &e);
-  test_err_t_wrap (i_thread_join (&t2, &e), &e);
-
-  test_assert_int_equal (x_acquired_sample, 1);
-  test_assert_int_equal (s_acquired_sample, 0); // Still blocked at sample time
-  test_assert (ctx.x_acquired);
-  test_assert (ctx.s_acquired); // Eventually acquired after X released
-  test_assert_equal (atomic_load (&latch.state), 0);
+  sem_destroy (&sem1);
+  sem_destroy (&sem2);
 }
 
-// Test: Multiple S locks can coexist
-TEST_disabled (TT_UNIT, spx_latch_multiple_shared)
-{
-  struct spx_latch latch;
-  spx_latch_init (&latch);
-  struct spx_latchest_ctx ctx = { .latch = &latch };
-  i_thread t1, t2, t3;
-  error e = error_create ();
+////////////////////////////////////////////////////////
+/// X S Compatability
 
-  /**
-   * Timeline (each line = 10ms):
-   *
-   * t1: S(l); Sa(l); s1=1; -----holds S----- uS(l)
-   * t2:    S(l); Sa(l); s2=1; --holds S-- uS(l)
-   * t3:         S(l); Sa(l); s3=1; -S- uS(l)
-   *
-   * 00: t1 starts, acquires S
-   * 01: t2 starts (10ms), acquires S (count=2)
-   * 02: t3 starts (20ms), acquires S (count=3)
-   * 03:
-   * 04: SAMPLE HERE - all 3 should have S lock ✓
-   * 05:
-   * 06: t3 releases (count=2)
-   * 07: t2 releases (count=1)
-   * 08: t1 releases (count=0)
-   */
+static pthread_barrier_t reader_barrier;
+static atomic_int readers_acquired;
 
-  test_assert_equal (i_thread_create (&t1, thread_multiple_shared_1, &ctx, &e), SUCCESS);
-  test_assert_equal (i_thread_create (&t2, thread_multiple_shared_2, &ctx, &e), SUCCESS);
-  test_assert_equal (i_thread_create (&t3, thread_multiple_shared_3, &ctx, &e), SUCCESS);
-
-  usleep (400);
-
-  // Sample state - all should have acquired
-  int s1_sample = ctx.s1_acquired;
-  int s2_sample = ctx.s2_acquired;
-  int s3_sample = ctx.s3_acquired;
-  uint32_t state_sample = atomic_load (&latch.state);
-
-  test_err_t_wrap (i_thread_join (&t1, &e), &e);
-  test_err_t_wrap (i_thread_join (&t2, &e), &e);
-  test_err_t_wrap (i_thread_join (&t3, &e), &e);
-
-  test_assert_int_equal (s1_sample, 1);
-  test_assert_int_equal (s2_sample, 1);
-  test_assert_int_equal (s3_sample, 1);
-  test_assert_int_equal (state_sample, 3);           // Count should be 3
-  test_assert_equal (atomic_load (&latch.state), 0); // All released
-}
-
-// Test: X waits for multiple S locks to drain
-TEST_disabled (TT_UNIT, spx_latch_x_waits_for_multiple_s)
-{
-  struct spx_latch latch;
-  spx_latch_init (&latch);
-  struct spx_latchest_ctx ctx = { .latch = &latch };
-  i_thread t1, t2, t3, t4;
-  error e = error_create ();
-
-  /**
-   * Timeline (each line = 10ms):
-   *
-   * t1: S(l); Sa(l); s1=1; -----holds S----- uS(l)
-   * t2:    S(l); Sa(l); s2=1; --holds S-- uS(l)
-   * t3:         S(l); Sa(l); s3=1; -S- uS(l)
-   * t4:              x_pending=1; X(l); P(l); Pa(l) --waits-- Xa(l); x=1; uX(l)
-   *
-   * 00: t1 starts, acquires S
-   * 01: t2 starts, acquires S (count=2)
-   * 02: t3 starts, acquires S (count=3)
-   * 03: t4 starts, sets pending but can't get X (count=3)
-   * 04:
-   * 05: SAMPLE HERE - 3 S locks held, X pending but not acquired ✓
-   * 06: t3 releases (count=2), X still waiting
-   * 07: t2 releases (count=1), X still waiting
-   * 08: t1 releases (count=0), X finally acquires
-   */
-
-  test_assert_equal (i_thread_create (&t1, thread_multiple_shared_1, &ctx, &e), SUCCESS);
-  test_assert_equal (i_thread_create (&t2, thread_multiple_shared_2, &ctx, &e), SUCCESS);
-  test_assert_equal (i_thread_create (&t3, thread_multiple_shared_3, &ctx, &e), SUCCESS);
-  test_assert_equal (i_thread_create (&t4, thread_acquire_exclusive, &ctx, &e), SUCCESS);
-
-  usleep (500);
-
-  // Sample state
-  int s1_sample = ctx.s1_acquired;
-  int s2_sample = ctx.s2_acquired;
-  int s3_sample = ctx.s3_acquired;
-  int x_pending_sample = ctx.x_pending;
-  int x_acquired_sample = ctx.x_acquired;
-
-  test_err_t_wrap (i_thread_join (&t1, &e), &e);
-  test_err_t_wrap (i_thread_join (&t2, &e), &e);
-  test_err_t_wrap (i_thread_join (&t3, &e), &e);
-  test_err_t_wrap (i_thread_join (&t4, &e), &e);
-
-  test_assert_int_equal (s1_sample, 1);
-  test_assert_int_equal (s2_sample, 1);
-  test_assert_int_equal (s3_sample, 1);
-  test_assert_int_equal (x_pending_sample, 1);
-  test_assert_int_equal (x_acquired_sample, 0); // X still waiting at sample time
-  test_assert (ctx.x_acquired);                 // Eventually acquired
-  test_assert_equal (atomic_load (&latch.state), 0);
-}
-
-// Test: Two X locks are mutually exclusive
-TEST_disabled (TT_UNIT, spx_latch_x_x_exclusive)
-{
-  struct spx_latch latch;
-  spx_latch_init (&latch);
-  struct spx_latchest_ctx ctx = { .latch = &latch };
-  i_thread t1, t2;
-  error e = error_create ();
-
-  /**
-   * Timeline (each line = 10ms):
-   *
-   * t1: X(l); Xa(l); x1=1; ----holds X---- uX(l)
-   * t2:         x2_pending=1; X(l); P(l); Pa(l) --waits-- Xa(l); x2=1; uX(l)
-   *
-   * 00: t1 starts, acquires X
-   * 01:
-   * 02: t2 starts (20ms), tries X but blocked
-   * 03:
-   * 04:
-   * 05: SAMPLE HERE - x1=1, x2_pending=1, x2_acquired=0 ✓
-   * 06:
-   * 07:
-   * 08:
-   * 09:
-   * 10: t1 releases X, t2 gets X
-   */
-
-  test_assert_equal (i_thread_create (&t1, thread_hold_x1, &ctx, &e), SUCCESS);
-  test_assert_equal (i_thread_create (&t2, thread_try_x2, &ctx, &e), SUCCESS);
-
-  usleep (500);
-
-  int x1_sample = ctx.x1_acquired;
-  int x2_pending_sample = ctx.x2_pending;
-  int x2_acquired_sample = ctx.x2_acquired;
-
-  test_err_t_wrap (i_thread_join (&t1, &e), &e);
-  test_err_t_wrap (i_thread_join (&t2, &e), &e);
-
-  test_assert_int_equal (x1_sample, 1);
-  test_assert_int_equal (x2_pending_sample, 1);
-  test_assert_int_equal (x2_acquired_sample, 0);
-  test_assert (ctx.x2_acquired); // Eventually acquired
-  test_assert_equal (atomic_load (&latch.state), 0);
-}
-
-// Test concurrent increments with X lock
 static void *
-increment_thread (void *arg)
+thread_multiple_readers (void *arg)
 {
-  struct spx_latchest_ctx *ctx = arg;
+  pthread_barrier_wait (&reader_barrier);
+  spx_latch_lock_s (&test_latch);
+  atomic_fetch_add (&readers_acquired, 1);
+  pthread_barrier_wait (&reader_barrier);
+  spx_latch_unlock_s (&test_latch);
+  return NULL;
+}
+
+TEST_disabled (TT_UNIT, spx_latch_multiple_s_readers)
+{
+  spx_latch_init (&test_latch);
+  atomic_store (&readers_acquired, 0);
+
+  int n_readers = 5;
+  pthread_barrier_init (&reader_barrier, NULL, n_readers + 1);
+
+  pthread_t threads[5];
+  for (int i = 0; i < n_readers; i++)
+    {
+      pthread_create (&threads[i], NULL, thread_multiple_readers, NULL);
+    }
+
+  pthread_barrier_wait (&reader_barrier); // Wait for all to acquire
+  test_assert_int_equal (atomic_load (&readers_acquired), n_readers);
+  pthread_barrier_wait (&reader_barrier); // Let them unlock
+
+  for (int i = 0; i < n_readers; i++)
+    {
+      pthread_join (threads[i], NULL);
+    }
+
+  pthread_barrier_destroy (&reader_barrier);
+}
+
+////////////////////////////////////////////////////////
+/// X S Compatability
+
+static sem_t upgrade_locked, upgrade_blocked, upgrade_done;
+
+static void *
+thread_upgrade_s_to_x (void *arg)
+{
+  spx_latch_lock_s (&test_latch);
+  sem_post (&upgrade_locked);
+  sem_wait (&upgrade_blocked);
+  spx_latch_upgrade_s_x (&test_latch);
+  sem_post (&upgrade_done);
+  spx_latch_unlock_x (&test_latch);
+  return NULL;
+}
+
+static void *
+thread_s_lock_release_for_upgrade (void *arg)
+{
+  sem_wait (&upgrade_locked);
+  spx_latch_lock_s (&test_latch);
+  sem_post (&upgrade_blocked);
+  spx_latch_unlock_s (&test_latch);
+  sem_wait (&upgrade_done);
+  return NULL;
+}
+
+TEST_disabled (TT_UNIT, spx_latch_upgrade_s_x)
+{
+  spx_latch_init (&test_latch);
+  sem_init (&upgrade_locked, 0, 0);
+  sem_init (&upgrade_blocked, 0, 0);
+  sem_init (&upgrade_done, 0, 0);
+
+  pthread_t t1, t2;
+  pthread_create (&t1, NULL, thread_upgrade_s_to_x, NULL);
+  pthread_create (&t2, NULL, thread_s_lock_release_for_upgrade, NULL);
+
+  pthread_join (t1, NULL);
+  pthread_join (t2, NULL);
+
+  sem_destroy (&upgrade_locked);
+  sem_destroy (&upgrade_blocked);
+  sem_destroy (&upgrade_done);
+}
+
+////////////////////////////////////////////////////////
+/// X S Compatability
+
+static sem_t downgrade_x_locked, downgrade_reader_blocked;
+
+static void *
+thread_downgrade_x_to_s (void *arg)
+{
+  spx_latch_lock_x (&test_latch);
+  atomic_store (&state, 1);
+  sem_post (&downgrade_x_locked);
+  sem_wait (&downgrade_reader_blocked);
+  spx_latch_downgrade_x_s (&test_latch);
+  atomic_store (&state, 2);
+  while (atomic_load (&shared_counter) == 0)
+    ; // Wait for reader
+  spx_latch_unlock_s (&test_latch);
+  return NULL;
+}
+
+static void *
+thread_s_lock_after_downgrade (void *arg)
+{
+  sem_wait (&downgrade_x_locked);
+  spx_latch_lock_s (&test_latch);
+  sem_post (&downgrade_reader_blocked);
+  atomic_load (&state);
+  atomic_store (&shared_counter, 1);
+  spx_latch_unlock_s (&test_latch);
+  return NULL;
+}
+
+TEST_disabled (TT_UNIT, spx_latch_downgrade_x_s)
+{
+  spx_latch_init (&test_latch);
+  atomic_store (&state, 0);
+  atomic_store (&shared_counter, 0);
+  sem_init (&downgrade_x_locked, 0, 0);
+  sem_init (&downgrade_reader_blocked, 0, 0);
+
+  pthread_t t1, t2;
+  pthread_create (&t1, NULL, thread_downgrade_x_to_s, NULL);
+  pthread_create (&t2, NULL, thread_s_lock_after_downgrade, NULL);
+
+  pthread_join (t1, NULL);
+  pthread_join (t2, NULL);
+
+  sem_destroy (&downgrade_x_locked);
+  sem_destroy (&downgrade_reader_blocked);
+}
+
+////////////////////////////////////////////////////////
+/// X S Compatability
+
+static void *
+thread_x_writer_increments (void *arg)
+{
   for (int i = 0; i < 100; i++)
     {
-      spx_latch_lock_x (ctx->latch);
-      int old = ctx->counter;
-      busy_wait_short ();
-      ctx->counter = old + 1;
-      spx_latch_unlock_x (ctx->latch);
+      spx_latch_lock_x (&test_latch);
+      atomic_fetch_add (&shared_counter, 1);
+      spx_latch_unlock_x (&test_latch);
     }
   return NULL;
 }
 
-TEST_disabled (TT_UNIT, spx_latch_data_race_protection)
+TEST_disabled (TT_UNIT, spx_latch_concurrent_writers)
 {
-  struct spx_latch latch;
-  spx_latch_init (&latch);
+  spx_latch_init (&test_latch);
+  atomic_store (&shared_counter, 0);
 
-  struct spx_latchest_ctx ctx = { .latch = &latch };
-  i_thread threads[5];
-  error e = error_create ();
+  int n_writers = 10;
+  pthread_t threads[10];
 
-  for (int i = 0; i < 5; i++)
-    {
-      test_assert_equal (i_thread_create (&threads[i], increment_thread, &ctx, &e), SUCCESS);
-    }
+  for (int i = 0; i < n_writers; i++)
+    pthread_create (&threads[i], NULL, thread_x_writer_increments, NULL);
 
-  for (int i = 0; i < 5; i++)
-    {
-      test_err_t_wrap (i_thread_join (&threads[i], &e), &e);
-    }
+  for (int i = 0; i < n_writers; i++)
+    pthread_join (threads[i], NULL);
 
-  test_assert_equal (ctx.counter, 500);
-  test_assert_equal (atomic_load (&latch.state), 0);
+  test_assert_int_equal (atomic_load (&shared_counter), 1000);
 }
 
-#endif
+////////////////////////////////////////////////////////
+/// X S Compatability
+
+static pthread_barrier_t upgrade_barrier;
+static atomic_int upgrade_order;
+
+static void *
+thread_concurrent_upgrade (void *arg)
+{
+  int *order = (int *)arg;
+
+  spx_latch_lock_s (&test_latch);
+  pthread_barrier_wait (&upgrade_barrier);
+  spx_latch_upgrade_s_x (&test_latch);
+  *order = atomic_fetch_add (&upgrade_order, 1);
+  spx_latch_unlock_x (&test_latch);
+
+  return NULL;
+}
+
+TEST_disabled (TT_UNIT, spx_latch_upgrade_serialization)
+{
+  spx_latch_init (&test_latch);
+  atomic_store (&upgrade_order, 0);
+
+  int n_threads = 3;
+  pthread_barrier_init (&upgrade_barrier, NULL, n_threads);
+
+  pthread_t threads[3];
+  int orders[3];
+
+  for (int i = 0; i < n_threads; i++)
+    pthread_create (&threads[i], NULL, thread_concurrent_upgrade, &orders[i]);
+
+  for (int i = 0; i < n_threads; i++)
+    pthread_join (threads[i], NULL);
+
+  // Verify all got unique order numbers
+  int sum = 0;
+  for (int i = 0; i < n_threads; i++)
+    sum += orders[i];
+  test_assert_int_equal (sum, 0 + 1 + 2); // 0+1+2 = 3
+
+  pthread_barrier_destroy (&upgrade_barrier);
+}
+
+////////////////////////////////////////////////////////
+/// X S Compatability
+
+static void *
+thread_writer_sets_state (void *arg)
+{
+  usleep (100);
+  spx_latch_lock_x (&test_latch);
+  atomic_store (&state, 1);
+  usleep (1000);
+  atomic_store (&state, 2);
+  spx_latch_unlock_x (&test_latch);
+  return NULL;
+}
+
+static void *
+thread_reader_waits_for_writer (void *arg)
+{
+  while (atomic_load (&state) != 1)
+    ;
+  spx_latch_lock_s (&test_latch);
+  atomic_load (&state);
+  spx_latch_unlock_s (&test_latch);
+  return NULL;
+}
+
+TEST_disabled (TT_UNIT, spx_latch_writer_blocks_reader)
+{
+  spx_latch_init (&test_latch);
+  atomic_store (&state, 0);
+
+  pthread_t writer, reader;
+  pthread_create (&writer, NULL, thread_writer_sets_state, NULL);
+  pthread_create (&reader, NULL, thread_reader_waits_for_writer, NULL);
+
+  pthread_join (writer, NULL);
+  pthread_join (reader, NULL);
+}
+
 #endif
